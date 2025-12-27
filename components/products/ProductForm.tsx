@@ -1416,8 +1416,11 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                 icon={<Box className="w-5 h-5" />}
                                 title="Embalagens e Apresentações"
                                 actions={
-                                    <Button onClick={() => handleOpenPackagingModal()} variant="outline" size="sm" className="gap-2">
-                                        <Plus className="w-4 h-4" />
+                                    <Button
+                                        onClick={() => handleOpenPackagingModal()}
+                                        className="bg-brand-600 hover:bg-brand-700 text-white rounded-full px-4 text-xs h-8 shadow-sm transition-all"
+                                    >
+                                        <Plus className="w-3.5 h-3.5 mr-1.5" />
                                         Adicionar Embalagem
                                     </Button>
                                 }

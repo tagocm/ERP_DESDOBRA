@@ -1,7 +1,13 @@
 
-import { ItemPackaging } from "@/types/product";
-import { Button } from "@/components/ui/Button";
-import { Edit2, Trash2, Package, Check, Star } from "lucide-react";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 interface PackagingListProps {
     packagings: Partial<ItemPackaging>[];
@@ -13,95 +19,102 @@ interface PackagingListProps {
 export function PackagingList({ packagings, baseUom, onEdit, onDelete }: PackagingListProps) {
     if (packagings.length === 0) {
         return (
-            <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
-                <Package className="w-10 h-10 text-gray-300 mx-auto mb-2" />
-                <p className="text-sm text-gray-500">Nenhuma embalagem cadastrada.</p>
-                <p className="text-xs text-gray-400">Adicione caixas, fardos ou outras apresentações de venda.</p>
+            <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+                <Package className="w-12 h-12 text-gray-300 mx-auto mb-3 opacitiy-50" />
+                <p className="text-sm font-semibold text-gray-500">Nenhuma embalagem cadastrada</p>
+                <p className="text-xs text-gray-400 mt-1">Adicione caixas ou fardos para organizar sua logística.</p>
             </div>
         );
     }
 
     return (
-        <div className="overflow-hidden border border-gray-200 rounded-lg">
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                    <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Embalagem</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conteúdo</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">GTIN/EAN</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 tracking-wider">PESO (g)</th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Padrão</th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
-                    </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+        <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white shadow-sm">
+            <Table>
+                <TableHeader className="bg-gray-50/50">
+                    <TableRow className="hover:bg-transparent border-gray-100">
+                        <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider">Embalagem</TableHead>
+                        <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Conteúdo</TableHead>
+                        <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider">GTIN/EAN</TableHead>
+                        <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 tracking-wider">PESOS (g)</TableHead>
+                        <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Padrão</TableHead>
+                        <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Status</TableHead>
+                        <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider text-right pr-6">Ações</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
                     {packagings.filter((p: any) => !p.deleted_at).map((pkg) => {
-                        // Find original index in the full packagings array
                         const originalIndex = packagings.findIndex(p => p === pkg);
                         return (
-                            <tr key={originalIndex} className="hover:bg-gray-50">
-                                <td className="px-6 py-4 whitespace-nowrap">
+                            <TableRow key={originalIndex} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
+                                <TableCell className="px-6 py-4">
                                     <div className="flex items-center">
-                                        <div className="flex-shrink-0 h-8 w-8 bg-brand-50 rounded flex items-center justify-center text-brand-600">
-                                            <Package className="w-4 h-4" />
+                                        <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 shadow-sm border border-brand-100/50">
+                                            <Package className="w-5 h-5" />
                                         </div>
                                         <div className="ml-4">
-                                            <div className="text-sm font-medium text-gray-900">{pkg.label}</div>
-                                            <div className="text-xs text-gray-500">{pkg.type}</div>
+                                            <div className="text-sm font-bold text-gray-900 leading-tight">{pkg.label}</div>
+                                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">{pkg.type}</div>
                                         </div>
                                     </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {pkg.qty_in_base} x {baseUom}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {pkg.gtin_ean || '-'}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    <div className="flex flex-col text-xs">
-                                        <span title="Peso Líquido">L: {pkg.net_weight_g ?? '-'}</span>
-                                        <span title="Peso Bruto">B: {pkg.gross_weight_g ?? '-'}</span>
+                                </TableCell>
+                                <TableCell className="px-6 py-4 text-center">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 text-xs font-bold border border-slate-100">
+                                        {pkg.qty_in_base} <span className="mx-1 opacity-40">×</span> {baseUom}
+                                    </span>
+                                </TableCell>
+                                <TableCell className="px-6 py-4 text-sm font-medium text-gray-500 tabular-nums">
+                                    {pkg.gtin_ean || <span className="opacity-20">—</span>}
+                                </TableCell>
+                                <TableCell className="px-6 py-4">
+                                    <div className="flex flex-col gap-0.5">
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase leading-none">Líq: <span className="text-gray-600 font-bold ml-1">{pkg.net_weight_g ?? '-'}</span></span>
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase leading-none">Brut: <span className="text-gray-900 font-bold ml-1">{pkg.gross_weight_g ?? '-'}</span></span>
                                     </div>
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-center">
+                                </TableCell>
+                                <TableCell className="px-6 py-4 text-center">
                                     {pkg.is_default_sales_unit ? (
-                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
-                                            <Star className="w-3 h-3 mr-1 fill-yellow-500 text-yellow-500" />
-                                            Padrão
-                                        </span>
+                                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100 text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                                            <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
+                                            Principal
+                                        </div>
                                     ) : null}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-center">
+                                </TableCell>
+                                <TableCell className="px-6 py-4 text-center">
                                     {pkg.is_active !== false ? (
-                                        <span className="inline-flex px-2 text-xs font-semibold leading-5 text-green-800 bg-green-100 rounded-full">
+                                        <span className="inline-flex px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-700 bg-green-50 border border-green-100 rounded-full">
                                             Ativo
                                         </span>
                                     ) : (
-                                        <span className="inline-flex px-2 text-xs font-semibold leading-5 text-gray-800 bg-gray-100 rounded-full">
+                                        <span className="inline-flex px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-gray-50 border border-gray-100 rounded-full">
                                             Inativo
                                         </span>
                                     )}
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                    <button
-                                        onClick={() => onEdit(originalIndex)}
-                                        className="text-brand-600 hover:text-brand-900 mr-4"
-                                    >
-                                        <Edit2 className="w-4 h-4" />
-                                    </button>
-                                    <button
-                                        onClick={() => onDelete(originalIndex)}
-                                        className="text-red-600 hover:text-red-900"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
-                                </td>
-                            </tr>
+                                </TableCell>
+                                <TableCell className="px-6 py-4 text-right pr-6">
+                                    <div className="flex justify-end gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => onEdit(originalIndex)}
+                                            className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
+                                        >
+                                            <Edit2 className="w-4 h-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => onDelete(originalIndex)}
+                                            className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
                         );
                     })}
-                </tbody>
-            </table>
-        </div>
+                </tbody >
+            </Table >
+        </div >
     );
 }
