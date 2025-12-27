@@ -86,7 +86,7 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
             // Refresh
             const updated = await getPaymentTerms(supabase, selectedCompany.id);
             setTerms(updated);
-            toast({ title: "Sucesso", description: "Prazo salvo com sucesso." });
+            // Toast removed - now handled by PaymentTermModal
             return true;
         } catch (e: any) {
             console.error("Save Error:", JSON.stringify(e, null, 2));

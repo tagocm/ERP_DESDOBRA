@@ -118,7 +118,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[420px]">
                 <DialogHeader>
                     <DialogTitle>{initialData ? 'Editar Embalagem' : 'Nova Embalagem'}</DialogTitle>
                     <div className="text-sm text-gray-500">
@@ -126,8 +126,9 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                     </div>
                 </DialogHeader>
 
-                <div className="grid grid-cols-2 gap-4 py-4">
-                    <div className="space-y-2">
+                <div className="grid grid-cols-12 gap-3 py-4">
+                    {/* Row 1: Tipo + Quantidade + Checkboxes */}
+                    <div className="col-span-6 space-y-2">
                         <Label>Tipo *</Label>
                         <Select
                             value={formData.type}
@@ -144,8 +145,8 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                         </Select>
                     </div>
 
-                    <div className="space-y-2">
-                        <Label>Quantidade na Base ({baseUom}) *</Label>
+                    <div className="col-span-3 space-y-2">
+                        <Label>Qtd Base *</Label>
                         <Input
                             type="number"
                             min="0.001"
@@ -160,7 +161,30 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                         {errors.qty_in_base && <p className="text-xs text-red-500">{errors.qty_in_base}</p>}
                     </div>
 
-                    <div className="col-span-2 space-y-2">
+                    {/* Checkboxes */}
+                    <div className="col-span-3 flex flex-col gap-2 justify-center pt-6">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={formData.is_default_sales_unit}
+                                onChange={(e) => handleChange('is_default_sales_unit', e.target.checked)}
+                                className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300"
+                            />
+                            <span className="text-xs font-medium text-gray-700">Padrão</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={formData.is_active}
+                                onChange={(e) => handleChange('is_active', e.target.checked)}
+                                className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300"
+                            />
+                            <span className="text-xs text-gray-700">Ativo</span>
+                        </label>
+                    </div>
+
+                    {/* Row 2: Rótulo - full width */}
+                    <div className="col-span-12 space-y-2">
                         <Label>Rótulo/Descrição *</Label>
                         <Input
                             value={formData.label}
@@ -171,7 +195,8 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                         {errors.label && <p className="text-xs text-red-500">{errors.label}</p>}
                     </div>
 
-                    <div className="space-y-2">
+                    {/* Row 3: GTIN/EAN */}
+                    <div className="col-span-12 space-y-2">
                         <Label>GTIN/EAN (Embalagem)</Label>
                         <Input
                             value={formData.gtin_ean || ''}
@@ -183,28 +208,8 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                         {errors.gtin_ean && <p className="text-xs text-red-500">{errors.gtin_ean}</p>}
                     </div>
 
-                    <div className="flex flex-col gap-4 mt-8">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={formData.is_default_sales_unit}
-                                onChange={(e) => handleChange('is_default_sales_unit', e.target.checked)}
-                                className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300"
-                            />
-                            <span className="text-sm font-medium text-gray-900">Padrão de Venda</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={formData.is_active}
-                                onChange={(e) => handleChange('is_active', e.target.checked)}
-                                className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300"
-                            />
-                            <span className="text-sm text-gray-700">Ativo</span>
-                        </label>
-                    </div>
-
-                    <div className="space-y-2">
+                    {/* Row 4: Pesos na mesma linha */}
+                    <div className="col-span-6 space-y-2">
                         <Label>Peso Líquido (g)</Label>
                         <Input
                             type="number"
@@ -214,12 +219,12 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                                 const val = e.target.value === '' ? null : parseFloat(e.target.value);
                                 handleChange('net_weight_g', val);
                             }}
-                            placeholder="Opcional"
+                            placeholder="0"
                             className="text-right no-spinners"
                         />
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="col-span-6 space-y-2">
                         <Label>Peso Bruto (g)</Label>
                         <Input
                             type="number"
@@ -229,13 +234,13 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                                 const val = e.target.value === '' ? null : parseFloat(e.target.value);
                                 handleChange('gross_weight_g', val);
                             }}
-                            placeholder="Opcional"
+                            placeholder="0"
                             className="text-right no-spinners"
                         />
                     </div>
 
-                    {/* Dimensões */}
-                    <div className="space-y-2">
+                    {/* Row 5: Dimensões - todas na mesma linha */}
+                    <div className="col-span-4 space-y-2">
                         <Label>Altura (cm)</Label>
                         <Input
                             type="number"
@@ -246,12 +251,12 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                                 const val = e.target.value === '' ? null : parseFloat(e.target.value);
                                 handleChange('height_cm', val);
                             }}
-                            placeholder="Opcional"
+                            placeholder="0"
                             className="text-right no-spinners"
                         />
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="col-span-4 space-y-2">
                         <Label>Largura (cm)</Label>
                         <Input
                             type="number"
@@ -262,12 +267,12 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                                 const val = e.target.value === '' ? null : parseFloat(e.target.value);
                                 handleChange('width_cm', val);
                             }}
-                            placeholder="Opcional"
+                            placeholder="0"
                             className="text-right no-spinners"
                         />
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="col-span-4 space-y-2">
                         <Label>Comprimento (cm)</Label>
                         <Input
                             type="number"
@@ -278,7 +283,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                                 const val = e.target.value === '' ? null : parseFloat(e.target.value);
                                 handleChange('length_cm', val);
                             }}
-                            placeholder="Opcional"
+                            placeholder="0"
                             className="text-right no-spinners"
                         />
                     </div>

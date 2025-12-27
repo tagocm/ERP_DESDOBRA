@@ -56,7 +56,7 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
                 toast({
                     title: "Sucesso",
                     description: "Prazo de pagamento salvo.",
-                    variant: "default"
+                    variant: "success"
                 });
                 onOpenChange(false);
             }

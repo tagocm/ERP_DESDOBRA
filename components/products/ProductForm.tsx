@@ -88,6 +88,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
     } as ProductFormData & { production_uom: string; batch_size: number; loss_percent: number; packagings: Partial<ItemPackaging>[] });
 
     const [packagingModalOpen, setPackagingModalOpen] = useState(false);
+    const [showNoRecipeConfirm, setShowNoRecipeConfirm] = useState(false);
     const [editingPackagingIndex, setEditingPackagingIndex] = useState<number | null>(null);
     const [packagingToDeleteIndex, setPackagingToDeleteIndex] = useState<number | null>(null);
 
@@ -403,9 +404,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
             }
 
             if (recipeLines.length === 0) {
-                if (!window.confirm("Este item é produzido mas não possui receita cadastrada. Deseja salvar mesmo assim?")) {
-                    return;
-                }
+                setShowNoRecipeConfirm(true);
+                return;
             }
         }
 
@@ -576,21 +576,31 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
 
             // 4. Upsert Packagings
             if (formData.packagings && formData.packagings.length > 0) {
-                const packagingsToUpsert = formData.packagings.map(p => ({
-                    // if it has ID, it updates. If not, insert.
-                    id: p.id, // undefined for new
-                    company_id: selectedCompany.id,
-                    item_id: savedItemId,
-                    type: p.type,
-                    label: p.label,
-                    qty_in_base: p.qty_in_base,
-                    gtin_ean: p.gtin_ean || null,
-                    net_weight_g: p.net_weight_g || null,
-                    gross_weight_g: p.gross_weight_g || null,
-                    is_default_sales_unit: p.is_default_sales_unit || false,
-                    is_active: p.is_active,
-                    deleted_at: null // ensure it is not deleted
-                }));
+                const packagingsToUpsert = formData.packagings.map(p => {
+                    const packaging: any = {
+                        company_id: selectedCompany.id,
+                        item_id: savedItemId,
+                        type: p.type,
+                        label: p.label,
+                        qty_in_base: p.qty_in_base,
+                        gtin_ean: p.gtin_ean || null,
+                        net_weight_g: p.net_weight_g || null,
+                        gross_weight_g: p.gross_weight_g || null,
+                        height_cm: p.height_cm || null,
+                        width_cm: p.width_cm || null,
+                        length_cm: p.length_cm || null,
+                        is_default_sales_unit: p.is_default_sales_unit || false,
+                        is_active: p.is_active,
+                        deleted_at: null // ensure it is not deleted
+                    };
+
+                    // Only include id if it exists (for updates)
+                    if (p.id) {
+                        packaging.id = p.id;
+                    }
+
+                    return packaging;
+                });
 
                 const { data: upsertedPackagings, error: pkgError } = await supabase
                     .from('item_packaging')
