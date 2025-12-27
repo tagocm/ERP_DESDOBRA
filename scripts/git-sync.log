@@ -131,3 +131,26 @@ After doing this, you may fix the identity used for this commit with:
 fatal: could not read Username for 'https://github.com': Device not configured
 [2025-12-27 16:30:01] Sync complete.
 [2025-12-27 17:00:00] Changes detected. Syncing to GitHub...
+[main eb1c8b6] Auto-sync: 2025-12-27 17:00:00
+ Committer: Tiago Martini <tago@MacBook-Pro-de-Tiago.local>
+Your name and email address were configured automatically based
+on your username and hostname. Please check that they are accurate.
+You can suppress this message by setting them explicitly. Run the
+following command and follow the instructions in your editor to edit
+your configuration file:
+
+    git config --global --edit
+
+After doing this, you may fix the identity used for this commit with:
+
+    git commit --amend --reset-author
+
+ 9 files changed, 1215 insertions(+), 563 deletions(-)
+ create mode 100644 components/products/CategoryManagerModal.tsx
+ create mode 100644 components/products/CategorySelector.tsx
+ create mode 100644 components/ui/Command.tsx
+ create mode 100644 lib/data/categories.ts
+ create mode 100644 supabase/migrations/20251227164500_create_product_categories.sql
+fatal: could not read Username for 'https://github.com': Device not configured
+[2025-12-27 17:00:00] Sync complete.
+[2025-12-27 17:30:00] Changes detected. Syncing to GitHub...

@@ -116,64 +116,95 @@ export function CategoryManagerModal({ onClose, onChange }: CategoryManagerModal
             </div>
 
             {/* List */}
-            <div className="flex-1 overflow-y-auto space-y-1 pr-1">
-                {isLoading ? (
-                    <div className="flex justify-center py-4"><Loader2 className="animate-spin text-gray-400" /></div>
-                ) : categories.length === 0 ? (
-                    <p className="text-center text-gray-500 py-4 text-sm">Nenhuma categoria cadastrada.</p>
-                ) : (
-                    categories.map(cat => (
-                        <div key={cat.id} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-md group border border-transparent hover:border-gray-100">
-                            {editingId === cat.id ? (
-                                <div className="flex flex-1 gap-2 items-center">
-                                    <Input
-                                        value={editName}
-                                        onChange={(e) => setEditName(e.target.value)}
-                                        className="h-8 text-sm"
-                                        autoFocus
-                                    />
-                                    <Button size="sm" onClick={() => handleUpdate(cat.id)} disabled={isUpdating}>
-                                        {isUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : "OK"}
-                                    </Button>
-                                    <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
-                                        <X className="w-3 h-3" />
-                                    </Button>
-                                </div>
+            <div className="border border-gray-200 rounded-lg overflow-hidden shadow-sm bg-white">
+                <table className="w-full text-sm text-left">
+                    <thead className="bg-gray-50/80 border-b border-gray-200">
+                        <tr>
+                            <th className="px-4 h-10 align-middle font-semibold text-xs text-gray-500 uppercase tracking-wider w-full">Nome</th>
+                            <th className="px-4 h-10 align-middle font-semibold text-xs text-gray-500 uppercase tracking-wider whitespace-nowrap text-center">Produtos</th>
+                            <th className="px-4 h-10 align-middle font-semibold text-xs text-gray-500 uppercase tracking-wider whitespace-nowrap text-right">Ações</th>
+                        </tr>
+                    </thead>
+                </table>
+                <div className="max-h-[300px] overflow-y-auto">
+                    <table className="w-full text-sm text-left">
+                        <tbody className="divide-y divide-gray-100">
+                            {isLoading ? (
+                                <tr>
+                                    <td colSpan={3} className="py-8 text-center">
+                                        <Loader2 className="animate-spin h-5 w-5 text-gray-400 mx-auto" />
+                                    </td>
+                                </tr>
+                            ) : categories.length === 0 ? (
+                                <tr>
+                                    <td colSpan={3} className="py-8 text-center text-gray-500">
+                                        Nenhuma categoria cadastrada.
+                                    </td>
+                                </tr>
                             ) : (
-                                <>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-gray-700">{cat.name}</span>
-                                        {cat.product_count! > 0 && (
-                                            <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
-                                                {cat.product_count}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => {
-                                            setEditingId(cat.id);
-                                            setEditName(cat.name);
-                                        }}>
-                                            <Edit className="w-3.5 h-3.5 text-gray-500 hover:text-blue-600" />
-                                        </Button>
-
-                                        {cat.product_count! === 0 ? (
-                                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setCategoryToDelete(cat.id)}>
-                                                <Trash2 className="w-3.5 h-3.5 text-gray-500 hover:text-red-600" />
-                                            </Button>
+                                categories.map(cat => (
+                                    <tr key={cat.id} className="group hover:bg-gray-50/60 transition-colors">
+                                        {editingId === cat.id ? (
+                                            <td colSpan={3} className="px-4 py-3 bg-blue-50/30">
+                                                <div className="flex items-center gap-2">
+                                                    <Input
+                                                        value={editName}
+                                                        onChange={(e) => setEditName(e.target.value)}
+                                                        className="h-8 text-sm bg-white shadow-none"
+                                                        autoFocus
+                                                    />
+                                                    <Button size="sm" onClick={() => handleUpdate(cat.id)} disabled={isUpdating}>
+                                                        {isUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : "Salvar"}
+                                                    </Button>
+                                                    <Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>
+                                                        <X className="w-3 h-3" />
+                                                    </Button>
+                                                </div>
+                                            </td>
                                         ) : (
-                                            <div title="Vinculada a produtos">
-                                                <Button size="icon" variant="ghost" className="h-7 w-7 opacity-50 cursor-not-allowed">
-                                                    <Trash2 className="w-3.5 h-3.5 text-gray-300" />
-                                                </Button>
-                                            </div>
+                                            <>
+                                                <td className="px-4 py-3 font-medium text-gray-700 w-full align-middle">
+                                                    {cat.name}
+                                                </td>
+                                                <td className="px-4 py-3 text-center align-middle whitespace-nowrap">
+                                                    {cat.product_count! > 0 ? (
+                                                        <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-2 text-xs font-medium rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                                                            {cat.product_count}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-gray-300 text-xs">-</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3 text-right align-middle whitespace-nowrap">
+                                                    <div className="flex justify-end items-center gap-1">
+                                                        <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => {
+                                                            setEditingId(cat.id);
+                                                            setEditName(cat.name);
+                                                        }}>
+                                                            <Edit className="w-4 h-4" />
+                                                        </Button>
+
+                                                        {cat.product_count! === 0 ? (
+                                                            <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50" onClick={() => setCategoryToDelete(cat.id)}>
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </Button>
+                                                        ) : (
+                                                            <div title="Vinculada a produtos">
+                                                                <Button size="icon" variant="ghost" className="h-8 w-8 opacity-30 cursor-not-allowed">
+                                                                    <Trash2 className="w-4 h-4 text-gray-300" />
+                                                                </Button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </>
                                         )}
-                                    </div>
-                                </>
+                                    </tr>
+                                ))
                             )}
-                        </div>
-                    ))
-                )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <ConfirmDialogDesdobra

@@ -1,6 +1,6 @@
 
 import * as React from "react"
-import { Check, ChevronsUpDown, Plus, Settings } from "lucide-react"
+import { Check, ChevronDown, Plus, Settings } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
@@ -28,9 +28,10 @@ interface CategorySelectorProps {
     value?: string; // ID
     onChange: (value: string | null) => void;
     className?: string;
+    disabled?: boolean;
 }
 
-export function CategorySelector({ value, onChange, className }: CategorySelectorProps) {
+export function CategorySelector({ value, onChange, className, disabled }: CategorySelectorProps) {
     const { toast } = useToast()
     const [open, setOpen] = React.useState(false)
     const [categories, setCategories] = React.useState<ProductCategory[]>([])
@@ -82,19 +83,35 @@ export function CategorySelector({ value, onChange, className }: CategorySelecto
 
     return (
         <div className={cn("flex items-center gap-2", className)}>
-            <Popover open={open} onOpenChange={setOpen}>
+            <Popover open={open} onOpenChange={(val) => !disabled && setOpen(val)}>
                 <PopoverTrigger asChild>
                     <Button
-                        variant="outline"
+                        variant="ghost" // Using ghost/custom to override default shadcn button styles significantly
                         role="combobox"
                         aria-expanded={open}
-                        className="w-full justify-between font-normal text-left"
+                        disabled={disabled}
+                        className={cn(
+                            "flex h-10 w-full items-center justify-between rounded-2xl border bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500",
+                            "focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2",
+                            "disabled:cursor-not-allowed disabled:opacity-50",
+                            "shadow-sm transition-all border-gray-200",
+                            "hover:bg-white hover:text-gray-900", // Override ghost hover
+                            "text-gray-900", // FORCE override Button ghost text-gray-600 to match Select (usually gray-900 or black)
+                            "font-normal", // Override Button's font-semibold
+                            "active:scale-100", // Override Button's active:scale-95
+                            disabled && "bg-gray-50",
+                            className
+                        )}
                     >
-                        {selectedCategory ? selectedCategory.name : <span className="text-muted-foreground">Selecione...</span>}
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        {selectedCategory ? (
+                            <span className="truncate">{selectedCategory.name}</span>
+                        ) : (
+                            <span className="text-gray-500">Selecione...</span>
+                        )}
+                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[300px] p-0" align="start">
+                <PopoverContent className="w-[320px] p-0 data-[state=open]:!zoom-in-100 data-[state=closed]:!zoom-out-100" align="start">
                     <Command>
                         <CommandInput
                             placeholder="Buscar categoria..."
@@ -127,10 +144,11 @@ export function CategorySelector({ value, onChange, className }: CategorySelecto
                                             onChange(cat.id === value ? null : cat.id)
                                             setOpen(false)
                                         }}
+                                        className="cursor-pointer"
                                     >
                                         <Check
                                             className={cn(
-                                                "mr-2 h-4 w-4",
+                                                "mr-2 h-4 w-4 pointer-events-none",
                                                 value === cat.id ? "opacity-100" : "opacity-0"
                                             )}
                                         />
@@ -145,7 +163,12 @@ export function CategorySelector({ value, onChange, className }: CategorySelecto
 
             <Dialog open={manageOpen} onOpenChange={setManageOpen}>
                 <DialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-10 w-10 shrink-0">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 shrink-0"
+                        disabled={disabled}
+                    >
                         <Settings className="h-4 w-4 text-gray-500" />
                     </Button>
                 </DialogTrigger>

@@ -125,8 +125,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         // Normalization Rules
         if (typeof value === 'string') {
             if (field === 'sku') finalValue = value.toUpperCase().trim();
-            if (field === 'ncm' || field === 'cest' || field === 'cfop_default') finalValue = cleanDigits(value);
-            if (field === 'ncm' || field === 'cest' || field === 'cfop_default') finalValue = cleanDigits(value);
+            if (field === 'ncm' || field === 'cest') finalValue = cleanDigits(value);
+            if (field === 'cfop_default') finalValue = cleanDigits(value).slice(0, 4);
             if (field === 'gtin_ean_base') finalValue = cleanDigits(value);
         }
 
@@ -801,27 +801,6 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             </div>
                                         </div>
 
-                                        {/* Brand & Line */}
-                                        <div className="grid grid-cols-12 gap-6">
-                                            <div className="col-span-12 md:col-span-6">
-                                                <label className="text-sm font-medium">Marca</label>
-                                                <Input
-                                                    value={formData.brand || ''}
-                                                    onChange={(e) => handleChange('brand', e.target.value)}
-                                                    placeholder="Marca"
-                                                    className="mt-1"
-                                                />
-                                            </div>
-                                            <div className="col-span-12 md:col-span-6">
-                                                <label className="text-sm font-medium">Linha / Categoria</label>
-                                                <CategorySelector
-                                                    value={formData.category_id}
-                                                    onChange={(val) => handleChange('category_id', val)}
-                                                    className="mt-1"
-                                                />
-                                            </div>
-                                        </div>
-
                                         {/* SKU / GTIN / Type Row */}
                                         <div className="grid grid-cols-12 gap-4">
                                             <div className="col-span-6 md:col-span-2">
@@ -859,6 +838,28 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
+                                            </div>
+                                        </div>
+
+                                        {/* Brand & Line */}
+                                        <div className="grid grid-cols-12 gap-6">
+                                            <div className="col-span-12 md:col-span-6">
+                                                <label className="text-sm font-medium">Marca</label>
+                                                <Input
+                                                    value={formData.brand || ''}
+                                                    onChange={(e) => handleChange('brand', e.target.value)}
+                                                    placeholder="Marca"
+                                                    className="mt-1"
+                                                />
+                                            </div>
+                                            <div className="col-span-12 md:col-span-6">
+                                                <label className="text-sm font-medium">Linha / Categoria</label>
+                                                <CategorySelector
+                                                    value={formData.category_id}
+                                                    onChange={(val) => handleChange('category_id', val)}
+                                                    className="mt-1"
+                                                    disabled={formData.type !== 'finished_good'}
+                                                />
                                             </div>
                                         </div>
 

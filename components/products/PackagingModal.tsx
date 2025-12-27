@@ -213,12 +213,13 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                     </div>
 
                     {/* Row 4: Pesos na mesma linha */}
-                    <div className="col-span-6 space-y-2">
+                    {/* Row 4: Pesos na mesma linha */}
+                    <div className="col-span-4 space-y-2">
                         <Label className="text-xs whitespace-nowrap overflow-hidden text-ellipsis">Peso Líquido (g)</Label>
                         <DecimalInput
                             value={formData.net_weight_g}
                             onChange={(val) => handleChange('net_weight_g', val)}
-                            precision={3}
+                            precision={2}
                             minPrecision={0}
                             disableDecimalShift={true}
                             placeholder="0"
@@ -226,17 +227,21 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                         />
                     </div>
 
-                    <div className="col-span-6 space-y-2">
+                    <div className="col-span-4 space-y-2">
                         <Label className="text-xs whitespace-nowrap overflow-hidden text-ellipsis">Peso Bruto (g)</Label>
                         <DecimalInput
                             value={formData.gross_weight_g}
                             onChange={(val) => handleChange('gross_weight_g', val)}
-                            precision={3}
+                            precision={2}
                             minPrecision={0}
                             disableDecimalShift={true}
                             placeholder="0"
                             className="text-right"
                         />
+                    </div>
+
+                    <div className="col-span-4 space-y-2">
+                        {/* Placeholder for alignment with dimensions */}
                     </div>
 
                     {/* Row 5: Dimensões - todas na mesma linha */}
