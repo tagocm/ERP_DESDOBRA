@@ -18,8 +18,8 @@ export default async function SalesOrdersPage({
     const supabase = await createClient();
 
     // Auth Check
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
         // redirect('/login'); // Let middleware handle this ideally
     }
 

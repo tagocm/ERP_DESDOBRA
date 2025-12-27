@@ -6,10 +6,10 @@ import { ExpedicaoClient } from "@/components/expedicao/ExpedicaoClient";
 export default async function ExpedicaoSeparacaoPage() {
     const supabase = await createClient();
 
-    // Get company from session
-    const { data: { session } } = await supabase.auth.getSession();
+    // Get authenticated user
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (!user) {
         return (
             <div className="p-8 text-center text-red-600">
                 Sessão não encontrada. Por favor, faça login novamente.
@@ -17,14 +17,14 @@ export default async function ExpedicaoSeparacaoPage() {
         );
     }
 
-    let companyId = session.user.user_metadata?.company_id;
+    let companyId = user.user_metadata?.company_id;
 
     // Fallback: fetch from DB if metadata is invalid or missing associated company
     if (!companyId) {
         const { data: member } = await supabase
             .from('company_members')
             .select('company_id')
-            .eq('auth_user_id', session.user.id)
+            .eq('auth_user_id', user.id)
             .limit(1)
             .single();
 

@@ -217,11 +217,10 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                             >
                                 {data.logo_path ? (
                                     <>
-                                        <Image
+                                        <img
                                             src={data.logo_path}
                                             alt="Logo"
-                                            fill
-                                            className="object-contain p-2"
+                                            className="absolute inset-0 w-full h-full object-contain p-2"
                                         />
                                         {isAdmin && (
                                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">

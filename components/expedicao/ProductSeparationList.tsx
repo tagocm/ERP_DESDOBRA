@@ -19,6 +19,7 @@ interface ProductItem {
 export function ProductSeparationList({ routeId }: ProductSeparationListProps) {
     const [products, setProducts] = useState<ProductItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         loadProducts();
@@ -26,16 +27,31 @@ export function ProductSeparationList({ routeId }: ProductSeparationListProps) {
 
     const loadProducts = async () => {
         setLoading(true);
+        setError(null);
         try {
             const supabase = createClient();
             const { data, error } = await supabase.rpc('get_route_product_aggregation', {
                 p_route_id: routeId
             });
 
-            if (error) throw error;
+            if (error) {
+                console.error('RPC Error:', {
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint,
+                    code: error.code
+                });
+                throw error;
+            }
             setProducts(data || []);
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error loading products:', err);
+            console.error('Error details:', {
+                message: err?.message,
+                name: err?.name,
+                stack: err?.stack
+            });
+            setError(err?.message || 'Erro ao carregar produtos da rota');
         } finally {
             setLoading(false);
         }
@@ -43,6 +59,16 @@ export function ProductSeparationList({ routeId }: ProductSeparationListProps) {
 
     if (loading) {
         return <div className="p-8 text-center text-gray-500">Carregando produtos...</div>;
+    }
+
+    if (error) {
+        return (
+            <div className="p-12 text-center">
+                <Package className="w-12 h-12 mx-auto mb-4 text-red-300" />
+                <p className="text-red-600 font-medium mb-2">Erro ao carregar produtos</p>
+                <p className="text-sm text-gray-500">{error}</p>
+            </div>
+        );
     }
 
     if (!products || products.length === 0) {
