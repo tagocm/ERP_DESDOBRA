@@ -95,3 +95,21 @@ After doing this, you may fix the identity used for this commit with:
 fatal: could not read Username for 'https://github.com': Device not configured
 [2025-12-27 15:33:17] Sync complete.
 [2025-12-27 16:00:01] Changes detected. Syncing to GitHub...
+[main 384fa3d] Auto-sync: 2025-12-27 16:00:01
+ Committer: Tiago Martini <tago@MacBook-Pro-de-Tiago.local>
+Your name and email address were configured automatically based
+on your username and hostname. Please check that they are accurate.
+You can suppress this message by setting them explicitly. Run the
+following command and follow the instructions in your editor to edit
+your configuration file:
+
+    git config --global --edit
+
+After doing this, you may fix the identity used for this commit with:
+
+    git commit --amend --reset-author
+
+ 4 files changed, 104 insertions(+), 142 deletions(-)
+fatal: could not read Username for 'https://github.com': Device not configured
+[2025-12-27 16:00:01] Sync complete.
+[2025-12-27 16:30:01] Changes detected. Syncing to GitHub...

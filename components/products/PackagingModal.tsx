@@ -157,7 +157,10 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                                 const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
                                 handleChange('qty_in_base', val);
                             }}
-                            className={cn("text-right no-spinners", errors.qty_in_base && "border-red-500")}
+                            className={cn(
+                                "text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                                errors.qty_in_base && "border-red-500"
+                            )}
                         />
                         {errors.qty_in_base && <p className="text-xs text-red-500">{errors.qty_in_base}</p>}
                     </div>
@@ -217,6 +220,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                             onChange={(val) => handleChange('net_weight_g', val)}
                             precision={3}
                             minPrecision={0}
+                            disableDecimalShift={true}
                             placeholder="0"
                             className="text-right"
                         />
@@ -229,6 +233,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                             onChange={(val) => handleChange('gross_weight_g', val)}
                             precision={3}
                             minPrecision={0}
+                            disableDecimalShift={true}
                             placeholder="0"
                             className="text-right"
                         />
@@ -242,6 +247,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                             onChange={(val) => handleChange('height_cm', val)}
                             precision={2}
                             minPrecision={0}
+                            disableDecimalShift={true}
                             placeholder="0"
                             className="text-right"
                         />
@@ -254,6 +260,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                             onChange={(val) => handleChange('width_cm', val)}
                             precision={2}
                             minPrecision={0}
+                            disableDecimalShift={true}
                             placeholder="0"
                             className="text-right"
                         />
@@ -266,6 +273,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                             onChange={(val) => handleChange('length_cm', val)}
                             precision={2}
                             minPrecision={0}
+                            disableDecimalShift={true}
                             placeholder="0"
                             className="text-right"
                         />

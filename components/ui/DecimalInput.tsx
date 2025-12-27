@@ -6,10 +6,12 @@ interface DecimalInputProps extends Omit<InputProps, 'value' | 'onChange'> {
     value: number | null | undefined;
     onChange: (value: number | null) => void;
     precision?: number;
+    minPrecision?: number;
+    disableDecimalShift?: boolean;
 }
 
 export const DecimalInput = React.forwardRef<HTMLInputElement, DecimalInputProps>(
-    ({ value, onChange, precision = 2, minPrecision, onBlur, ...props }, ref) => {
+    ({ value, onChange, precision = 2, minPrecision, disableDecimalShift, onBlur, ...props }, ref) => {
         const [displayValue, setDisplayValue] = React.useState<string>("");
 
         // Formatting Helpers
@@ -56,32 +58,50 @@ export const DecimalInput = React.forwardRef<HTMLInputElement, DecimalInputProps
         }, [value, precision, minPrecision]);
 
         const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-            const raw = e.target.value;
+            if (props.disableDecimalShift) {
+                // Allow digits and comma only
+                let raw = e.target.value.replace(/[^0-9,]/g, "");
 
-            // Allow typing numbers, comma, dots (though dots are stripped in parse)
-            // But we want to block invalid chars
-            if (!/^[0-9.,]*$/.test(raw)) return;
+                // Prevent multiple commas
+                const parts = raw.split(',');
+                if (parts.length > 2) {
+                    raw = parts[0] + ',' + parts.slice(1).join('');
+                }
 
-            // If empty
-            if (!raw) {
-                setDisplayValue("");
-                onChange(null);
+                if (!raw) {
+                    setDisplayValue("");
+                    onChange(0);
+                    return;
+                }
+
+                // Format for Display: 1000 -> 1.000
+                const intPart = parts[0].replace(/^0+(?!$)/, ''); // strip leading zeros
+                const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+                const decimalPart = parts.length > 1 ? ',' + parts[1].slice(0, precision) : ''; // limit decimal chars?
+
+                setDisplayValue(formattedInt + decimalPart);
+
+                // Parse for Value
+                const parseRaw = raw.replace(',', '.');
+                onChange(parseFloat(parseRaw));
                 return;
             }
 
-            // Just update display to allow typing
-            setDisplayValue(raw);
-
-            // Parse and propagate
-            const parsed = parseString(raw);
-            if (parsed !== null && !isNaN(parsed)) {
-                onChange(parsed);
-            } else {
-                // if parsing fails (e.g. "1,,"), maybe don't call onChange or call with null?
-                // Current logic: keep display, maybe nullify value?
-                // Let's keep value if it was valid before? No, Input needs to be controlled.
-                // If invalid number, maybe don't fire onChange?
+            const raw = e.target.value.replace(/\D/g, ""); // Keep only digits
+            if (!raw) {
+                setDisplayValue("");
+                // User requirement: "deixe 0 como padrão".
+                // If I clear, should it be 0?
+                onChange(0);
+                return;
             }
+
+            const val = parseInt(raw, 10) / Math.pow(10, precision);
+            setDisplayValue(val.toLocaleString("pt-BR", {
+                minimumFractionDigits: precision,
+                maximumFractionDigits: precision,
+            }));
+            onChange(val);
         };
 
         const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
