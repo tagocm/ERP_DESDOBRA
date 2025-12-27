@@ -94,7 +94,8 @@ export type ProductFormData = {
     // Purchase
     preferred_supplier_id?: string;
     lead_time_days?: number;
-    purchase_uom?: string;
+    purchase_uom?: string; // @deprecated
+    purchase_uom_id?: string;
     conversion_factor?: number;
     purchase_notes?: string;
 
@@ -122,6 +123,7 @@ export type ProductFormData = {
     is_produced: boolean;
     default_bom_id?: string; // For future linking
     batch_size?: number;
+    production_uom_id?: string;
     production_notes?: string;
 };
 

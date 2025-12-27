@@ -138,7 +138,7 @@ export function UomSelector({ value, onChange, className, disabled }: UomSelecto
                         aria-expanded={open}
                         disabled={disabled}
                         className={cn(
-                            "flex h-9 w-full items-center justify-between rounded-2xl border bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500",
+                            "flex h-10 w-full items-center justify-between rounded-2xl border bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500",
                             "focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2",
                             "disabled:cursor-not-allowed disabled:opacity-50",
                             "shadow-sm transition-all border-gray-200",
@@ -184,12 +184,12 @@ export function UomSelector({ value, onChange, className, disabled }: UomSelecto
                                         .map((uom) => (
                                             <CommandItem
                                                 key={uom.id}
-                                                value={uom.name} // Used for internal keying mostly if filtering is off?
+                                                value={`${uom.name} ${uom.abbrev}`.toLowerCase()}
                                                 onSelect={() => {
                                                     onChange(uom.id)
                                                     setOpen(false)
                                                 }}
-                                                className="cursor-pointer"
+                                                className="cursor-pointer data-[disabled]:pointer-events-auto data-[disabled]:opacity-100"
                                             >
                                                 <Check
                                                     className={cn(
@@ -210,7 +210,7 @@ export function UomSelector({ value, onChange, className, disabled }: UomSelecto
                                     <CommandGroup>
                                         <CommandItem
                                             onSelect={handleCreateNew}
-                                            className="cursor-pointer text-brand-600 font-medium"
+                                            className="cursor-pointer text-brand-600 font-medium data-[disabled]:pointer-events-auto data-[disabled]:opacity-100"
                                         >
                                             <Plus className="mr-2 h-4 w-4" />
                                             Criar "{searchQuery}"
@@ -229,11 +229,12 @@ export function UomSelector({ value, onChange, className, disabled }: UomSelecto
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-9 w-9 rounded-xl border border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                        className="h-9 w-9 shrink-0"
+                        disabled={disabled}
                         title="Gerenciar Unidades"
                         type="button"
                     >
-                        <Settings className="h-4 w-4" />
+                        <Settings className="h-4 w-4 text-gray-500" />
                     </Button>
                 }
             />

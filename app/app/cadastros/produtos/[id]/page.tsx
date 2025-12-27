@@ -78,6 +78,7 @@ export default function ItemEditPage() {
                 preferred_supplier_id: purchase?.preferred_supplier_id || undefined,
                 lead_time_days: purchase?.lead_time_days ?? undefined,
                 purchase_uom: purchase?.purchase_uom || "",
+                purchase_uom_id: purchase?.purchase_uom_id || undefined,
                 conversion_factor: purchase?.conversion_factor ?? undefined,
                 purchase_notes: purchase?.notes || "",
 
@@ -107,6 +108,7 @@ export default function ItemEditPage() {
                 is_produced: production?.is_produced ?? false,
                 default_bom_id: production?.default_bom_id || undefined,
                 batch_size: production?.batch_size ?? undefined,
+                production_uom_id: (production as any)?.production_uom_id || undefined,
                 production_notes: production?.notes || ""
             };
 

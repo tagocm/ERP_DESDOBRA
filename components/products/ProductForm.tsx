@@ -459,7 +459,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 item_id: savedItemId,
                 preferred_supplier_id: formData.preferred_supplier_id || null,
                 lead_time_days: formData.lead_time_days || null,
-                purchase_uom: formData.purchase_uom || null,
+                purchase_uom: formData.purchase_uom || null, // Legacy
+                purchase_uom_id: formData.purchase_uom_id || null,
                 conversion_factor: formData.conversion_factor || 1,
                 notes: formData.purchase_notes || null
             }, { onConflict: 'item_id' });
@@ -495,7 +496,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 is_produced: formData.is_produced,
                 default_bom_id: recipeHeaderId || null,
                 batch_size: formProd.batch_size || 1,
-                production_uom: formProd.production_uom || "UN",
+                production_uom: formProd.production_uom || "UN", // Legacy
+                production_uom_id: formData.production_uom_id || null,
                 loss_percent: formProd.loss_percent || 0,
                 notes: formProd.production_notes || null
             }, { onConflict: 'item_id' });
@@ -1097,10 +1099,9 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                     </div>
                                     <div className="col-span-6 md:col-span-3">
                                         <label className="text-sm font-medium">Unidade de Compra</label>
-                                        <Input
-                                            value={formData.purchase_uom || ''}
-                                            onChange={(e) => handleChange('purchase_uom', e.target.value)}
-                                            placeholder="Ex: SC, FD"
+                                        <UomSelector
+                                            value={formData.purchase_uom_id}
+                                            onChange={(val) => handleChange('purchase_uom_id', val)}
                                             className="mt-1"
                                         />
                                     </div>
@@ -1247,19 +1248,11 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                     </div>
                                     <div className="col-span-12 md:col-span-4">
                                         <label className="text-sm font-medium">Unidade de Produção</label>
-                                        <Select
-                                            value={(formData as any).production_uom || 'UN'}
-                                            onValueChange={(val) => handleChange('production_uom', val)}
-                                        >
-                                            <SelectTrigger className="mt-1">
-                                                <SelectValue placeholder="Selecione..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {UOM_OPTIONS.map(u => (
-                                                    <SelectItem key={u} value={u}>{u}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <UomSelector
+                                            value={formData.production_uom_id}
+                                            onChange={(val) => handleChange('production_uom_id', val)}
+                                            className="mt-1"
+                                        />
                                         <p className="text-xs text-gray-500 mt-1">Unidade do produto final.</p>
                                     </div>
                                     <div className="col-span-12 md:col-span-4">

@@ -38,7 +38,10 @@ interface UomManagerModalProps {
 export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }: UomManagerModalProps) {
     const [internalOpen, setInternalOpen] = useState(false);
     const isOpen = controlledOpen !== undefined ? controlledOpen : internalOpen;
-    const setOpen = onOpenChange || setInternalOpen;
+    const setOpen = (val: boolean) => {
+        setInternalOpen(val);
+        if (onOpenChange) onOpenChange(val);
+    };
 
     const { selectedCompany } = useCompany();
     const { toast } = useToast();
@@ -152,7 +155,7 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
 
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
-            {trigger && <DialogTrigger>{trigger}</DialogTrigger>}
+            {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
             <DialogContent className="max-w-[800px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl">
                 <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
                     <div>
