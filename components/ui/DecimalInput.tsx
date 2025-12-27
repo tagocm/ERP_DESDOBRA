@@ -9,14 +9,14 @@ interface DecimalInputProps extends Omit<InputProps, 'value' | 'onChange'> {
 }
 
 export const DecimalInput = React.forwardRef<HTMLInputElement, DecimalInputProps>(
-    ({ value, onChange, precision = 2, onBlur, ...props }, ref) => {
+    ({ value, onChange, precision = 2, minPrecision, onBlur, ...props }, ref) => {
         const [displayValue, setDisplayValue] = React.useState<string>("");
 
         // Formatting Helpers
         const formatNumber = (val: number | null | undefined): string => {
             if (val === null || val === undefined || isNaN(val)) return "";
             return val.toLocaleString("pt-BR", {
-                minimumFractionDigits: precision,
+                minimumFractionDigits: minPrecision ?? precision,
                 maximumFractionDigits: precision,
             });
         };
@@ -32,39 +32,56 @@ export const DecimalInput = React.forwardRef<HTMLInputElement, DecimalInputProps
         // Effect: Sync from Prop to State (if prop changed externally or initially)
         React.useEffect(() => {
             const currentParsed = parseString(displayValue);
-            // Only update display if the prop value is semantically different from current display
-            // This prevents re-formatting while typing valid variations (e.g. "1," vs 1)
-            // But we must handle precision. If prop is 1.23 and display is "1,2", parsed is 1.2. Mismatch? No.
-            // Actually, parsed("1,") is 1. Prop 1. Equal.
-            // Use epsilon or exacting match?
-            // "1," -> 1. Prop 1. Ok.
-            // "1,2" -> 1.2. Prop 1.2. Ok.
-            // "1,23" -> 1.23. Prop 1.23. Ok.
-            // "1000" -> 1000. Prop 1000. Ok.
-            // "1.000" -> 1000. Prop 1000. Ok.
+            // Check formatted string equality to avoid re-renders on valid equivalent inputs
+            const formattedNew = formatNumber(value);
 
-            // What if external update?
-            if (value !== currentParsed && value !== undefined) {
-                setDisplayValue(formatNumber(value));
-            } else if (value === undefined || value === null) {
+            // If value is undefined/null, clear
+            if (value === undefined || value === null) {
                 if (displayValue !== "") setDisplayValue("");
+                return;
             }
-        }, [value, precision]); // Intentionally omitting displayValue to avoid loop, but depend on value
+
+            // If the formatting of the new value is different from current display, update.
+            // But be careful with partial inputs. This effect runs on `value` change.
+            // Ideally we only update if `value` changes significantly. 
+            // Simple check: if `value` implies a formatted string different from current display, update.
+            // BUT: if user types "1,2", value is 1.2. Format is "1,2". Equal.
+            // If user types "1,20", value 1.2. Format "1,2" (if minPrecision 0). Mismatch.
+            // If we enforce formatting, "1,20" jumps to "1,2".
+            // Let's assume we want to enforce standard format on external update.
+
+            if (currentParsed !== value) {
+                setDisplayValue(formatNumber(value));
+            }
+        }, [value, precision, minPrecision]);
 
         const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-            const raw = e.target.value.replace(/\D/g, ""); // Keep only digits
+            const raw = e.target.value;
+
+            // Allow typing numbers, comma, dots (though dots are stripped in parse)
+            // But we want to block invalid chars
+            if (!/^[0-9.,]*$/.test(raw)) return;
+
+            // If empty
             if (!raw) {
                 setDisplayValue("");
                 onChange(null);
                 return;
             }
 
-            const val = parseInt(raw, 10) / Math.pow(10, precision);
-            setDisplayValue(val.toLocaleString("pt-BR", {
-                minimumFractionDigits: precision,
-                maximumFractionDigits: precision,
-            }));
-            onChange(val);
+            // Just update display to allow typing
+            setDisplayValue(raw);
+
+            // Parse and propagate
+            const parsed = parseString(raw);
+            if (parsed !== null && !isNaN(parsed)) {
+                onChange(parsed);
+            } else {
+                // if parsing fails (e.g. "1,,"), maybe don't call onChange or call with null?
+                // Current logic: keep display, maybe nullify value?
+                // Let's keep value if it was valid before? No, Input needs to be controlled.
+                // If invalid number, maybe don't fire onChange?
+            }
         };
 
         const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
