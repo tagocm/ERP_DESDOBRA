@@ -44,6 +44,7 @@ export interface CompanySettings {
     cert_a1_uploaded_at: string | null;
     cert_a1_expires_at: string | null;
     is_cert_password_saved: boolean;
+    cert_password_encrypted?: string;
     // We do NOT return the encrypted password
 
     updated_at: string;

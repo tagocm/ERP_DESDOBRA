@@ -117,7 +117,7 @@ export function TabCertificate({ data, onChange, isAdmin }: TabCertificateProps)
         try {
             // Encrypt password
             const encrypted = await encryptPassword(certPassword);
-            onChange('cert_password_encrypted' as any, encrypted);
+            onChange('cert_password_encrypted', encrypted);
             onChange('is_cert_password_saved', true);
             setPasswordSaved(true);
             setUploadError(null);
@@ -137,7 +137,10 @@ export function TabCertificate({ data, onChange, isAdmin }: TabCertificateProps)
             if (!certPassword && !data.is_cert_password_saved) {
                 setTestResult({ valid: false, message: "Senha necessária para testar o certificado." });
             } else {
-                setTestResult({ valid: true, message: "Certificado válido! Vencimento: 31/12/2025" });
+                setTestResult({
+                    valid: true,
+                    message: "Certificado acessível e salvo! (Data de expiração será atualizada pelo servidor)"
+                });
             }
         }, 1500);
     };

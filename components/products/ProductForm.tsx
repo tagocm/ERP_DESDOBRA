@@ -89,6 +89,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
 
     const [packagingModalOpen, setPackagingModalOpen] = useState(false);
     const [showNoRecipeConfirm, setShowNoRecipeConfirm] = useState(false);
+    const [pendingSaveAndNew, setPendingSaveAndNew] = useState(false);
     const [editingPackagingIndex, setEditingPackagingIndex] = useState<number | null>(null);
     const [packagingToDeleteIndex, setPackagingToDeleteIndex] = useState<number | null>(null);
 
@@ -367,48 +368,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         }
     }, [selectedCompany, isEdit, itemId]);
 
-    const handleSave = async (saveAndNew = false) => {
-        if (!selectedCompany) return;
-
-        setSuccess(null);
-        setSubmitError(null);
-
-        // Run validation
-        const formErrors = validateForm();
-        if (Object.keys(formErrors).length > 0) {
-            setSubmitError("Existem erros no formulário. Verifique os campos em destaque.");
-
-            // Auto-switch to tab with error
-            const generalFields = ['name', 'type', 'uom', 'gtin_ean_base', 'brand', 'line'];
-            const operationsFields = ['min_stock', 'max_stock', 'conversion_factor'];
-            const fiscalFields = ['tax_group_id', 'ncm', 'cest', 'cfop_default'];
-            const productionFields = ['loss_percent'];
-
-            const hasError = (fields: string[]) => fields.some(f => !!formErrors[f]);
-
-            if (hasError(generalFields)) setActiveTab("general");
-            else if (hasError(operationsFields) && showOperations) setActiveTab("operations");
-            else if (hasError(fiscalFields) && showFiscal) setActiveTab("fiscal");
-            else if (hasError(productionFields) && showProduction) setActiveTab("production");
-
-            return;
-        }
-
-        // Validate Recipe if Produced
-        if (formData.is_produced) {
-            const invalidLines = recipeLines.filter(l => !l.component_item_id || l.qty <= 0);
-            if (invalidLines.length > 0) {
-                setSubmitError("A receita possui linhas inválidas (sem insumo ou quantidade zero).");
-                setActiveTab("production");
-                return;
-            }
-
-            if (recipeLines.length === 0) {
-                setShowNoRecipeConfirm(true);
-                return;
-            }
-        }
-
+    const executeSave = async (saveAndNew: boolean) => {
         // Apply formatting rules (Frontend)
         const finalName = toTitleCase(formData.name.trim()) || formData.name;
         const finalBrand = formData.brand ? toTitleCase(formData.brand.trim()) : null;
@@ -625,11 +585,70 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
             }
 
         } catch (error: any) {
-            console.error(error);
-            setSubmitError("Erro ao salvar: " + error.message);
+            console.error("Save Error Detailed:", error);
+            console.error("Save Error Stringified:", JSON.stringify(error, null, 2));
+
+            let msg = "Erro desconhecido";
+            if (typeof error === 'string') msg = error;
+            else if (error?.message) msg = error.message;
+            else if (error?.error_description) msg = error.error_description;
+            else if (error?.details) msg = error.details;
+
+            setSubmitError("Erro ao salvar: " + msg);
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleSave = async (saveAndNew = false) => {
+        if (!selectedCompany) return;
+
+        setSuccess(null);
+        setSubmitError(null);
+
+        // Run validation
+        const formErrors = validateForm();
+        if (Object.keys(formErrors).length > 0) {
+            setSubmitError("Existem erros no formulário. Verifique os campos em destaque.");
+
+            // Auto-switch to tab with error
+            const generalFields = ['name', 'type', 'uom', 'gtin_ean_base', 'brand', 'line'];
+            const operationsFields = ['min_stock', 'max_stock', 'conversion_factor'];
+            const fiscalFields = ['tax_group_id', 'ncm', 'cest', 'cfop_default'];
+            const productionFields = ['loss_percent'];
+
+            const hasError = (fields: string[]) => fields.some(f => !!formErrors[f]);
+
+            if (hasError(generalFields)) setActiveTab("general");
+            else if (hasError(operationsFields) && showOperations) setActiveTab("operations");
+            else if (hasError(fiscalFields) && showFiscal) setActiveTab("fiscal");
+            else if (hasError(productionFields) && showProduction) setActiveTab("production");
+
+            return;
+        }
+
+        // Validate Recipe if Produced
+        if (formData.is_produced) {
+            const invalidLines = recipeLines.filter(l => !l.component_item_id || l.qty <= 0);
+            if (invalidLines.length > 0) {
+                setSubmitError("A receita possui linhas inválidas (sem insumo ou quantidade zero).");
+                setActiveTab("production");
+                return;
+            }
+
+            if (recipeLines.length === 0) {
+                setPendingSaveAndNew(saveAndNew);
+                setShowNoRecipeConfirm(true);
+                return;
+            }
+        }
+
+        await executeSave(saveAndNew);
+    };
+
+    const handleConfirmNoRecipe = async () => {
+        setShowNoRecipeConfirm(false);
+        await executeSave(pendingSaveAndNew);
     };
 
     // --- Progressive Disclosure Logic ---
@@ -1450,6 +1469,17 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 description="Tem certeza que deseja remover esta embalagem? Esta ação não pode ser desfeita após salvar."
                 onConfirm={confirmDeletePackaging}
                 variant="danger"
+            />
+
+            <ConfirmDialogDesdobra
+                open={showNoRecipeConfirm}
+                onOpenChange={setShowNoRecipeConfirm}
+                title="Produto sem Receita"
+                description="Este item está marcado como produzido, mas não possui nenhuma receita (insumos) cadastrada. Deseja salvar mesmo assim?"
+                onConfirm={handleConfirmNoRecipe}
+                variant="warning"
+                isLoading={isLoading}
+                confirmText="Salvar Mesmo Assim"
             />
         </div>
     );

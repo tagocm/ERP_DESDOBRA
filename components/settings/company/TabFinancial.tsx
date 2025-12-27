@@ -192,16 +192,16 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
                             <h4 className="text-sm font-bold text-gray-900 tracking-tight">Prazos e Regras</h4>
                         </div>
 
-                        <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-                            <table className="min-w-full divide-y divide-gray-100">
-                                <thead className="bg-gray-50/80">
+                        <div className="overflow-hidden border border-gray-200 rounded-lg">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
                                     <tr>
-                                        <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Nome (Regra)</th>
-                                        <th scope="col" className="px-6 py-3.5 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Parcela Mínima</th>
-                                        <th scope="col" className="px-6 py-3.5 text-right text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Ações</th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome (Regra)</th>
+                                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parcela Mínima</th>
+                                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-50">
+                                <tbody className="bg-white divide-y divide-gray-200">
                                     {terms.length === 0 && (
                                         <tr>
                                             <td colSpan={3} className="px-6 py-12 text-center text-sm text-gray-400 italic">
@@ -210,22 +210,33 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
                                         </tr>
                                     )}
                                     {terms.map((term) => (
-                                        <tr key={term.id} className="hover:bg-brand-50/30 group transition-colors">
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-700">
-                                                {term.name}
+                                        <tr key={term.id} className="hover:bg-gray-50">
+                                            <td className="px-6 py-4 whitespace-nowrap">
+                                                <div className="flex items-center">
+                                                    <div className="flex-shrink-0 h-8 w-8 bg-brand-50 rounded flex items-center justify-center text-brand-600">
+                                                        <CreditCard className="w-4 h-4" />
+                                                    </div>
+                                                    <div className="ml-4">
+                                                        <div className="text-sm font-medium text-gray-900">{term.name}</div>
+                                                    </div>
+                                                </div>
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
-                                                {term.min_installment_amount ? formatCurrency(term.min_installment_amount) : <span className="text-gray-300">-</span>}
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                {term.min_installment_amount ? formatCurrency(term.min_installment_amount) : '-'}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-brand-600 hover:bg-brand-50" onClick={() => handleOpenTermModal(term)}>
-                                                        <Edit2 className="w-4 h-4" />
-                                                    </Button>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50" onClick={() => handleDeleteTerm(term.id)}>
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </Button>
-                                                </div>
+                                                <button
+                                                    onClick={() => handleOpenTermModal(term)}
+                                                    className="text-brand-600 hover:text-brand-900 mr-4"
+                                                >
+                                                    <Edit2 className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteTerm(term.id)}
+                                                    className="text-red-600 hover:text-red-900"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
