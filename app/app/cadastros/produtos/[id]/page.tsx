@@ -91,6 +91,7 @@ export default function ItemEditPage() {
                 cest: fiscal?.cest || "",
                 origin: fiscal?.origin ?? 0,
                 cfop_default: fiscal?.cfop_default || "",
+                cfop_code: fiscal?.cfop_code || undefined,
                 tax_group_id: fiscal?.tax_group_id || undefined,
                 has_fiscal_output: fiscal?.has_fiscal_output ?? false,
                 icms_rate: fiscal?.icms_rate ?? undefined,

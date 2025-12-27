@@ -93,7 +93,8 @@ export type ProductFormData = {
     ncm?: string;
     cest?: string;
     origin?: number;
-    cfop_default?: string;
+    cfop_default?: string; // @deprecated
+    cfop_code?: string;
     tax_group_id?: string;
     has_fiscal_output: boolean;
     // Simple overrides

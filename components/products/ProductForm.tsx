@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { DecimalInput } from "@/components/ui/DecimalInput";
+import { CategorySelector } from "./CategorySelector";
+import { CfopSelector } from "./CfopSelector";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Tabs, TabsContent } from "@/components/ui/Tabs";
 import { FormTabsList, FormTabsTrigger } from "@/components/ui/FormTabs";
@@ -22,7 +24,7 @@ import { PackagingList } from "./PackagingList";
 import { PackagingModal } from "./PackagingModal";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { ItemPackaging } from "@/types/product";
-import { CategorySelector } from "./CategorySelector";
+
 
 interface ProductFormProps {
     initialData?: ProductFormData;
@@ -477,7 +479,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 ncm: formData.ncm || null,
                 cest: formData.cest || null,
                 origin: formData.origin || 0,
-                cfop_default: formData.cfop_default || null,
+                cfop_default: formData.cfop_code || formData.cfop_default || null, // Fallback for legacy
+                cfop_code: formData.cfop_code || null,
                 tax_group_id: formData.tax_group_id || null,
                 has_fiscal_output: formData.has_fiscal_output
             }, { onConflict: 'item_id' });
@@ -1185,7 +1188,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             {errors.cest && <p className="text-xs text-red-500 mt-1">{errors.cest}</p>}
                                         </div>
 
-                                        <div className="col-span-12 md:col-span-6">
+                                        <div className="col-span-12 md:col-span-4">
                                             <label className="text-sm font-medium">Origem da Mercadoria (0-8)</label>
                                             <Select
                                                 value={formData.origin?.toString() || "0"}
@@ -1198,16 +1201,20 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                     <SelectItem value="0">0 - Nacional</SelectItem>
                                                     <SelectItem value="1">1 - Estrangeira (Imp. Direta)</SelectItem>
                                                     <SelectItem value="2">2 - Estrangeira (Adq. No Mercado Interno)</SelectItem>
-                                                    {/* Add others if needed */}
+                                                    <SelectItem value="3">3 - Nacional (Conteúdo Superior 40%)</SelectItem>
+                                                    <SelectItem value="4">4 - Nacional (Produção conformidade)</SelectItem>
+                                                    <SelectItem value="5">5 - Nacional (Conteúdo Inferior 40%)</SelectItem>
+                                                    <SelectItem value="6">6 - Estrangeira (Imp. Direta s/ Similar)</SelectItem>
+                                                    <SelectItem value="7">7 - Estrangeira (Adq. Mercado Interno s/ Similar)</SelectItem>
+                                                    <SelectItem value="8">8 - Nacional (Importação Superior 70%)</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
-                                        <div className="col-span-6 md:col-span-3">
+                                        <div className="col-span-12 md:col-span-8">
                                             <label className="text-sm font-medium">CFOP Padrão</label>
-                                            <Input
-                                                value={formData.cfop_default || ''}
-                                                onChange={(e) => handleChange('cfop_default', e.target.value)}
-                                                placeholder="Ex: 5102"
+                                            <CfopSelector
+                                                value={formData.cfop_code || formData.cfop_default || ''}
+                                                onChange={(val) => handleChange('cfop_code', val)}
                                                 className="mt-1"
                                             />
                                         </div>

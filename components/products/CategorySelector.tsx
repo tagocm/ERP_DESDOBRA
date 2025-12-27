@@ -81,6 +81,11 @@ export function CategorySelector({ value, onChange, className, disabled }: Categ
 
     const selectedCategory = categories.find((c) => c.id === value)
 
+    const handleSelect = (categoryId: string) => {
+        onChange(categoryId === value ? null : categoryId)
+        setOpen(false)
+    }
+
     return (
         <div className={cn("flex items-center gap-2", className)}>
             <Popover open={open} onOpenChange={(val) => !disabled && setOpen(val)}>
@@ -139,16 +144,18 @@ export function CategorySelector({ value, onChange, className, disabled }: Categ
                                 {categories.map((cat) => (
                                     <CommandItem
                                         key={cat.id}
-                                        value={cat.name}
-                                        onSelect={() => {
-                                            onChange(cat.id === value ? null : cat.id)
-                                            setOpen(false)
+                                        value={cat.name.toLowerCase()} // cmkd requires lowercase values for proper filtering
+                                        onSelect={() => handleSelect(cat.id)}
+                                        onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleSelect(cat.id);
                                         }}
                                         className="cursor-pointer"
                                     >
                                         <Check
                                             className={cn(
-                                                "mr-2 h-4 w-4 pointer-events-none",
+                                                "mr-2 h-4 w-4",
                                                 value === cat.id ? "opacity-100" : "opacity-0"
                                             )}
                                         />
@@ -174,6 +181,6 @@ export function CategorySelector({ value, onChange, className, disabled }: Categ
                 </DialogTrigger>
                 <CategoryManagerModal onChange={fetchCategories} />
             </Dialog>
-        </div>
+        </div >
     )
 }
