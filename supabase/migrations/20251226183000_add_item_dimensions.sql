@@ -1,0 +1,5 @@
+
+ALTER TABLE items 
+ADD COLUMN IF NOT EXISTS height_base numeric DEFAULT 0,
+ADD COLUMN IF NOT EXISTS width_base numeric DEFAULT 0,
+ADD COLUMN IF NOT EXISTS length_base numeric DEFAULT 0;

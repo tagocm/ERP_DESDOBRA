@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+## Data Layer & API
 
-First, run the development server:
+This project uses a structured data layer to interact with Supabase, ensuring type safety and multi-tenancy security.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### 1. Database Types
+We automatically generate Typescript definitions from the database schema.
+- **Location**: `types/supabase.ts`
+- **Usage**: Import `Database`, `Organization`, `Person`, etc. for type safety.
+
+### 2. Supabase Clients
+- **Browser Client**: `lib/supabase/browser.ts`
+  - Safe for client-side components.
+  - Uses `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+  - **Restriction**: Cannot perform admin/service-role operations.
+  
+- **Server Client**: `lib/supabase/server.ts`
+  - **Server-Only**: Can only be imported in Server Components, Route Handlers, or Server Actions.
+  - Uses `SUPABASE_SERVICE_ROLE_KEY`.
+  - Bypass RLS if needed (but currently queries respect `companyId`).
+
+### 3. Data Repositories (`lib/data/`)
+Encapsulate Supabase queries to ensure consistent filtering (e.g. `company_id`, `deleted_at`).
+- `organizations.ts`
+- `people.ts`
+- `addresses.ts`
+- `tags.ts`
+
+**Example Usage:**
+```typescript
+import { organizationsRepo } from '@/lib/data/organizations'
+
+// Server-side only
+const orgs = await organizationsRepo.list('company-uuid-123')
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 4. API Routes
+We provide REST endpoints for organizations as an example of secure server-side operations.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Endpoints:**
+- `GET /api/orgs?companyId=...` - List organizations
+- `POST /api/orgs` - Create organization (Body: `companyId`, `trade_name`, etc.)
+- `GET /api/orgs/[id]?companyId=...` - Get details
+- `PATCH /api/orgs/[id]` - Update (Body: `companyId`, fields to update)
+- `DELETE /api/orgs/[id]?companyId=...` - Soft delete
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Security Note:**
+All API routes validate inputs using Zod and require `companyId` to prevent cross-tenant data access.

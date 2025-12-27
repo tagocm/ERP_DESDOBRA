@@ -1,0 +1,184 @@
+import { supabaseServer } from '@/lib/supabase/server'
+import { itemsRepo } from './items'
+
+export interface InventoryMovement {
+    id: string
+    company_id: string
+    item_id: string
+    qty_in: number
+    qty_out: number
+    unit_cost: number
+    total_cost: number
+    reason: 'purchase_in' | 'adjustment_in' | 'adjustment_out' | 'production_in' | 'production_out' | 'sale_out' | 'return_in'
+    ref_type: string | null
+    ref_id: string | null
+    notes: string | null
+    created_at: string
+}
+
+export interface StockSummary {
+    item_id: string
+    item_name: string
+    item_sku: string | null
+    item_type: string
+    uom: string
+    current_stock: number
+    avg_cost: number
+}
+
+export const inventoryRepo = {
+    async getStock(companyId: string, itemId: string): Promise<number> {
+        const { data, error } = await supabaseServer
+            .from('inventory_movements')
+            .select('qty_in, qty_out')
+            .eq('company_id', companyId)
+            .eq('item_id', itemId)
+
+        if (error) throw error
+
+        const stock = (data as any)?.reduce((acc: number, mov: any) => acc + mov.qty_in - mov.qty_out, 0) || 0
+        return stock
+    },
+
+    async getStockByItems(companyId: string): Promise<StockSummary[]> {
+        // Get all items
+        const items = await itemsRepo.list(companyId, { is_active: true })
+
+        // Get stock for each item
+        const stockPromises = items.map(async (item) => {
+            const stock = await this.getStock(companyId, item.id)
+            return {
+                item_id: item.id,
+                item_name: item.name,
+                item_sku: item.sku,
+                item_type: item.type,
+                uom: item.uom,
+                current_stock: stock,
+                avg_cost: item.avg_cost
+            }
+        })
+
+        return Promise.all(stockPromises)
+    },
+
+    async getMovements(companyId: string, filters?: { item_id?: string; reason?: string; limit?: number }) {
+        let query = supabaseServer
+            .from('inventory_movements')
+            .select(`
+                *,
+                item:items(id, name, sku, uom)
+            `)
+            .eq('company_id', companyId)
+            .order('created_at', { ascending: false })
+
+        if (filters?.item_id) {
+            query = query.eq('item_id', filters.item_id)
+        }
+
+        if (filters?.reason) {
+            query = query.eq('reason', filters.reason)
+        }
+
+        if (filters?.limit) {
+            query = query.limit(filters.limit)
+        }
+
+        const { data, error } = await query
+        if (error) throw error
+        return data as InventoryMovement[]
+    },
+
+    async createMovement(companyId: string, movement: Partial<InventoryMovement>) {
+        const { data, error } = await supabaseServer
+            .from('inventory_movements')
+            // @ts-ignore - Types will be regenerated after migration
+            .insert({ ...movement, company_id: companyId })
+            .select()
+            .single()
+
+        if (error) throw error
+        return data as InventoryMovement
+    },
+
+    async createPurchaseIn(companyId: string, payload: {
+        item_id: string
+        qty: number
+        unit_cost: number
+        notes?: string
+    }) {
+        const { item_id, qty, unit_cost, notes } = payload
+
+        // Get current stock and avg cost
+        const currentStock = await this.getStock(companyId, item_id)
+        const item = await itemsRepo.getById(companyId, item_id)
+        const currentAvgCost = item.avg_cost
+
+        // Create movement
+        const movement = await this.createMovement(companyId, {
+            item_id,
+            qty_in: qty,
+            qty_out: 0,
+            unit_cost,
+            total_cost: qty * unit_cost,
+            reason: 'purchase_in',
+            notes
+        })
+
+        // Recalculate avg cost
+        await this.recalcAvgCost(companyId, item_id, currentStock, currentAvgCost, qty, unit_cost)
+
+        return movement
+    },
+
+    async recalcAvgCost(
+        companyId: string,
+        itemId: string,
+        currentStock: number,
+        currentAvgCost: number,
+        qtyIn: number,
+        unitCost: number
+    ) {
+        // Avoid division by zero
+        const newStock = currentStock + qtyIn
+        if (newStock <= 0) {
+            await itemsRepo.updateAvgCost(companyId, itemId, 0)
+            return 0
+        }
+
+        // Calculate new average cost
+        const newAvgCost = (currentStock * currentAvgCost + qtyIn * unitCost) / newStock
+
+        // Update item
+        await itemsRepo.updateAvgCost(companyId, itemId, newAvgCost)
+
+        return newAvgCost
+    },
+
+    async createAdjustment(companyId: string, payload: {
+        item_id: string
+        qty: number
+        reason: 'adjustment_in' | 'adjustment_out'
+        notes?: string
+    }) {
+        const { item_id, qty, reason, notes } = payload
+
+        const movement = await this.createMovement(companyId, {
+            item_id,
+            qty_in: reason === 'adjustment_in' ? qty : 0,
+            qty_out: reason === 'adjustment_out' ? qty : 0,
+            unit_cost: 0,
+            total_cost: 0,
+            reason,
+            notes
+        })
+
+        // If adjustment in, recalculate avg cost with current avg cost as unit cost
+        if (reason === 'adjustment_in') {
+            const currentStock = await this.getStock(companyId, item_id)
+            const item = await itemsRepo.getById(companyId, item_id)
+            await this.recalcAvgCost(companyId, item_id, currentStock - qty, item.avg_cost, qty, item.avg_cost)
+        }
+
+        return movement
+    }
+}

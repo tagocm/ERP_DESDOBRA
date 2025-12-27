@@ -1,0 +1,185 @@
+"use client";
+
+import { useEffect, useState, useRef } from "react";
+import { Check, X, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabaseBrowser";
+import { useCompany } from "@/contexts/CompanyContext";
+
+interface ProductSelectorProps {
+    value?: string;
+    onChange: (product: any) => void;
+    className?: string;
+}
+
+export function ProductSelector({ value, onChange, className }: ProductSelectorProps) {
+    const { selectedCompany } = useCompany();
+    const supabase = createClient();
+
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    const [options, setOptions] = useState<any[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [selectedProduct, setSelectedProduct] = useState<any>(null);
+
+    const wrapperRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Fetch initial product if value exists
+    useEffect(() => {
+        if (!value || selectedProduct) return;
+        const fetchProduct = async () => {
+            const { data } = await supabase
+                .from('items')
+                .select('id, name, sku, uom')
+                .eq('id', value)
+                .single();
+            if (data) {
+                setSelectedProduct({ ...data, un: data.uom, price: 0 });
+                setSearch(data.name);
+            }
+        };
+        fetchProduct();
+    }, [value, supabase, selectedProduct]);
+
+    // Fetch products based on search
+    useEffect(() => {
+        if (!selectedCompany) {
+            setOptions([]);
+            return;
+        }
+
+        const fetchProducts = async () => {
+            setLoading(true);
+            try {
+                let query = supabase
+                    .from('items')
+                    .select('id, name, sku, uom')
+                    .eq('company_id', selectedCompany.id)
+                    .limit(20);
+
+                if (search.length >= 1) {
+                    query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%`);
+                }
+
+                const { data } = await query;
+                setOptions(data ? data.map((d: any) => ({ ...d, un: d.uom, price: 0 })) : []);
+
+                // Open dropdown if we have items and user is searching or just focused (logic handled in onFocus)
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        const timer = setTimeout(fetchProducts, 300);
+        return () => clearTimeout(timer);
+    }, [search, selectedCompany, supabase]);
+
+    // Close on click outside
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const handleSelect = (option: any) => {
+        setSelectedProduct(option);
+        setSearch(option.name);
+        onChange(option);
+        setOpen(false);
+    };
+
+    const handleClear = () => {
+        setSelectedProduct(null);
+        setSearch("");
+        onChange(null);
+        setOptions([]);
+        inputRef.current?.focus();
+    };
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newValue = e.target.value;
+        setSearch(newValue);
+
+        // If user clears the field or changes it, clear selection
+        if (selectedProduct && newValue !== selectedProduct.name) {
+            setSelectedProduct(null);
+            onChange(null);
+        }
+    };
+
+    return (
+        <div className={cn("relative", className)} ref={wrapperRef}>
+            <div className="relative">
+                <input
+                    ref={inputRef}
+                    type="text"
+                    className={cn(
+                        "flex h-9 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:cursor-not-allowed disabled:opacity-50",
+                        selectedProduct && "pr-8"
+                    )}
+                    placeholder="Digite nome ou SKU..."
+                    value={search}
+                    onChange={handleInputChange}
+                    onFocus={() => setOpen(true)}
+                />
+                {selectedProduct && (
+                    <button
+                        type="button"
+                        onClick={handleClear}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-md transition-colors"
+                    >
+                        <X className="h-4 w-4 text-gray-400" />
+                    </button>
+                )}
+            </div>
+
+            {open && (
+                <div className="absolute z-50 mt-1 max-h-60 w-full min-w-[300px] overflow-auto rounded-xl border border-gray-100 bg-white py-1 text-base shadow-xl focus:outline-none sm:text-sm">
+                    {loading && (
+                        <div className="py-6 text-center text-xs text-gray-500 flex flex-col items-center gap-2">
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Buscando...
+                        </div>
+                    )}
+
+                    {!loading && options.length === 0 && (
+                        <div className="py-6 text-center text-sm text-gray-500">
+                            {search.length >= 2 ? "Nenhum produto encontrado." : "Nenhum produto disponível."}
+                        </div>
+                    )}
+
+                    {!loading && options.map((option) => (
+                        <div
+                            key={option.id}
+                            className={cn(
+                                "relative cursor-pointer select-none py-2.5 px-3 hover:bg-gray-50 flex items-center justify-between transition-colors",
+                                selectedProduct?.id === option.id ? "bg-brand-50 text-brand-700 font-medium" : "text-gray-700"
+                            )}
+                            onClick={() => handleSelect(option)}
+                        >
+                            <div className="flex flex-col overflow-hidden flex-1">
+                                <span className="truncate font-medium text-sm">{option.name}</span>
+                                <span className="text-xs text-gray-400 font-mono">{option.sku}</span>
+                            </div>
+                            <div className="flex items-center gap-2 ml-4">
+                                {option.price && (
+                                    <span className="text-xs font-semibold text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                        R$ {Number(option.price).toFixed(2)}
+                                    </span>
+                                )}
+                                {selectedProduct?.id === option.id && (
+                                    <Check className="h-4 w-4 text-brand-600" />
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}

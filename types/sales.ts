@@ -1,0 +1,168 @@
+
+export type SalesStatus = 'draft' | 'sent' | 'approved' | 'confirmed' | 'cancelled' | 'lost';
+export type LogisticStatus = 'pending' | 'roteirizado' | 'agendado' | 'em_rota' | 'entregue' | 'nao_entregue';
+export type FiscalStatus = 'none' | 'authorized' | 'cancelled' | 'error';
+export type FinancialStatus = 'pending' | 'partial' | 'paid' | 'refunded';
+export type DocType = 'proposal' | 'order';
+
+export interface SalesOrder {
+    id: string;
+    company_id: string;
+    doc_type: DocType;
+    document_number: number;
+
+    client_id: string;
+    sales_rep_id?: string | null;
+    price_table_id?: string | null;
+    payment_terms_id?: string | null;
+
+    date_issued: string; // ISO Date YYYY-MM-DD
+    valid_until?: string | null;
+    delivery_date?: string | null;
+
+    status_commercial: SalesStatus;
+    status_logistic: LogisticStatus;
+    status_fiscal: FiscalStatus;
+    financial_status: FinancialStatus;
+
+
+    is_antecipada: boolean;
+
+    subtotal_amount: number;
+    discount_amount: number;
+    freight_amount: number;
+    total_amount: number;
+
+    delivery_address_json?: any;
+    carrier_id?: string | null;
+
+    internal_notes?: string | null;
+    client_notes?: string | null;
+
+    created_at: string;
+    updated_at: string;
+    deleted_at?: string | null;
+    deleted_by?: string | null;
+    delete_reason?: string | null;
+    invoiced_at?: string | null;
+    locked_at?: string | null;
+
+    // Joined Fields
+    client?: {
+        id: string;
+        trade_name: string;
+        document: string;
+        sales_channel?: string;
+        payment_terms_id?: string;
+    };
+    sales_rep?: {
+        full_name: string;
+    };
+    carrier?: {
+        trade_name: string;
+    };
+    items?: SalesOrderItem[];
+    payments?: SalesOrderPayment[];
+    nfes?: SalesOrderNfe[];
+    history?: SalesOrderHistory[];
+    adjustments?: SalesOrderAdjustment[];
+}
+
+export interface SalesOrderItem {
+    id: string;
+    company_id?: string;
+    document_id: string;
+    item_id: string;
+    quantity: number;
+    unit_price: number;
+    discount_amount: number;
+    total_amount: number;
+    notes?: string | null;
+
+    // Fulfillment & Lifecycle
+    qty_fulfilled?: number;
+    qty_invoiced?: number;
+    qty_returned?: number;
+
+    // Joined
+    product?: {
+        id: string;
+        name: string;
+        sku?: string;
+        un?: string; // unit name
+    };
+}
+
+export interface SalesOrderAdjustment {
+    id: string;
+    company_id: string;
+    sales_document_id: string;
+    type: 'credit' | 'debit' | 'return';
+    amount: number;
+    reason?: string;
+    created_by?: string;
+    created_at: string;
+    created_by_user?: {
+        full_name: string;
+    };
+}
+
+export interface SalesOrderPayment {
+    id: string;
+    document_id: string;
+    installment_number: number;
+    due_date: string;
+    amount: number;
+    status: 'pending' | 'paid' | 'discounted';
+    notes?: string | null;
+}
+
+export interface SalesOrderNfe {
+    id: string;
+    document_id: string;
+    nfe_number?: number;
+    nfe_series?: number;
+    nfe_key?: string;
+    status: 'authorized' | 'cancelled' | 'processing' | 'error';
+    issued_at?: string;
+    is_antecipada: boolean;
+    details?: string;
+}
+
+export interface SalesOrderHistory {
+    id: string;
+    document_id: string;
+    user_id?: string;
+    event_type: string;
+    description: string;
+    metadata?: any;
+    created_at: string;
+
+    user?: {
+        full_name: string;
+    };
+}
+
+export interface DeliveryRoute {
+    id: string;
+    company_id: string;
+    name: string;
+    route_date: string;
+    scheduled_date?: string | null; // When set, route appears in calendar. When NULL, appears in unscheduled dashboard
+    status: 'planned' | 'closed' | 'in_transit' | 'done';
+    created_at: string;
+
+    // Joined
+    orders?: DeliveryRouteOrder[];
+}
+
+export interface DeliveryRouteOrder {
+    id: string;
+    route_id: string;
+    sales_document_id: string;
+    position: number;
+    assigned_at: string;
+
+    // Joined
+    sales_order?: SalesOrder;
+}
