@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { CategorySelector } from "./CategorySelector";
+import { UomSelector } from "./UomSelector";
 import { CfopSelector } from "./CfopSelector";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Tabs, TabsContent } from "@/components/ui/Tabs";
@@ -41,7 +42,7 @@ const ITEM_TYPES = [
     { value: 'other', label: 'Outros' }
 ];
 
-const UOM_OPTIONS = ['UN', 'KG', 'g', 'L', 'ML', 'CX', 'PC', 'M', 'cm', 'M2', 'M3'];
+
 
 // Helper for minimal ID generation for new lines
 const tempId = () => '_' + Math.random().toString(36).substr(2, 9);
@@ -408,6 +409,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 sku: formData.sku || null,
                 type: formData.type,
                 uom: formData.uom,
+                uom_id: formData.uom_id || null,
                 is_active: formData.is_active,
                 gtin_ean_base: formData.gtin_ean_base || null,
                 net_weight_g_base: formData.net_weight_g_base || null,
@@ -893,19 +895,12 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         {/* UOM */}
                                         <div>
                                             <label className="text-xs font-medium text-gray-500">Unid. Medida *</label>
-                                            <Select
-                                                value={formData.uom}
-                                                onValueChange={(val) => handleChange('uom', val)}
-                                            >
-                                                <SelectTrigger className={cn("mt-1 text-sm h-9", errors.uom && "border-red-500")}>
-                                                    <SelectValue placeholder="Selecione..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {UOM_OPTIONS.map(u => (
-                                                        <SelectItem key={u} value={u}>{u}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <UomSelector
+                                                value={formData.uom_id}
+                                                onChange={(val) => handleChange('uom_id', val)}
+                                                className="mt-1"
+                                            />
+                                            {errors.uom && <p className="text-xs text-red-500 mt-1">{errors.uom}</p>}
                                         </div>
 
                                         {/* Dimensions */}

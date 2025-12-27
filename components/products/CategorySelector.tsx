@@ -144,14 +144,14 @@ export function CategorySelector({ value, onChange, className, disabled }: Categ
                                 {categories.map((cat) => (
                                     <CommandItem
                                         key={cat.id}
-                                        value={cat.name.toLowerCase()} // cmkd requires lowercase values for proper filtering
+                                        value={cat.name.toLowerCase()}
                                         onSelect={() => handleSelect(cat.id)}
                                         onMouseDown={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
                                             handleSelect(cat.id);
                                         }}
-                                        className="cursor-pointer"
+                                        className="cursor-pointer data-[disabled]:pointer-events-auto data-[disabled]:opacity-100"
                                     >
                                         <Check
                                             className={cn(

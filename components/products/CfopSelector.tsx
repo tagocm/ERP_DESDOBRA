@@ -98,7 +98,7 @@ export function CfopSelector({ value, onChange, className, disabled }: CfopSelec
                     <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[500px] p-0 data-[state=open]:!zoom-in-100 data-[state=closed]:!zoom-out-100" align="start">
+            <PopoverContent className="w-[600px] p-0 data-[state=open]:!zoom-in-100 data-[state=closed]:!zoom-out-100" align="start">
                 <Command filter={(value, search) => {
                     // Custom filter to match code or description
                     // The 'value' passed to filter is usually the value prop of CommandItem, which we set to code + description
@@ -120,21 +120,28 @@ export function CfopSelector({ value, onChange, className, disabled }: CfopSelec
                                 {cfops.map((cfop) => (
                                     <CommandItem
                                         key={cfop.code}
-                                        value={`${cfop.code} ${cfop.description}`} // value for filtering
+                                        value={`${cfop.code} ${cfop.description}`.toLowerCase()} // value for filtering
                                         onSelect={() => {
                                             onChange(cfop.code)
                                             setOpen(false)
                                             toast({ title: "CFOP definido no produto", duration: 2000 });
                                         }}
+                                        className="cursor-pointer text-left items-center data-[disabled]:pointer-events-auto data-[disabled]:opacity-100"
                                     >
-                                        <Check
-                                            className={cn(
-                                                "mr-2 h-4 w-4 pointer-events-none",
-                                                value === cfop.code ? "opacity-100" : "opacity-0"
-                                            )}
-                                        />
-                                        <span className="font-medium mr-2">{cfop.code}</span>
-                                        <span className="text-gray-500 truncate">{cfop.description}</span>
+                                        <div className="flex items-center w-full">
+                                            <Check
+                                                className={cn(
+                                                    "mr-2 h-4 w-4 shrink-0",
+                                                    value === cfop.code ? "opacity-100" : "opacity-0"
+                                                )}
+                                            />
+                                            <div className="flex flex-col text-left">
+                                                <span className="font-medium text-gray-900">{cfop.code}</span>
+                                            </div>
+                                            <span className="ml-2 text-gray-500 truncate text-left flex-1">
+                                                {cfop.description}
+                                            </span>
+                                        </div>
                                     </CommandItem>
                                 ))}
                             </CommandGroup>

@@ -27,6 +27,17 @@ export type ItemFiscalProfile = Database['public']['Tables']['item_fiscal_profil
 export type ItemProductionProfile = Database['public']['Tables']['item_production_profiles']['Row'];
 
 
+
+export interface Uom {
+    id: string;
+    company_id: string;
+    name: string;
+    abbrev: string;
+    is_active: boolean;
+    sort_order: number;
+    usage_count?: number; // Virtual field for UI
+}
+
 export interface ProductCategory {
     id: string;
     name: string;
@@ -34,7 +45,10 @@ export interface ProductCategory {
     product_count?: number; // Virtual field for UI
 }
 
-export interface FullProduct extends Item {
+export interface FullProduct extends Omit<Item, 'uom'> {
+    uom?: Uom | null; // Join - replaces string uom
+    // Keep original uom field available if needed for migration logic as 'legacy_uom' or just access via Item if casting
+    uom_id?: string | null; // From item
     inventory?: ItemInventoryProfile | null;
     purchase?: ItemPurchaseProfile | null;
     sales?: ItemSalesProfile | null;
@@ -49,7 +63,8 @@ export type ProductFormData = {
     name: string;
     sku: string;
     type: Database['public']['Tables']['items']['Row']['type'];
-    uom: string;
+    uom: string; // @deprecated
+    uom_id?: string;
     gtin_ean_base?: string; // Renamed from gtin
     net_weight_g_base?: number;
     gross_weight_g_base?: number;
@@ -109,3 +124,4 @@ export type ProductFormData = {
     batch_size?: number;
     production_notes?: string;
 };
+

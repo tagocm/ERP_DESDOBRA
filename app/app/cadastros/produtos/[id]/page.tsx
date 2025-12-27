@@ -51,6 +51,7 @@ export default function ItemEditPage() {
                 sku: item.sku || "",
                 type: item.type as any,
                 uom: item.uom,
+                uom_id: item.uom_id || undefined,
                 is_active: item.is_active,
                 gtin_ean_base: item.gtin_ean_base || "",
                 net_weight_g_base: item.net_weight_g_base || 0,
