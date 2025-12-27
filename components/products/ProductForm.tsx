@@ -22,6 +22,7 @@ import { PackagingList } from "./PackagingList";
 import { PackagingModal } from "./PackagingModal";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { ItemPackaging } from "@/types/product";
+import { CategorySelector } from "./CategorySelector";
 
 interface ProductFormProps {
     initialData?: ProductFormData;
@@ -109,7 +110,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
             updates.uom = 'UN';
         } else if (newType === 'raw_material' || newType === 'packaging') {
             updates.is_produced = false;
-        } else if (newType === 'finished_good') {
+        } else if (newType === 'finished_good' || newType === 'wip') {
             updates.is_produced = true;
             updates.control_stock = true;
         }
@@ -414,6 +415,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 length_base: formData.length_base || null,
                 brand: finalBrand,
                 line: finalLine,
+                category_id: formData.category_id || null,
                 description: finalDescription,
                 image_url: formData.image_url || null,
                 avg_cost: 0 // Default
@@ -661,8 +663,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
     const showFiscal = true;
 
     // Should 'Production' be visible?
-    // User Constraint: "Aba Produção só aparece para Tipo do Item = 'Produto acabado'"
-    const showProduction = ['finished_good'].includes(formData.type);
+    // User Constraint: "Aba Produção só aparece para Tipo do Item = 'Produto acabado' ou 'Semi-Acabado'"
+    const showProduction = ['finished_good', 'wip'].includes(formData.type);
 
     // --- Search Helper for Ingredients ---
     // Simple inline logic for autocomplete using native inputs and absolute positioning
@@ -812,10 +814,9 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             </div>
                                             <div className="col-span-12 md:col-span-6">
                                                 <label className="text-sm font-medium">Linha / Categoria</label>
-                                                <Input
-                                                    value={formData.line || ''}
-                                                    onChange={(e) => handleChange('line', e.target.value)}
-                                                    placeholder="Categoria"
+                                                <CategorySelector
+                                                    value={formData.category_id}
+                                                    onChange={(val) => handleChange('category_id', val)}
                                                     className="mt-1"
                                                 />
                                             </div>
@@ -904,580 +905,568 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         </div>
 
                                         {/* Dimensions */}
-                                        <div className="space-y-3 pt-2">
-                                            <div className="grid grid-cols-3 gap-2">
-                                                <div className="col-span-3">
-                                                    <span className="text-xs font-bold text-gray-400 tracking-wider">DIMENSÕES (cm)</span>
+                                        <div className="grid grid-cols-12 gap-3 mt-4">
+                                            <div className="col-span-12">
+                                                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-2">DIMENSÕES (cm)</p>
+                                                <div className="flex gap-2">
+                                                    <div className="flex-1">
+                                                        <label className="text-[10px] text-gray-500 mb-1 block">Altura</label>
+                                                        <DecimalInput
+                                                            value={formData.height_cm || 0}
+                                                            onChange={(val) => handleChange('height_cm', val)}
+                                                            precision={2}
+                                                            minPrecision={0}
+                                                            disableDecimalShift={true}
+                                                            placeholder="0"
+                                                            className="text-right"
+                                                        />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <label className="text-[10px] text-gray-500 mb-1 block">Largura</label>
+                                                        <DecimalInput
+                                                            value={formData.width_cm || 0}
+                                                            onChange={(val) => handleChange('width_cm', val)}
+                                                            precision={2}
+                                                            minPrecision={0}
+                                                            disableDecimalShift={true}
+                                                            placeholder="0"
+                                                            className="text-right"
+                                                        />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <label className="text-[10px] text-gray-500 mb-1 block">Comp.</label>
+                                                        <DecimalInput
+                                                            value={formData.length_cm || 0}
+                                                            onChange={(val) => handleChange('length_cm', val)}
+                                                            precision={2}
+                                                            minPrecision={0}
+                                                            disableDecimalShift={true}
+                                                            placeholder="0"
+                                                            className="text-right"
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <label className="text-[10px] font-medium text-gray-500">Altura</label>
-                                                    <Input
-                                                        type="number"
-                                                        step="0.01"
-                                                        value={formData.height_base ?? ''}
-                                                        onChange={(e) => {
-                                                            const val = e.target.value === '' ? undefined : parseFloat(e.target.value);
-                                                            handleChange('height_base', val);
-                                                            <div className="grid grid-cols-12 gap-3 mt-4">
-                                                                <div className="col-span-12">
-                                                                    <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-2">DIMENSÕES (cm)</p>
-                                                                    <div className="flex gap-2">
-                                                                        <div className="flex-1">
-                                                                            <label className="text-[10px] text-gray-500 mb-1 block">Altura</label>
-                                                                            <DecimalInput
-                                                                                value={formData.height_cm || 0}
-                                                                                onChange={(val) => handleChange('height_cm', val)}
-                                                                                precision={2}
-                                                                                minPrecision={0}
-                                                                                disableDecimalShift={true}
-                                                                                placeholder="0"
-                                                                                className="text-right"
-                                                                            />
-                                                                        </div>
-                                                                        <div className="flex-1">
-                                                                            <label className="text-[10px] text-gray-500 mb-1 block">Largura</label>
-                                                                            <DecimalInput
-                                                                                value={formData.width_cm || 0}
-                                                                                onChange={(val) => handleChange('width_cm', val)}
-                                                                                precision={2}
-                                                                                minPrecision={0}
-                                                                                disableDecimalShift={true}
-                                                                                placeholder="0"
-                                                                                className="text-right"
-                                                                            />
-                                                                        </div>
-                                                                        <div className="flex-1">
-                                                                            <label className="text-[10px] text-gray-500 mb-1 block">Comp.</label>
-                                                                            <DecimalInput
-                                                                                value={formData.length_cm || 0}
-                                                                                onChange={(val) => handleChange('length_cm', val)}
-                                                                                precision={2}
-                                                                                minPrecision={0}
-                                                                                disableDecimalShift={true}
-                                                                                placeholder="0"
-                                                                                className="text-right"
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
+                                            </div>
 
-                                                                <div className="col-span-12 mt-2">
-                                                                    <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-2">PESOS (g)</p>
-                                                                    <div className="flex gap-2">
-                                                                        <div className="flex-1">
-                                                                            <label className="text-[10px] text-gray-500 mb-1 block">Líquido</label>
-                                                                            <DecimalInput
-                                                                                value={formData.net_weight_g_base || 0}
-                                                                                onChange={(val) => handleChange('net_weight_g_base', val)}
-                                                                                precision={3}
-                                                                                minPrecision={0}
-                                                                                disableDecimalShift={true}
-                                                                                placeholder="0"
-                                                                                className="text-right"
-                                                                            />
-                                                                        </div>
-                                                                        <div className="flex-1">
-                                                                            <label className="text-[10px] text-gray-500 mb-1 block">Bruto</label>
-                                                                            <DecimalInput
-                                                                                value={formData.gross_weight_g_base || 0}
-                                                                                onChange={(val) => handleChange('gross_weight_g_base', val)}
-                                                                                precision={3}
-                                                                                minPrecision={0}
-                                                                                disableDecimalShift={true}
-                                                                                placeholder="0"
-                                                                                className="text-right"
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
+                                            <div className="col-span-12 mt-2">
+                                                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-2">PESOS (g)</p>
+                                                <div className="flex gap-2">
+                                                    <div className="flex-1">
+                                                        <label className="text-[10px] text-gray-500 mb-1 block">Líquido</label>
+                                                        <DecimalInput
+                                                            value={formData.net_weight_g_base || 0}
+                                                            onChange={(val) => handleChange('net_weight_g_base', val)}
+                                                            precision={2}
+                                                            minPrecision={0}
+                                                            disableDecimalShift={true}
+                                                            placeholder="0"
+                                                            className="text-right"
+                                                        />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <label className="text-[10px] text-gray-500 mb-1 block">Bruto</label>
+                                                        <DecimalInput
+                                                            value={formData.gross_weight_g_base || 0}
+                                                            onChange={(val) => handleChange('gross_weight_g_base', val)}
+                                                            precision={2}
+                                                            minPrecision={0}
+                                                            disableDecimalShift={true}
+                                                            placeholder="0"
+                                                            className="text-right"
+                                                        />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        {/* Placeholder for alignment with dimensions */}
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </TabsContent>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
 
-                                {/* --- TAB OPERAÇÕES (Estoque + Compras) --- */}
-                                <TabsContent value="operations" className="mt-0 space-y-6">
-                                    <Card>
-                                        <CardHeaderStandard
-                                            icon={<Warehouse className="w-5 h-5" />}
-                                            title="Controle de Estoque"
-                                            actions={
-                                                <label className="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-1.5 rounded-2xl border border-gray-200">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={formData.control_stock}
-                                                        onChange={(e) => handleChange('control_stock', e.target.checked)}
-                                                        className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300"
-                                                    />
-                                                    <span className="text-sm font-medium text-gray-900">Controlar estoque deste item</span>
-                                                </label>
-                                            }
+                    {/* --- TAB OPERAÇÕES (Estoque + Compras) --- */}
+                    <TabsContent value="operations" className="mt-0 space-y-6">
+                        <Card>
+                            <CardHeaderStandard
+                                icon={<Warehouse className="w-5 h-5" />}
+                                title="Controle de Estoque"
+                                actions={
+                                    <label className="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-1.5 rounded-2xl border border-gray-200">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.control_stock}
+                                            onChange={(e) => handleChange('control_stock', e.target.checked)}
+                                            className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300"
                                         />
-                                        {formData.control_stock ? (
-                                            <CardContent className="space-y-6">
-                                                <div className="grid grid-cols-12 gap-6">
-                                                    {/* Row 1: Stock Levels */}
-                                                    <div className="col-span-6 md:col-span-3 lg:col-span-2">
-                                                        <label className="text-sm font-medium">Mínimo</label>
-                                                        <Input
-                                                            type="number"
-                                                            value={formData.min_stock || ''}
-                                                            onChange={(e) => handleChange('min_stock', parseFloat(e.target.value))}
-                                                            className={cn("mt-1 text-right no-spinners", errors.min_stock && "border-red-500")}
-                                                            min={0}
-                                                        />
-                                                        {errors.min_stock && <p className="text-xs text-red-500 mt-1">{errors.min_stock}</p>}
-                                                    </div>
-                                                    <div className="col-span-6 md:col-span-3 lg:col-span-2">
-                                                        <label className="text-sm font-medium">Máximo</label>
-                                                        <Input
-                                                            type="number"
-                                                            value={formData.max_stock || ''}
-                                                            onChange={(e) => handleChange('max_stock', parseFloat(e.target.value))}
-                                                            className={cn("mt-1 text-right no-spinners", errors.max_stock && "border-red-500")}
-                                                            min={0}
-                                                        />
-                                                        {errors.max_stock && <p className="text-xs text-red-500 mt-1">{errors.max_stock}</p>}
-                                                    </div>
-                                                    <div className="col-span-6 md:col-span-3 lg:col-span-2">
-                                                        <label className="text-sm font-medium">Ponto de Pedido</label>
-                                                        <Input
-                                                            type="number"
-                                                            value={formData.reorder_point || ''}
-                                                            onChange={(e) => handleChange('reorder_point', parseFloat(e.target.value))}
-                                                            className="mt-1 text-right no-spinners"
-                                                            min={0}
-                                                        />
-                                                    </div>
-                                                    <div className="col-span-6 md:col-span-3 lg:col-span-4">
-                                                        <label className="text-sm font-medium">Localização Padrão</label>
-                                                        <Input
-                                                            value={formData.default_location || ''}
-                                                            onChange={(e) => handleChange('default_location', e.target.value)}
-                                                            placeholder="Ex: A-03"
-                                                            className="mt-1"
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-6">
-                                                    <label className="flex items-center gap-2 cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={formData.control_batch}
-                                                            onChange={(e) => handleChange('control_batch', e.target.checked)}
-                                                            className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300"
-                                                        />
-                                                        <span className="text-sm text-gray-700">Controlar Lote</span>
-                                                    </label>
-                                                    <label className="flex items-center gap-2 cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={formData.control_expiry}
-                                                            onChange={(e) => handleChange('control_expiry', e.target.checked)}
-                                                            className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300"
-                                                        />
-                                                        <span className="text-sm text-gray-700">Controlar Validade</span>
-                                                    </label>
-                                                </div>
-                                            </CardContent>
-                                        ) : (
-                                            <CardContent>
-                                                <p className="text-sm text-gray-500 italic">O estoque deste item não será controlado (apenas informativo).</p>
-                                            </CardContent>
-                                        )}
-                                    </Card>
-
-                                    <Card>
-                                        <CardHeaderStandard
-                                            icon={<ShoppingBag className="w-5 h-5" />}
-                                            title="Parâmetros de Compra (Padrão)"
-                                        />
-                                        <CardContent>
-                                            <div className="grid grid-cols-12 gap-6">
-                                                <div className="col-span-6 md:col-span-2">
-                                                    <label className="text-sm font-medium">Lead Time (Dias)</label>
-                                                    <Input
-                                                        type="number"
-                                                        value={formData.lead_time_days || ''}
-                                                        onChange={(e) => handleChange('lead_time_days', parseInt(e.target.value))}
-                                                        placeholder="Ex: 5"
-                                                        className="mt-1 text-right no-spinners"
-                                                    />
-                                                </div>
-                                                <div className="col-span-6 md:col-span-3">
-                                                    <label className="text-sm font-medium">Unidade de Compra</label>
-                                                    <Input
-                                                        value={formData.purchase_uom || ''}
-                                                        onChange={(e) => handleChange('purchase_uom', e.target.value)}
-                                                        placeholder="Ex: SC, FD"
-                                                        className="mt-1"
-                                                    />
-                                                </div>
-                                                <div className="col-span-6 md:col-span-3">
-                                                    <label className="text-sm font-medium">Fator de Conversão</label>
-                                                    <div className="w-[40%]">
-                                                        <Input
-                                                            type="number"
-                                                            value={formData.conversion_factor || ''}
-                                                            onChange={(e) => handleChange('conversion_factor', parseFloat(e.target.value))}
-                                                            placeholder="Ex: 1"
-                                                            className={cn("mt-1 text-right no-spinners", errors.conversion_factor && "border-red-500")}
-                                                            min={0}
-                                                        />
-                                                    </div>
-                                                    {errors.conversion_factor && <p className="text-xs text-red-500 mt-1">{errors.conversion_factor}</p>}
-                                                    <p className="text-[10px] text-gray-500 mt-1">Quantas UN entram no estoque</p>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </TabsContent>
-
-                                {/* --- TAB FISCAL --- */}
-                                <TabsContent value="fiscal" className="mt-0 space-y-6">
-                                    <Card>
-                                        <CardHeaderStandard
-                                            icon={<FileText className="w-5 h-5" />}
-                                            title="Dados Fiscais"
-                                            actions={
-                                                <label className="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={formData.has_fiscal_output}
-                                                        onChange={(e) => handleChange('has_fiscal_output', e.target.checked)}
-                                                        className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300"
-                                                    />
-                                                    <span className="text-sm font-medium text-gray-900">Item possui saída fiscal</span>
-                                                </label>
-                                            }
-                                        />
-                                        {formData.has_fiscal_output ? (
-                                            <CardContent>
-                                                <div className="grid grid-cols-12 gap-6">
-                                                    <div className="col-span-12 md:col-span-6">
-                                                        <label className="text-sm font-medium">Grupo Tributário *</label>
-                                                        <Select
-                                                            value={formData.tax_group_id || ''}
-                                                            onValueChange={(val) => handleChange('tax_group_id', val)}
-                                                        >
-                                                            <SelectTrigger className="mt-1">
-                                                                <SelectValue placeholder="Selecione..." />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {taxGroups.map(bg => (
-                                                                    <SelectItem key={bg.id} value={bg.id}>{bg.name}</SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                    <div className="col-span-6 md:col-span-3">
-                                                        <label className="text-sm font-medium">NCM</label>
-                                                        <Input
-                                                            value={formData.ncm || ''}
-                                                            onChange={(e) => handleChange('ncm', e.target.value)}
-                                                            placeholder="8 dígitos"
-                                                            className={errors.ncm ? "mt-1 border-red-500" : "mt-1"}
-                                                            maxLength={8}
-                                                        />
-                                                        {errors.ncm && <p className="text-xs text-red-500 mt-1">{errors.ncm}</p>}
-                                                    </div>
-                                                    <div className="col-span-6 md:col-span-3">
-                                                        <label className="text-sm font-medium">CEST</label>
-                                                        <Input
-                                                            value={formData.cest || ''}
-                                                            onChange={(e) => handleChange('cest', e.target.value)}
-                                                            className={errors.cest ? "mt-1 border-red-500" : "mt-1"}
-                                                            maxLength={7}
-                                                        />
-                                                        {errors.cest && <p className="text-xs text-red-500 mt-1">{errors.cest}</p>}
-                                                    </div>
-
-                                                    <div className="col-span-12 md:col-span-6">
-                                                        <label className="text-sm font-medium">Origem da Mercadoria (0-8)</label>
-                                                        <Select
-                                                            value={formData.origin?.toString() || "0"}
-                                                            onValueChange={(val) => handleChange('origin', parseInt(val))}
-                                                        >
-                                                            <SelectTrigger className="mt-1">
-                                                                <SelectValue placeholder="Selecione..." />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="0">0 - Nacional</SelectItem>
-                                                                <SelectItem value="1">1 - Estrangeira (Imp. Direta)</SelectItem>
-                                                                <SelectItem value="2">2 - Estrangeira (Adq. No Mercado Interno)</SelectItem>
-                                                                {/* Add others if needed */}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                    <div className="col-span-6 md:col-span-3">
-                                                        <label className="text-sm font-medium">CFOP Padrão</label>
-                                                        <Input
-                                                            value={formData.cfop_default || ''}
-                                                            onChange={(e) => handleChange('cfop_default', e.target.value)}
-                                                            placeholder="Ex: 5102"
-                                                            className="mt-1"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </CardContent>
-                                        ) : (
-                                            <CardContent>
-                                                <p className="text-sm text-gray-500 italic">Este item não exige configuração fiscal de saída (ex: uso/consumo interno ou serviço sem emissão).</p>
-                                            </CardContent>
-                                        )}
-                                    </Card>
-                                </TabsContent>
-
-                                {/* --- TAB PRODUÇÃO (PCP) --- */}
-                                <TabsContent value="production" className="mt-0 space-y-6">
-
-                                    {/* CARD 1: Parâmetros */}
-                                    <Card>
-                                        <CardHeaderStandard
-                                            icon={<Factory className="w-5 h-5" />}
-                                            title="Parâmetros de Produção"
-                                        />
-                                        <CardContent>
-                                            <div className="grid grid-cols-12 gap-6">
-                                                <div className="col-span-12 md:col-span-4">
-                                                    <label className="text-sm font-medium">Rendimento Padrão (Lote) *</label>
-                                                    <Input
-                                                        type="number"
-                                                        value={(formData as any).batch_size || ''}
-                                                        onChange={(e) => handleChange('batch_size', parseFloat(e.target.value))}
-                                                        className="mt-1"
-                                                        min={0.001}
-                                                    />
-                                                    <p className="text-xs text-gray-500 mt-1">Quanto este lote rende ao final.</p>
-                                                </div>
-                                                <div className="col-span-12 md:col-span-4">
-                                                    <label className="text-sm font-medium">Unidade de Produção</label>
-                                                    <Select
-                                                        value={(formData as any).production_uom || 'UN'}
-                                                        onValueChange={(val) => handleChange('production_uom', val)}
-                                                    >
-                                                        <SelectTrigger className="mt-1">
-                                                            <SelectValue placeholder="Selecione..." />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {UOM_OPTIONS.map(u => (
-                                                                <SelectItem key={u} value={u}>{u}</SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <p className="text-xs text-gray-500 mt-1">Unidade do produto final.</p>
-                                                </div>
-                                                <div className="col-span-12 md:col-span-4">
-                                                    <label className="text-sm font-medium">Perda Padrão (%)</label>
-                                                    <Input
-                                                        type="number"
-                                                        value={(formData as any).loss_percent || 0}
-                                                        onChange={(e) => handleChange('loss_percent', parseFloat(e.target.value))}
-                                                        className="mt-1"
-                                                        min={0} max={100}
-                                                    />
-                                                    <p className="text-xs text-gray-500 mt-1">Perda esperada no processo.</p>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-
-                                    {/* CARD 2: Receita / BOM */}
-                                    <Card className="border-l-4 border-l-brand-500">
-                                        <CardHeaderStandard
-                                            icon={<Receipt className="w-5 h-5" />}
-                                            title="Receita / Ficha Técnica"
-                                            actions={
-                                                <div className="text-right flex flex-col items-end gap-1">
-                                                    {recipeLines.length > 0 ? (
-                                                        <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
-                                                            Receita Cadastrada
-                                                        </span>
-                                                    ) : (
-                                                        <span className="inline-flex items-center rounded-full bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
-                                                            Sem Receita
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            }
-                                        />
-                                        <CardContent className="p-0">
-                                            {/* Grid de Insumos */}
-                                            <div className="border-t border-gray-100">
-                                                <table className="w-full text-sm">
-                                                    <thead className="bg-gray-50">
-                                                        <tr>
-                                                            <th className="px-4 py-3 text-left font-medium text-gray-600 w-[50%]">Insumo (Matéria-prima/Emb.)</th>
-                                                            <th className="px-4 py-3 text-left font-medium text-gray-600 w-[15%]">Qtd.</th>
-                                                            <th className="px-4 py-3 text-left font-medium text-gray-600 w-[10%]">Unid.</th>
-                                                            <th className="px-4 py-3 text-left font-medium text-gray-600 w-[20%]">Obs.</th>
-                                                            <th className="px-4 py-3 w-[5%]"></th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-gray-100">
-                                                        {recipeLines.map((line, idx) => (
-                                                            <tr key={line.id || idx} className="group hover:bg-gray-50 transition-colors">
-                                                                <td className="px-4 py-2 relative">
-                                                                    {/* Searchable Input Logic */}
-                                                                    {ingredientSearchOpen === line.id ? (
-                                                                        <div className="absolute top-1 left-3 right-3 z-10">
-                                                                            <Input
-                                                                                autoFocus
-                                                                                value={ingredientSearchTerm}
-                                                                                onChange={(e) => setIngredientSearchTerm(e.target.value)}
-                                                                                onBlur={() => {
-                                                                                    // Small timeout to allow click on option
-                                                                                    setTimeout(() => setIngredientSearchOpen(null), 200);
-                                                                                }}
-                                                                                placeholder="Buscar insumo..."
-                                                                                className="h-9 border-brand-500 ring-1 ring-brand-500"
-                                                                            />
-                                                                            {ingredientSearchTerm && (
-                                                                                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-2xl shadow-card border border-gray-100 max-h-48 overflow-y-auto z-20">
-                                                                                    {filteredIngredients.length > 0 ? filteredIngredients.map(item => (
-                                                                                        <div
-                                                                                            key={item.id}
-                                                                                            className="px-3 py-2 hover:bg-brand-50 cursor-pointer text-sm"
-                                                                                            onMouseDown={() => handleIngredientSelect(line.id, item)}
-                                                                                        >
-                                                                                            <div className="font-medium">{item.name}</div>
-                                                                                            <div className="text-[10px] text-gray-400">{item.sku} • {item.uom}</div>
-                                                                                        </div>
-                                                                                    )) : (
-                                                                                        <div className="px-3 py-2 text-gray-400 text-xs text-center">Nenhum item encontrado.</div>
-                                                                                    )}
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div
-                                                                            className="h-9 flex items-center px-1 cursor-text border border-transparent hover:border-gray-200 rounded text-gray-800"
-                                                                            onClick={() => handleIngredientSearchOpen(line.id, line.component_item_id)}
-                                                                        >
-                                                                            {availableIngredients.find(i => i.id === line.component_item_id)?.name || <span className="text-gray-400 italic">Selecione o insumo...</span>}
-                                                                        </div>
-                                                                    )}
-                                                                </td>
-                                                                <td className="px-4 py-2">
-                                                                    <Input
-                                                                        type="number"
-                                                                        value={line.qty}
-                                                                        onChange={(e) => updateRecipeLine(line.id, 'qty', parseFloat(e.target.value))}
-                                                                        className="h-8 text-right"
-                                                                        min={0}
-                                                                    />
-                                                                </td>
-                                                                <td className="px-4 py-2">
-                                                                    <div className="flex items-center text-xs text-gray-500 h-8 justify-center bg-gray-100 rounded">
-                                                                        {line.uom}
-                                                                    </div>
-                                                                </td>
-
-                                                                <td className="px-4 py-2">
-                                                                    <Input
-                                                                        value={line.notes || ''}
-                                                                        onChange={(e) => updateRecipeLine(line.id, 'notes', e.target.value)}
-                                                                        className="h-8 text-xs"
-                                                                        placeholder="..."
-                                                                    />
-                                                                </td>
-                                                                <td className="px-4 py-2 text-center">
-                                                                    <button
-                                                                        onClick={() => removeRecipeLine(line.id)}
-                                                                        className="p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                                                                        title="Remover linha"
-                                                                    >
-                                                                        <Trash2 className="w-4 h-4" />
-                                                                    </button>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-
-                                            {/* Ações de Rodapé */}
-                                            <div className="p-4 bg-gray-50 flex justify-between items-center border-t border-gray-100">
-                                                <Button variant="outline" size="sm" onClick={addRecipeLine} className="gap-2">
-                                                    <Plus className="w-4 h-4" />
-                                                    Adicionar Insumo
-                                                </Button>
-
-                                                <div className="flex gap-6 text-sm">
-                                                    <div className="text-gray-500">
-                                                        Total de Insumos: <span className="font-medium text-gray-900">{recipeLines.length}</span>
-                                                    </div>
-                                                    <div className="text-gray-500">
-                                                        Custo Estimado: <span className="font-medium text-gray-900">
-                                                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRecipeCost)}
-                                                        </span>
-                                                    </div>
-                                                    <div className="text-gray-500">
-                                                        Rendimento: <span className="font-medium text-gray-900">{(formData as any).batch_size} {(formData as any).production_uom}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </CardContent>
-                                    </Card>
-                                </TabsContent>
-
-                                {/* --- TAB LOGÍSTICA & EMBALAGENS --- */}
-                                <TabsContent value="logistics" className="mt-0 space-y-6">
-                                    <Card>
-                                        <CardHeaderStandard
-                                            icon={<Box className="w-5 h-5" />}
-                                            title="Embalagens e Apresentações"
-                                            actions={
-                                                <Button onClick={() => handleOpenPackagingModal()} variant="outline" size="sm" className="gap-2">
-                                                    <Plus className="w-4 h-4" />
-                                                    Adicionar Embalagem
-                                                </Button>
-                                            }
-                                        />
-                                        <CardContent>
-                                            <PackagingList
-                                                packagings={formData.packagings || []}
-                                                baseUom={formData.uom}
-                                                onEdit={handleOpenPackagingModal}
-                                                onDelete={(idx) => setPackagingToDeleteIndex(idx)}
+                                        <span className="text-sm font-medium text-gray-900">Controlar estoque deste item</span>
+                                    </label>
+                                }
+                            />
+                            {formData.control_stock ? (
+                                <CardContent className="space-y-6">
+                                    <div className="grid grid-cols-12 gap-6">
+                                        {/* Row 1: Stock Levels */}
+                                        <div className="col-span-6 md:col-span-3 lg:col-span-2">
+                                            <label className="text-sm font-medium">Mínimo</label>
+                                            <Input
+                                                type="number"
+                                                value={formData.min_stock || ''}
+                                                onChange={(e) => handleChange('min_stock', parseFloat(e.target.value))}
+                                                className={cn("mt-1 text-right no-spinners", errors.min_stock && "border-red-500")}
+                                                min={0}
                                             />
-                                        </CardContent>
-                                    </Card>
-                                </TabsContent>
+                                            {errors.min_stock && <p className="text-xs text-red-500 mt-1">{errors.min_stock}</p>}
+                                        </div>
+                                        <div className="col-span-6 md:col-span-3 lg:col-span-2">
+                                            <label className="text-sm font-medium">Máximo</label>
+                                            <Input
+                                                type="number"
+                                                value={formData.max_stock || ''}
+                                                onChange={(e) => handleChange('max_stock', parseFloat(e.target.value))}
+                                                className={cn("mt-1 text-right no-spinners", errors.max_stock && "border-red-500")}
+                                                min={0}
+                                            />
+                                            {errors.max_stock && <p className="text-xs text-red-500 mt-1">{errors.max_stock}</p>}
+                                        </div>
+                                        <div className="col-span-6 md:col-span-3 lg:col-span-2">
+                                            <label className="text-sm font-medium">Ponto de Pedido</label>
+                                            <Input
+                                                type="number"
+                                                value={formData.reorder_point || ''}
+                                                onChange={(e) => handleChange('reorder_point', parseFloat(e.target.value))}
+                                                className="mt-1 text-right no-spinners"
+                                                min={0}
+                                            />
+                                        </div>
+                                        <div className="col-span-6 md:col-span-3 lg:col-span-4">
+                                            <label className="text-sm font-medium">Localização Padrão</label>
+                                            <Input
+                                                value={formData.default_location || ''}
+                                                onChange={(e) => handleChange('default_location', e.target.value)}
+                                                placeholder="Ex: A-03"
+                                                className="mt-1"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-6">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.control_batch}
+                                                onChange={(e) => handleChange('control_batch', e.target.checked)}
+                                                className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300"
+                                            />
+                                            <span className="text-sm text-gray-700">Controlar Lote</span>
+                                        </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.control_expiry}
+                                                onChange={(e) => handleChange('control_expiry', e.target.checked)}
+                                                className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300"
+                                            />
+                                            <span className="text-sm text-gray-700">Controlar Validade</span>
+                                        </label>
+                                    </div>
+                                </CardContent>
+                            ) : (
+                                <CardContent>
+                                    <p className="text-sm text-gray-500 italic">O estoque deste item não será controlado (apenas informativo).</p>
+                                </CardContent>
+                            )}
+                        </Card>
 
-                            </Tabs>
-                        </div>
+                        <Card>
+                            <CardHeaderStandard
+                                icon={<ShoppingBag className="w-5 h-5" />}
+                                title="Parâmetros de Compra (Padrão)"
+                            />
+                            <CardContent>
+                                <div className="grid grid-cols-12 gap-6">
+                                    <div className="col-span-6 md:col-span-2">
+                                        <label className="text-sm font-medium">Lead Time (Dias)</label>
+                                        <Input
+                                            type="number"
+                                            value={formData.lead_time_days || ''}
+                                            onChange={(e) => handleChange('lead_time_days', parseInt(e.target.value))}
+                                            placeholder="Ex: 5"
+                                            className="mt-1 text-right no-spinners"
+                                        />
+                                    </div>
+                                    <div className="col-span-6 md:col-span-3">
+                                        <label className="text-sm font-medium">Unidade de Compra</label>
+                                        <Input
+                                            value={formData.purchase_uom || ''}
+                                            onChange={(e) => handleChange('purchase_uom', e.target.value)}
+                                            placeholder="Ex: SC, FD"
+                                            className="mt-1"
+                                        />
+                                    </div>
+                                    <div className="col-span-6 md:col-span-3">
+                                        <label className="text-sm font-medium">Fator de Conversão</label>
+                                        <div className="w-[40%]">
+                                            <Input
+                                                type="number"
+                                                value={formData.conversion_factor || ''}
+                                                onChange={(e) => handleChange('conversion_factor', parseFloat(e.target.value))}
+                                                placeholder="Ex: 1"
+                                                className={cn("mt-1 text-right no-spinners", errors.conversion_factor && "border-red-500")}
+                                                min={0}
+                                            />
+                                        </div>
+                                        {errors.conversion_factor && <p className="text-xs text-red-500 mt-1">{errors.conversion_factor}</p>}
+                                        <p className="text-[10px] text-gray-500 mt-1">Quantas UN entram no estoque</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
 
-                        <PackagingModal
-                            isOpen={packagingModalOpen}
-                            onClose={() => setPackagingModalOpen(false)}
-                            onSave={handleSavePackaging}
-                            initialData={editingPackagingIndex !== null ? (formData.packagings?.[editingPackagingIndex]) : undefined}
-                            baseUom={formData.uom}
-                        />
+                    {/* --- TAB FISCAL --- */}
+                    <TabsContent value="fiscal" className="mt-0 space-y-6">
+                        <Card>
+                            <CardHeaderStandard
+                                icon={<FileText className="w-5 h-5" />}
+                                title="Dados Fiscais"
+                                actions={
+                                    <label className="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.has_fiscal_output}
+                                            onChange={(e) => handleChange('has_fiscal_output', e.target.checked)}
+                                            className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300"
+                                        />
+                                        <span className="text-sm font-medium text-gray-900">Item possui saída fiscal</span>
+                                    </label>
+                                }
+                            />
+                            {formData.has_fiscal_output ? (
+                                <CardContent>
+                                    <div className="grid grid-cols-12 gap-6">
+                                        <div className="col-span-12 md:col-span-6">
+                                            <label className="text-sm font-medium">Grupo Tributário *</label>
+                                            <Select
+                                                value={formData.tax_group_id || ''}
+                                                onValueChange={(val) => handleChange('tax_group_id', val)}
+                                            >
+                                                <SelectTrigger className="mt-1">
+                                                    <SelectValue placeholder="Selecione..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {taxGroups.map(bg => (
+                                                        <SelectItem key={bg.id} value={bg.id}>{bg.name}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="col-span-6 md:col-span-3">
+                                            <label className="text-sm font-medium">NCM</label>
+                                            <Input
+                                                value={formData.ncm || ''}
+                                                onChange={(e) => handleChange('ncm', e.target.value)}
+                                                placeholder="8 dígitos"
+                                                className={errors.ncm ? "mt-1 border-red-500" : "mt-1"}
+                                                maxLength={8}
+                                            />
+                                            {errors.ncm && <p className="text-xs text-red-500 mt-1">{errors.ncm}</p>}
+                                        </div>
+                                        <div className="col-span-6 md:col-span-3">
+                                            <label className="text-sm font-medium">CEST</label>
+                                            <Input
+                                                value={formData.cest || ''}
+                                                onChange={(e) => handleChange('cest', e.target.value)}
+                                                className={errors.cest ? "mt-1 border-red-500" : "mt-1"}
+                                                maxLength={7}
+                                            />
+                                            {errors.cest && <p className="text-xs text-red-500 mt-1">{errors.cest}</p>}
+                                        </div>
 
-                        <ConfirmDialogDesdobra
-                            open={packagingToDeleteIndex !== null}
-                            onOpenChange={(open) => !open && setPackagingToDeleteIndex(null)}
-                            title="Remover Embalagem"
-                            description="Tem certeza que deseja remover esta embalagem? Esta ação não pode ser desfeita após salvar."
-                            onConfirm={confirmDeletePackaging}
-                            variant="danger"
-                        />
+                                        <div className="col-span-12 md:col-span-6">
+                                            <label className="text-sm font-medium">Origem da Mercadoria (0-8)</label>
+                                            <Select
+                                                value={formData.origin?.toString() || "0"}
+                                                onValueChange={(val) => handleChange('origin', parseInt(val))}
+                                            >
+                                                <SelectTrigger className="mt-1">
+                                                    <SelectValue placeholder="Selecione..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="0">0 - Nacional</SelectItem>
+                                                    <SelectItem value="1">1 - Estrangeira (Imp. Direta)</SelectItem>
+                                                    <SelectItem value="2">2 - Estrangeira (Adq. No Mercado Interno)</SelectItem>
+                                                    {/* Add others if needed */}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="col-span-6 md:col-span-3">
+                                            <label className="text-sm font-medium">CFOP Padrão</label>
+                                            <Input
+                                                value={formData.cfop_default || ''}
+                                                onChange={(e) => handleChange('cfop_default', e.target.value)}
+                                                placeholder="Ex: 5102"
+                                                className="mt-1"
+                                            />
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            ) : (
+                                <CardContent>
+                                    <p className="text-sm text-gray-500 italic">Este item não exige configuração fiscal de saída (ex: uso/consumo interno ou serviço sem emissão).</p>
+                                </CardContent>
+                            )}
+                        </Card>
+                    </TabsContent>
 
-                        <ConfirmDialogDesdobra
-                            open={showNoRecipeConfirm}
-                            onOpenChange={setShowNoRecipeConfirm}
-                            title="Produto sem Receita"
-                            description="Este item está marcado como produzido, mas não possui nenhuma receita (insumos) cadastrada. Deseja salvar mesmo assim?"
-                            onConfirm={handleConfirmNoRecipe}
-                            variant="warning"
-                            isLoading={isLoading}
-                            confirmText="Salvar Mesmo Assim"
-                        />
-                    </div>
-                    );
+                    {/* --- TAB PRODUÇÃO (PCP) --- */}
+                    <TabsContent value="production" className="mt-0 space-y-6">
+
+                        {/* CARD 1: Parâmetros */}
+                        <Card>
+                            <CardHeaderStandard
+                                icon={<Factory className="w-5 h-5" />}
+                                title="Parâmetros de Produção"
+                            />
+                            <CardContent>
+                                <div className="grid grid-cols-12 gap-6">
+                                    <div className="col-span-12 md:col-span-4">
+                                        <label className="text-sm font-medium">Rendimento Padrão (Lote) *</label>
+                                        <Input
+                                            type="number"
+                                            value={(formData as any).batch_size || ''}
+                                            onChange={(e) => handleChange('batch_size', parseFloat(e.target.value))}
+                                            className="mt-1"
+                                            min={0.001}
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">Quanto este lote rende ao final.</p>
+                                    </div>
+                                    <div className="col-span-12 md:col-span-4">
+                                        <label className="text-sm font-medium">Unidade de Produção</label>
+                                        <Select
+                                            value={(formData as any).production_uom || 'UN'}
+                                            onValueChange={(val) => handleChange('production_uom', val)}
+                                        >
+                                            <SelectTrigger className="mt-1">
+                                                <SelectValue placeholder="Selecione..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {UOM_OPTIONS.map(u => (
+                                                    <SelectItem key={u} value={u}>{u}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-gray-500 mt-1">Unidade do produto final.</p>
+                                    </div>
+                                    <div className="col-span-12 md:col-span-4">
+                                        <label className="text-sm font-medium">Perda Padrão (%)</label>
+                                        <Input
+                                            type="number"
+                                            value={(formData as any).loss_percent || 0}
+                                            onChange={(e) => handleChange('loss_percent', parseFloat(e.target.value))}
+                                            className="mt-1"
+                                            min={0} max={100}
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">Perda esperada no processo.</p>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* CARD 2: Receita / BOM */}
+                        <Card className="border-l-4 border-l-brand-500">
+                            <CardHeaderStandard
+                                icon={<Receipt className="w-5 h-5" />}
+                                title="Receita / Ficha Técnica"
+                                actions={
+                                    <div className="text-right flex flex-col items-end gap-1">
+                                        {recipeLines.length > 0 ? (
+                                            <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                                                Receita Cadastrada
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center rounded-full bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
+                                                Sem Receita
+                                            </span>
+                                        )}
+                                    </div>
+                                }
+                            />
+                            <CardContent className="p-0">
+                                {/* Grid de Insumos */}
+                                <div className="border-t border-gray-100">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left font-medium text-gray-600 w-[50%]">Insumo (Matéria-prima/Emb.)</th>
+                                                <th className="px-4 py-3 text-left font-medium text-gray-600 w-[15%]">Qtd.</th>
+                                                <th className="px-4 py-3 text-left font-medium text-gray-600 w-[10%]">Unid.</th>
+                                                <th className="px-4 py-3 text-left font-medium text-gray-600 w-[20%]">Obs.</th>
+                                                <th className="px-4 py-3 w-[5%]"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {recipeLines.map((line, idx) => (
+                                                <tr key={line.id || idx} className="group hover:bg-gray-50 transition-colors">
+                                                    <td className="px-4 py-2 relative">
+                                                        {/* Searchable Input Logic */}
+                                                        {ingredientSearchOpen === line.id ? (
+                                                            <div className="absolute top-1 left-3 right-3 z-10">
+                                                                <Input
+                                                                    autoFocus
+                                                                    value={ingredientSearchTerm}
+                                                                    onChange={(e) => setIngredientSearchTerm(e.target.value)}
+                                                                    onBlur={() => {
+                                                                        // Small timeout to allow click on option
+                                                                        setTimeout(() => setIngredientSearchOpen(null), 200);
+                                                                    }}
+                                                                    placeholder="Buscar insumo..."
+                                                                    className="h-9 border-brand-500 ring-1 ring-brand-500"
+                                                                />
+                                                                {ingredientSearchTerm && (
+                                                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-2xl shadow-card border border-gray-100 max-h-48 overflow-y-auto z-20">
+                                                                        {filteredIngredients.length > 0 ? filteredIngredients.map(item => (
+                                                                            <div
+                                                                                key={item.id}
+                                                                                className="px-3 py-2 hover:bg-brand-50 cursor-pointer text-sm"
+                                                                                onMouseDown={() => handleIngredientSelect(line.id, item)}
+                                                                            >
+                                                                                <div className="font-medium">{item.name}</div>
+                                                                                <div className="text-[10px] text-gray-400">{item.sku} • {item.uom}</div>
+                                                                            </div>
+                                                                        )) : (
+                                                                            <div className="px-3 py-2 text-gray-400 text-xs text-center">Nenhum item encontrado.</div>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <div
+                                                                className="h-9 flex items-center px-1 cursor-text border border-transparent hover:border-gray-200 rounded text-gray-800"
+                                                                onClick={() => handleIngredientSearchOpen(line.id, line.component_item_id)}
+                                                            >
+                                                                {availableIngredients.find(i => i.id === line.component_item_id)?.name || <span className="text-gray-400 italic">Selecione o insumo...</span>}
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-2">
+                                                        <Input
+                                                            type="number"
+                                                            value={line.qty}
+                                                            onChange={(e) => updateRecipeLine(line.id, 'qty', parseFloat(e.target.value))}
+                                                            className="h-8 text-right"
+                                                            min={0}
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-2">
+                                                        <div className="flex items-center text-xs text-gray-500 h-8 justify-center bg-gray-100 rounded">
+                                                            {line.uom}
+                                                        </div>
+                                                    </td>
+
+                                                    <td className="px-4 py-2">
+                                                        <Input
+                                                            value={line.notes || ''}
+                                                            onChange={(e) => updateRecipeLine(line.id, 'notes', e.target.value)}
+                                                            className="h-8 text-xs"
+                                                            placeholder="..."
+                                                        />
+                                                    </td>
+                                                    <td className="px-4 py-2 text-center">
+                                                        <button
+                                                            onClick={() => removeRecipeLine(line.id)}
+                                                            className="p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                                            title="Remover linha"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Ações de Rodapé */}
+                                <div className="p-4 bg-gray-50 flex justify-between items-center border-t border-gray-100">
+                                    <Button variant="outline" size="sm" onClick={addRecipeLine} className="gap-2">
+                                        <Plus className="w-4 h-4" />
+                                        Adicionar Insumo
+                                    </Button>
+
+                                    <div className="flex gap-6 text-sm">
+                                        <div className="text-gray-500">
+                                            Total de Insumos: <span className="font-medium text-gray-900">{recipeLines.length}</span>
+                                        </div>
+                                        <div className="text-gray-500">
+                                            Custo Estimado: <span className="font-medium text-gray-900">
+                                                {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalRecipeCost)}
+                                            </span>
+                                        </div>
+                                        <div className="text-gray-500">
+                                            Rendimento: <span className="font-medium text-gray-900">{(formData as any).batch_size} {(formData as any).production_uom}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    {/* --- TAB LOGÍSTICA & EMBALAGENS --- */}
+                    <TabsContent value="logistics" className="mt-0 space-y-6">
+                        <Card>
+                            <CardHeaderStandard
+                                icon={<Box className="w-5 h-5" />}
+                                title="Embalagens e Apresentações"
+                                actions={
+                                    <Button onClick={() => handleOpenPackagingModal()} variant="outline" size="sm" className="gap-2">
+                                        <Plus className="w-4 h-4" />
+                                        Adicionar Embalagem
+                                    </Button>
+                                }
+                            />
+                            <CardContent>
+                                <PackagingList
+                                    packagings={formData.packagings || []}
+                                    baseUom={formData.uom}
+                                    onEdit={handleOpenPackagingModal}
+                                    onDelete={(idx) => setPackagingToDeleteIndex(idx)}
+                                />
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                </Tabs>
+            </div>
+
+            <PackagingModal
+                isOpen={packagingModalOpen}
+                onClose={() => setPackagingModalOpen(false)}
+                onSave={handleSavePackaging}
+                initialData={editingPackagingIndex !== null ? (formData.packagings?.[editingPackagingIndex]) : undefined}
+                baseUom={formData.uom}
+            />
+
+            <ConfirmDialogDesdobra
+                open={packagingToDeleteIndex !== null}
+                onOpenChange={(open) => !open && setPackagingToDeleteIndex(null)}
+                title="Remover Embalagem"
+                description="Tem certeza que deseja remover esta embalagem? Esta ação não pode ser desfeita após salvar."
+                onConfirm={confirmDeletePackaging}
+                variant="danger"
+            />
+
+            <ConfirmDialogDesdobra
+                open={showNoRecipeConfirm}
+                onOpenChange={setShowNoRecipeConfirm}
+                title="Produto sem Receita"
+                description="Este item está marcado como produzido, mas não possui nenhuma receita (insumos) cadastrada. Deseja salvar mesmo assim?"
+                onConfirm={handleConfirmNoRecipe}
+                variant="warning"
+                isLoading={isLoading}
+                confirmText="Salvar Mesmo Assim"
+            />
+        </div>
+    );
 }

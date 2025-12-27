@@ -60,6 +60,7 @@ export default function ItemEditPage() {
                 length_base: item.length_base || 0,
                 brand: item.brand || "",
                 line: item.line || "",
+                category_id: item.category_id || undefined,
                 description: item.description || "",
                 image_url: item.image_url || "",
 

@@ -26,6 +26,14 @@ export type ItemSalesProfile = Database['public']['Tables']['item_sales_profiles
 export type ItemFiscalProfile = Database['public']['Tables']['item_fiscal_profiles']['Row'];
 export type ItemProductionProfile = Database['public']['Tables']['item_production_profiles']['Row'];
 
+
+export interface ProductCategory {
+    id: string;
+    name: string;
+    normalized_name: string;
+    product_count?: number; // Virtual field for UI
+}
+
 export interface FullProduct extends Item {
     inventory?: ItemInventoryProfile | null;
     purchase?: ItemPurchaseProfile | null;
@@ -33,6 +41,7 @@ export interface FullProduct extends Item {
     fiscal?: ItemFiscalProfile | null;
     production?: ItemProductionProfile | null;
     packagings?: ItemPackaging[];
+    category?: ProductCategory | null; // Join
 }
 
 export type ProductFormData = {
@@ -49,7 +58,8 @@ export type ProductFormData = {
     length_base?: number;
 
     brand?: string;
-    line?: string;
+    line?: string; // @deprecated use category_id
+    category_id?: string;
     description?: string;
     image_url?: string;
     is_active: boolean;
