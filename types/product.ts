@@ -11,6 +11,9 @@ export type ItemPackaging = {
     gtin_ean?: string | null;
     net_weight_g?: number | null;
     gross_weight_g?: number | null;
+    height_cm?: number | null;
+    width_cm?: number | null;
+    length_cm?: number | null;
     is_default_sales_unit: boolean;
     is_active: boolean;
     created_at?: string;

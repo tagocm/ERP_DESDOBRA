@@ -24,21 +24,9 @@ import { Loader2, Search, CheckCircle2, Save, ArrowLeft, ShoppingCart, Package, 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AddressFormData } from "@/components/forms/AddressForm";
+import { toTitleCase, normalizeEmail } from "@/lib/utils";
 
-// Helper for Title Case
-const toTitleCase = (str: string) => {
-    if (!str) return "";
-    return str
-        .toLowerCase()
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ');
-};
 
-const toLowerCase = (str: string) => {
-    if (!str) return "";
-    return str.toLowerCase();
-};
 
 export default function NewOrganizationPage() {
     const { selectedCompany } = useCompany();
@@ -168,17 +156,17 @@ export default function NewOrganizationPage() {
 
         const sanitizedFormData = {
             ...formData,
-            legal_name: toTitleCase(formData.legal_name),
-            trade_name: toTitleCase(formData.trade_name),
-            email: toLowerCase(formData.email)
+            legal_name: toTitleCase(formData.legal_name) || "",
+            trade_name: toTitleCase(formData.trade_name) || "",
+            email: normalizeEmail(formData.email) || ""
         };
 
         const sanitizedAddress = {
             ...billingAddress,
-            street: toTitleCase(billingAddress.street),
-            neighborhood: toTitleCase(billingAddress.neighborhood),
-            city: toTitleCase(billingAddress.city),
-            complement: toTitleCase(billingAddress.complement),
+            street: toTitleCase(billingAddress.street) || "",
+            neighborhood: toTitleCase(billingAddress.neighborhood) || "",
+            city: toTitleCase(billingAddress.city) || "",
+            complement: toTitleCase(billingAddress.complement) || "",
             state: billingAddress.state.toUpperCase(),
             country: billingAddress.country.toUpperCase()
         };
@@ -187,20 +175,20 @@ export default function NewOrganizationPage() {
 
         const sanitizedFiscal = {
             ...fiscalData,
-            email_nfe: toLowerCase(fiscalData.email_nfe),
+            email_nfe: normalizeEmail(fiscalData.email_nfe) || "",
             state_registration: fiscalData.state_registration.toUpperCase(),
             municipal_registration: fiscalData.municipal_registration.toUpperCase(),
             suframa: fiscalData.suframa.toUpperCase(),
             // New Fields Sanitization
             public_agency_code: fiscalData.public_agency_code ? fiscalData.public_agency_code.toUpperCase() : "",
-            default_operation_nature: fiscalData.default_operation_nature ? toTitleCase(fiscalData.default_operation_nature) : "",
+            default_operation_nature: fiscalData.default_operation_nature ? (toTitleCase(fiscalData.default_operation_nature) || "") : "",
             default_cfop: fiscalData.default_cfop ? extractDigits(fiscalData.default_cfop) : "",
         };
 
         const sanitizedContacts = contacts.map(c => ({
             ...c,
-            full_name: toTitleCase(c.full_name),
-            email: toLowerCase(c.email || ""),
+            full_name: toTitleCase(c.full_name) || "",
+            email: normalizeEmail(c.email || "") || "",
         }));
 
         return { sanitizedFormData, sanitizedAddress, sanitizedCommercial, sanitizedFiscal, sanitizedContacts };
@@ -435,12 +423,12 @@ export default function NewOrganizationPage() {
             if (!billingAddress.zip && data.address.zip) {
                 setBillingAddress({
                     zip: data.address.zip || "",
-                    street: data.address.street || "",
+                    street: toTitleCase(data.address.street) || "",
                     number: data.address.number || "",
-                    complement: data.address.complement || "",
-                    neighborhood: data.address.neighborhood || "",
-                    city: data.address.city || "",
-                    state: data.address.state || "",
+                    complement: toTitleCase(data.address.complement) || "",
+                    neighborhood: toTitleCase(data.address.neighborhood) || "",
+                    city: toTitleCase(data.address.city) || "",
+                    state: data.address.state?.toUpperCase() || "",
                     country: "BR"
                 });
             }

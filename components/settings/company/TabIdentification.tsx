@@ -12,7 +12,7 @@ import { useState, useRef } from "react";
 import { createClient } from "@/lib/supabaseBrowser";
 import { validateLogoFile, generateFilePath } from "@/lib/upload-helpers";
 import { useCompany } from "@/contexts/CompanyContext";
-import { cn } from "@/lib/utils";
+import { cn, toTitleCase } from "@/lib/utils";
 
 interface TabIdentificationProps {
     data: Partial<CompanySettings>;
@@ -134,20 +134,20 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
             if (!res.ok) throw new Error("Erro ao buscar CNPJ");
             const info = await res.json();
 
-            // Auto-fill Identification
-            onChange('legal_name', info.legal_name || data.legal_name);
-            onChange('trade_name', info.trade_name || data.trade_name);
+            // Auto-fill Identification (with Title Case)
+            onChange('legal_name', toTitleCase(info.legal_name || data.legal_name));
+            onChange('trade_name', toTitleCase(info.trade_name || data.trade_name));
             onChange('cnae', info.cnae_main?.code || data.cnae);
 
-            // Auto-fill Address
+            // Auto-fill Address (with Title Case)
             if (info.address) {
                 onChange('address_zip', info.address.zip);
-                onChange('address_street', info.address.street);
+                onChange('address_street', toTitleCase(info.address.street));
                 onChange('address_number', info.address.number);
-                onChange('address_neighborhood', info.address.neighborhood);
-                onChange('address_city', info.address.city);
-                onChange('address_state', info.address.state);
-                onChange('address_complement', info.address.complement);
+                onChange('address_neighborhood', toTitleCase(info.address.neighborhood));
+                onChange('address_city', toTitleCase(info.address.city));
+                onChange('address_state', info.address.state?.toUpperCase()); // UF always uppercase
+                onChange('address_complement', toTitleCase(info.address.complement));
             }
 
             // Auto-fill Contacts (if available)
@@ -192,10 +192,10 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                 return;
             }
 
-            onChange('address_street', info.logradouro);
-            onChange('address_neighborhood', info.bairro);
-            onChange('address_city', info.localidade);
-            onChange('address_state', info.uf);
+            onChange('address_street', toTitleCase(info.logradouro));
+            onChange('address_neighborhood', toTitleCase(info.bairro));
+            onChange('address_city', toTitleCase(info.localidade));
+            onChange('address_state', info.uf?.toUpperCase()); // UF always uppercase
             onChange('city_code_ibge', info.ibge);
 
         } catch (e) {
@@ -369,7 +369,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                                 <label className="text-sm font-medium text-gray-700">Razão Social <span className="text-red-500">*</span></label>
                                 <Input
                                     value={data.legal_name || ''}
-                                    onChange={e => onChange('legal_name', e.target.value)}
+                                    onChange={e => onChange('legal_name', toTitleCase(e.target.value))}
                                     disabled={!isAdmin}
                                 />
                             </div>
@@ -378,7 +378,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                                 <label className="text-sm font-medium text-gray-700">Nome Fantasia <span className="text-red-500">*</span></label>
                                 <Input
                                     value={data.trade_name || ''}
-                                    onChange={e => onChange('trade_name', e.target.value)}
+                                    onChange={e => onChange('trade_name', toTitleCase(e.target.value))}
                                     disabled={!isAdmin}
                                 />
                             </div>
@@ -440,7 +440,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                         <label className="text-sm font-medium text-gray-700">Logradouro <span className="text-red-500">*</span></label>
                         <Input
                             value={data.address_street || ''}
-                            onChange={e => onChange('address_street', e.target.value)}
+                            onChange={e => onChange('address_street', toTitleCase(e.target.value))}
                             disabled={!isAdmin}
                         />
                     </div>
@@ -457,7 +457,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                         <label className="text-sm font-medium text-gray-700">Complemento</label>
                         <Input
                             value={data.address_complement || ''}
-                            onChange={e => onChange('address_complement', e.target.value)}
+                            onChange={e => onChange('address_complement', toTitleCase(e.target.value))}
                             disabled={!isAdmin}
                         />
                     </div>
@@ -465,7 +465,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                         <label className="text-sm font-medium text-gray-700">Bairro <span className="text-red-500">*</span></label>
                         <Input
                             value={data.address_neighborhood || ''}
-                            onChange={e => onChange('address_neighborhood', e.target.value)}
+                            onChange={e => onChange('address_neighborhood', toTitleCase(e.target.value))}
                             disabled={!isAdmin}
                         />
                     </div>
@@ -473,7 +473,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                         <label className="text-sm font-medium text-gray-700">Cidade <span className="text-red-500">*</span></label>
                         <Input
                             value={data.address_city || ''}
-                            onChange={e => onChange('address_city', e.target.value)}
+                            onChange={e => onChange('address_city', toTitleCase(e.target.value))}
                             disabled={!isAdmin}
                         />
                     </div>
@@ -481,7 +481,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                         <label className="text-sm font-medium text-gray-700">UF <span className="text-red-500">*</span></label>
                         <Input
                             value={data.address_state || ''}
-                            onChange={e => onChange('address_state', e.target.value)}
+                            onChange={e => onChange('address_state', e.target.value.toUpperCase())}
                             disabled={!isAdmin}
                             maxLength={2}
                         />

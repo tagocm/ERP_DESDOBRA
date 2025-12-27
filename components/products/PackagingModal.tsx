@@ -31,6 +31,9 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
         gtin_ean: '',
         net_weight_g: 0,
         gross_weight_g: 0,
+        height_cm: null,
+        width_cm: null,
+        length_cm: null,
         is_active: true,
         is_default_sales_unit: false
     });
@@ -43,7 +46,10 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                 setFormData({
                     ...initialData,
                     net_weight_g: initialData.net_weight_g || 0,
-                    gross_weight_g: initialData.gross_weight_g || 0
+                    gross_weight_g: initialData.gross_weight_g || 0,
+                    height_cm: initialData.height_cm || null,
+                    width_cm: initialData.width_cm || null,
+                    length_cm: initialData.length_cm || null
                 });
             } else {
                 setFormData({
@@ -53,6 +59,9 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                     gtin_ean: '',
                     net_weight_g: 0,
                     gross_weight_g: 0,
+                    height_cm: null,
+                    width_cm: null,
+                    length_cm: null,
                     is_active: true,
                     is_default_sales_unit: false
                 });
@@ -219,6 +228,55 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                             onChange={(e) => {
                                 const val = e.target.value === '' ? null : parseFloat(e.target.value);
                                 handleChange('gross_weight_g', val);
+                            }}
+                            placeholder="Opcional"
+                            className="text-right no-spinners"
+                        />
+                    </div>
+
+                    {/* Dimensões */}
+                    <div className="space-y-2">
+                        <Label>Altura (cm)</Label>
+                        <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={formData.height_cm ?? ''}
+                            onChange={(e) => {
+                                const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                                handleChange('height_cm', val);
+                            }}
+                            placeholder="Opcional"
+                            className="text-right no-spinners"
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Largura (cm)</Label>
+                        <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={formData.width_cm ?? ''}
+                            onChange={(e) => {
+                                const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                                handleChange('width_cm', val);
+                            }}
+                            placeholder="Opcional"
+                            className="text-right no-spinners"
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label>Comprimento (cm)</Label>
+                        <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={formData.length_cm ?? ''}
+                            onChange={(e) => {
+                                const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                                handleChange('length_cm', val);
                             }}
                             placeholder="Opcional"
                             className="text-right no-spinners"
