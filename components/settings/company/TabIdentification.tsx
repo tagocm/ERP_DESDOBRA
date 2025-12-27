@@ -13,7 +13,6 @@ import { createClient } from "@/lib/supabaseBrowser";
 import { validateLogoFile, generateFilePath } from "@/lib/upload-helpers";
 import { useCompany } from "@/contexts/CompanyContext";
 import { cn } from "@/lib/utils";
-import Image from "next/image";
 
 interface TabIdentificationProps {
     data: Partial<CompanySettings>;
@@ -36,8 +35,16 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
     const processLogoUpload = async (file: File) => {
         if (!selectedCompany) return;
 
+        console.log('🔵 Upload started:', {
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            companyId: selectedCompany.id
+        });
+
         const validation = validateLogoFile(file);
         if (!validation.valid) {
+            console.error('❌ Validation failed:', validation.error);
             setLogoError(validation.error || "Arquivo inválido");
             return;
         }
@@ -47,22 +54,33 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
 
         try {
             const path = generateFilePath(selectedCompany.id, 'logo', file.name);
-            const { error } = await supabase.storage
+            console.log('📁 Upload path:', path);
+
+            const { error, data } = await supabase.storage
                 .from('company-assets')
                 .upload(path, file, {
                     upsert: true,
                     contentType: file.type
                 });
 
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Upload error:', error);
+                throw error;
+            }
+
+            console.log('✅ Upload successful:', data);
 
             const { data: { publicUrl } } = supabase.storage
                 .from('company-assets')
                 .getPublicUrl(path);
 
+            console.log('🔗 Public URL generated:', publicUrl);
+            console.log('📝 Calling onChange with URL');
+
             onChange('logo_path', publicUrl);
 
         } catch (err: any) {
+            console.error('💥 Upload catch error:', err);
             setLogoError("Erro ao enviar logo: " + err.message);
         } finally {
             setUploadingLogo(false);

@@ -31,7 +31,7 @@ export async function getRoutes(supabase: SupabaseClient, companyId: string, dat
             *,
             orders:delivery_route_orders(
                 id, position, sales_document_id,
-                sales_order:sales_documents(
+                sales_document:sales_documents(
                     id, document_number, total_amount, date_issued, status_commercial, status_logistic,
                     client:organizations!client_id(trade_name)
                 )
@@ -209,7 +209,7 @@ export async function getScheduledRoutes(supabase: SupabaseClient, companyId: st
             *,
             orders:delivery_route_orders(
                 id, position, sales_document_id,
-                sales_order:sales_documents(
+                sales_document:sales_documents(
                     id, document_number, total_amount, date_issued, status_commercial, status_logistic,
                     client:organizations!client_id(trade_name)
                 )
@@ -240,7 +240,7 @@ export async function getUnscheduledRoutes(supabase: SupabaseClient, companyId: 
             *,
             orders:delivery_route_orders(
                 id, position, sales_document_id,
-                sales_order:sales_documents(
+                sales_document:sales_documents(
                     id, document_number, total_amount, date_issued, status_commercial, status_logistic,
                     client:organizations!client_id(trade_name)
                 )
@@ -313,7 +313,7 @@ export async function getExpeditionRoutes(
             *,
             orders:delivery_route_orders(
                 id, position, sales_document_id,
-                sales_order:sales_documents(
+                sales_document:sales_documents(
                     id, document_number, total_amount, status_logistic,
                     loading_checked, loading_checked_at,
                     client:organizations!client_id(

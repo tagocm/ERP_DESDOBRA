@@ -5,7 +5,7 @@
 
 export const ALLOWED_LOGO_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp'];
 export const ALLOWED_CERT_TYPES = ['application/x-pkcs12', 'application/pkcs12'];
-export const MAX_LOGO_SIZE = 5 * 1024 * 1024; // 5MB
+export const MAX_LOGO_SIZE = 2 * 1024 * 1024; // 2MB
 export const MAX_CERT_SIZE = 10 * 1024 * 1024; // 10MB
 
 export interface FileValidationResult {
