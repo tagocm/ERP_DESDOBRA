@@ -1353,8 +1353,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                             />
                             <CardContent>
                                 <div className="grid grid-cols-12 gap-6">
-                                    <div className="col-span-12 md:col-span-4">
-                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Rendimento Padrão (Lote) *</label>
+                                    <div className="col-span-12 md:col-span-2">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Rendimento (Lote)*</label>
                                         <Input
                                             type="number"
                                             value={(formData as any).batch_size || ''}
@@ -1365,25 +1365,20 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         />
                                         <p className="text-xs text-gray-500 mt-1">Quanto este lote rende ao final.</p>
                                     </div>
-                                    <div className="col-span-12 md:col-span-4">
+                                    <div className="col-span-12 md:col-span-3">
                                         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Unidade de Produção</label>
                                         <UomSelector
                                             value={formData.production_uom_id}
                                             onChange={(val) => handleChange('production_uom_id', val)}
+                                            onSelect={(uom) => {
+                                                // Sync Production UOM if it was same as base or unset
+                                                if (!formData.production_uom_id || formData.production_uom_id === formData.uom_id) {
+                                                    handleChange('production_uom_id', uom.id);
+                                                }
+                                            }}
                                             className="mt-1"
                                         />
                                         <p className="text-xs text-gray-500 mt-1">Unidade do produto final.</p>
-                                    </div>
-                                    <div className="col-span-12 md:col-span-4">
-                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Perda Padrão (%)</label>
-                                        <Input
-                                            type="number"
-                                            value={(formData as any).loss_percent || 0}
-                                            onChange={(e) => handleChange('loss_percent', parseFloat(e.target.value))}
-                                            className="mt-1"
-                                            min={0} max={100}
-                                        />
-                                        <p className="text-xs text-gray-500 mt-1">Perda esperada no processo.</p>
                                     </div>
                                 </div>
                             </CardContent>
@@ -1568,115 +1563,121 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             </div>
 
                                             {showByproducts && (
-                                                <div className="overflow-x-auto border border-gray-100 rounded-xl">
-                                                    <table className="w-full text-xs">
-                                                        <thead className="bg-gray-50/50">
+                                                <div className="border border-gray-100 rounded-xl overflow-hidden mt-2">
+                                                    <table className="w-full text-sm">
+                                                        <thead className="bg-gray-50">
                                                             <tr>
-                                                                <th className="px-3 py-2 text-left font-semibold text-gray-500 w-[40%]">Produto (Co-produto)</th>
-                                                                <th className="px-3 py-2 text-center font-semibold text-gray-500 w-[15%]">Qtd.</th>
-                                                                <th className="px-3 py-2 text-center font-semibold text-gray-500 w-[20%]">Base de Cálculo</th>
-                                                                <th className="px-3 py-2 text-left font-semibold text-gray-500">Obs.</th>
-                                                                <th className="px-3 py-2 w-[5%]"></th>
+                                                                <th className="px-4 py-3 text-left font-medium text-gray-600 w-[40%]">Produto (Co-produto)</th>
+                                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-[15%]">Qtd.</th>
+                                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-[15%]">Base / Unid.</th>
+                                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-[25%]">Obs.</th>
+                                                                <th className="px-4 py-3 w-[5%]"></th>
                                                             </tr>
                                                         </thead>
-                                                        <tbody className="divide-y divide-gray-50">
-                                                            {byproducts.map((bp, idx) => (
-                                                                <tr key={bp.id || idx} className="hover:bg-gray-50/30">
-                                                                    <td className="px-3 py-2 relative">
-                                                                        {byproductSearchOpen === bp.id ? (
-                                                                            <div className="absolute top-1 left-3 right-3 z-20">
-                                                                                <Input
-                                                                                    autoFocus
-                                                                                    value={byproductSearchTerm}
-                                                                                    onChange={(e) => setByproductSearchTerm(e.target.value)}
-                                                                                    onBlur={() => setTimeout(() => setByproductSearchOpen(null), 200)}
-                                                                                    placeholder="Buscar co-produto..."
-                                                                                    className="h-8 border-brand-500 ring-1 ring-brand-500"
-                                                                                />
-                                                                                {byproductSearchTerm && (
-                                                                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-gray-100 max-h-40 overflow-y-auto z-30">
-                                                                                        {filteredByproducts.length > 0 ? filteredByproducts.map(item => (
-                                                                                            <div
-                                                                                                key={item.id}
-                                                                                                className="px-3 py-2 hover:bg-brand-50 cursor-pointer text-[11px]"
-                                                                                                onMouseDown={() => {
-                                                                                                    handleByproductSelect(bp.id, item);
-                                                                                                    updateByproductLine(bp.id, 'item_uom', item.uom);
-                                                                                                }}
-                                                                                            >
-                                                                                                <div className="font-medium text-gray-900">{item.name}</div>
-                                                                                                <div className="text-[9px] text-gray-400">{item.sku || 'Sem SKU'} • {item.uom}</div>
-                                                                                            </div>
-                                                                                        )) : (
-                                                                                            <div className="px-3 py-2 text-gray-400 text-[10px] text-center">Nenhum item.</div>
-                                                                                        )}
-                                                                                    </div>
-                                                                                )}
-                                                                            </div>
-                                                                        ) : (
-                                                                            <div
-                                                                                className="h-8 flex items-center px-2 cursor-pointer border border-gray-100 rounded-lg hover:border-gray-300 bg-white"
-                                                                                onClick={() => handleByproductSearchOpen(bp.id, bp.item_id)}
-                                                                            >
-                                                                                {availableIngredients.find(i => i.id === bp.item_id)?.name || <span className="text-gray-400 italic">Selecionar produto...</span>}
-                                                                            </div>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="px-3 py-2">
-                                                                        <div className="flex items-center gap-1">
+                                                        <tbody className="divide-y divide-gray-100">
+                                                            {byproducts.map((bp, idx) => {
+                                                                const item = availableIngredients.find(i => i.id === bp.item_id);
+                                                                return (
+                                                                    <tr key={bp.id || idx} className="group hover:bg-gray-50 transition-colors">
+                                                                        <td className="px-4 py-2 relative">
+                                                                            {byproductSearchOpen === bp.id ? (
+                                                                                <div className="absolute top-1 left-3 right-3 z-10">
+                                                                                    <Input
+                                                                                        autoFocus
+                                                                                        value={byproductSearchTerm}
+                                                                                        onChange={(e) => setByproductSearchTerm(e.target.value)}
+                                                                                        onBlur={() => setTimeout(() => setByproductSearchOpen(null), 200)}
+                                                                                        placeholder="Buscar co-produto..."
+                                                                                        className="h-9 border-brand-500 ring-1 ring-brand-500"
+                                                                                    />
+                                                                                    {byproductSearchTerm && (
+                                                                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-2xl shadow-card border border-gray-100 max-h-48 overflow-y-auto z-20">
+                                                                                            {filteredByproducts.length > 0 ? filteredByproducts.map(searchItem => (
+                                                                                                <div
+                                                                                                    key={searchItem.id}
+                                                                                                    className="px-3 py-2 hover:bg-brand-50 cursor-pointer text-sm"
+                                                                                                    onMouseDown={() => {
+                                                                                                        handleByproductSelect(bp.id, searchItem);
+                                                                                                    }}
+                                                                                                >
+                                                                                                    <div className="font-medium">{searchItem.name}</div>
+                                                                                                    <div className="text-[10px] text-gray-400">{searchItem.sku} • {searchItem.uom}</div>
+                                                                                                </div>
+                                                                                            )) : (
+                                                                                                <div className="px-3 py-2 text-gray-400 text-xs text-center">Nenhum item encontrado.</div>
+                                                                                            )}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div
+                                                                                    className="h-9 flex items-center px-1 cursor-text border border-transparent hover:border-gray-200 rounded text-gray-800"
+                                                                                    onClick={() => handleByproductSearchOpen(bp.id, bp.item_id)}
+                                                                                >
+                                                                                    {item?.name || <span className="text-gray-400 italic">Selecionar produto...</span>}
+                                                                                </div>
+                                                                            )}
+                                                                        </td>
+                                                                        <td className="px-4 py-2">
                                                                             <Input
                                                                                 type="number"
                                                                                 value={bp.qty}
                                                                                 onChange={(e) => updateByproductLine(bp.id, 'qty', parseFloat(e.target.value))}
-                                                                                className="h-8 text-right px-2"
+                                                                                className="h-8 text-right"
+                                                                                min={0}
                                                                             />
-                                                                            <span className="text-[10px] text-gray-400 w-6 uppercase">
-                                                                                {bp.basis === 'PERCENT' ? '%' : (availableIngredients.find(i => i.id === bp.item_id)?.uom || '-')}
-                                                                            </span>
-                                                                        </div>
-                                                                    </td>
-                                                                    <td className="px-3 py-2">
-                                                                        <Select
-                                                                            value={bp.basis}
-                                                                            onValueChange={(val) => updateByproductLine(bp.id, 'basis', val)}
-                                                                        >
-                                                                            <SelectTrigger className="h-8 text-[11px]">
-                                                                                <SelectValue />
-                                                                            </SelectTrigger>
-                                                                            <SelectContent>
-                                                                                <SelectItem value="PERCENT">% do Lote</SelectItem>
-                                                                                <SelectItem value="FIXED">Qtd. Fixa / Lote</SelectItem>
-                                                                            </SelectContent>
-                                                                        </Select>
-                                                                    </td>
-                                                                    <td className="px-3 py-2">
-                                                                        <Input
-                                                                            value={bp.notes || ''}
-                                                                            onChange={(e) => updateByproductLine(bp.id, 'notes', e.target.value)}
-                                                                            className="h-8 text-[11px]"
-                                                                            placeholder="Ex: Casca..."
-                                                                        />
-                                                                    </td>
-                                                                    <td className="px-3 py-2 text-center">
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => removeByproductLine(bp.id)}
-                                                                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-                                                                        >
-                                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                                        </button>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
+                                                                        </td>
+                                                                        <td className="px-4 py-2">
+                                                                            <div className="flex flex-col gap-1">
+                                                                                <Select
+                                                                                    value={bp.basis}
+                                                                                    onValueChange={(val) => updateByproductLine(bp.id, 'basis', val)}
+                                                                                >
+                                                                                    <SelectTrigger className="h-7 text-[10px] px-2 bg-gray-50 border-gray-200">
+                                                                                        <SelectValue />
+                                                                                    </SelectTrigger>
+                                                                                    <SelectContent>
+                                                                                        <SelectItem value="PERCENT">%</SelectItem>
+                                                                                        <SelectItem value="FIXED">Fixo</SelectItem>
+                                                                                    </SelectContent>
+                                                                                </Select>
+                                                                                <div className="flex items-center text-[10px] text-gray-500 h-6 justify-center bg-gray-100 rounded uppercase">
+                                                                                    {bp.basis === 'PERCENT' ? '%' : (item?.uom || '-')}
+                                                                                </div>
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="px-4 py-2">
+                                                                            <Input
+                                                                                value={bp.notes || ''}
+                                                                                onChange={(e) => updateByproductLine(bp.id, 'notes', e.target.value)}
+                                                                                className="h-8 text-xs"
+                                                                                placeholder="..."
+                                                                            />
+                                                                        </td>
+                                                                        <td className="px-4 py-2 text-center">
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => removeByproductLine(bp.id)}
+                                                                                className="p-1 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                                                                title="Remover linha"
+                                                                            >
+                                                                                <Trash2 className="w-4 h-4" />
+                                                                            </button>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
                                                         </tbody>
                                                     </table>
-                                                    <div className="p-2 bg-gray-50/50">
+
+                                                    {/* Rodapé Interno da Tabela de Co-produtos */}
+                                                    <div className="p-3 bg-gray-50 border-t border-gray-100 flex justify-center">
                                                         <button
                                                             type="button"
                                                             onClick={addByproductLine}
-                                                            className="text-[10px] font-medium text-brand-600 hover:text-brand-700 flex items-center gap-1 mx-auto"
+                                                            className="text-xs font-semibold text-brand-600 hover:text-brand-700 flex items-center gap-1.5 transition-colors"
                                                         >
-                                                            <Plus className="w-3 h-3" />
+                                                            <Plus className="w-4 h-4" />
                                                             Adicionar outro co-produto
                                                         </button>
                                                     </div>
