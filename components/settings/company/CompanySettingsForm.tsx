@@ -139,9 +139,14 @@ export function CompanySettingsForm() {
             // Save Settings
             await updateCompanySettings(supabase, selectedCompany.id, settings);
 
-            // Update Company Name in parent table if trade_name changed
+            // Update Company Name (Secondary, non-blocking)
             if (settings.trade_name) {
-                await updateCompanyName(supabase, selectedCompany.id, settings.trade_name);
+                try {
+                    await updateCompanyName(supabase, selectedCompany.id, settings.trade_name);
+                } catch (nameErr) {
+                    console.warn("Failed to update company name in 'companies' table:", nameErr);
+                    // Do not block the user if this fails
+                }
             }
 
             toast({
@@ -150,10 +155,13 @@ export function CompanySettingsForm() {
             });
 
         } catch (err: any) {
-            console.error(err);
+            console.error("Save Error:", err);
+            // Try to extract more info if available
+            const errorMessage = err.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+
             toast({
                 title: "Erro ao salvar",
-                description: err.message || "Ocorreu um erro ao salvar as alterações.",
+                description: errorMessage || "Ocorreu um erro desconhecido ao salvar.",
                 variant: "destructive"
             });
         } finally {

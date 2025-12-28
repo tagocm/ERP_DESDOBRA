@@ -22,7 +22,7 @@ interface NumberingAdjustmentModalProps {
 }
 
 export function NumberingAdjustmentModal({ open, onOpenChange, currentNumber, onSuccess }: NumberingAdjustmentModalProps) {
-    const { selectedCompany } = useCompany();
+    const { selectedCompany, user } = useCompany();
     const { toast } = useToast();
     const [newNumber, setNewNumber] = useState(currentNumber.toString());
     const [reason, setReason] = useState("");
@@ -30,7 +30,7 @@ export function NumberingAdjustmentModal({ open, onOpenChange, currentNumber, on
     const supabase = createClient();
 
     const handleSave = async () => {
-        if (!selectedCompany) return;
+        if (!selectedCompany || !user) return;
 
         const num = parseInt(newNumber);
         if (isNaN(num) || num <= 0) {
@@ -74,18 +74,19 @@ export function NumberingAdjustmentModal({ open, onOpenChange, currentNumber, on
                 .from('audit_logs')
                 .insert({
                     company_id: selectedCompany.id,
+                    user_id: user.id,
                     action: 'adjust_nfe_number',
                     resource: 'company_settings',
                     details: {
                         old_number: currentNumber,
                         new_number: num,
                         reason: reason,
-                        user_email: (await supabase.auth.getUser()).data.user?.email
+                        user_email: user.email
                     }
                 });
 
             if (logError) {
-                console.error("Failed to log audit:", logError);
+                console.error("Failed to log audit:", logError.message, logError);
                 // We don't rollback the update, just warn? Or fail silently on log?
                 // Ideally transactional, but Supabase Client doesn't support transactions easily without RPC.
                 // Assuming it's fine for now, or we could use an RPC.

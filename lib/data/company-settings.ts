@@ -171,9 +171,31 @@ export async function getBranches(supabase: SupabaseClient, companyId: string) {
 // UPDATE / CREATE Functions
 
 export async function updateCompanySettings(supabase: SupabaseClient, companyId: string, updates: Partial<CompanySettings>) {
+    // Whitelist valid columns to prevent "Column not found" errors
+    const validColumns = [
+        'company_id', 'legal_name', 'trade_name', 'cnpj', 'ie', 'im',
+        'cnae', 'cnae_code', 'cnae_description',
+        'phone', 'email', 'website', 'whatsapp', 'instagram', 'logo_path',
+        'address_zip', 'address_street', 'address_number', 'address_complement',
+        'address_neighborhood', 'address_city', 'address_state', 'address_country',
+        'city_code_ibge',
+        'tax_regime', 'fiscal_doc_model', 'nfe_environment',
+        'nfe_series', 'nfe_next_number', 'nfe_flags',
+        'default_penalty_percent', 'default_interest_percent',
+        'cert_a1_storage_path', 'cert_a1_uploaded_at', 'cert_a1_expires_at',
+        'is_cert_password_saved', 'cert_password_encrypted'
+    ];
+
+    const cleanUpdates: any = {};
+    Object.keys(updates).forEach(key => {
+        if (validColumns.includes(key)) {
+            cleanUpdates[key] = (updates as any)[key];
+        }
+    });
+
     const { data, error } = await supabase
         .from('company_settings')
-        .upsert({ company_id: companyId, ...updates })
+        .upsert({ company_id: companyId, ...cleanUpdates })
         .select()
         .single();
 
