@@ -15,6 +15,7 @@ import { formatCurrency } from "@/lib/utils";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { BankSelector } from "@/components/ui/BankSelector";
 import { Bank } from "@/lib/constants/banks";
+import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 
 import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
@@ -38,6 +39,16 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
     // Modal State
     const [termModalOpen, setTermModalOpen] = useState(false);
     const [termToEdit, setTermToEdit] = useState<PaymentTerm | null>(null);
+
+    // Delete Confirmation State
+    const [deleteState, setDeleteState] = useState<{
+        open: boolean;
+        type: 'term' | 'bank' | null;
+        id: string | null;
+        title: string;
+        description: string;
+    }>({ open: false, type: null, id: null, title: "", description: "" });
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Refresh lists
     useEffect(() => {
@@ -95,15 +106,14 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
         }
     };
 
-    const handleDeleteTerm = async (id: string) => {
-        if (!confirm("Tem certeza que deseja excluir este prazo?")) return;
-        try {
-            await deletePaymentTerm(supabase, id);
-            setTerms(prev => prev.filter(t => t.id !== id));
-            toast({ title: "Sucesso", description: "Prazo removido." });
-        } catch (e) {
-            toast({ title: "Erro", description: "Erro ao excluir.", variant: "destructive" });
-        }
+    const handleDeleteTerm = (id: string) => {
+        setDeleteState({
+            open: true,
+            type: 'term',
+            id,
+            title: "Excluir Prazo?",
+            description: "Tem certeza que deseja remover este prazo de pagamento? Essa ação não pode ser desfeita."
+        });
     };
 
     // Handlers for Banks
@@ -122,13 +132,34 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
         }
     };
 
-    const handleDeleteBank = async (id: string) => {
-        if (!confirm("Excluir conta?")) return;
+    const handleDeleteBank = (id: string) => {
+        setDeleteState({
+            open: true,
+            type: 'bank',
+            id,
+            title: "Excluir Conta Bancária?",
+            description: "Tem certeza que deseja remover esta conta bancária? O histórico financeiro não será afetado, mas a conta não aparecerá para novos pagamentos."
+        });
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteState.id || !deleteState.type) return;
+        setIsDeleting(true);
         try {
-            await deleteBankAccount(supabase, id);
-            setBankAccounts(prev => prev.filter(b => b.id !== id));
+            if (deleteState.type === 'term') {
+                await deletePaymentTerm(supabase, deleteState.id);
+                setTerms(prev => prev.filter(t => t.id !== deleteState.id));
+                toast({ title: "Sucesso", description: "Prazo removido." });
+            } else if (deleteState.type === 'bank') {
+                await deleteBankAccount(supabase, deleteState.id);
+                setBankAccounts(prev => prev.filter(b => b.id !== deleteState.id));
+                toast({ title: "Sucesso", description: "Conta removida." });
+            }
+            setDeleteState(prev => ({ ...prev, open: false }));
         } catch (e) {
             toast({ title: "Erro", description: "Erro ao excluir.", variant: "destructive" });
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -315,6 +346,18 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
                 onSave={handleSaveTerm}
                 termToEdit={termToEdit}
             />
+
+            <ConfirmDialogDesdobra
+                open={deleteState.open}
+                onOpenChange={(val) => setDeleteState(prev => ({ ...prev, open: val }))}
+                title={deleteState.title}
+                description={deleteState.description}
+                onConfirm={confirmDelete}
+                isLoading={isDeleting}
+                variant="danger"
+                confirmText="Excluir"
+                cancelText="Cancelar"
+            />
         </div>
     );
 }
@@ -400,8 +443,20 @@ function NewBankAccountDialog({ onSave }: { onSave: (acc: Partial<BankAccount>) 
                                 <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Conta</label>
                                 <Input
                                     value={acc.account_number}
-                                    onChange={e => setAcc({ ...acc, account_number: e.target.value })}
+                                    onChange={e => {
+                                        const raw = e.target.value.replace(/\D/g, "");
+                                        let formatted = raw;
+                                        if (raw.length > 0) {
+                                            if (raw.length === 1) {
+                                                formatted = raw;
+                                            } else {
+                                                formatted = `${raw.slice(0, -1)}-${raw.slice(-1)}`;
+                                            }
+                                        }
+                                        setAcc({ ...acc, account_number: formatted });
+                                    }}
                                     className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                    maxLength={20}
                                 />
                             </div>
                         </div>

@@ -37,7 +37,7 @@ export function BankSelector({ value, onSelect, className }: BankSelectorProps) 
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className={cn("w-full justify-between h-9 rounded-xl px-3 font-normal bg-white border-gray-200", className)}
+                    className={cn("w-full justify-between h-9 rounded-xl px-3 font-normal bg-white border-gray-200 active:scale-100", className)}
                 >
                     {selectedBank ? (
                         <span className="truncate flex items-center">
