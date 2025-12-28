@@ -20,7 +20,8 @@ import { Loader2, AlertTriangle, CheckCircle2, Factory, Archive, Receipt, Layers
 import { ProductFormData } from "@/types/product";
 import { cn, toTitleCase } from "@/lib/utils";
 import { getTaxGroups, TaxGroup } from "@/lib/data/tax-groups";
-import { getUoms, Uom } from "@/lib/data/uoms";
+import { getUoms } from "@/lib/data/uoms";
+import { Uom } from "@/types/product";
 import { Alert } from "@/components/ui/Alert";
 import { PackagingList } from "./PackagingList";
 import { PackagingModal } from "./PackagingModal";
@@ -498,6 +499,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
 
         setIsLoading(true);
         try {
+            if (!selectedCompany) throw new Error("Empresa não selecionada");
+
             // Validate SKU Uniqueness
             if (formData.sku) {
                 let query = supabase
@@ -1073,8 +1076,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                     <div className="flex-1">
                                                         <label className="text-[10px] text-gray-500 mb-1 block">Altura</label>
                                                         <DecimalInput
-                                                            value={formData.height_cm || 0}
-                                                            onChange={(val) => handleChange('height_cm', val)}
+                                                            value={formData.height_base || 0}
+                                                            onChange={(val) => handleChange('height_base', val)}
                                                             precision={2}
                                                             minPrecision={0}
                                                             disableDecimalShift={true}
@@ -1085,8 +1088,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                     <div className="flex-1">
                                                         <label className="text-[10px] text-gray-500 mb-1 block">Largura</label>
                                                         <DecimalInput
-                                                            value={formData.width_cm || 0}
-                                                            onChange={(val) => handleChange('width_cm', val)}
+                                                            value={formData.width_base || 0}
+                                                            onChange={(val) => handleChange('width_base', val)}
                                                             precision={2}
                                                             minPrecision={0}
                                                             disableDecimalShift={true}
@@ -1097,8 +1100,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                     <div className="flex-1">
                                                         <label className="text-[10px] text-gray-500 mb-1 block">Comp.</label>
                                                         <DecimalInput
-                                                            value={formData.length_cm || 0}
-                                                            onChange={(val) => handleChange('length_cm', val)}
+                                                            value={formData.length_base || 0}
+                                                            onChange={(val) => handleChange('length_base', val)}
                                                             precision={2}
                                                             minPrecision={0}
                                                             disableDecimalShift={true}
@@ -1337,7 +1340,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                 value={formData.ncm || ''}
                                                 disabled
                                                 placeholder="Definido no Grupo"
-                                                className="mt-1 bg-gray-50 text-gray-500 cursor-not-allowed"
+                                                className="mt-1 bg-gray-50 text-gray-500 cursor-not-allowed text-center"
                                             />
                                             {errors.ncm && <p className="text-xs text-red-500 mt-1">{errors.ncm}</p>}
                                         </div>
@@ -1350,7 +1353,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                 value={formData.cest || ''}
                                                 disabled
                                                 placeholder="Definido no Grupo"
-                                                className="mt-1 bg-gray-50 text-gray-500 cursor-not-allowed"
+                                                className="mt-1 bg-gray-50 text-gray-500 cursor-not-allowed text-center"
                                             />
                                             {errors.cest && <p className="text-xs text-red-500 mt-1">{errors.cest}</p>}
                                         </div>
@@ -1803,7 +1806,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 title="Produto sem Receita"
                 description="Este item está marcado como produzido, mas não possui nenhuma receita (insumos) cadastrada. Deseja salvar mesmo assim?"
                 onConfirm={handleConfirmNoRecipe}
-                variant="warning"
+                variant="danger"
                 isLoading={isLoading}
                 confirmText="Salvar Mesmo Assim"
             />

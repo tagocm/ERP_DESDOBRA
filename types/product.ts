@@ -141,7 +141,9 @@ export type ProductFormData = {
     is_produced: boolean;
     default_bom_id?: string; // For future linking
     batch_size?: number;
+    production_uom?: string; // Virtual UI field
     production_uom_id?: string;
+    loss_percent?: number; // Virtual UI field
     production_notes?: string;
     byproducts: Partial<ItemByproduct>[];
 };
