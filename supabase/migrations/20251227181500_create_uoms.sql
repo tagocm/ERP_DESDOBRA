@@ -11,11 +11,14 @@ create table if not exists uoms (
 );
 
 -- Constraints
+alter table uoms drop constraint if exists uoms_name_company_unique;
+alter table uoms drop constraint if exists uoms_abbrev_company_unique;
 alter table uoms add constraint uoms_name_company_unique unique (company_id, name);
 alter table uoms add constraint uoms_abbrev_company_unique unique (company_id, abbrev);
 
 -- RLS Policies
 alter table uoms enable row level security;
+drop policy if exists uoms_isolation on uoms;
 create policy uoms_isolation on uoms for all using (public.is_member_of(company_id)) with check (public.is_member_of(company_id));
 
 -- Add uom_id to items
@@ -38,7 +41,7 @@ begin
     (target_company_id, 'Pacote', 'Pc', 40),
     (target_company_id, 'Caixa', 'Cx', 50),
     (target_company_id, 'Fardo', 'Fd', 60)
-    on conflict (company_id, abbrev) do nothing;
+    on conflict (company_id, name) do nothing;
 end;
 $$ language plpgsql;
 

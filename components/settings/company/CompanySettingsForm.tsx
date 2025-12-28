@@ -55,7 +55,10 @@ export function CompanySettingsForm() {
 
                 // Load Settings
                 const data = await getCompanySettings(supabase, selectedCompany.id);
-                setSettings(data || { company_id: selectedCompany.id });
+                setSettings({
+                    ...(data || { company_id: selectedCompany.id }),
+                    nfe_series: data?.nfe_series || "1" // Default to 1
+                });
 
             } catch (err: any) {
                 console.error(err);
@@ -80,18 +83,58 @@ export function CompanySettingsForm() {
         setShowReauth(true);
     };
 
+    const validateSettings = () => {
+        if (!settings.cnpj || settings.cnpj.length < 14) {
+            setActiveTab("identification");
+            return "CNPJ inválido ou incompleto.";
+        }
+        // Identification
+        if (!settings.legal_name) {
+            setActiveTab("identification");
+            return "Razão Social é obrigatória.";
+        }
+        if (!settings.trade_name) {
+            setActiveTab("identification");
+            return "Nome Fantasia é obrigatório.";
+        }
+
+        // Fiscal
+        if (!settings.tax_regime) {
+            setActiveTab("fiscal");
+            return "Regime Tributário é obrigatório.";
+        }
+        if (!settings.nfe_series) {
+            setActiveTab("fiscal");
+            return "Série da NF-e é obrigatória.";
+        }
+        if (!settings.city_code_ibge) {
+            setActiveTab("identification"); // Actually in Address (Identification/Address are usually same or Address tab?)
+            // In CompanySettingsForm, Address is NOT a separate tab in one version? 
+            // Wait, let's check tabs list: identification, branches, fiscal, certificate, financial.
+            // Address is inside "identification" (judging by TabIdentification content from previous turns).
+            // Let's check TabIdentification again. Yes, Address Section is in TabIdentification.
+            return "Código IBGE do município é obrigatório (verifique o endereço).";
+        }
+
+        // Address (Inside Identification)
+        if (!settings.address_zip) { setActiveTab("identification"); return "CEP é obrigatório."; }
+        if (!settings.address_street) { setActiveTab("identification"); return "Logradouro é obrigatório."; }
+        if (!settings.address_number) { setActiveTab("identification"); return "Número do endereço é obrigatório."; }
+        if (!settings.address_neighborhood) { setActiveTab("identification"); return "Bairro é obrigatório."; }
+        if (!settings.address_city) { setActiveTab("identification"); return "Cidade é obrigatória."; }
+        if (!settings.address_state) { setActiveTab("identification"); return "UF é obrigatória."; }
+
+        return null; // Valid
+    };
+
     const handleConfirmSave = async () => {
         if (!selectedCompany) return;
         setSaving(true);
 
         try {
             // Validation
-            if (!settings.cnpj) throw new Error("CNPJ é obrigatório.");
-            if (!settings.trade_name) throw new Error("Nome Fantasia é obrigatório.");
-            // Address validation
-            if (!settings.address_zip || !settings.address_street || !settings.address_number || !settings.address_neighborhood || !settings.address_city || !settings.address_state) {
-                throw new Error("Endereço Fiscal completo é obrigatório.");
-            }
+            const error = validateSettings();
+            if (error) throw new Error(error);
 
             // Save Settings
             await updateCompanySettings(supabase, selectedCompany.id, settings);

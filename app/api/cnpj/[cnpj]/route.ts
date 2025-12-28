@@ -67,9 +67,9 @@ export async function GET(
             trade_name: data.nome_fantasia || data.razao_social || null,
             cnpj: digits,
             status: data.descricao_situacao_cadastral || null,
-            cnae: data.cnae_fiscal_descricao || (data.cnaes_secundarios?.[0]?.descricao || null), // Use description if available, usually API returns codes + text
-            // BrasilAPI specific fields for description might vary, trusting payload structure
-            // Actually BrasilAPI v1 returns 'cnae_fiscal_descricao'.
+            cnae_code: data.cnae_fiscal || null,
+            cnae_description: data.cnae_fiscal_descricao || null,
+            cnae: data.cnae_fiscal_descricao || null, // Keeping for backward compatibility if needed, but we should use split fields
 
             email: data.email || null,
             phone: data.ddd_telefone_1 || null,

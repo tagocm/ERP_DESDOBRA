@@ -183,31 +183,7 @@ CREATE TRIGGER addresses_title_case
     FOR EACH ROW
     EXECUTE FUNCTION enforce_title_case_addresses();
 
--- ========================================
--- Persons (Contacts) Table Trigger
--- ========================================
-
-CREATE OR REPLACE FUNCTION enforce_title_case_persons()
-RETURNS TRIGGER AS $$
-BEGIN
-    -- Apply Title Case to full name
-    NEW.full_name := title_case(NEW.full_name);
-    
-    -- Email always lowercase
-    NEW.email := LOWER(NEW.email);
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Drop existing trigger if it exists
-DROP TRIGGER IF EXISTS persons_title_case ON persons;
-
--- Create trigger
-CREATE TRIGGER persons_title_case
-    BEFORE INSERT OR UPDATE ON persons
-    FOR EACH ROW
-    EXECUTE FUNCTION enforce_title_case_persons();
+-- Persons table trigger removed due to missing table
 
 -- ========================================
 -- Companies Table Trigger

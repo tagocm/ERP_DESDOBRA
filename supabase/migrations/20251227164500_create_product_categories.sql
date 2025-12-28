@@ -21,6 +21,7 @@ end;
 $$ language plpgsql;
 
 -- Trigger to auto-normalize
+drop trigger if exists trg_normalize_category_name on product_categories;
 create trigger trg_normalize_category_name
 before insert or update on product_categories
 for each row execute function normalize_category_name();

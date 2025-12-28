@@ -9,7 +9,9 @@ export interface CompanySettings {
     cnpj: string | null;
     ie: string | null;
     im: string | null;
-    cnae: string | null;
+    cnae: string | null; // @deprecated use cnae_code and cnae_description
+    cnae_code: string | null;
+    cnae_description: string | null;
     phone: string | null;
     email: string | null;
     website: string | null;
@@ -30,6 +32,7 @@ export interface CompanySettings {
 
     // Fiscal
     tax_regime: 'simples_nacional' | 'lucro_presumido' | 'lucro_real' | null;
+    fiscal_doc_model: number; // 55
     nfe_environment: 'homologation' | 'production' | null;
     nfe_series: string | null;
     nfe_next_number: number;

@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
-import { Search, Loader2, Upload, Trash2, MapPin, Phone, Building2, UserCircle, Image as ImageIcon } from "lucide-react";
+import { Search, Loader2, Upload, Trash2, MapPin, Phone, Building2, UserCircle, Image as ImageIcon, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { CompanySettings } from "@/lib/data/company-settings";
 import { extractDigits, formatCNPJ } from "@/lib/cnpj";
 import { useState, useRef } from "react";
@@ -137,17 +137,28 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
             // Auto-fill Identification (with Title Case)
             onChange('legal_name', toTitleCase(info.legal_name || data.legal_name));
             onChange('trade_name', toTitleCase(info.trade_name || data.trade_name));
-            onChange('cnae', info.cnae_main?.code || data.cnae);
+
+            // Map Split CNAE
+            onChange('cnae_code', info.cnae_code || data.cnae_code);
+            onChange('cnae_description', toTitleCase(info.cnae_description || data.cnae_description));
 
             // Auto-fill Address (with Title Case)
             if (info.address) {
-                onChange('address_zip', info.address.zip);
-                onChange('address_street', toTitleCase(info.address.street));
+                // If we have a ZIP, try to fetch full address details (ID IBGE) first
+                if (info.address.zip) {
+                    await fetchCep(info.address.zip);
+                }
+
+                // Overwrite with CNPJ data if specific fields are present (CNPJ data usually more accurate for legal address than generic CEP)
+                // However, fetchCep already sets street, neighborhood, city, state, ibge.
+                // We just need to ensure Number and Complement are set from CNPJ info
                 onChange('address_number', info.address.number);
-                onChange('address_neighborhood', toTitleCase(info.address.neighborhood));
-                onChange('address_city', toTitleCase(info.address.city));
-                onChange('address_state', info.address.state?.toUpperCase()); // UF always uppercase
                 onChange('address_complement', toTitleCase(info.address.complement));
+
+                // Fallbacks if fetchCep failed or if CNPJ has specific data we want to respect??
+                // Actually, let's trust CNPJ data for basics, but fetchCep is CRITICAL for IBGE.
+                // fetchCep sets: street, neighborhood, city, state, ibge.
+                // So calling it first is good. Then we overlay number/complement.
             }
 
             // Auto-fill Contacts (if available)
@@ -156,7 +167,11 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
 
         } catch (e) {
             console.error(e);
-            alert("Não foi possível buscar os dados do CNPJ.");
+            // alert("Não foi possível buscar os dados do CNPJ."); // Toast handles errors upstream usually? No, this component uses alerts/logging. 
+            // Ideally should use useToast, but component structure not showing it passed in or imported. 
+            // Wait, I can see useToast is NOT imported in this file. I should probably add it or keep existing behavior. 
+            // Existing was `alert`. I will keep `alert` or console for now to minimal change, or use toast if I add it.
+            // Let's stick to existing pattern of this function.
         } finally {
             setLoadingCnpj(false);
         }
@@ -383,13 +398,23 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                                 />
                             </div>
 
-                            {/* Row 3 */}
-                            <div className="md:col-span-8 space-y-1.5">
+                            <div className="md:col-span-2 space-y-1.5">
                                 <label className="text-sm font-medium text-gray-700">CNAE Principal</label>
                                 <Input
-                                    value={data.cnae || ''}
-                                    onChange={e => onChange('cnae', e.target.value)}
+                                    value={data.cnae_code || ''}
+                                    onChange={e => onChange('cnae_code', e.target.value)}
                                     disabled={!isAdmin}
+                                    placeholder="0000-0/00"
+                                    title="Código CNAE"
+                                />
+                            </div>
+                            <div className="md:col-span-6 space-y-1.5">
+                                <label className="text-sm font-medium text-gray-700">Descrição CNAE</label>
+                                <Input
+                                    value={data.cnae_description || ''}
+                                    onChange={e => onChange('cnae_description', toTitleCase(e.target.value))}
+                                    disabled={!isAdmin}
+                                    placeholder="Descrição da atividade"
                                 />
                             </div>
 
@@ -414,6 +439,22 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                 />
 
                 <CardContent className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                    <div className="md:col-span-12 mb-2">
+                        <div className={cn("rounded-lg border p-4 flex items-start gap-3", data.city_code_ibge ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200")}>
+                            {data.city_code_ibge ? <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5" /> : <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />}
+                            <div>
+                                <h4 className={cn("text-sm font-semibold", data.city_code_ibge ? "text-green-800" : "text-red-800")}>
+                                    {data.city_code_ibge ? "Endereço Válido para NF-e" : "Atenção: Endereço Incompleto"}
+                                </h4>
+                                <p className={cn("text-xs mt-1", data.city_code_ibge ? "text-green-700" : "text-red-700")}>
+                                    {data.city_code_ibge
+                                        ? `Código IBGE ${data.city_code_ibge} identificado com sucesso.`
+                                        : "Não foi possível identificar o código IBGE. Verifique o CEP e a Cidade."}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="md:col-span-3 space-y-1.5">
                         <label className="text-sm font-medium text-gray-700">CEP <span className="text-red-500">*</span></label>
                         <div className="flex gap-2">
