@@ -9,7 +9,7 @@ import { DataTable, Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { Plus, Search, Trash2, Pencil } from "lucide-react";
+import { Plus, Search, Trash2, Edit2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { formatCNPJ } from "@/lib/cnpj";
@@ -146,7 +146,7 @@ function PessoasEmpresasContent() {
                         }}
                         title="Editar"
                     >
-                        <Pencil className="w-4 h-4" />
+                        <Edit2 className="w-4 h-4" />
                     </Button>
                     <Button
                         variant="ghost"

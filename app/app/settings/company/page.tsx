@@ -9,14 +9,17 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { cn } from "@/lib/utils";
+import { cn, toTitleCase } from "@/lib/utils";
 import { formatCNPJ, validateCNPJ, extractDigits } from "@/lib/cnpj";
 import Link from "next/link";
-import { Loader2, Search, CreditCard, ArrowRight, Building2 } from "lucide-react";
+import { Loader2, Search, CreditCard, ArrowRight, Building2, AlertTriangle, CheckCircle2, ShieldCheck, History } from "lucide-react";
 import { CertificatesSection } from "@/components/settings/CertificatesSection";
 import { CompanyLogo } from "@/components/settings/CompanyLogo";
+import { Alert } from "@/components/ui/Alert";
+import { Badge } from "@/components/ui/Badge";
+import { NumberingAdjustmentModal } from "@/components/settings/NumberingAdjustmentModal";
 
-// Tabs Component (Inline for simplicity)
+// Tabs Component
 function Tabs({ tabs, activeTab, onTabChange }: { tabs: { id: string, label: string }[], activeTab: string, onTabChange: (id: string) => void }) {
     return (
         <div className="flex border-b border-gray-200 mb-6 overflow-x-auto">
@@ -39,7 +42,7 @@ function Tabs({ tabs, activeTab, onTabChange }: { tabs: { id: string, label: str
 }
 
 export default function CompanySettingsPage() {
-    const { selectedCompany, isLoading: isContextLoading } = useCompany();
+    const { selectedCompany, isLoading: isContextLoading, user } = useCompany(); // Assuming User is available in context or needs to be fetched
     const supabase = createClient();
 
     const searchParams = useSearchParams();
@@ -50,20 +53,26 @@ export default function CompanySettingsPage() {
     const [isSaving, setIsSaving] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'warning' | 'error', text: string } | null>(null);
 
-    const [originalData, setOriginalData] = useState<any>(null); // To track dirty state
+    const [originalData, setOriginalData] = useState<any>(null);
+
+    // Modal State
+    const [isNumberingModalOpen, setIsNumberingModalOpen] = useState(false);
 
     // CNPJ Lookup State
     const [cnpjLoading, setCnpjLoading] = useState(false);
 
-    // Form State (Single object for simplicity)
+    // Form State
     const [formData, setFormData] = useState<any>({
         // Identification
         legal_name: "",
         trade_name: "",
         cnpj: "",
         ie: "",
+        ie_isento: false,
         im: "",
-        cnae: "",
+        cnae_code: "", // Split
+        cnae_description: "", // Split
+        crt: null,
         // Contact
         phone: "",
         email: "",
@@ -76,15 +85,16 @@ export default function CompanySettingsPage() {
         address_neighborhood: "",
         address_city: "",
         address_state: "",
+        address_ibge_code: "",
         // Fiscal
         tax_regime: "",
         // NFe
+        nfe_model: 55, // Fixed
         nfe_environment: "homologation",
-        nfe_series: "",
+        nfe_series: "", // String 1-3 digits
         nfe_next_number: 1
     });
 
-    // Check if form is dirty
     const isDirty = originalData && JSON.stringify(formData) !== JSON.stringify(originalData);
 
     useEffect(() => {
@@ -99,17 +109,20 @@ export default function CompanySettingsPage() {
                     .eq("company_id", selectedCompany?.id)
                     .single();
 
-                if (error && error.code !== "PGRST116") { // Ignore 'Not found'
+                if (error && error.code !== "PGRST116") {
                     console.error("Error fetching settings:", error);
                 }
 
                 let initialData;
                 if (data) {
-                    initialData = data;
-                } else {
-                    // Create defaults
                     initialData = {
-                        ...formData, // Keep default structure
+                        ...data,
+                        nfe_model: data.nfe_model || 55, // Default if null
+                        nfe_next_number: data.nfe_next_number || 1
+                    };
+                } else {
+                    initialData = {
+                        ...formData,
                         trade_name: selectedCompany?.name || ''
                     };
                 }
@@ -124,38 +137,99 @@ export default function CompanySettingsPage() {
         fetchSettings();
     }, [selectedCompany, supabase]);
 
+    // Audit Log Helper
+    const logAudit = async (action: string, entity: string, entityId: string, details: any) => {
+        try {
+            // Safe fetch user if not in context
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+            await supabase.from("audit_logs").insert({
+                company_id: selectedCompany?.id,
+                user_id: currentUser?.id,
+                action,
+                entity,
+                entity_id: entityId,
+                details
+            });
+        } catch (e) {
+            console.error("Audit Log Error", e);
+        }
+    };
+
+    const getCRT = (regime: string) => {
+        if (regime === 'simples_nacional') return 1;
+        if (regime === 'lucro_presumido' || regime === 'lucro_real') return 3;
+        return 3;
+    }
+
     const handleSave = async () => {
         setMessage(null);
-
         if (!selectedCompany) return;
-
         setIsSaving(true);
 
         try {
-            // Basic validation
-            if (formData.cnpj && !validateCNPJ(formData.cnpj)) {
-                throw new Error("CNPJ inválido.");
+            // 1. Validations
+            if (formData.cnpj && !validateCNPJ(formData.cnpj)) throw new Error("CNPJ inválido.");
+            if (!formData.tax_regime) {
+                if (activeTab !== 'fiscal') setActiveTab('fiscal');
+                throw new Error("O Regime Tributário é obrigatório.");
+            }
+            if (!formData.ie_isento && !formData.ie) throw new Error("A Inscrição Estadual é obrigatória (ou marque Isento).");
+
+            // Address & IBGE
+            if (!formData.address_ibge_code) {
+                if (activeTab !== 'address') setActiveTab('address');
+                throw new Error("O Código IBGE do município é obrigatório (verifique o endereço).");
             }
 
-            const dataToSave = {
-                company_id: selectedCompany.id,
+            // Series Validation
+            if (!formData.nfe_series || !/^\d{1,3}$/.test(formData.nfe_series)) {
+                if (activeTab !== 'fiscal') setActiveTab('fiscal');
+                throw new Error("Série inválida. Deve conter 1 a 3 dígitos.");
+            }
+
+            // Audit Environment Change
+            if (originalData && formData.nfe_environment !== originalData.nfe_environment) {
+                await logAudit("CHANGE_ENVIRONMENT", "company_settings", selectedCompany.id, {
+                    old: originalData.nfe_environment,
+                    new: formData.nfe_environment
+                });
+            }
+
+            // 2. Normalization
+            const normalizedData = {
                 ...formData,
-                cnpj: extractDigits(formData.cnpj || ""), // Save digits only
-                updated_at: new Date().toISOString()
+                legal_name: toTitleCase(formData.legal_name),
+                trade_name: toTitleCase(formData.trade_name),
+                address_street: toTitleCase(formData.address_street),
+                address_neighborhood: toTitleCase(formData.address_neighborhood),
+                address_city: toTitleCase(formData.address_city),
+                address_complement: toTitleCase(formData.address_complement),
+                cnae_description: toTitleCase(formData.cnae_description),
+                cnae: `${formData.cnae_code || ''} - ${toTitleCase(formData.cnae_description || '')}`, // Legacy field sync
+                address_state: formData.address_state?.toUpperCase(),
+                ie: formData.ie_isento ? "" : formData.ie,
+                crt: getCRT(formData.tax_regime),
+                cnpj: extractDigits(formData.cnpj || ""),
+                updated_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                company_id: selectedCompany.id
             };
 
-            const { error } = await supabase
-                .from("company_settings")
-                .upsert(dataToSave);
+            // Remove sensitive/backend-only fields that might cause schema cache errors if passed from client
+            delete (normalizedData as any).cert_password_encrypted;
+            delete (normalizedData as any).cert_a1_password_secret_id;
 
+            const { error } = await supabase.from("company_settings").upsert(normalizedData);
             if (error) throw error;
 
-            setOriginalData(formData); // Update original data to current
-            setMessage({ type: 'success', text: 'Configurações salvas com sucesso!' });
+            setFormData(normalizedData);
+            setOriginalData(normalizedData);
+            setMessage({ type: 'success', text: 'Dados fiscais e cadastrais atualizados com sucesso.' });
 
         } catch (err: any) {
             console.error(err);
-            setMessage({ type: 'error', text: 'Erro ao salvar: ' + err.message });
+            setMessage({ type: 'error', text: err.message });
         } finally {
             setIsSaving(false);
         }
@@ -163,13 +237,39 @@ export default function CompanySettingsPage() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-
         if (name === 'cnpj') {
-            // Apply mask
             setFormData((prev: any) => ({ ...prev, [name]: formatCNPJ(value) }));
+        } else if (name === 'ie_isento') {
+            const checked = (e.target as HTMLInputElement).checked;
+            setFormData((prev: any) => ({ ...prev, ie_isento: checked, ie: checked ? '' : prev.ie }));
         } else {
             setFormData((prev: any) => ({ ...prev, [name]: value }));
         }
+    };
+
+    const handleNumberAdjustment = async (newNumber: number, motive: string) => {
+        if (!selectedCompany) return;
+
+        const oldNumber = formData.nfe_next_number;
+
+        // Audited update via RPC or direct update if permitted
+        // Direct update:
+        const { error } = await supabase.from("company_settings").update({
+            nfe_next_number: newNumber
+        }).eq("company_id", selectedCompany.id);
+
+        if (error) throw error;
+
+        // Log
+        await logAudit("ADJUST_NUMBERING", "company_settings", selectedCompany.id, {
+            old_number: oldNumber,
+            new_number: newNumber,
+            motive
+        });
+
+        setFormData((prev: any) => ({ ...prev, nfe_next_number: newNumber }));
+        setOriginalData((prev: any) => ({ ...prev, nfe_next_number: newNumber })); // Prevent dirty flag on this specific change
+        setMessage({ type: 'success', text: 'Numeração ajustada e auditoria registrada.' });
     };
 
     const handleCNPJBlur = () => {
@@ -181,105 +281,82 @@ export default function CompanySettingsPage() {
     const fetchCNPJData = async () => {
         const cnpjDigits = extractDigits(formData.cnpj || "");
         if (cnpjDigits.length !== 14) return;
-
         setCnpjLoading(true);
         setMessage(null);
 
         try {
             const res = await fetch(`/api/cnpj/${cnpjDigits}`);
             const data = await res.json();
-
             if (!res.ok) {
-                // Warning only, don't block
-                setMessage({ type: 'warning', text: `Aviso: não foi possível buscar dados automáticos (${data.error || 'Desconhecido'}).` });
+                setMessage({ type: 'warning', text: `Aviso: busca automática falhou (${data.error}). Preencha manualmente.` });
                 return;
             }
 
-            // Auto-fill Logic: Only overwrite empty fields
             setFormData((prev: any) => {
                 const next = { ...prev };
-
-                if (!next.legal_name) next.legal_name = data.legal_name;
-                if (!next.trade_name) next.trade_name = data.trade_name;
-
-                // Contact
-                if (!next.email && data.email) next.email = data.email;
-                if (!next.phone && data.phone) next.phone = data.phone;
+                if (!next.legal_name) next.legal_name = toTitleCase(data.legal_name);
+                if (!next.trade_name) next.trade_name = toTitleCase(data.trade_name || data.legal_name);
 
                 // Address
                 if (!next.address_zip && data.address.zip) next.address_zip = data.address.zip;
-                if (!next.address_street && data.address.street) next.address_street = data.address.street;
+                if (!next.address_street && data.address.street) next.address_street = toTitleCase(data.address.street);
                 if (!next.address_number && data.address.number) next.address_number = data.address.number;
-                if (!next.address_complement && data.address.complement) next.address_complement = data.address.complement;
-                if (!next.address_neighborhood && data.address.neighborhood) next.address_neighborhood = data.address.neighborhood;
-                if (!next.address_city && data.address.city) next.address_city = data.address.city;
+                if (!next.address_neighborhood && data.address.neighborhood) next.address_neighborhood = toTitleCase(data.address.neighborhood);
+                if (!next.address_city && data.address.city) next.address_city = toTitleCase(data.address.city);
                 if (!next.address_state && data.address.state) next.address_state = data.address.state;
+                if (!next.address_ibge_code && data.address.ibge) next.address_ibge_code = data.address.ibge;
 
-                // CNAE
-                if (!next.cnae && data.cnae) next.cnae = data.cnae;
-
+                // CNAE Split
+                if (data.cnae_code) {
+                    next.cnae_code = data.cnae_code;
+                    next.cnae_description = toTitleCase(data.cnae_description);
+                }
                 return next;
             });
-
-            setMessage({ type: 'success', text: 'Dados preenchidos automaticamente. Revise antes de salvar.' });
-
+            setMessage({ type: 'success', text: 'Dados preenchidos automaticamente.' });
         } catch (err) {
-            console.error("CNPJ Lookup error:", err);
-            // Non-blocking error
+            setMessage({ type: 'warning', text: 'Erro ao buscar CNPJ.' });
         } finally {
             setCnpjLoading(false);
         }
     };
 
+    if (isContextLoading) return <div className="p-8">Carregando...</div>;
+    if (!selectedCompany) return <div className="p-8">Selecione uma empresa.</div>;
+    if (isLoading) return <div className="p-8 h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>;
 
-    // Note: handleSave is stable (recreated every render technically if not useCallback-ed, but here it depends on formData, selectedCompany)
-    // To be perfectly safe, we'd wrap handleSave in useCallback or accept that header updates on every render (which is fine, React handles it).
-    // Actually handleSave dependencies: formData, selectedCompany. So it changes often.
-    // That's fine.
-
-    if (isContextLoading) return <div className="p-8">Carregando contexto...</div>;
-    if (!selectedCompany) return <div className="p-8">Selecione uma empresa para configurar.</div>;
-    if (isLoading) return <div className="p-8">Carregando configurações...</div>;
+    const isIbgeOk = !!formData.address_ibge_code;
 
     return (
         <div className="max-w-6xl mx-auto py-8">
             {message && (
-                <div className={cn(
-                    "p-4 mb-4 rounded-md",
-                    message.type === 'success' && "bg-green-50 text-green-700",
-                    message.type === 'error' && "bg-red-50 text-red-700",
-                    message.type === 'warning' && "bg-yellow-50 text-yellow-700"
-                )}>
+                <Alert variant={message.type === 'error' ? 'destructive' : message.type === 'success' ? 'success' : 'default'} className="mb-4">
                     {message.text}
-                </div>
+                </Alert>
             )}
 
             <PageHeader
-                title="Configurações da Sua Empresa"
-                subtitle="Dados da empresa que opera este sistema (tenant)"
+                title="Configurações da Empresa"
+                subtitle="Dados Cadastrais e Fiscais (NF-e)"
                 actions={
                     <div className="flex items-center gap-2">
-                        {isNew && <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded mr-2">Nova Empresa</span>}
+                        {isNumberingModalOpen && (
+                            <NumberingAdjustmentModal
+                                isOpen={isNumberingModalOpen}
+                                onClose={() => setIsNumberingModalOpen(false)}
+                                currentNumber={formData.nfe_next_number}
+                                onConfirm={handleNumberAdjustment}
+                            />
+                        )}
 
                         <Button
                             onClick={handleSave}
                             disabled={!isDirty || isSaving}
                             variant={isDirty ? "primary" : "secondary"}
-                            className={cn(
-                                "min-w-[100px] transition-all",
-                                !isDirty && "text-gray-500 border-gray-200 bg-gray-50 opacity-100"
-                            )}
+                            className={cn("min-w-[120px]", !isDirty && "opacity-80")}
                         >
-                            {isSaving ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                    Salvando...
-                                </>
-                            ) : isDirty ? (
-                                "Salvar"
-                            ) : (
-                                "Salvo"
-                            )}
+                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                            {isSaving ? "Salvando..." : isDirty ? "Salvar Alterações" : "Salvo"}
                         </Button>
                     </div>
                 }
@@ -290,219 +367,268 @@ export default function CompanySettingsPage() {
                 onTabChange={setActiveTab}
                 tabs={[
                     { id: 'identification', label: 'Identificação' },
-                    { id: 'address', label: 'Endereço' },
+                    { id: 'address', label: 'Endereço & IBGE' },
                     { id: 'fiscal', label: 'Fiscal & NF-e' },
                     { id: 'finance', label: 'Financeiro' },
                     { id: 'certificates', label: 'Certificados' },
                 ]}
             />
 
-            <div>
-                <Card>
-                    <CardHeader>
-                        <CardTitle>
-                            <div className="flex items-center gap-2">
-                                <Building2 className="w-4 h-4 text-gray-500" />
-                                {activeTab === 'identification' && "Identificação da Empresa"}
-                                {activeTab === 'address' && "Endereço"}
-                                {activeTab === 'fiscal' && "Configuração Fiscal (NF-e)"}
-                                {activeTab === 'finance' && "Configurações Financeiras"}
-                                {activeTab === 'certificates' && "Certificado Digital"}
-                            </div>
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        <Building2 className="w-5 h-5 text-gray-500" />
+                        {activeTab === 'identification' && "Identificação da Empresa"}
+                        {activeTab === 'address' && "Localização e Código IBGE"}
+                        {activeTab === 'fiscal' && "Parâmetros Fiscais e Numeração"}
+                        {activeTab === 'finance' && "Dados Financeiros"}
+                        {activeTab === 'certificates' && "Certificado Digital A1"}
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
 
-                        {/* IDENTIFICATION TAB */}
-                        {activeTab === 'identification' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                {/* Left Column: Fields */}
-                                <div className="lg:col-span-2 space-y-4">
+                    {/* IDENTIFICATION TAB */}
+                    {activeTab === 'identification' && (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                            <div className="lg:col-span-2 space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium">CNPJ</label>
+                                        <label className="text-sm font-medium">CNPJ <span className="text-red-500">*</span></label>
                                         <div className="flex gap-2">
                                             <Input
                                                 name="cnpj"
                                                 value={formData.cnpj || ''}
                                                 onChange={handleChange}
                                                 onBlur={handleCNPJBlur}
-                                                placeholder="00.000.000/0000-00"
                                                 maxLength={18}
+                                                className="font-mono"
                                             />
-                                            <Button
-                                                type="button"
-                                                variant="secondary"
-                                                onClick={fetchCNPJData}
-                                                className="px-3"
-                                                disabled={cnpjLoading}
-                                                title="Buscar dados na Receita"
-                                            >
+                                            <Button type="button" variant="secondary" onClick={fetchCNPJData} disabled={cnpjLoading}>
                                                 {cnpjLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                                             </Button>
                                         </div>
-                                        <p className="text-xs text-gray-500">Digite para buscar os dados automaticamente.</p>
                                     </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Razão Social</label>
-                                            <Input name="legal_name" value={formData.legal_name || ''} onChange={handleChange} placeholder="Razão Social Ltda" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Nome Fantasia</label>
-                                            <Input name="trade_name" value={formData.trade_name || ''} onChange={handleChange} placeholder="Minha Empresa" />
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Inscrição Estadual</label>
-                                            <Input name="ie" value={formData.ie || ''} onChange={handleChange} />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Inscrição Municipal</label>
-                                            <Input name="im" value={formData.im || ''} onChange={handleChange} />
-                                        </div>
-                                    </div>
-
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium">CNAE Principal</label>
-                                        <Input name="cnae" value={formData.cnae || ''} onChange={handleChange} />
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Email Comercial</label>
-                                            <Input type="email" name="email" value={formData.email || ''} onChange={handleChange} />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Telefone</label>
-                                            <Input name="phone" value={formData.phone || ''} onChange={handleChange} />
+                                        <label className="text-sm font-medium">Inscrição Estadual</label>
+                                        <div className="flex gap-2 items-center">
+                                            <Input
+                                                name="ie"
+                                                value={formData.ie || ''}
+                                                onChange={handleChange}
+                                                disabled={formData.ie_isento}
+                                                placeholder={formData.ie_isento ? "ISENTO" : ""}
+                                            />
+                                            <div className="flex items-center gap-1.5 min-w-[70px]">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formData.ie_isento || false}
+                                                    onChange={(e) => handleChange({ target: { name: 'ie_isento', checked: e.target.checked } } as any)}
+                                                    className="w-4 h-4"
+                                                />
+                                                <span className="text-xs font-medium">Isento</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Right Column: Logo */}
-                                <div className="lg:col-span-1">
-                                    <CompanyLogo
-                                        companyId={selectedCompany.id}
-                                        onMessage={setMessage}
-                                    />
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Razão Social</label>
+                                    <Input name="legal_name" value={formData.legal_name || ''} onChange={handleChange} />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Nome Fantasia</label>
+                                    <Input name="trade_name" value={formData.trade_name || ''} onChange={handleChange} />
+                                </div>
+
+                                <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                                    <h4 className="text-xs font-bold text-gray-500 uppercase mb-3">Atividade Econômica (CNAE)</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-xs font-medium">Código</label>
+                                            <Input name="cnae_code" value={formData.cnae_code || ''} onChange={handleChange} placeholder="0000-0/00" className="font-mono" />
+                                        </div>
+                                        <div className="md:col-span-2 space-y-2">
+                                            <label className="text-xs font-medium">Descrição da Atividade</label>
+                                            <Input name="cnae_description" value={formData.cnae_description || ''} onChange={handleChange} />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        )}
+                            <div className="lg:col-span-1">
+                                <CompanyLogo companyId={selectedCompany.id} onMessage={setMessage} />
+                            </div>
+                        </div>
+                    )}
 
-                        {/* ADDRESS TAB */}
-                        {activeTab === 'address' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* ADDRESS TAB */}
+                    {activeTab === 'address' && (
+                        <div className="space-y-6">
+                            <Alert className={cn("border", isIbgeOk ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200")}>
+                                {isIbgeOk ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <AlertTriangle className="w-4 h-4 text-red-600" />}
+                                <div className="ml-2">
+                                    <div className={cn("text-sm font-semibold", isIbgeOk ? "text-green-800" : "text-red-800")}>
+                                        {isIbgeOk ? "Endereço Válido para NF-e" : "Atenção: Endereço Incompleto"}
+                                    </div>
+                                    <div className="text-xs mt-1 text-gray-600">
+                                        {isIbgeOk ? `Código IBGE ${formData.address_ibge_code} identificado com sucesso.` : "Não foi possível identificar o código IBGE. Verifique o CEP e a Cidade."}
+                                    </div>
+                                </div>
+                            </Alert>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">CEP</label>
-                                    <Input name="address_zip" value={formData.address_zip || ''} onChange={handleChange} />
-                                </div>
-                                <div className="space-y-2 md:col-span-2">
-                                    <label className="text-sm font-medium">Logradouro</label>
-                                    <Input name="address_street" value={formData.address_street || ''} onChange={handleChange} />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Número</label>
-                                    <Input name="address_number" value={formData.address_number || ''} onChange={handleChange} />
+                                    <div className="flex gap-2">
+                                        <Input name="address_zip" value={formData.address_zip || ''} onChange={handleChange} maxLength={9} />
+                                        <Button size="icon" variant="outline"><Search className="w-4 h-4" /></Button>
+                                    </div>
                                 </div>
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Complemento</label>
-                                    <Input name="address_complement" value={formData.address_complement || ''} onChange={handleChange} />
-                                </div>
-                                <div className="space-y-2">
-                                    <label className="text-sm font-medium">Bairro</label>
-                                    <Input name="address_neighborhood" value={formData.address_neighborhood || ''} onChange={handleChange} />
+                                    <label className="text-sm font-medium">Estado (UF)</label>
+                                    <Input name="address_state" value={formData.address_state || ''} onChange={handleChange} maxLength={2} className="uppercase" />
                                 </div>
                                 <div className="space-y-2">
                                     <label className="text-sm font-medium">Cidade</label>
                                     <Input name="address_city" value={formData.address_city || ''} onChange={handleChange} />
                                 </div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-2">
-                                    <label className="text-sm font-medium">Estado (UF)</label>
-                                    <Input name="address_state" value={formData.address_state || ''} onChange={handleChange} maxLength={2} />
+                                    <label className="text-sm font-medium">Logradouro</label>
+                                    <Input name="address_street" value={formData.address_street || ''} onChange={handleChange} />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Bairro</label>
+                                    <Input name="address_neighborhood" value={formData.address_neighborhood || ''} onChange={handleChange} />
                                 </div>
                             </div>
-                        )}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Número</label>
+                                    <Input name="address_number" value={formData.address_number || ''} onChange={handleChange} />
+                                </div>
+                                <div className="md:col-span-2 space-y-2">
+                                    <label className="text-sm font-medium">Complemento</label>
+                                    <Input name="address_complement" value={formData.address_complement || ''} onChange={handleChange} />
+                                </div>
+                            </div>
 
-                        {/* FISCAL TAB */}
-                        {activeTab === 'fiscal' && (
-                            <div className="space-y-6">
+                            <div className="border-t pt-4 mt-2">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <ShieldCheck className="w-4 h-4 text-gray-500" />
+                                    <h4 className="font-semibold text-gray-700">Validação Fiscal</h4>
+                                </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="space-y-2">
-                                        <label className="text-sm font-medium">Regime Tributário</label>
-                                        <Select
-                                            name="tax_regime"
-                                            value={formData.tax_regime || ''}
-                                            onChange={handleChange}
-                                        >
-                                            <option value="">Selecione...</option>
-                                            <option value="simples_nacional">Simples Nacional</option>
-                                            <option value="lucro_presumido">Lucro Presumido</option>
-                                            <option value="lucro_real">Lucro Real</option>
+                                        <label className="text-xs font-medium text-gray-500">Código Município (IBGE)</label>
+                                        <Input
+                                            name="address_ibge_code"
+                                            value={formData.address_ibge_code || ''}
+                                            onChange={handleChange} // Allow manual override if API fails
+                                            className={cn("font-mono", !formData.address_ibge_code && "border-red-300 bg-red-50")}
+                                        />
+                                        <p className="text-[10px] text-gray-400">Preencha manualmente se a busca falhar.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* FISCAL TAB */}
+                    {activeTab === 'fiscal' && (
+                        <div className="space-y-8">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Regime Tributário</label>
+                                    <Select name="tax_regime" value={formData.tax_regime || ''} onChange={handleChange}>
+                                        <option value="">Selecione...</option>
+                                        <option value="simples_nacional">Simples Nacional</option>
+                                        <option value="lucro_presumido">Lucro Presumido</option>
+                                        <option value="lucro_real">Lucro Real</option>
+                                    </Select>
+                                    <div className="mt-1">
+                                        {formData.crt && <Badge variant="outline" className="text-xs">CRT: {formData.crt}</Badge>}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-sm font-medium">Ambiente de Emissão</label>
+                                    <div className="flex items-center gap-2">
+                                        <Select name="nfe_environment" value={formData.nfe_environment || 'homologation'} onChange={handleChange}>
+                                            <option value="homologation">HOMOLOGAÇÃO (Testes)</option>
+                                            <option value="production">PRODUÇÃO (Validade Jurídica)</option>
                                         </Select>
+                                        {formData.nfe_environment === 'production' && (
+                                            <Badge variant="destructive" className="whitespace-nowrap">PRODUÇÃO</Badge>
+                                        )}
+                                        {formData.nfe_environment === 'homologation' && (
+                                            <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 whitespace-nowrap">TESTES</Badge>
+                                        )}
                                     </div>
+                                    <p className="text-xs text-gray-500">Mudar de ambiente gera log de auditoria.</p>
                                 </div>
+                            </div>
 
-                                <div className="border-t pt-4">
-                                    <h3 className="font-semibold mb-4 text-gray-900">Configuração NF-e</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Ambiente</label>
-                                            <Select
-                                                name="nfe_environment"
-                                                value={formData.nfe_environment || 'homologation'}
-                                                onChange={handleChange}
-                                            >
-                                                <option value="homologation">Homologação (Teste)</option>
-                                                <option value="production">Produção</option>
-                                            </Select>
+                            <div className="rounded-lg border border-gray-200 overflow-hidden">
+                                <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                                    <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                                        <History className="w-4 h-4" /> Controle de Numeração (NF-e)
+                                    </h3>
+                                    <Badge variant="outline" className="bg-white">Modelo 55</Badge>
+                                </div>
+                                <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Série</label>
+                                        <Input
+                                            name="nfe_series"
+                                            value={formData.nfe_series || ''}
+                                            onChange={handleChange}
+                                            placeholder="1"
+                                            maxLength={3}
+                                            className="font-mono text-center"
+                                        />
+                                        <p className="text-[10px] text-gray-400">Ex: 1 ou 101</p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium">Próximo Número</label>
+                                        <div className="text-2xl font-mono font-bold text-gray-900 bg-gray-100 p-2 rounded border border-gray-200 text-center">
+                                            {formData.nfe_next_number}
                                         </div>
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Série</label>
-                                            <Input name="nfe_series" value={formData.nfe_series || ''} onChange={handleChange} placeholder="1" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-sm font-medium">Próximo Número</label>
-                                            <Input name="nfe_next_number" type="number" value={formData.nfe_next_number || ''} onChange={handleChange} />
-                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <Button
+                                            variant="outline"
+                                            className="w-full text-blue-700 hover:text-blue-800 hover:bg-blue-50 border-blue-200"
+                                            onClick={() => setIsNumberingModalOpen(true)}
+                                        >
+                                            Ajustar Numeração
+                                        </Button>
                                     </div>
                                 </div>
                             </div>
-                        )}
+                        </div>
+                    )}
 
-                        {/* FINANCE TAB */}
-                        {activeTab === 'finance' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <Link href="/app/settings/company/finance/payment-terms" className="block group">
-                                    <div className="border border-gray-100 rounded-xl p-6 shadow-sm hover:border-brand-200 hover:shadow-md transition-all cursor-pointer bg-white relative overflow-hidden">
-                                        <div className="flex items-start justify-between mb-4">
-                                            <div className="h-10 w-10 flex items-center justify-center rounded-lg bg-brand-50 text-brand-600 group-hover:scale-110 transition-transform duration-300">
-                                                <CreditCard className="w-5 h-5" />
-                                            </div>
-                                            <div className="p-1.5 rounded-full bg-gray-50 text-gray-400 group-hover:bg-brand-500 group-hover:text-white transition-all">
-                                                <ArrowRight className="w-4 h-4" />
-                                            </div>
-                                        </div>
-                                        <h3 className="font-semibold text-gray-900 mb-1">Condições de Pagamento</h3>
-                                        <p className="text-sm text-gray-500 line-clamp-2">Configure os prazos, parcelamentos e regras de vencimento disponíveis para vendas.</p>
-                                    </div>
-                                </Link>
-                            </div>
-                        )}
+                    {/* FINANCE & CERTIFICATES (Unchanged Logic, just simplified render) */}
+                    {activeTab === 'finance' && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <Link href="/app/settings/company/finance/payment-terms" className="block group">
+                                <div className="border border-gray-100 rounded-xl p-6 shadow-sm hover:border-brand-200 hover:shadow-md transition-all">
+                                    <h3 className="font-semibold text-gray-900">Condições de Pagamento</h3>
+                                    <p className="text-sm text-gray-500">Configurar prazos e regras.</p>
+                                </div>
+                            </Link>
+                        </div>
+                    )}
 
-                        {/* CERTIFICATES TAB */}
-                        {activeTab === 'certificates' && selectedCompany && (
-                            <CertificatesSection
-                                companyId={selectedCompany.id}
-                                onMessage={setMessage}
-                            />
-                        )}
+                    {activeTab === 'certificates' && selectedCompany && (
+                        <CertificatesSection companyId={selectedCompany.id} onMessage={setMessage} />
+                    )}
 
-                    </CardContent>
-                </Card>
-            </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }
