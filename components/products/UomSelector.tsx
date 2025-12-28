@@ -27,11 +27,12 @@ import { useCompany } from "@/contexts/CompanyContext"
 interface UomSelectorProps {
     value?: string; // uom_id
     onChange: (value: string | null) => void;
+    onSelect?: (uom: any) => void;
     className?: string;
     disabled?: boolean;
 }
 
-export function UomSelector({ value, onChange, className, disabled }: UomSelectorProps) {
+export function UomSelector({ value, onChange, onSelect, className, disabled }: UomSelectorProps) {
     const { toast } = useToast()
     const { selectedCompany } = useCompany();
 
@@ -99,6 +100,7 @@ export function UomSelector({ value, onChange, className, disabled }: UomSelecto
             if (newUom) {
                 setUoms(prev => [...prev, newUom]); // Optimistic update or refetch? Pushing is fine.
                 onChange(newUom.id);
+                if (onSelect) onSelect(newUom);
                 setOpen(false);
                 setSearchQuery("");
                 toast({ title: "Unidade criada!", description: `${newUom.name} (${newUom.abbrev})` });
@@ -187,6 +189,7 @@ export function UomSelector({ value, onChange, className, disabled }: UomSelecto
                                                 value={`${uom.name} ${uom.abbrev}`.toLowerCase()}
                                                 onSelect={() => {
                                                     onChange(uom.id)
+                                                    if (onSelect) onSelect(uom)
                                                     setOpen(false)
                                                 }}
                                                 className="cursor-pointer data-[disabled]:pointer-events-auto data-[disabled]:opacity-100"

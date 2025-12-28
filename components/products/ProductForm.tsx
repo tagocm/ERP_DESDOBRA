@@ -64,6 +64,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
     // Recipe State
     const [availableIngredients, setAvailableIngredients] = useState<any[]>([]);
     const [recipeLines, setRecipeLines] = useState<any[]>([]);
+    const [byproducts, setByproducts] = useState<any[]>([]);
     const [recipeHeaderId, setRecipeHeaderId] = useState<string | null>(null);
 
     const [formData, setFormData] = useState<ProductFormData>(initialData || {
@@ -91,14 +92,19 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         // Extended Fields (Local State for UI)
         production_uom: "UN",
         batch_size: 1, // Default yield 1
-        loss_percent: 0     // Perda padrão %
-    } as ProductFormData & { production_uom: string; batch_size: number; loss_percent: number; packagings: Partial<ItemPackaging>[] });
+        loss_percent: 0,     // Perda padrão %
+        byproducts: []
+    } as ProductFormData & { production_uom: string; batch_size: number; loss_percent: number; packagings: Partial<ItemPackaging>[]; byproducts: any[] });
 
     const [packagingModalOpen, setPackagingModalOpen] = useState(false);
     const [showNoRecipeConfirm, setShowNoRecipeConfirm] = useState(false);
     const [pendingSaveAndNew, setPendingSaveAndNew] = useState(false);
     const [editingPackagingIndex, setEditingPackagingIndex] = useState<number | null>(null);
     const [packagingToDeleteIndex, setPackagingToDeleteIndex] = useState<number | null>(null);
+
+    const [showByproducts, setShowByproducts] = useState(false);
+    const [byproductSearchOpen, setByproductSearchOpen] = useState<string | null>(null);
+    const [byproductSearchTerm, setByproductSearchTerm] = useState("");
 
     // --- Helpers ---
     const cleanDigits = (str: string) => str.replace(/\D/g, '');
@@ -278,6 +284,46 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         }));
     };
 
+    // --- Byproduct Handlers ---
+    const addByproductLine = () => {
+        setByproducts(prev => [
+            ...prev,
+            {
+                id: tempId(),
+                item_id: "",
+                qty: 1,
+                basis: "PERCENT",
+                notes: ""
+            }
+        ]);
+        setShowByproducts(true);
+    };
+
+    const removeByproductLine = (id: string) => {
+        setByproducts(prev => prev.filter(l => l.id !== id));
+    };
+
+    const updateByproductLine = (id: string, field: string, value: any) => {
+        setByproducts(prev => prev.map(l => {
+            if (l.id === id) {
+                return { ...l, [field]: value };
+            }
+            return l;
+        }));
+    };
+
+    const handleByproductSearchOpen = (lineId: string, currentId: string) => {
+        setByproductSearchOpen(lineId);
+        const current = availableIngredients.find(i => i.id === currentId);
+        setByproductSearchTerm(current ? current.name : "");
+    };
+
+    const handleByproductSelect = (lineId: string, item: any) => {
+        updateByproductLine(lineId, 'item_id', item.id);
+        setByproductSearchOpen(null);
+        setByproductSearchTerm("");
+    };
+
     const validateForm = () => {
         const newErrors: Record<string, string> = {};
 
@@ -379,6 +425,25 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                     qty: l.qty
                                 })));
                             }
+
+                            // Fetch Byproducts
+                            supabase.from('bom_byproduct_outputs')
+                                .select(`
+                                    *,
+                                    item:items!bom_byproduct_outputs_item_id_fkey(name, uom, sku)
+                                `)
+                                .eq('bom_id', data.id)
+                                .then(({ data: bpData }) => {
+                                    if (bpData) {
+                                        setByproducts(bpData.map((bp: any) => ({
+                                            ...bp,
+                                            item_name: bp.item?.name,
+                                            item_uom: bp.item?.uom,
+                                            item_sku: bp.item?.sku
+                                        })));
+                                        if (bpData.length > 0) setShowByproducts(true);
+                                    }
+                                });
                         }
                     });
 
@@ -565,6 +630,21 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                         }));
                         await supabase.from('bom_lines').insert(linesToInsert);
                     }
+
+                    // Sync Byproducts
+                    await supabase.from('bom_byproduct_outputs').delete().eq('bom_id', currentBomId);
+
+                    if (byproducts.length > 0) {
+                        const byproductsToInsert = byproducts.map(bp => ({
+                            company_id: selectedCompany.id,
+                            bom_id: currentBomId,
+                            item_id: bp.item_id,
+                            qty: bp.qty,
+                            basis: bp.basis,
+                            notes: bp.notes || null
+                        }));
+                        await supabase.from('bom_byproduct_outputs').insert(byproductsToInsert);
+                    }
                 }
             }
 
@@ -729,6 +809,12 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
     const filteredIngredients = availableIngredients.filter(i =>
         i.name.toLowerCase().includes(ingredientSearchTerm.toLowerCase()) ||
         (i.sku && i.sku.toLowerCase().includes(ingredientSearchTerm.toLowerCase()))
+    );
+
+    const filteredByproducts = availableIngredients.filter(i =>
+        i.id !== itemId && // Prevent loop
+        (i.name.toLowerCase().includes(byproductSearchTerm.toLowerCase()) ||
+            (i.sku && i.sku.toLowerCase().includes(byproductSearchTerm.toLowerCase())))
     );
 
     return (
@@ -926,6 +1012,12 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             <UomSelector
                                                 value={formData.uom_id}
                                                 onChange={(val) => handleChange('uom_id', val)}
+                                                onSelect={(uom) => {
+                                                    // Sync Production UOM if it was same as base or unset
+                                                    if (!formData.production_uom_id || formData.production_uom_id === formData.uom_id) {
+                                                        handleChange('production_uom_id', uom.id);
+                                                    }
+                                                }}
                                                 className="mt-1"
                                             />
                                             {errors.uom && <p className="text-xs text-red-500 mt-1">{errors.uom}</p>}
@@ -1269,6 +1361,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             onChange={(e) => handleChange('batch_size', parseFloat(e.target.value))}
                                             className="mt-1"
                                             min={0.001}
+                                            step="any"
                                         />
                                         <p className="text-xs text-gray-500 mt-1">Quanto este lote rende ao final.</p>
                                     </div>
@@ -1430,6 +1523,167 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             Rendimento: <span className="font-medium text-gray-900">{(formData as any).batch_size} {productionUomLabel}</span>
                                         </div>
                                     </div>
+                                </div>
+
+                                {/* Seção de Co-produtos (Output Adicional) */}
+                                <div className="border-t border-gray-100 p-4 bg-white rounded-b-2xl">
+                                    {!showByproducts && byproducts.length === 0 ? (
+                                        <button
+                                            type="button"
+                                            onClick={addByproductLine}
+                                            className="text-xs font-medium text-brand-600 hover:text-brand-700 flex items-center gap-1 transition-colors"
+                                        >
+                                            <Plus className="w-3.5 h-3.5" />
+                                            Adicionar co-produto (output adicional)
+                                        </button>
+                                    ) : (
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="flex items-center gap-3">
+                                                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-2">
+                                                        Co-produtos / Subprodutos
+                                                        <span className="bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full text-[10px]">
+                                                            {byproducts.length}
+                                                        </span>
+                                                    </h4>
+                                                    {!showByproducts && byproducts.length > 0 && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setShowByproducts(true)}
+                                                            className="text-[10px] text-brand-600 hover:underline"
+                                                        >
+                                                            Ver detalhes
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {showByproducts && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowByproducts(false)}
+                                                        className="text-[10px] text-gray-400 hover:text-gray-600"
+                                                    >
+                                                        Recolher
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            {showByproducts && (
+                                                <div className="overflow-x-auto border border-gray-100 rounded-xl">
+                                                    <table className="w-full text-xs">
+                                                        <thead className="bg-gray-50/50">
+                                                            <tr>
+                                                                <th className="px-3 py-2 text-left font-semibold text-gray-500 w-[40%]">Produto (Co-produto)</th>
+                                                                <th className="px-3 py-2 text-center font-semibold text-gray-500 w-[15%]">Qtd.</th>
+                                                                <th className="px-3 py-2 text-center font-semibold text-gray-500 w-[20%]">Base de Cálculo</th>
+                                                                <th className="px-3 py-2 text-left font-semibold text-gray-500">Obs.</th>
+                                                                <th className="px-3 py-2 w-[5%]"></th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-gray-50">
+                                                            {byproducts.map((bp, idx) => (
+                                                                <tr key={bp.id || idx} className="hover:bg-gray-50/30">
+                                                                    <td className="px-3 py-2 relative">
+                                                                        {byproductSearchOpen === bp.id ? (
+                                                                            <div className="absolute top-1 left-3 right-3 z-20">
+                                                                                <Input
+                                                                                    autoFocus
+                                                                                    value={byproductSearchTerm}
+                                                                                    onChange={(e) => setByproductSearchTerm(e.target.value)}
+                                                                                    onBlur={() => setTimeout(() => setByproductSearchOpen(null), 200)}
+                                                                                    placeholder="Buscar co-produto..."
+                                                                                    className="h-8 border-brand-500 ring-1 ring-brand-500"
+                                                                                />
+                                                                                {byproductSearchTerm && (
+                                                                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-gray-100 max-h-40 overflow-y-auto z-30">
+                                                                                        {filteredByproducts.length > 0 ? filteredByproducts.map(item => (
+                                                                                            <div
+                                                                                                key={item.id}
+                                                                                                className="px-3 py-2 hover:bg-brand-50 cursor-pointer text-[11px]"
+                                                                                                onMouseDown={() => {
+                                                                                                    handleByproductSelect(bp.id, item);
+                                                                                                    updateByproductLine(bp.id, 'item_uom', item.uom);
+                                                                                                }}
+                                                                                            >
+                                                                                                <div className="font-medium text-gray-900">{item.name}</div>
+                                                                                                <div className="text-[9px] text-gray-400">{item.sku || 'Sem SKU'} • {item.uom}</div>
+                                                                                            </div>
+                                                                                        )) : (
+                                                                                            <div className="px-3 py-2 text-gray-400 text-[10px] text-center">Nenhum item.</div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                )}
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div
+                                                                                className="h-8 flex items-center px-2 cursor-pointer border border-gray-100 rounded-lg hover:border-gray-300 bg-white"
+                                                                                onClick={() => handleByproductSearchOpen(bp.id, bp.item_id)}
+                                                                            >
+                                                                                {availableIngredients.find(i => i.id === bp.item_id)?.name || <span className="text-gray-400 italic">Selecionar produto...</span>}
+                                                                            </div>
+                                                                        )}
+                                                                    </td>
+                                                                    <td className="px-3 py-2">
+                                                                        <div className="flex items-center gap-1">
+                                                                            <Input
+                                                                                type="number"
+                                                                                value={bp.qty}
+                                                                                onChange={(e) => updateByproductLine(bp.id, 'qty', parseFloat(e.target.value))}
+                                                                                className="h-8 text-right px-2"
+                                                                            />
+                                                                            <span className="text-[10px] text-gray-400 w-6 uppercase">
+                                                                                {bp.basis === 'PERCENT' ? '%' : (availableIngredients.find(i => i.id === bp.item_id)?.uom || '-')}
+                                                                            </span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-3 py-2">
+                                                                        <Select
+                                                                            value={bp.basis}
+                                                                            onValueChange={(val) => updateByproductLine(bp.id, 'basis', val)}
+                                                                        >
+                                                                            <SelectTrigger className="h-8 text-[11px]">
+                                                                                <SelectValue />
+                                                                            </SelectTrigger>
+                                                                            <SelectContent>
+                                                                                <SelectItem value="PERCENT">% do Lote</SelectItem>
+                                                                                <SelectItem value="FIXED">Qtd. Fixa / Lote</SelectItem>
+                                                                            </SelectContent>
+                                                                        </Select>
+                                                                    </td>
+                                                                    <td className="px-3 py-2">
+                                                                        <Input
+                                                                            value={bp.notes || ''}
+                                                                            onChange={(e) => updateByproductLine(bp.id, 'notes', e.target.value)}
+                                                                            className="h-8 text-[11px]"
+                                                                            placeholder="Ex: Casca..."
+                                                                        />
+                                                                    </td>
+                                                                    <td className="px-3 py-2 text-center">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => removeByproductLine(bp.id)}
+                                                                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                    <div className="p-2 bg-gray-50/50">
+                                                        <button
+                                                            type="button"
+                                                            onClick={addByproductLine}
+                                                            className="text-[10px] font-medium text-brand-600 hover:text-brand-700 flex items-center gap-1 mx-auto"
+                                                        >
+                                                            <Plus className="w-3 h-3" />
+                                                            Adicionar outro co-produto
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>

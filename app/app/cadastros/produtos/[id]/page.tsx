@@ -109,7 +109,8 @@ export default function ItemEditPage() {
                 default_bom_id: production?.default_bom_id || undefined,
                 batch_size: production?.batch_size ?? undefined,
                 production_uom_id: (production as any)?.production_uom_id || undefined,
-                production_notes: production?.notes || ""
+                production_notes: production?.notes || "",
+                byproducts: []
             };
 
             setInitialData(formData);

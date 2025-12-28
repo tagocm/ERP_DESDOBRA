@@ -26,6 +26,24 @@ export type ItemSalesProfile = Database['public']['Tables']['item_sales_profiles
 export type ItemFiscalProfile = Database['public']['Tables']['item_fiscal_profiles']['Row'];
 export type ItemProductionProfile = Database['public']['Tables']['item_production_profiles']['Row'];
 
+export interface ItemByproduct {
+    id: string;
+    company_id: string;
+    bom_id: string;
+    item_id: string;
+    qty: number;
+    basis: 'PERCENT' | 'FIXED';
+    notes?: string | null;
+    created_at?: string;
+    updated_at?: string;
+    // Joined field
+    item?: {
+        name: string;
+        uom: string;
+        sku?: string | null;
+    };
+}
+
 
 
 export interface Uom {
@@ -125,5 +143,6 @@ export type ProductFormData = {
     batch_size?: number;
     production_uom_id?: string;
     production_notes?: string;
+    byproducts: Partial<ItemByproduct>[];
 };
 

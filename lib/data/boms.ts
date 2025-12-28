@@ -25,6 +25,7 @@ export interface BomLine {
 
 export interface BomWithLines extends BomHeader {
     lines: BomLine[]
+    byproducts?: any[] // Support for additional outputs
     item?: {
         id: string
         name: string
@@ -94,9 +95,21 @@ export const bomsRepo = {
 
         if (linesError) throw linesError
 
+        // Fetch Byproducts
+        const { data: byproducts, error: byproductsError } = await supabaseServer
+            .from('bom_byproduct_outputs')
+            .select(`
+                *,
+                item:items!bom_byproduct_outputs_item_id_fkey(name, uom, sku)
+            `)
+            .eq('bom_id', id)
+
+        if (byproductsError) throw byproductsError
+
         return {
             ...(header as any),
-            lines: lines || []
+            lines: lines || [],
+            byproducts: byproducts || []
         } as BomWithLines
     },
 

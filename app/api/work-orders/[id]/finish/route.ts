@@ -76,7 +76,6 @@ export async function POST(
         // 6. Calculate unit cost of produced item
         const unitCostProduced = totalProductionCost / produced_qty
 
-        // 7. Create production_in movement for finished good
         await inventoryRepo.createMovement(companyId, {
             item_id: workOrder.item_id,
             qty_in: produced_qty,
@@ -88,6 +87,29 @@ export async function POST(
             ref_id: id,
             notes: `Produção OP #${id.substring(0, 8)}`
         })
+
+        // 7.1. Process Byproducts (Co-products)
+        if (bom.byproducts && bom.byproducts.length > 0) {
+            for (const byproduct of bom.byproducts) {
+                let byproductQty = byproduct.qty
+                if (byproduct.basis === 'PERCENT') {
+                    byproductQty = produced_qty * (byproduct.qty / 100)
+                }
+
+                // Create production_in movement for byproduct
+                await inventoryRepo.createMovement(companyId, {
+                    item_id: byproduct.item_id,
+                    qty_in: byproductQty,
+                    qty_out: 0,
+                    unit_cost: 0, // Costs as 0 for now as per minimal implementation request
+                    total_cost: 0,
+                    reason: 'production_in',
+                    ref_type: 'work_order',
+                    ref_id: id,
+                    notes: `Co-produto OP #${id.substring(0, 8)}`
+                })
+            }
+        }
 
         // 8. Update finished good's avg cost
         const currentStock = await inventoryRepo.getStock(companyId, workOrder.item_id)
