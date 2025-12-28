@@ -60,7 +60,7 @@ export default function NewOrganizationPage() {
 
     const [billingAddress, setBillingAddress] = useState<AddressFormData>({
         zip: "", street: "", number: "", complement: "",
-        neighborhood: "", city: "", state: "", country: "BR"
+        neighborhood: "", city: "", state: "", country: "BR", city_code_ibge: ""
     });
 
     const [commercialData, setCommercialData] = useState({
@@ -168,7 +168,8 @@ export default function NewOrganizationPage() {
             city: toTitleCase(billingAddress.city) || "",
             complement: toTitleCase(billingAddress.complement) || "",
             state: billingAddress.state.toUpperCase(),
-            country: billingAddress.country.toUpperCase()
+            country: billingAddress.country.toUpperCase(),
+            city_code_ibge: billingAddress.city_code_ibge
         };
 
         const sanitizedCommercial = { ...commercialData };
@@ -386,11 +387,39 @@ export default function NewOrganizationPage() {
 
     const handleAddressChange = (field: keyof AddressFormData, value: string) => {
         setBillingAddress(prev => ({ ...prev, [field]: value }));
+        if (field === 'zip') {
+            const cleanCep = value.replace(/\D/g, "");
+            if (cleanCep.length === 8) {
+                fetchCepData(cleanCep);
+            }
+        }
     };
 
     const handleCommercialChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setCommercialData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const fetchCepData = async (cep: string) => {
+        const cleanCep = cep.replace(/\D/g, "");
+        if (cleanCep.length !== 8) return;
+
+        try {
+            const res = await fetch(`https://brasilapi.com.br/api/cep/v2/${cleanCep}`);
+            if (!res.ok) throw new Error("CEP não encontrado");
+            const data = await res.json();
+
+            setBillingAddress(prev => ({
+                ...prev,
+                street: toTitleCase(data.street) || prev.street,
+                neighborhood: toTitleCase(data.neighborhood) || prev.neighborhood,
+                city: toTitleCase(data.city) || prev.city,
+                state: data.state || prev.state,
+                city_code_ibge: data.ibge || prev.city_code_ibge // BrasilAPI v2 returns 'ibge'
+            }));
+        } catch (error) {
+            console.error("Erro ao buscar CEP:", error);
+        }
     };
 
     const handleFiscalChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -429,6 +458,7 @@ export default function NewOrganizationPage() {
                     neighborhood: toTitleCase(data.address.neighborhood) || "",
                     city: toTitleCase(data.address.city) || "",
                     state: data.address.state?.toUpperCase() || "",
+                    city_code_ibge: data.address.ibge || "",
                     country: "BR"
                 });
             }
@@ -581,7 +611,25 @@ export default function NewOrganizationPage() {
                                     </div>
                                     <div className="col-span-12 md:col-span-2 space-y-1.5">
                                         <label className="text-sm font-medium text-gray-700">CEP</label>
-                                        <Input value={billingAddress.zip} onChange={(e) => handleAddressChange('zip', e.target.value)} />
+                                        <div className="flex gap-2">
+                                            <Input
+                                                value={billingAddress.zip}
+                                                onChange={(e) => handleAddressChange('zip', e.target.value)}
+                                                placeholder="00000-000"
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                onClick={() => {
+                                                    const clean = billingAddress.zip.replace(/\D/g, "");
+                                                    if (clean.length === 8) fetchCepData(clean);
+                                                }}
+                                                className="px-3"
+                                                disabled={billingAddress.zip.replace(/\D/g, "").length !== 8}
+                                            >
+                                                <Search className="w-4 h-4" />
+                                            </Button>
+                                        </div>
                                     </div>
                                     <div className="col-span-12 md:col-span-5 space-y-1.5">
                                         <label className="text-sm font-medium text-gray-700">Logradouro</label>
@@ -594,7 +642,7 @@ export default function NewOrganizationPage() {
                                 </div>
 
                                 <div className="grid grid-cols-12 gap-6">
-                                    <div className="col-span-12 md:col-span-3 space-y-1.5">
+                                    <div className="col-span-12 md:col-span-2 space-y-1.5">
                                         <label className="text-sm font-medium text-gray-700">Complemento</label>
                                         <Input value={billingAddress.complement} onChange={(e) => handleAddressChange('complement', e.target.value)} />
                                     </div>
@@ -602,13 +650,21 @@ export default function NewOrganizationPage() {
                                         <label className="text-sm font-medium text-gray-700">Bairro</label>
                                         <Input value={billingAddress.neighborhood} onChange={(e) => handleAddressChange('neighborhood', e.target.value)} />
                                     </div>
-                                    <div className="col-span-12 md:col-span-4 space-y-1.5">
+                                    <div className="col-span-12 md:col-span-3 space-y-1.5">
                                         <label className="text-sm font-medium text-gray-700">Cidade</label>
                                         <Input value={billingAddress.city} onChange={(e) => handleAddressChange('city', e.target.value)} />
                                     </div>
-                                    <div className="col-span-12 md:col-span-2 space-y-1.5">
+                                    <div className="col-span-12 md:col-span-1 space-y-1.5">
                                         <label className="text-sm font-medium text-gray-700">UF</label>
                                         <Input value={billingAddress.state} onChange={(e) => handleAddressChange('state', e.target.value)} maxLength={2} />
+                                    </div>
+                                    <div className="col-span-12 md:col-span-3 space-y-1.5">
+                                        <label className="text-sm font-medium text-gray-700">Cód. IBGE</label>
+                                        <Input
+                                            value={billingAddress.city_code_ibge || ""}
+                                            readOnly
+                                            className="bg-gray-50 text-gray-500 cursor-not-allowed"
+                                        />
                                     </div>
                                 </div>
                             </CardContent>

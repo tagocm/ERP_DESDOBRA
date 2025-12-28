@@ -11,6 +11,7 @@ export interface AddressFormData {
     city: string
     state: string
     country: string
+    city_code_ibge?: string
 }
 
 interface AddressFormProps {

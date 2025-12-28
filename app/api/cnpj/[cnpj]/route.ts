@@ -81,6 +81,7 @@ export async function GET(
                 neighborhood: data.bairro || null,
                 city: data.municipio || null,
                 state: data.uf || null,
+                ibge: data.codigo_municipio || null,
                 country: "BR",
             },
             // Raw data for other needs? No, stick to DTO.

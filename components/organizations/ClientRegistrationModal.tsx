@@ -8,14 +8,14 @@ import { createOrganization, setOrganizationRoles, upsertAddress, upsertPerson }
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+
 import { Card, CardContent } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { AddressForm, AddressFormData } from "@/components/forms/AddressForm";
 import { ContactsTable, ContactFormData } from "@/components/forms/ContactsTable";
-import { extractDigits, formatCNPJ, validateCNPJ } from "@/lib/cnpj";
+import { extractDigits, validateCNPJ } from "@/lib/cnpj";
 import { Loader2, Search, CheckCircle2, Save } from "lucide-react";
-import { cn } from "@/lib/utils"; // Import cn
+import { cn, toTitleCase, normalizeEmail } from "@/lib/utils"; // Import cn and new helpers
 
 interface ClientRegistrationModalProps {
     isOpen: boolean;
@@ -27,85 +27,8 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
     const { selectedCompany } = useCompany();
     const supabase = createClient();
 
-    // ... (keep logic same until return)
-
-    // Text Formatting Helpers and State Logic (omitted for brevity, assume implicit if using replace_file_content well, but I need to be careful with replace chunks)
-
-    // Wait, replace_file_content needs EXACT TargetContent.
-    // I can't replace the whole file easily if I don't provide the whole content.
-    // I need to use MultiReplace or just replace the import and the return statement.
-    // Let's use MultiReplace.
 
 
-    // Text Formatting Helpers
-    const toTitleCase = (str: string) => {
-        if (!str) return "";
-        return str
-            .toLowerCase()
-            .split(' ')
-            .map(word => {
-                // Keep short prepositions lowercase if preferred, but user said "toda a primeira letra" (Every first letter)
-                // strict adherence:
-                return word.charAt(0).toUpperCase() + word.slice(1);
-            })
-            .join(' ');
-    };
-
-    const toLowerCase = (str: string) => {
-        if (!str) return "";
-        return str.toLowerCase();
-    };
-
-    const sanitizeData = () => {
-        // Sanitize FormData
-        const sanitizedFormData = {
-            ...formData,
-            legal_name: toTitleCase(formData.legal_name),
-            trade_name: toTitleCase(formData.trade_name),
-            email: toLowerCase(formData.email)
-        };
-
-        // Sanitize Address
-        const sanitizedAddress = {
-            ...billingAddress,
-            street: toTitleCase(billingAddress.street),
-            neighborhood: toTitleCase(billingAddress.neighborhood),
-            city: toTitleCase(billingAddress.city),
-            complement: toTitleCase(billingAddress.complement),
-            state: billingAddress.state.toUpperCase(), // UF always upper
-            country: billingAddress.country.toUpperCase()
-        };
-
-        // Sanitize Commercial
-        // Leaving notes as is, user requirement "todos os campos... primeira letra maiuscula" usually implies names/titles.
-        // But for strict compliance with "all fields", let's apply it to "names" mainly.
-        // Applying to notes would be destructive.
-        // Applying to Payment Terms? It's a number/string.
-        const sanitizedCommercial = {
-            ...commercialData
-        };
-
-        // Sanitize Fiscal
-        const sanitizedFiscal = {
-            ...fiscalData,
-            email_nfe: toLowerCase(fiscalData.email_nfe),
-            // Suframa and registrations usually strictly numeric or specific format. Leave as is or uppercase?
-            // Registrations often have X. Let's UPPERCASE them just in case.
-            state_registration: fiscalData.state_registration.toUpperCase(),
-            municipal_registration: fiscalData.municipal_registration.toUpperCase(),
-            suframa: fiscalData.suframa.toUpperCase()
-        };
-
-        // Sanitize Contacts
-        const sanitizedContacts = contacts.map(c => ({
-            ...c,
-            full_name: toTitleCase(c.full_name),
-            email: toLowerCase(c.email || ""),
-            // Notes leave as is
-        }));
-
-        return { sanitizedFormData, sanitizedAddress, sanitizedCommercial, sanitizedFiscal, sanitizedContacts };
-    };
 
 
     const [activeTab, setActiveTab] = useState("dados");
@@ -129,7 +52,24 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
         neighborhood: "", city: "", state: "", country: "BR", city_code_ibge: ""
     });
 
-    // ... (Commercial State)
+    // Tab 2: Commercial
+    const [commercialData, setCommercialData] = useState({
+        price_table_id: "",
+        default_payment_terms_days: "",
+        freight_terms: "",
+        sales_rep_user_id: "",
+        notes_commercial: ""
+    });
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleCommercialChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setCommercialData(prev => ({ ...prev, [name]: value }));
+    };
 
     // Tab 3: Fiscal
     const [fiscalData, setFiscalData] = useState({
@@ -166,6 +106,111 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
         }
     };
 
+    const [roles, setRoles] = useState({
+        prospect: false,
+        customer: true,
+        supplier: false,
+        carrier: false
+    });
+
+    const [contacts, setContacts] = useState<ContactFormData[]>([]);
+
+    const handleAddContact = (contact: ContactFormData) => {
+        setContacts(prev => [...prev, contact]);
+    };
+
+    const handleEditContact = (id: string, contact: ContactFormData) => {
+        setContacts(prev => prev.map(c => c.id === id ? contact : c));
+    };
+
+    const handleRemoveContact = (id: string) => {
+        setContacts(prev => prev.filter(c => c.id !== id));
+    };
+
+    const resetForm = () => {
+        setActiveTab("dados");
+        setFormData({
+            document_number: "",
+            legal_name: "",
+            trade_name: "",
+            phone: "",
+            email: "",
+        });
+        setBillingAddress({
+            zip: "", street: "", number: "", complement: "",
+            neighborhood: "", city: "", state: "", country: "BR", city_code_ibge: ""
+        });
+        setCommercialData({
+            price_table_id: "",
+            default_payment_terms_days: "",
+            freight_terms: "",
+            sales_rep_user_id: "",
+            notes_commercial: ""
+        });
+        setFiscalData({
+            is_simple_national: false,
+            is_public_agency: false,
+            ie_indicator: "contributor",
+            state_registration: "",
+            municipal_registration: "",
+            suframa: "",
+            email_nfe: "",
+            final_consumer: false,
+            icms_contributor: true
+        });
+        setRoles({ prospect: false, customer: true, supplier: false, carrier: false });
+        setContacts([]);
+        setError(null);
+        setSuccess(null);
+        setCnpjFetched(false);
+    };
+
+    const fetchCNPJData = async () => {
+        const cleanDoc = extractDigits(formData.document_number);
+        if (cleanDoc.length !== 14) return;
+
+        setCnpjLoading(true);
+        setError(null);
+        try {
+            const res = await fetch(`/api/cnpj/${cleanDoc}`);
+            if (!res.ok) throw new Error("CNPJ não encontrado");
+            const data = await res.json();
+
+            setFormData(prev => ({
+                ...prev,
+                legal_name: toTitleCase(data.legal_name) || "",
+                trade_name: toTitleCase(data.trade_name) || "",
+                phone: data.phone || "",
+                email: normalizeEmail(data.email) || ""
+            }));
+
+            setBillingAddress({
+                zip: data.address.zip || "",
+                street: toTitleCase(data.address.street) || "",
+                number: data.address.number || "",
+                complement: toTitleCase(data.address.complement) || "",
+                neighborhood: toTitleCase(data.address.neighborhood) || "",
+                city: toTitleCase(data.address.city) || "",
+                state: data.address.state || "",
+                country: "BR",
+                city_code_ibge: data.address.ibge || "" // Use IBGE from API
+            });
+
+            // Note: Simplificated fiscal update as state is limited in this modal
+            setFiscalData(prev => ({
+                ...prev,
+                is_simple_national: data.is_simple_national || false
+            }));
+
+            setCnpjFetched(true);
+        } catch (err: any) {
+            console.error(err);
+            setError(err.message);
+        } finally {
+            setCnpjLoading(false);
+        }
+    };
+
     const fetchCepData = async (cep: string) => {
         const cleanCep = cep.replace(/\D/g, '');
         if (cleanCep.length !== 8) return;
@@ -197,6 +242,46 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
     };
 
     // ... (fetchCNPJData same, but trigger CEP fetch if needed)
+
+    const sanitizeData = () => {
+        // Sanitize FormData
+        const sanitizedFormData = {
+            ...formData,
+            legal_name: toTitleCase(formData.legal_name) || "",
+            trade_name: toTitleCase(formData.trade_name) || "",
+            email: normalizeEmail(formData.email) || ""
+        };
+
+        // Sanitize Address
+        const sanitizedAddress = {
+            ...billingAddress,
+            street: toTitleCase(billingAddress.street) || "",
+            neighborhood: toTitleCase(billingAddress.neighborhood) || "",
+            city: toTitleCase(billingAddress.city) || "",
+            complement: toTitleCase(billingAddress.complement) || "",
+            state: billingAddress.state.toUpperCase(),
+            country: billingAddress.country.toUpperCase()
+        };
+
+        const sanitizedCommercial = { ...commercialData };
+
+        const sanitizedFiscal = {
+            ...fiscalData,
+            email_nfe: normalizeEmail(fiscalData.email_nfe) || "",
+            state_registration: fiscalData.state_registration.toUpperCase(),
+            municipal_registration: fiscalData.municipal_registration.toUpperCase(),
+            suframa: fiscalData.suframa.toUpperCase()
+        };
+
+        // Sanitize Contacts
+        const sanitizedContacts = contacts.map(c => ({
+            ...c,
+            full_name: toTitleCase(c.full_name) || "",
+            email: normalizeEmail(c.email) || ""
+        }));
+
+        return { sanitizedFormData, sanitizedAddress, sanitizedCommercial, sanitizedFiscal, sanitizedContacts };
+    };
 
     const handleSubmit = async (saveAndNew = false) => {
         if (!selectedCompany) return;
@@ -264,12 +349,13 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                 email_nfe: sanitizedFiscal.email_nfe || null,
                 is_simple_national: sanitizedFiscal.is_simple_national,
                 is_public_agency: sanitizedFiscal.is_public_agency,
+                // @ts-ignore
                 final_consumer: sanitizedFiscal.final_consumer,
                 icms_contributor: sanitizedFiscal.icms_contributor,
 
                 // Commercial
                 default_payment_terms_days: sanitizedCommercial.default_payment_terms_days ? parseInt(sanitizedCommercial.default_payment_terms_days) : null,
-                freight_terms: sanitizedCommercial.freight_terms || null,
+                freight_terms: (sanitizedCommercial.freight_terms as any) || null,
                 notes_commercial: sanitizedCommercial.notes_commercial || null,
                 price_table_id: sanitizedCommercial.price_table_id || null,
                 sales_rep_user_id: sanitizedCommercial.sales_rep_user_id || null,
@@ -564,14 +650,14 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                                 <div className="grid grid-cols-12 gap-4">
                                     <div className="col-span-12 md:col-span-4 space-y-1">
                                         <label className="text-xs font-semibold text-gray-700">Tabela de Preço</label>
-                                        <Select
+                                        <select
                                             name="price_table_id"
                                             value={commercialData.price_table_id}
                                             onChange={handleCommercialChange}
-                                            className="h-9 text-sm"
+                                            className="flex h-9 w-full rounded-md border border-gray-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
                                         >
                                             <option value="">Padrão</option>
-                                        </Select>
+                                        </select>
                                     </div>
 
                                     <div className="col-span-12 md:col-span-4 space-y-1">
@@ -588,31 +674,31 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
 
                                     <div className="col-span-12 md:col-span-4 space-y-1">
                                         <label className="text-xs font-semibold text-gray-700">Frete</label>
-                                        <Select
+                                        <select
                                             name="freight_terms"
                                             value={commercialData.freight_terms}
                                             onChange={handleCommercialChange}
-                                            className="h-9 text-sm"
+                                            className="flex h-9 w-full rounded-md border border-gray-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
                                         >
                                             <option value="">Selecione...</option>
                                             <option value="cif">CIF (vendedor paga)</option>
                                             <option value="fob">FOB (comprador paga)</option>
                                             <option value="retira">Retira</option>
                                             <option value="combinar">A Combinar</option>
-                                        </Select>
+                                        </select>
                                     </div>
                                 </div>
 
                                 <div className="space-y-1">
                                     <label className="text-xs font-semibold text-gray-700">Representante</label>
-                                    <Select
+                                    <select
                                         name="sales_rep_user_id"
                                         value={commercialData.sales_rep_user_id}
                                         onChange={handleCommercialChange}
-                                        className="h-9 text-sm"
+                                        className="flex h-9 w-full rounded-md border border-gray-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
                                     >
                                         <option value="">Selecione um representante...</option>
-                                    </Select>
+                                    </select>
                                 </div>
 
                                 <div className="space-y-1">
@@ -678,16 +764,16 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                                 <div className="grid grid-cols-12 gap-4">
                                     <div className="col-span-12 md:col-span-4 space-y-1">
                                         <label className="text-xs font-semibold text-gray-700">Indicador IE</label>
-                                        <Select
+                                        <select
                                             name="ie_indicator"
                                             value={fiscalData.ie_indicator}
                                             onChange={handleFiscalChange}
-                                            className="h-9 text-sm"
+                                            className="flex h-9 w-full rounded-md border border-gray-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
                                         >
                                             <option value="contributor">Contribuinte</option>
                                             <option value="exempt">Isento</option>
-                                            <option value="non_contributor">Não contribuinte</option>
-                                        </Select>
+                                            <option value="non_contributor">Não Contribuinte</option>
+                                        </select>
                                     </div>
                                     <div className="col-span-12 md:col-span-4 space-y-1">
                                         <label className="text-xs font-semibold text-gray-700">Inscrição Estadual</label>

@@ -95,6 +95,7 @@ export interface Address {
     city: string | null;
     state: string | null;
     country: string;
+    city_code_ibge: string | null;
     is_default: boolean;
 }
 

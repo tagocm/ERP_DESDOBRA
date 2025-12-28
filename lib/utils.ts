@@ -20,7 +20,7 @@ export function toTitleCase(str: string | null | undefined): string | null {
     const lowercaseWords = new Set(['de', 'da', 'do', 'dos', 'das', 'e', 'ou', 'a', 'o', 'as', 'os']);
 
     // Common business acronyms that should stay uppercase
-    const acronyms = new Set(['ltda', 'eireli', 'me', 'epp', 'sa', 'ss', 'coop', 'cia']);
+    const acronyms = new Set(['me', 'epp', 'sa', 'ss', 'coop', 'cia']);
 
     const trimmed = str.trim().replace(/\s+/g, ' '); // Normalize spaces
 
