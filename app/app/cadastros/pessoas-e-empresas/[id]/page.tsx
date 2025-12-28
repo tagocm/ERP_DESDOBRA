@@ -29,7 +29,7 @@ import { Tabs, TabsContent } from "@/components/ui/Tabs";
 import { FormTabsList, FormTabsTrigger } from "@/components/ui/FormTabs";
 import { ContactsTable, ContactFormData } from "@/components/forms/ContactsTable";
 import { extractDigits, formatCNPJ, validateCNPJ } from "@/lib/cnpj";
-import { Loader2, Search, CheckCircle2, Save, ArrowLeft, ShoppingCart, Package, Truck, FileText, Receipt, Users } from "lucide-react";
+import { Loader2, Search, CheckCircle2, Save, ArrowLeft, ShoppingCart, Package, Truck, FileText, Receipt, Users, MessageSquare } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AddressFormData } from "@/components/forms/AddressForm";
@@ -922,17 +922,22 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                             </div>
                         )}
 
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-medium text-gray-700">Observações Comerciais</label>
-                            <textarea
-                                name="notes_commercial"
-                                value={commercialData.notes_commercial}
-                                onChange={handleCommercialChange}
-                                rows={4}
-                                className="flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-                                placeholder="Informações adicionais sobre negociações..."
+                        <Card>
+                            <CardHeaderStandard
+                                icon={<MessageSquare className="w-5 h-5" />}
+                                title="Observações Comerciais"
                             />
-                        </div>
+                            <CardContent>
+                                <textarea
+                                    name="notes_commercial"
+                                    value={commercialData.notes_commercial}
+                                    onChange={handleCommercialChange}
+                                    rows={4}
+                                    className="flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                                    placeholder="Informações adicionais sobre negociações..."
+                                />
+                            </CardContent>
+                        </Card>
                     </TabsContent>
 
                     {/* TAB FISCAL */}

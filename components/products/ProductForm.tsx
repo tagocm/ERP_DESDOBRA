@@ -20,6 +20,7 @@ import { Loader2, AlertTriangle, CheckCircle2, Factory, Archive, Receipt, Layers
 import { ProductFormData } from "@/types/product";
 import { cn, toTitleCase } from "@/lib/utils";
 import { getTaxGroups, TaxGroup } from "@/lib/data/tax-groups";
+import { getUoms, Uom } from "@/lib/data/uoms";
 import { Alert } from "@/components/ui/Alert";
 import { PackagingList } from "./PackagingList";
 import { PackagingModal } from "./PackagingModal";
@@ -58,6 +59,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [success, setSuccess] = useState<string | null>(null);
     const [submitError, setSubmitError] = useState<string | null>(null);
+    const [uoms, setUoms] = useState<Uom[]>([]);
 
     // Recipe State
     const [availableIngredients, setAvailableIngredients] = useState<any[]>([]);
@@ -133,7 +135,28 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
             if (field === 'gtin_ean_base') finalValue = cleanDigits(value);
         }
 
-        setFormData(prev => ({ ...prev, [field]: finalValue }));
+        setFormData(prev => {
+            const updates: any = { [field]: finalValue };
+
+            // Logic for UOM ID -> Legacy UOM handle
+            if (field === 'uom_id') {
+                const uom = uoms.find(u => u.id === value);
+                if (uom) updates.uom = uom.abbrev;
+
+                // Sync Production UOM if it was same as base or unset
+                if (!prev.production_uom_id || prev.production_uom_id === prev.uom_id) {
+                    updates.production_uom_id = value;
+                    if (uom) updates.production_uom = uom.abbrev;
+                }
+            }
+
+            if (field === 'production_uom_id') {
+                const uom = uoms.find(u => u.id === value);
+                if (uom) updates.production_uom = uom.abbrev;
+            }
+
+            return { ...prev, ...updates };
+        });
 
         // Clear error for this field on change
         if (errors[field]) {
@@ -314,6 +337,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
     useEffect(() => {
         if (selectedCompany) {
             getTaxGroups(supabase, selectedCompany.id).then(setTaxGroups);
+            getUoms().then(setUoms);
 
             // Auto-fill SKU if creating new item
             if (!isEdit && !formData.sku) {
@@ -698,6 +722,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         const cost = item?.avg_cost || 0;
         return acc + (line.qty * cost);
     }, 0);
+
+    const productionUomLabel = uoms.find(u => u.id === formData.production_uom_id)?.abbrev || formData.production_uom || "UN";
 
     // Filter available ingredients for the active search
     const filteredIngredients = availableIngredients.filter(i =>
@@ -1296,9 +1322,9 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         <thead className="bg-gray-50">
                                             <tr>
                                                 <th className="px-4 py-3 text-left font-medium text-gray-600 w-[50%]">Insumo (Matéria-prima/Emb.)</th>
-                                                <th className="px-4 py-3 text-left font-medium text-gray-600 w-[15%]">Qtd.</th>
-                                                <th className="px-4 py-3 text-left font-medium text-gray-600 w-[10%]">Unid.</th>
-                                                <th className="px-4 py-3 text-left font-medium text-gray-600 w-[20%]">Obs.</th>
+                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-[15%]">Qtd.</th>
+                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-[10%]">Unid.</th>
+                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-[20%]">Obs.</th>
                                                 <th className="px-4 py-3 w-[5%]"></th>
                                             </tr>
                                         </thead>
@@ -1401,7 +1427,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             </span>
                                         </div>
                                         <div className="text-gray-500">
-                                            Rendimento: <span className="font-medium text-gray-900">{(formData as any).batch_size} {(formData as any).production_uom}</span>
+                                            Rendimento: <span className="font-medium text-gray-900">{(formData as any).batch_size} {productionUomLabel}</span>
                                         </div>
                                     </div>
                                 </div>
