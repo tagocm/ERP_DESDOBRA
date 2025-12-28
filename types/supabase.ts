@@ -580,8 +580,8 @@ export type Database = {
           address_street: string | null
           address_zip: string | null
           cert_a1_expires_at: string | null
-          cert_a1_password_secret_id: string | null
-          cert_a1_path: string | null
+          cert_password_encrypted: string | null
+          is_cert_password_saved: boolean | null
           cert_a1_storage_path: string | null
           cert_a1_uploaded_at: string | null
           cnae: string | null
@@ -612,8 +612,8 @@ export type Database = {
           address_street?: string | null
           address_zip?: string | null
           cert_a1_expires_at?: string | null
-          cert_a1_password_secret_id?: string | null
-          cert_a1_path?: string | null
+          cert_password_encrypted?: string | null
+          is_cert_password_saved?: boolean | null
           cert_a1_storage_path?: string | null
           cert_a1_uploaded_at?: string | null
           cnae?: string | null
@@ -644,8 +644,8 @@ export type Database = {
           address_street?: string | null
           address_zip?: string | null
           cert_a1_expires_at?: string | null
-          cert_a1_password_secret_id?: string | null
-          cert_a1_path?: string | null
+          cert_password_encrypted?: string | null
+          is_cert_password_saved?: boolean | null
           cert_a1_storage_path?: string | null
           cert_a1_uploaded_at?: string | null
           cnae?: string | null

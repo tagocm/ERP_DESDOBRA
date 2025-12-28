@@ -42,11 +42,11 @@ export async function DELETE(request: NextRequest) {
         // Get certificate path from settings
         const { data: settings, error: settingsError } = await supabase
             .from('company_settings')
-            .select('cert_a1_path')
+            .select('cert_a1_storage_path')
             .eq('company_id', companyId)
             .single();
 
-        if (settingsError || !settings?.cert_a1_path) {
+        if (settingsError || !settings?.cert_a1_storage_path) {
             return NextResponse.json(
                 { error: 'Nenhum certificado encontrado' },
                 { status: 404 }
@@ -56,7 +56,7 @@ export async function DELETE(request: NextRequest) {
         // Delete file from Storage
         const { error: deleteError } = await supabase.storage
             .from('company-assets')
-            .remove([settings.cert_a1_path]);
+            .remove([settings.cert_a1_storage_path]);
 
         if (deleteError) {
             console.error('Delete error:', deleteError);
@@ -70,7 +70,7 @@ export async function DELETE(request: NextRequest) {
         const { error: updateError } = await supabase
             .from('company_settings')
             .update({
-                cert_a1_path: null,
+                cert_a1_storage_path: null,
                 cert_a1_uploaded_at: null,
                 cert_a1_expires_at: null,
                 updated_at: new Date().toISOString()

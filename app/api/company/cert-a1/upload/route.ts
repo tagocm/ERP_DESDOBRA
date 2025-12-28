@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         // Get existing cert path to delete old file
         const { data: existingSettings } = await supabase
             .from('company_settings')
-            .select('cert_a1_path')
+            .select('cert_a1_storage_path')
             .eq('company_id', companyId)
             .single();
 
@@ -89,10 +89,10 @@ export async function POST(request: NextRequest) {
         }
 
         // Delete old certificate if exists
-        if (existingSettings?.cert_a1_path) {
+        if (existingSettings?.cert_a1_storage_path) {
             await supabase.storage
                 .from('company-assets')
-                .remove([existingSettings.cert_a1_path]);
+                .remove([existingSettings.cert_a1_storage_path]);
         }
 
         const uploadedAt = new Date().toISOString();
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
             .from('company_settings')
             .upsert({
                 company_id: companyId,
-                cert_a1_path: filePath,
+                cert_a1_storage_path: filePath,
                 cert_a1_uploaded_at: uploadedAt,
                 cert_a1_expires_at: expiresAt,
                 updated_at: uploadedAt

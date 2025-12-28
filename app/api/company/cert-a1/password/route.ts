@@ -50,14 +50,14 @@ export async function POST(request: NextRequest) {
         // Get existing password secret ID (if any)
         const { data: existingSettings } = await supabase
             .from('company_settings')
-            .select('cert_a1_password_secret_id')
+            .select('cert_password_encrypted')
             .eq('company_id', companyId)
             .single();
 
         // Delete old password if exists
-        if (existingSettings?.cert_a1_password_secret_id) {
+        if (existingSettings?.cert_password_encrypted) {
             try {
-                await deletePassword(existingSettings.cert_a1_password_secret_id);
+                await deletePassword(existingSettings.cert_password_encrypted);
             } catch (error) {
                 console.error('Error deleting old password:', error);
                 // Continue anyway, we'll overwrite
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
             .from('company_settings')
             .upsert({
                 company_id: companyId,
-                cert_a1_password_secret_id: encryptedPassword as any, // Store encrypted string
+                cert_password_encrypted: encryptedPassword as any, // Store encrypted string
                 updated_at: new Date().toISOString()
             }, {
                 onConflict: 'company_id'
@@ -143,11 +143,11 @@ export async function DELETE(request: NextRequest) {
         // Get password secret ID
         const { data: settings, error: settingsError } = await supabase
             .from('company_settings')
-            .select('cert_a1_password_secret_id')
+            .select('cert_password_encrypted')
             .eq('company_id', companyId)
             .single();
 
-        if (settingsError || !settings?.cert_a1_password_secret_id) {
+        if (settingsError || !settings?.cert_password_encrypted) {
             return NextResponse.json(
                 { error: 'Nenhuma senha encontrada' },
                 { status: 404 }
@@ -155,13 +155,13 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Delete password
-        await deletePassword(settings.cert_a1_password_secret_id);
+        await deletePassword(settings.cert_password_encrypted);
 
         // Update company_settings to remove password reference
         const { error: updateError } = await supabase
             .from('company_settings')
             .update({
-                cert_a1_password_secret_id: null,
+                cert_password_encrypted: null,
                 updated_at: new Date().toISOString()
             })
             .eq('company_id', companyId);

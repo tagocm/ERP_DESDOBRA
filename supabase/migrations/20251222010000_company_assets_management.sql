@@ -14,14 +14,15 @@ CREATE TABLE IF NOT EXISTS public.company_settings (
 -- Add columns if they don't exist
 ALTER TABLE public.company_settings
 ADD COLUMN IF NOT EXISTS logo_path text NULL,
-ADD COLUMN IF NOT EXISTS cert_a1_path text NULL,
+ADD COLUMN IF NOT EXISTS cert_a1_storage_path text NULL,
 ADD COLUMN IF NOT EXISTS cert_a1_uploaded_at timestamptz NULL,
 ADD COLUMN IF NOT EXISTS cert_a1_expires_at timestamptz NULL,
-ADD COLUMN IF NOT EXISTS cert_a1_password_secret_id uuid NULL;
+ADD COLUMN IF NOT EXISTS is_cert_password_saved boolean DEFAULT false,
+ADD COLUMN IF NOT EXISTS cert_password_encrypted text NULL;
 
 -- Add comments
 COMMENT ON TABLE public.company_settings IS 'Company-specific settings including logo and certificate A1 management';
-COMMENT ON COLUMN public.company_settings.cert_a1_password_secret_id IS 'UUID reference to Supabase Vault secret or encrypted password identifier';
+COMMENT ON COLUMN public.company_settings.cert_password_encrypted IS 'Encrypted password for A1 Certificate (simple encryption for demo/MVP)';
 
 -- ============================================================================
 -- 2. Create updated_at trigger for company_settings
