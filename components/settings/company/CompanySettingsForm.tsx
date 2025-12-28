@@ -1,13 +1,14 @@
 
 "use client";
 
+
 import { useState, useEffect } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
 import { Tabs, TabsContent } from "@/components/ui/Tabs";
-import { TabsList, TabsTrigger } from "@/components/ui/Tabs"; // Fallback if FormTabs not found or prefer keeping basic Tabs with custom style
-import { Alert } from "@/components/ui/Alert";
+import { TabsList, TabsTrigger } from "@/components/ui/Tabs";
+import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Save, Undo } from "lucide-react";
 import { CompanySettings, getCompanySettings, updateCompanySettings, updateCompanyName } from "@/lib/data/company-settings";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -18,19 +19,17 @@ import { TabBranches } from "./TabBranches";
 import { TabFiscal } from "./TabFiscal";
 import { TabCertificate } from "./TabCertificate";
 import { TabFinancial } from "./TabFinancial";
-// TabLogo removed
 import { ReauthModal } from "./ReauthModal";
 
 export function CompanySettingsForm() {
     const { selectedCompany, user } = useCompany();
     const supabase = createClient();
+    const { toast } = useToast();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [settings, setSettings] = useState<Partial<CompanySettings>>({});
     const [isAdmin, setIsAdmin] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState("identification");
 
     // Reauth State
@@ -60,13 +59,17 @@ export function CompanySettingsForm() {
 
             } catch (err: any) {
                 console.error(err);
-                setError("Erro ao carregar configurações.");
+                toast({
+                    title: "Erro ao carregar dados",
+                    description: "Não foi possível carregar as configurações da empresa.",
+                    variant: "destructive"
+                });
             } finally {
                 setLoading(false);
             }
         };
         load();
-    }, [selectedCompany, user]);
+    }, [selectedCompany, user, supabase, toast]);
 
     const handleChange = (field: keyof CompanySettings, value: any) => {
         setSettings(prev => ({ ...prev, [field]: value }));
@@ -80,8 +83,6 @@ export function CompanySettingsForm() {
     const handleConfirmSave = async () => {
         if (!selectedCompany) return;
         setSaving(true);
-        setError(null);
-        setSuccess(null);
 
         try {
             // Validation
@@ -100,12 +101,18 @@ export function CompanySettingsForm() {
                 await updateCompanyName(supabase, selectedCompany.id, settings.trade_name);
             }
 
-            setSuccess("Configurações salvas com sucesso!");
-            setTimeout(() => setSuccess(null), 3000);
+            toast({
+                title: "Sucesso!",
+                description: "Configurações salvas com sucesso.",
+            });
 
         } catch (err: any) {
             console.error(err);
-            setError(err.message || "Erro ao salvar alterações.");
+            toast({
+                title: "Erro ao salvar",
+                description: err.message || "Ocorreu um erro ao salvar as alterações.",
+                variant: "destructive"
+            });
         } finally {
             setSaving(false);
         }
@@ -117,9 +124,6 @@ export function CompanySettingsForm() {
 
     return (
         <div>
-            {error && <Alert variant="destructive" className="mb-4">{error}</Alert>}
-            {success && <Alert variant="success" className="mb-4">{success}</Alert>}
-
             <PageHeader
                 title="Configurações da Empresa"
                 subtitle="Gerencie os dados da sua organização."

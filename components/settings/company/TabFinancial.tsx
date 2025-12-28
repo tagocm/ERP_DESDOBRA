@@ -7,8 +7,8 @@ import { CompanySettings, BankAccount, PaymentTerm, getBankAccounts, upsertBankA
 import { useState, useEffect } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
-import { Plus, Trash2, Landmark, CreditCard, Loader2, Edit2, Search } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/Dialog";
+import { Plus, Trash2, Landmark, CreditCard, Loader2, Edit2, Search, Save, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger, DialogDescription } from "@/components/ui/Dialog";
 import { PaymentTermModal } from "./PaymentTermModal";
 import { useToast } from "@/components/ui/use-toast";
 import { formatCurrency } from "@/lib/utils";
@@ -283,6 +283,9 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
                                             </div>
                                             <p className="text-xs font-bold text-gray-500 mt-0.5 tracking-tight">
                                                 Ag: <span className="text-gray-900 font-black">{acc.agency}</span> | CC: <span className="text-gray-900 font-black">{acc.account_number}</span>
+                                                {acc.pix_key && (
+                                                    <span className="ml-2 text-gray-400 font-normal">| PIX: <span className="text-gray-900 font-black">{acc.pix_key}</span></span>
+                                                )}
                                                 {acc.is_default && (
                                                     <span className="ml-2 bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[9px] uppercase font-black tracking-wider shadow-sm">Padrão</span>
                                                 )}
@@ -322,15 +325,26 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
 function NewBankAccountDialog({ onSave }: { onSave: (acc: Partial<BankAccount>) => Promise<void> }) {
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [acc, setAcc] = useState({ bank_name: "", bank_code: "", agency: "", account_number: "", is_default: false });
+    const [acc, setAcc] = useState({ bank_name: "", bank_code: "", agency: "", account_number: "", is_default: false, pix_key: "" });
+
+    // Reset state when opening
+    useEffect(() => {
+        if (open) {
+            setAcc({ bank_name: "", bank_code: "", agency: "", account_number: "", is_default: false, pix_key: "" });
+        }
+    }, [open]);
 
     const handleSave = async () => {
         if (!acc.bank_name || !acc.agency || !acc.account_number) return;
         setLoading(true);
-        await onSave(acc);
-        setLoading(false);
-        setOpen(false);
-        setAcc({ bank_name: "", bank_code: "", agency: "", account_number: "", is_default: false }); // Reset
+        try {
+            await onSave(acc);
+            setOpen(false);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -341,37 +355,100 @@ function NewBankAccountDialog({ onSave }: { onSave: (acc: Partial<BankAccount>) 
                     Nova Conta
                 </Button>
             </DialogTrigger>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Nova Conta Bancária</DialogTitle>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium">Banco</label>
-                        <BankSelector
-                            value={acc.bank_code || acc.bank_name}
-                            onSelect={(bank: Bank) => setAcc({ ...acc, bank_name: bank.name, bank_code: bank.code })}
-                        />
+            <DialogContent className="max-w-[500px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-2xl">
+                {/* Header */}
+                <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
+                    <div>
+                        <DialogTitle className="text-xl font-bold text-gray-900 leading-tight">
+                            Nova Conta Bancária
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-gray-500 mt-0.5 font-normal">
+                            Cadastre uma nova conta para movimentações.
+                        </DialogDescription>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Agência</label>
-                            <Input value={acc.agency} onChange={e => setAcc({ ...acc, agency: e.target.value })} />
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-gray-400 hover:text-gray-600 rounded-full"
+                        onClick={() => setOpen(false)}
+                    >
+                        <X className="w-4 h-4" />
+                    </Button>
+                </div>
+
+                {/* Body */}
+                <div className="p-6 overflow-y-auto">
+                    <div className="space-y-5">
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Banco</label>
+                            <BankSelector
+                                value={acc.bank_code || acc.bank_name}
+                                onSelect={(bank: Bank) => setAcc({ ...acc, bank_name: bank.name, bank_code: bank.code })}
+                            />
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Conta</label>
-                            <Input value={acc.account_number} onChange={e => setAcc({ ...acc, account_number: e.target.value })} />
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Agência</label>
+                                <Input
+                                    value={acc.agency}
+                                    onChange={e => setAcc({ ...acc, agency: e.target.value })}
+                                    className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                />
+                            </div>
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Conta</label>
+                                <Input
+                                    value={acc.account_number}
+                                    onChange={e => setAcc({ ...acc, account_number: e.target.value })}
+                                    className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                />
+                            </div>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <input type="checkbox" checked={acc.is_default} onChange={e => setAcc({ ...acc, is_default: e.target.checked })} id="is_def" />
-                        <label htmlFor="is_def" className="text-sm">Conta Padrão</label>
+
+                        <div className="space-y-1.5">
+                            <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Chave PIX (Opcional)</label>
+                            <Input
+                                value={acc.pix_key}
+                                onChange={e => setAcc({ ...acc, pix_key: e.target.value })}
+                                placeholder="CPF, CNPJ, Email, Celular ou Aleatória"
+                                className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                            />
+                        </div>
+
+                        <div className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl shadow-sm">
+                            <input
+                                type="checkbox"
+                                checked={acc.is_default}
+                                onChange={e => setAcc({ ...acc, is_default: e.target.checked })}
+                                id="is_def"
+                                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                            />
+                            <label htmlFor="is_def" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
+                                Definir como Conta Padrão
+                            </label>
+                        </div>
                     </div>
                 </div>
-                <DialogFooter>
-                    <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-                    <Button onClick={handleSave} disabled={loading}>{loading ? "Salvando..." : "Salvar"}</Button>
-                </DialogFooter>
+
+                {/* Footer */}
+                <div className="bg-white px-6 py-3 border-t border-gray-100 flex gap-3 sticky bottom-0 z-10">
+                    <Button
+                        variant="ghost"
+                        onClick={() => setOpen(false)}
+                        className="flex-1 h-10 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
+                    >
+                        Cancelar
+                    </Button>
+                    <Button
+                        onClick={handleSave}
+                        disabled={loading || !acc.bank_name || !acc.agency || !acc.account_number}
+                        className="flex-[2] h-10 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-lg shadow-brand-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                    >
+                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        Salvar Conta
+                    </Button>
+                </div>
             </DialogContent>
         </Dialog>
     )

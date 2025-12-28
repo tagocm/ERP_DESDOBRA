@@ -150,82 +150,98 @@ export function TabCertificate({ data, onChange, isAdmin }: TabCertificateProps)
             <CardHeaderStandard
                 icon={<ShieldCheck className="w-5 h-5 text-brand-600" />}
                 title="Certificado Digital A1"
+                description="Gerencie o certificado digital para emissão de notas fiscais."
+                className="pb-2"
             />
             <CardContent>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                     {/* Left Column: Upload / Status */}
-                    <div className="flex flex-col h-full">
-                        <label className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                            <Upload className="w-4 h-4" /> Status do Certificado
-                        </label>
+                    <div className="flex flex-col h-full space-y-3">
+                        <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                            <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center text-brand-600">
+                                <Upload className="w-4 h-4" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-gray-900">Arquivo do Certificado</h3>
+                        </div>
 
                         {data.cert_a1_storage_path ? (
-                            <div className="bg-gray-50/50 border border-gray-100 rounded-lg p-5 flex-1 flex flex-col">
+                            <div className="bg-white border border-gray-200 shadow-sm rounded-xl p-5 flex-1 flex flex-col transition-all hover:shadow-md hover:border-brand-200 group">
                                 <div className="flex items-start gap-4 mb-4">
-                                    <div className="w-12 h-12 rounded-full bg-brand-50 flex items-center justify-center text-brand-600 shrink-0 border border-brand-100">
+                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-50 to-white flex items-center justify-center text-brand-600 shrink-0 border border-brand-100 shadow-sm group-hover:scale-105 transition-transform">
                                         <FileKey className="w-6 h-6" />
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h4 className="font-bold text-gray-900 text-sm">Arquivo Carregado</h4>
-                                        <p className="text-xs text-gray-500 mt-1">Certificado digital ativo</p>
+                                    <div className="flex-1 min-w-0 pt-1">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="font-bold text-gray-900 text-sm">Certificado Digital</h4>
+                                            {isAdmin && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="text-gray-400 hover:text-red-600 hover:bg-red-50 -mr-2 -mt-2 opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                                                    onClick={() => {
+                                                        onChange('cert_a1_storage_path', null);
+                                                        onChange('is_cert_password_saved', false);
+                                                        setCertPassword("");
+                                                        setPasswordSaved(false);
+                                                    }}
+                                                    title="Remover Certificado"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                            Arquivo identificado.
+                                        </p>
                                     </div>
-                                    {isAdmin && (
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="text-gray-400 hover:text-red-600 hover:bg-red-50 h-8 w-8"
-                                            onClick={() => {
-                                                onChange('cert_a1_storage_path', null);
-                                                onChange('is_cert_password_saved', false);
-                                                setCertPassword("");
-                                                setPasswordSaved(false);
-                                            }}
-                                            title="Remover Certificado"
-                                        >
-                                            <X className="w-4 h-4" />
-                                        </Button>
-                                    )}
                                 </div>
 
-                                <div className="space-y-3 mt-2">
-                                    <div className="flex items-center justify-between py-2 border-t border-gray-200/50">
-                                        <span className="text-xs font-medium text-gray-600">Data de Upload</span>
-                                        <span className="text-xs font-semibold text-gray-900">
-                                            {new Date(data.cert_a1_uploaded_at!).toLocaleDateString('pt-BR')}
-                                        </span>
-                                    </div>
-                                    {data.cert_a1_expires_at && (
-                                        <div className="flex items-center justify-between py-2 border-t border-gray-200/50">
-                                            <span className="text-xs font-medium text-gray-600">Vencimento</span>
-                                            <span className="text-xs font-semibold text-brand-600">
-                                                {new Date(data.cert_a1_expires_at).toLocaleDateString('pt-BR')}
+                                <div className="space-y-3 mt-auto pt-3 border-t border-gray-100">
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-0.5">Data de Upload</span>
+                                            <span className="text-xs font-semibold text-gray-900">
+                                                {new Date(data.cert_a1_uploaded_at!).toLocaleDateString('pt-BR')}
                                             </span>
                                         </div>
-                                    )}
+                                        <div>
+                                            <span className="text-[10px] font-medium text-gray-500 uppercase tracking-wider block mb-0.5">Vencimento</span>
+                                            {data.cert_a1_expires_at ? (
+                                                <span className="text-xs font-semibold text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded border border-brand-100">
+                                                    {new Date(data.cert_a1_expires_at).toLocaleDateString('pt-BR')}
+                                                </span>
+                                            ) : (
+                                                <span className="text-xs font-medium text-gray-400 italic">
+                                                    Aguardando validação
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         ) : (
                             <div
-                                className={`border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center text-center transition-all cursor-pointer group ${isDragging
-                                    ? 'border-brand-500 bg-brand-50/50'
-                                    : 'border-gray-200 hover:bg-gray-50 hover:border-brand-200'
+                                className={`flex-1 border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center transition-all cursor-pointer group hover:shadow-md ${isDragging
+                                    ? 'border-brand-500 bg-brand-50/30'
+                                    : 'border-gray-200 bg-white hover:border-brand-300 hover:bg-gray-50/50'
                                     }`}
                                 onClick={() => fileInputRef.current?.click()}
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}
                                 onDrop={handleDrop}
                             >
-                                <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-3 transition-all ${isDragging
+                                <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-3 transition-all shadow-sm ${isDragging
                                     ? 'bg-brand-100 scale-110'
-                                    : 'bg-gray-50 group-hover:scale-110'
+                                    : 'bg-gray-50 border border-gray-100 group-hover:scale-105 group-hover:border-brand-100 group-hover:bg-white'
                                     }`}>
-                                    <Upload className={`w-8 h-8 ${isDragging ? 'text-brand-600' : 'text-gray-400 group-hover:text-brand-600'}`} />
+                                    <Upload className={`w-6 h-6 ${isDragging ? 'text-brand-600' : 'text-gray-400 group-hover:text-brand-600'}`} />
                                 </div>
-                                <h4 className="font-semibold text-gray-900 text-sm">
+                                <h4 className="font-bold text-gray-900 text-sm mb-1">
                                     {isDragging ? 'Solte o arquivo aqui' : 'Upload do Certificado'}
                                 </h4>
-                                <p className="text-xs text-gray-500 mt-1 max-w-[250px]">
-                                    Arraste seu arquivo .pfx / .p12 ou clique para buscar.
+                                <p className="text-xs text-gray-500 max-w-[240px] leading-relaxed">
+                                    Arraste .pfx ou .p12 ou clica para buscar.
                                 </p>
 
                                 {isAdmin && (
@@ -238,102 +254,114 @@ export function TabCertificate({ data, onChange, isAdmin }: TabCertificateProps)
                                             onChange={handleFileChange}
                                         />
                                         <div className="mt-4">
-                                            <Button variant="outline" size="sm" className="bg-white border-gray-200 shadow-sm" disabled={uploading}>
-                                                {uploading ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : null}
+                                            <Button variant="outline" size="sm" className="h-8 text-xs font-medium border-gray-200 shadow-sm hover:border-brand-300 hover:text-brand-700" disabled={uploading}>
+                                                {uploading ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Upload className="w-3 h-3 mr-2" />}
                                                 {uploading ? "Enviando..." : "Selecionar Arquivo"}
                                             </Button>
                                         </div>
                                     </>
                                 )}
-                                {uploadError && <p className="text-xs text-red-500 mt-2 font-medium">{uploadError}</p>}
+                                {uploadError && (
+                                    <div className="mt-3 flex items-center gap-2 text-xs text-red-600 bg-red-50 px-2.5 py-1.5 rounded-md border border-red-100">
+                                        <AlertTriangle className="w-3 h-3" />
+                                        {uploadError}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
 
                     {/* Right Column: Security & Test */}
-                    <div className="flex flex-col h-full">
-                        <div className="flex flex-col flex-1">
-                            <label className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                                <ShieldCheck className="w-4 h-4" /> Segurança e Teste
-                            </label>
+                    <div className="flex flex-col h-full space-y-3">
+                        <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                                <ShieldCheck className="w-4 h-4" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-gray-900">Segurança do Certificado</h3>
+                        </div>
 
-                            <div className="bg-gray-50/50 border border-gray-100 rounded-lg p-5 space-y-5 flex-1">
-                                <div className="flex items-start gap-3">
-                                    <div className="flex items-center h-5 mt-0.5">
-                                        <input
-                                            type="checkbox"
-                                            id="save_pass"
-                                            checked={data.is_cert_password_saved || false}
-                                            onChange={(e) => onChange('is_cert_password_saved', e.target.checked)}
-                                            disabled={!isAdmin}
-                                            className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
-                                        />
+                        <div className="space-y-4">
+                            {data.is_cert_password_saved || passwordSaved ? (
+                                <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-4 flex flex-col items-center text-center space-y-3">
+                                    <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                                        <CheckCircle2 className="w-6 h-6" />
                                     </div>
-                                    <div className="flex flex-col gap-0.5">
-                                        <label htmlFor="save_pass" className="text-sm font-medium text-gray-900 cursor-pointer">
-                                            Salvar senha no servidor
-                                        </label>
-                                        <p className="text-[11px] text-gray-500 leading-relaxed italic">
-                                            Recomendado para emissão automática de NF-e.
+                                    <div>
+                                        <h4 className="text-sm font-bold text-gray-900 mb-1">Senha Salva com Segurança</h4>
+                                        <p className="text-xs text-emerald-700 max-w-[260px] mx-auto leading-relaxed">
+                                            Sua senha está criptografada e salva, permitindo a emissão automática de notas fiscais.
                                         </p>
                                     </div>
-                                </div>
-
-                                <div className="space-y-2">
-                                    <div className="flex justify-between items-center">
-                                        <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider">Senha do Arquivo</label>
-                                        {passwordSaved && (
-                                            <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600">
-                                                <CheckCircle2 className="w-3 h-3" />
-                                                Salva
-                                            </span>
-                                        )}
-                                    </div>
-                                    <Input
-                                        type="password"
-                                        value={certPassword}
-                                        onChange={e => setCertPassword(e.target.value)}
-                                        disabled={!isAdmin}
-                                        placeholder="••••••••"
-                                        className="bg-white"
-                                    />
-                                    {data.is_cert_password_saved && certPassword && !passwordSaved && (
+                                    {isAdmin && (
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={handlePasswordSave}
-                                            className="w-full text-xs"
+                                            onClick={() => {
+                                                onChange('is_cert_password_saved', false);
+                                                setCertPassword("");
+                                                setPasswordSaved(false);
+                                            }}
+                                            className="h-8 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 hover:border-emerald-300 bg-white shadow-sm"
                                         >
-                                            <ShieldCheck className="w-3 h-3 mr-1" />
-                                            Salvar Senha Criptografada
+                                            Remover Senha Salva
                                         </Button>
                                     )}
-                                    {data.is_cert_password_saved && (
-                                        <div className="flex items-center gap-2 text-amber-700 text-[10px] bg-amber-50 px-2.5 py-1.5 rounded-md border border-amber-100">
-                                            <AlertTriangle className="w-3 h-3" />
-                                            A senha será armazenada de forma segura para uso posterior.
-                                        </div>
-                                    )}
                                 </div>
+                            ) : (
+                                <>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-semibold text-gray-700 uppercase tracking-wider block">
+                                            Senha do Arquivo
+                                        </label>
+                                        <Input
+                                            type="password"
+                                            value={certPassword}
+                                            onChange={e => setCertPassword(e.target.value)}
+                                            disabled={!isAdmin}
+                                            placeholder="Digite a senha do certificado..."
+                                            className="bg-gray-50 border-gray-200 focus:bg-white transition-colors h-10 text-sm"
+                                        />
+                                    </div>
 
-                                <div className="pt-2 flex flex-col gap-3">
                                     <Button
-                                        variant="secondary"
-                                        onClick={handleTestCertificate}
-                                        disabled={testing || !data.cert_a1_storage_path}
+                                        variant="primary"
                                         size="sm"
-                                        className="w-full font-semibold"
+                                        onClick={handlePasswordSave}
+                                        disabled={!isAdmin || !certPassword}
+                                        className="w-full h-10 shadow-sm"
                                     >
-                                        {testing ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : null}
-                                        Testar Conectividade
+                                        <ShieldCheck className="w-4 h-4 mr-2" />
+                                        Salvar Senha de Forma Segura
                                     </Button>
-                                    {testResult && (
-                                        <div className={`text-xs px-3 py-2 rounded-md font-medium border ${testResult.valid ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
-                                            {testResult.message}
-                                        </div>
-                                    )}
+
+                                    <p className="text-[10px] text-gray-400 text-center leading-tight pt-1">
+                                        A senha será criptografada antes de ser salva.
+                                    </p>
+                                </>
+                            )}
+                        </div>
+
+                        <div className="mt-auto pt-5 border-t border-gray-100">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleTestCertificate}
+                                disabled={testing || !data.cert_a1_storage_path}
+                                className="w-full h-10 border-gray-200 hover:bg-gray-50 hover:border-gray-300 text-gray-700 font-medium"
+                            >
+                                {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <ShieldCheck className="w-3.5 h-3.5 mr-2 text-gray-500" />}
+                                Testar Conectividade
+                            </Button>
+
+                            {testResult && (
+                                <div className={`mt-2 text-xs px-3 py-2 rounded-lg font-medium border flex items-center gap-2 animate-in fade-in slide-in-from-top-1 ${testResult.valid
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                    : 'bg-red-50 text-red-700 border-red-100'
+                                    }`}>
+                                    {testResult.valid ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+                                    {testResult.message}
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 </div>

@@ -77,7 +77,7 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
                 toast({
                     title: "Sucesso",
                     description: "Prazo de pagamento salvo.",
-                    variant: "success"
+                    // variant: "default" by default
                 });
                 onOpenChange(false);
             }
@@ -136,7 +136,7 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
 
                         {/* Top Inputs */}
                         <div className="grid grid-cols-12 gap-4">
-                            <div className="col-span-12 md:col-span-3 space-y-1">
+                            <div className="col-span-12 md:col-span-2 space-y-1">
                                 <Label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Nº Parc.</Label>
                                 <Input
                                     type="number"
@@ -152,7 +152,7 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
                                     className="text-center h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                             </div>
-                            <div className="col-span-12 md:col-span-3 space-y-1">
+                            <div className="col-span-12 md:col-span-2 space-y-1">
                                 <Label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">1ª Parc.</Label>
                                 <Input
                                     type="number"
@@ -166,7 +166,7 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
                                 />
                             </div>
 
-                            <div className="col-span-12 md:col-span-3 space-y-1">
+                            <div className="col-span-12 md:col-span-5 space-y-1">
                                 <Label className={cn(
                                     "text-[11px] font-bold uppercase tracking-wider",
                                     installments === 1 ? "text-gray-300" : "text-gray-500"
