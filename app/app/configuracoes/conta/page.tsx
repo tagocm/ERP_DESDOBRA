@@ -290,30 +290,88 @@ function ChangePasswordDialog() {
             <DialogTrigger asChild>
                 <Button variant="outline">Alterar Senha</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-[400px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-0 shadow-2xl">
-                {/* Header: White Background with Title, Description and Primary Action */}
+            <DialogContent className="max-w-[400px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-2xl">
+                {/* Header: White Background with Title, Description and Close Button */}
                 <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
                     <div>
                         <DialogTitle className="text-xl font-bold text-gray-900 leading-tight">Alterar Senha</DialogTitle>
-                        <DialogDescription className="text-sm text-gray-400 mt-1 font-medium">
+                        <DialogDescription className="text-xs text-gray-500 mt-0.5 font-normal">
                             Redefina sua senha com segurança.
                         </DialogDescription>
                     </div>
-                    {!success && (
-                        <div className="flex items-center gap-2">
+                </div>
+
+                <div className="p-6 overflow-y-auto max-h-[70vh]">
+                    {success ? (
+                        <div className="py-6 flex flex-col items-center justify-center text-center space-y-4 animate-in fade-in zoom-in duration-500">
+                            <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mb-2 shadow-inner">
+                                <CheckCircle className="w-10 h-10 text-green-500" />
+                            </div>
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900">Senha Alterada!</h3>
+                                <p className="text-xs text-gray-500 mt-1.5 px-4 font-medium">Sua nova senha já está ativa.</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {error && (
+                                <Alert variant="destructive" className="rounded-xl border-red-100 bg-red-50 text-red-800 animate-in shake duration-300 py-3">
+                                    <AlertCircle className="w-4 h-4 mr-2" />
+                                    <span className="text-xs font-bold">{error}</span>
+                                </Alert>
+                            )}
+
+                            <div className="space-y-1">
+                                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Senha Atual</label>
+                                <Input
+                                    type="password"
+                                    value={currentPassword}
+                                    onChange={e => setCurrentPassword(e.target.value)}
+                                    className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                    placeholder="••••••••"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Nova Senha</label>
+                                <Input
+                                    type="password"
+                                    value={newPassword}
+                                    onChange={e => setNewPassword(e.target.value)}
+                                    placeholder="Mínimo 8 caracteres"
+                                    className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                />
+                            </div>
+                            <div className="space-y-1">
+                                <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Confirmar Nova Senha</label>
+                                <Input
+                                    type="password"
+                                    value={confirmPassword}
+                                    onChange={e => setConfirmPassword(e.target.value)}
+                                    className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                    placeholder="Repita a nova senha"
+                                />
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer Sticky Compact */}
+                <div className="bg-white px-6 py-3 border-t border-gray-100 flex gap-3 sticky bottom-0 z-10">
+                    {!success ? (
+                        <>
                             <Button
                                 type="button"
                                 variant="ghost"
                                 onClick={() => setIsOpen(false)}
                                 disabled={loading}
-                                className="rounded-xl hover:bg-gray-100 text-gray-500 font-semibold h-9"
+                                className="flex-1 h-10 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
                             >
                                 Cancelar
                             </Button>
                             <Button
                                 onClick={handleChangePassword}
                                 disabled={loading}
-                                className="bg-brand-600 hover:bg-brand-700 text-white rounded-xl shadow-lg shadow-brand-200 px-5 h-9 transition-all font-bold active:scale-95 flex items-center gap-2"
+                                className="flex-[2] h-10 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-lg shadow-brand-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                             >
                                 {loading ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -322,73 +380,16 @@ function ChangePasswordDialog() {
                                 )}
                                 Alterar Senha
                             </Button>
-                        </div>
-                    )}
-                    {success && (
+                        </>
+                    ) : (
                         <Button
                             variant="ghost"
                             onClick={() => setIsOpen(false)}
-                            className="rounded-xl hover:bg-gray-100 text-gray-500 font-semibold h-9"
+                            className="flex-1 h-10 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
                         >
                             Fechar
                         </Button>
                     )}
-                </div>
-
-                <div className="p-6">
-                    <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
-                        {success ? (
-                            <div className="py-6 flex flex-col items-center justify-center text-center space-y-4 animate-in fade-in zoom-in duration-500">
-                                <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mb-2 shadow-inner">
-                                    <CheckCircle className="w-10 h-10 text-green-500" />
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-bold text-gray-900">Senha Alterada!</h3>
-                                    <p className="text-sm text-gray-500 mt-1.5 px-4 font-medium">Sua nova senha já está ativa.</p>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-5">
-                                {error && (
-                                    <Alert variant="destructive" className="rounded-xl border-red-100 bg-red-50 text-red-800 animate-in shake duration-300 py-3">
-                                        <AlertCircle className="w-4 h-4 mr-2" />
-                                        <span className="text-xs font-bold">{error}</span>
-                                    </Alert>
-                                )}
-
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-gray-500 ml-1">Senha Atual</label>
-                                    <Input
-                                        type="password"
-                                        value={currentPassword}
-                                        onChange={e => setCurrentPassword(e.target.value)}
-                                        className="h-11 rounded-xl border-gray-200 focus:border-brand-500 focus:ring-brand-500 transition-all bg-gray-50/30 font-medium"
-                                        placeholder="••••••••"
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-gray-500 ml-1">Nova Senha</label>
-                                    <Input
-                                        type="password"
-                                        value={newPassword}
-                                        onChange={e => setNewPassword(e.target.value)}
-                                        placeholder="Mínimo 8 caracteres"
-                                        className="h-11 rounded-xl border-gray-200 focus:border-brand-500 focus:ring-brand-500 transition-all bg-gray-50/30 font-medium"
-                                    />
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-gray-500 ml-1">Confirmar Nova Senha</label>
-                                    <Input
-                                        type="password"
-                                        value={confirmPassword}
-                                        onChange={e => setConfirmPassword(e.target.value)}
-                                        className="h-11 rounded-xl border-gray-200 focus:border-brand-500 focus:ring-brand-500 transition-all bg-gray-50/30 font-medium"
-                                        placeholder="Repita a nova senha"
-                                    />
-                                </div>
-                            </div>
-                        )}
-                    </div>
                 </div>
             </DialogContent>
         </Dialog>

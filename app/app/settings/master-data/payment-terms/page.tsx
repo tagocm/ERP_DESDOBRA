@@ -1,13 +1,94 @@
-
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { useEffect, useState } from "react";
+import { useCompany } from "@/contexts/CompanyContext";
+import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
-import { Calendar, Plus, ArrowLeft } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Edit2, Trash2, CreditCard } from "lucide-react";
 import Link from "next/link";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { PaymentTerm, getPaymentTerms, deletePaymentTerm, upsertPaymentTerm } from "@/lib/data/company-settings";
+import { PaymentTermModal } from "@/components/settings/company/PaymentTermModal";
+import { useToast } from "@/components/ui/use-toast";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 
 export default function PaymentTermsPage() {
+    const { selectedCompany } = useCompany();
+    const supabase = createClient();
+    const { toast } = useToast();
+    const [terms, setTerms] = useState<PaymentTerm[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const [modalOpen, setModalOpen] = useState(false);
+    const [termToEdit, setTermToEdit] = useState<PaymentTerm | null>(null);
+
+    useEffect(() => {
+        if (selectedCompany) {
+            loadTerms();
+        }
+    }, [selectedCompany]);
+
+    const loadTerms = async () => {
+        if (!selectedCompany) return;
+        setIsLoading(true);
+        try {
+            const data = await getPaymentTerms(supabase, selectedCompany.id);
+            setTerms(data || []);
+        } catch (error) {
+            console.error(error);
+            toast({
+                title: "Erro ao carregar prazos",
+                variant: "destructive"
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleSave = async (term: Partial<PaymentTerm>) => {
+        if (!selectedCompany) return false;
+        try {
+            await upsertPaymentTerm(supabase, {
+                ...term,
+                company_id: selectedCompany.id
+            });
+            loadTerms();
+            return true;
+        } catch (error) {
+            console.error(error);
+            throw error;
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if (!confirm("Tem certeza que deseja excluir este prazo?")) return;
+        try {
+            await deletePaymentTerm(supabase, id);
+            toast({ title: "Prazo excluído", variant: "success" });
+            loadTerms();
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Erro ao excluir", variant: "destructive" });
+        }
+    };
+
+    const openNew = () => {
+        setTermToEdit(null);
+        setModalOpen(true);
+    };
+
+    const openEdit = (term: PaymentTerm) => {
+        setTermToEdit(term);
+        setModalOpen(true);
+    };
+
     return (
         <div className="max-w-[1600px] mx-auto px-6">
             <Link
@@ -20,55 +101,88 @@ export default function PaymentTermsPage() {
 
             <PageHeader
                 title="Prazos de Pagamento"
-                subtitle="Configure os prazos de pagamento disponíveis para vendas e compras"
+                subtitle="Configure as regras de parcelamento para vendas e compras."
                 actions={
-                    <Button disabled title="Funcionalidade em desenvolvimento">
+                    <Button onClick={openNew}>
                         <Plus className="w-4 h-4 mr-2" />
                         Novo Prazo
                     </Button>
                 }
             />
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Prazos Cadastrados</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {/* Empty State */}
-                    <div className="text-center py-12">
-                        <Calendar className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">
-                            Nenhum prazo cadastrado
-                        </h3>
-                        <p className="text-gray-600 mb-6">
-                            Os prazos de pagamento facilitam o cadastro de vendas e compras.
-                        </p>
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto">
-                            <p className="text-sm text-yellow-800">
-                                <strong>Em desenvolvimento:</strong> A funcionalidade de cadastro de prazos
-                                de pagamento será implementada em breve.
-                            </p>
-                        </div>
-                    </div>
+            {isLoading ? (
+                <div className="text-center py-12 text-gray-500">Carregando...</div>
+            ) : terms.length === 0 ? (
+                <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+                    <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3 opacity-50" />
+                    <p className="text-sm font-semibold text-gray-500">Nenhum prazo cadastrado</p>
+                    <p className="text-xs text-gray-400 mt-1">Crie opções de parcelamento para seus clientes.</p>
+                </div>
+            ) : (
+                <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white shadow-sm">
+                    <Table>
+                        <TableHeader className="bg-gray-50/50">
+                            <TableRow className="hover:bg-transparent border-gray-100">
+                                <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider w-full">Nome (Regra)</TableHead>
+                                <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Parcela Mínima</TableHead>
+                                <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider text-right pr-6">Ações</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {terms.map((term) => (
+                                <TableRow key={term.id} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
+                                    <TableCell className="px-6 py-4">
+                                        <div className="flex items-center">
+                                            <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 shadow-sm border border-brand-100/50">
+                                                <CreditCard className="w-5 h-5" />
+                                            </div>
+                                            <div className="ml-4">
+                                                <div className="text-sm font-bold text-gray-900 leading-tight">
+                                                    {term.name}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="px-6 py-4 text-right">
+                                        <span className="text-sm font-medium text-gray-600">
+                                            {term.min_installment_amount
+                                                ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(term.min_installment_amount)
+                                                : '-'}
+                                        </span>
+                                    </TableCell>
+                                    <TableCell className="px-6 py-4 text-right pr-6">
+                                        <div className="flex justify-end gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
+                                                onClick={() => openEdit(term)}
+                                            >
+                                                <Edit2 className="w-4 h-4" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+                                                onClick={() => handleDelete(term.id)}
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
+            )}
 
-                    {/* Placeholder Table Structure */}
-                    <div className="hidden">
-                        <table className="w-full">
-                            <thead className="bg-gray-50">
-                                <tr>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nome</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Dias</th>
-                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-                                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {/* Rows will go here */}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+            <PaymentTermModal
+                open={modalOpen}
+                onOpenChange={setModalOpen}
+                termToEdit={termToEdit}
+                onSave={handleSave}
+            />
         </div>
     );
 }

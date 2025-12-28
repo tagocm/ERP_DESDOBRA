@@ -6,9 +6,17 @@ import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { Plus, Search, Trash2, Pencil } from "lucide-react";
+import { Plus, Search, Trash2, Edit2, Package, Layers, Wheat, Box } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/PageHeader";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 
 
 interface Item {
@@ -98,7 +106,8 @@ export default function ItemsPage() {
         }
     };
 
-    const handleDelete = async (id: string) => {
+    const handleDelete = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation();
         if (!confirm('Tem certeza que deseja excluir este item?')) return;
 
         try {
@@ -115,10 +124,18 @@ export default function ItemsPage() {
         }
     };
 
-
-
     const getTypeLabel = (type: string) => {
         return ITEM_TYPES.find(t => t.value === type)?.label || type;
+    };
+
+    const getTypeIcon = (type: string) => {
+        switch (type) {
+            case 'raw_material': return <Wheat className="w-5 h-5" />;
+            case 'packaging': return <Box className="w-5 h-5" />;
+            case 'wip': return <Layers className="w-5 h-5" />;
+            case 'finished_good': return <Package className="w-5 h-5" />;
+            default: return <Package className="w-5 h-5" />;
+        }
     };
 
     return (
@@ -140,7 +157,7 @@ export default function ItemsPage() {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <Input
                             placeholder="Buscar por nome ou SKU..."
-                            className="pl-10"
+                            className="pl-10 h-10 rounded-xl bg-white border-gray-200"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
@@ -149,7 +166,7 @@ export default function ItemsPage() {
                         value={typeFilter}
                         onValueChange={(val) => setTypeFilter(val)}
                     >
-                        <SelectTrigger className="w-48">
+                        <SelectTrigger className="w-48 h-10 rounded-xl bg-white border-gray-200">
                             <SelectValue placeholder="Todos os tipos" />
                         </SelectTrigger>
                         <SelectContent>
@@ -161,123 +178,118 @@ export default function ItemsPage() {
                     </Select>
                 </div>
 
-                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    SKU
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Nome
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Tipo
-                                </th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    UOM
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Estoque
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Custo Médio
-                                </th>
-                                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Status
-                                </th>
-                                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                    Ações
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
+                <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white shadow-sm">
+                    <Table>
+                        <TableHeader className="bg-gray-50/50">
+                            <TableRow className="hover:bg-transparent border-gray-100">
+                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider">SKU</TableHead>
+                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider">Nome</TableHead>
+                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider">Tipo</TableHead>
+                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider">UOM</TableHead>
+                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Estoque</TableHead>
+                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Custo Médio</TableHead>
+                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Status</TableHead>
+                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider text-right pr-6">Ações</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
                             {isLoading ? (
-                                <tr>
-                                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                                <TableRow>
+                                    <TableCell colSpan={8} className="px-6 py-12 text-center text-gray-500">
                                         Carregando...
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ) : items.length === 0 ? (
-                                <tr>
-                                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                                <TableRow>
+                                    <TableCell colSpan={8} className="px-6 py-12 text-center text-gray-500">
                                         <div className="flex flex-col items-center gap-3">
-                                            <div className="text-4xl">📦</div>
+                                            <Package className="w-12 h-12 text-gray-300 opacity-50" />
                                             <p className="text-lg font-medium">Nenhum item encontrado</p>
-                                            <p className="text-sm">
+                                            <p className="text-xs text-gray-400">
                                                 Comece cadastrando seus itens de estoque.
                                             </p>
                                         </div>
-                                    </td>
-                                </tr>
+                                    </TableCell>
+                                </TableRow>
                             ) : (
                                 items.map((item) => (
-                                    <tr
+                                    <TableRow
                                         key={item.id}
-                                        className="hover:bg-gray-50 cursor-pointer"
+                                        className="group border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
                                         onClick={() => router.push(`/app/cadastros/produtos/${item.id}`)}
                                     >
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">
-                                            {item.sku || '-'}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-medium text-gray-900">{item.name}</div>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                            {getTypeLabel(item.type)}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                            {item.uom}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 font-medium">
-                                            {item.current_stock?.toFixed(2) || '0.00'}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                                            R$ {item.avg_cost.toFixed(2)}
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                                            <span
-                                                className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${item.is_active
-                                                    ? 'bg-green-100 text-green-800'
-                                                    : 'bg-red-100 text-red-800'
-                                                    }`}
-                                            >
-                                                {item.is_active ? 'Ativo' : 'Inativo'}
+                                        <TableCell className="px-6 py-4">
+                                            <span className="text-xs font-mono font-bold text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
+                                                {item.sku || '-'}
                                             </span>
-                                        </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <div className="flex justify-end items-center gap-2">
+                                        </TableCell>
+                                        <TableCell className="px-6 py-4">
+                                            <div className="flex items-center">
+                                                <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 shadow-sm border border-brand-100/50 mr-3">
+                                                    {getTypeIcon(item.type)}
+                                                </div>
+                                                <div className="text-sm font-bold text-gray-900 leading-tight">
+                                                    {item.name}
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell className="px-6 py-4">
+                                            <span className="text-xs font-medium text-gray-500">{getTypeLabel(item.type)}</span>
+                                        </TableCell>
+                                        <TableCell className="px-6 py-4">
+                                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
+                                                {item.uom}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="px-6 py-4 text-right">
+                                            <span className={item.current_stock && item.current_stock < 0 ? "text-red-600 font-bold" : "text-gray-900 font-bold"}>
+                                                {item.current_stock?.toFixed(2) || '0.00'}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="px-6 py-4 text-right">
+                                            <span className="text-gray-600 font-medium">
+                                                R$ {item.avg_cost.toFixed(2)}
+                                            </span>
+                                        </TableCell>
+                                        <TableCell className="px-6 py-4 text-center">
+                                            {item.is_active ? (
+                                                <span className="inline-flex px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-700 bg-green-50 border border-green-100 rounded-full">
+                                                    Ativo
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-gray-50 border border-gray-100 rounded-full">
+                                                    Inativo
+                                                </span>
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="px-6 py-4 text-right pr-6">
+                                            <div className="flex justify-end gap-1">
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 text-gray-500 hover:text-brand-600 hover:bg-brand-50"
+                                                    className="h-8 w-8 rounded-lg hover:bg-brand-50 hover:text-brand-600 text-gray-400 transition-colors"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         router.push(`/app/cadastros/produtos/${item.id}`);
                                                     }}
-                                                    title="Editar"
                                                 >
-                                                    <Pencil className="w-4 h-4" />
+                                                    <Edit2 className="w-4 h-4" />
                                                 </Button>
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleDelete(item.id);
-                                                    }}
-                                                    title="Excluir"
+                                                    className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+                                                    onClick={(e) => handleDelete(item.id, e)}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                 </Button>
                                             </div>
-                                        </td>
-                                    </tr>
+                                        </TableCell>
+                                    </TableRow>
                                 ))
                             )}
-                        </tbody>
-                    </table>
+                        </TableBody>
+                    </Table>
                 </div>
             </div>
         </div>

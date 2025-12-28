@@ -90,9 +90,9 @@ function PessoasEmpresasContent() {
             header: "Nome / Razão Social",
             cell: (row) => (
                 <div>
-                    <div className="font-medium text-gray-900">{row.trade_name}</div>
+                    <div className="text-sm font-bold text-gray-900 leading-tight">{row.trade_name}</div>
                     {row.legal_name && row.legal_name !== row.trade_name && (
-                        <div className="text-xs text-gray-500">{row.legal_name}</div>
+                        <div className="text-xs text-gray-500 mt-0.5 font-medium">{row.legal_name}</div>
                     )}
                 </div>
             ),
@@ -100,7 +100,7 @@ function PessoasEmpresasContent() {
         {
             header: "Documento",
             cell: (row) => (
-                <span className="font-mono text-gray-600">
+                <span className="font-mono text-xs font-medium text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
                     {row.document_number ? formatCNPJ(row.document_number) : "-"}
                 </span>
             ),
@@ -109,17 +109,22 @@ function PessoasEmpresasContent() {
             header: "Cidade/UF",
             cell: (row) => {
                 const addr = row.addresses?.[0];
-                if (!addr) return "-";
-                return `${addr.city || ""} - ${addr.state || ""}`;
+                if (!addr) return <span className="text-gray-400">-</span>;
+                return (
+                    <span className="text-sm font-medium text-gray-600">
+                        {addr.city} <span className="text-gray-300">/</span> {addr.state}
+                    </span>
+                );
             },
         },
         {
             header: "Status",
+            className: "text-center",
             cell: (row) => (
                 <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${row.status === "active"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-red-100 text-red-800"
+                    className={`inline-flex px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full border ${row.status === "active"
+                        ? "bg-green-50 text-green-700 border-green-100"
+                        : "bg-gray-50 text-gray-400 border-gray-100"
                         }`}
                 >
                     {row.status === "active" ? "Ativo" : "Inativo"}
@@ -128,13 +133,13 @@ function PessoasEmpresasContent() {
         },
         {
             header: "Ações",
-            className: "w-24 text-right",
+            className: "w-24 text-right pr-6",
             cell: (row) => (
-                <div className="flex justify-end items-center gap-2">
+                <div className="flex justify-end items-center gap-1">
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-gray-500 hover:text-brand-600 hover:bg-brand-50"
+                        className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
                         onClick={(e) => {
                             e.stopPropagation();
                             router.push(`/app/cadastros/pessoas-e-empresas/${row.id}`);
@@ -146,7 +151,7 @@ function PessoasEmpresasContent() {
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                        className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
                         onClick={(e) => {
                             e.stopPropagation();
                             if (confirm("Tem certeza que deseja excluir?")) {

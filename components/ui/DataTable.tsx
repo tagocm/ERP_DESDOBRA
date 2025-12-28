@@ -1,8 +1,15 @@
-
 "use client";
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from "@/components/ui/table";
 
 export interface Column<T> {
     header: string;
@@ -27,50 +34,59 @@ export function DataTable<T>({
     emptyMessage = "Nenhum registro encontrado.",
 }: DataTableProps<T>) {
     if (isLoading) {
-        return <div className="p-8 text-center text-gray-500">Carregando...</div>;
+        return <div className="p-12 text-center text-gray-500">Carregando...</div>;
     }
 
     if (!data.length) {
         return (
-            <div className="p-8 text-center border rounded-lg bg-gray-50 border-gray-200">
-                <p className="text-gray-500">{emptyMessage}</p>
+            <div className="p-12 text-center border-dashed border border-gray-200 rounded-2xl bg-gray-50/50">
+                <p className="text-gray-500 font-medium">{emptyMessage}</p>
             </div>
         );
     }
 
     return (
-        <div className="overflow-x-auto border rounded-lg border-gray-200 shadow-sm">
-            <table className="w-full text-sm text-left">
-                <thead className="bg-gray-50 text-gray-600 font-medium">
-                    <tr>
+        <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white shadow-sm">
+            <Table>
+                <TableHeader className="bg-gray-50/50">
+                    <TableRow className="hover:bg-transparent border-gray-100">
                         {columns.map((col, idx) => (
-                            <th key={idx} className={cn("px-4 py-3", col.className)}>
+                            <TableHead
+                                key={idx}
+                                className={cn(
+                                    "px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider",
+                                    col.className
+                                )}
+                            >
                                 {col.header}
-                            </th>
+                            </TableHead>
                         ))}
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 bg-white">
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
                     {data.map((item, rowIdx) => (
-                        <tr
+                        <TableRow
                             key={rowIdx}
                             onClick={() => onRowClick && onRowClick(item)}
                             className={cn(
-                                "group transition-colors",
-                                onRowClick ? "cursor-pointer hover:bg-brand-50/50" : ""
+                                "group border-gray-50 hover:bg-gray-50/50 transition-colors",
+                                onRowClick ? "cursor-pointer" : ""
                             )}
                         >
                             {columns.map((col, colIdx) => (
-                                <td key={colIdx} className={cn("px-4 py-3", col.className)}>
+                                <TableCell
+                                    key={colIdx}
+                                    className={cn("px-6 py-4", col.className)}
+                                >
                                     {col.cell
                                         ? col.cell(item)
                                         : (col.accessorKey ? String(item[col.accessorKey]) : "")}
-                                </td>
+                                </TableCell>
                             ))}
-                        </tr>
+                        </TableRow>
                     ))}
-                </tbody>
-            </table>
+                </TableBody>
+            </Table>
         </div>
     );
 }
