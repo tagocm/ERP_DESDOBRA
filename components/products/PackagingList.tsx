@@ -115,9 +115,8 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                             </TableRow>
                         );
                     })}
-                </tbody>
+                </TableBody>
             </Table>
         </div>
     );
 }
-

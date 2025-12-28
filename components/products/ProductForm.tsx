@@ -797,7 +797,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         {/* Name */}
                                         <div className="grid grid-cols-12 gap-6">
                                             <div className="col-span-12">
-                                                <label className="text-sm font-medium">Nome do Item *</label>
+                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Nome do Item *</label>
                                                 <Input
                                                     value={formData.name}
                                                     onChange={(e) => handleChange('name', e.target.value)}
@@ -811,7 +811,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         {/* SKU / GTIN / Type Row */}
                                         <div className="grid grid-cols-12 gap-4">
                                             <div className="col-span-6 md:col-span-2">
-                                                <label className="text-sm font-medium">SKU</label>
+                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">SKU</label>
                                                 <Input
                                                     value={formData.sku}
                                                     onChange={(e) => handleChange('sku', e.target.value)}
@@ -820,7 +820,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                 />
                                             </div>
                                             <div className="col-span-6 md:col-span-4">
-                                                <label className="text-sm font-medium">GTIN / EAN</label>
+                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">GTIN / EAN</label>
                                                 <Input
                                                     value={formData.gtin_ean_base || ''}
                                                     onChange={(e) => handleChange('gtin_ean_base', e.target.value)}
@@ -831,7 +831,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                 {errors.gtin_ean_base && <p className="text-xs text-red-500 mt-1">{errors.gtin_ean_base}</p>}
                                             </div>
                                             <div className="col-span-12 md:col-span-6">
-                                                <label className="text-sm font-medium">Tipo *</label>
+                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tipo *</label>
                                                 <Select
                                                     value={formData.type}
                                                     onValueChange={(val) => handleTypeChange(val)}
@@ -851,7 +851,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         {/* Brand & Line */}
                                         <div className="grid grid-cols-12 gap-6">
                                             <div className="col-span-12 md:col-span-6">
-                                                <label className="text-sm font-medium">Marca</label>
+                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Marca</label>
                                                 <Input
                                                     value={formData.brand || ''}
                                                     onChange={(e) => handleChange('brand', e.target.value)}
@@ -860,7 +860,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                 />
                                             </div>
                                             <div className="col-span-12 md:col-span-6">
-                                                <label className="text-sm font-medium">Linha / Categoria</label>
+                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Linha / Categoria</label>
                                                 <CategorySelector
                                                     value={formData.category_id}
                                                     onChange={(val) => handleChange('category_id', val)}
@@ -1011,7 +1011,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                     <div className="grid grid-cols-12 gap-6">
                                         {/* Row 1: Stock Levels */}
                                         <div className="col-span-6 md:col-span-3 lg:col-span-2">
-                                            <label className="text-sm font-medium">Mínimo</label>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Mínimo</label>
                                             <Input
                                                 type="number"
                                                 value={formData.min_stock || ''}
@@ -1022,7 +1022,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             {errors.min_stock && <p className="text-xs text-red-500 mt-1">{errors.min_stock}</p>}
                                         </div>
                                         <div className="col-span-6 md:col-span-3 lg:col-span-2">
-                                            <label className="text-sm font-medium">Máximo</label>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Máximo</label>
                                             <Input
                                                 type="number"
                                                 value={formData.max_stock || ''}
@@ -1033,7 +1033,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             {errors.max_stock && <p className="text-xs text-red-500 mt-1">{errors.max_stock}</p>}
                                         </div>
                                         <div className="col-span-6 md:col-span-3 lg:col-span-2">
-                                            <label className="text-sm font-medium">Ponto de Pedido</label>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Ponto de Pedido</label>
                                             <Input
                                                 type="number"
                                                 value={formData.reorder_point || ''}
@@ -1043,7 +1043,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             />
                                         </div>
                                         <div className="col-span-6 md:col-span-3 lg:col-span-4">
-                                            <label className="text-sm font-medium">Localização Padrão</label>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Localização Padrão</label>
                                             <Input
                                                 value={formData.default_location || ''}
                                                 onChange={(e) => handleChange('default_location', e.target.value)}
@@ -1088,7 +1088,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                             <CardContent>
                                 <div className="grid grid-cols-12 gap-6">
                                     <div className="col-span-6 md:col-span-2">
-                                        <label className="text-sm font-medium">Lead Time (Dias)</label>
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Lead Time (Dias)</label>
                                         <Input
                                             type="number"
                                             value={formData.lead_time_days || ''}
@@ -1098,7 +1098,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         />
                                     </div>
                                     <div className="col-span-6 md:col-span-3">
-                                        <label className="text-sm font-medium">Unidade de Compra</label>
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Unidade de Compra</label>
                                         <UomSelector
                                             value={formData.purchase_uom_id}
                                             onChange={(val) => handleChange('purchase_uom_id', val)}
@@ -1106,7 +1106,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         />
                                     </div>
                                     <div className="col-span-6 md:col-span-3">
-                                        <label className="text-sm font-medium">Fator de Conversão</label>
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Fator de Conversão</label>
                                         <div className="w-[40%]">
                                             <Input
                                                 type="number"
@@ -1147,7 +1147,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                 <CardContent>
                                     <div className="grid grid-cols-12 gap-6">
                                         <div className="col-span-12 md:col-span-6">
-                                            <label className="text-sm font-medium">Grupo Tributário *</label>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Grupo Tributário *</label>
                                             <Select
                                                 value={formData.tax_group_id || ''}
                                                 onValueChange={(val) => handleChange('tax_group_id', val)}
@@ -1163,7 +1163,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             </Select>
                                         </div>
                                         <div className="col-span-6 md:col-span-3">
-                                            <label className="text-sm font-medium">NCM</label>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">NCM</label>
                                             <Input
                                                 value={formData.ncm || ''}
                                                 onChange={(e) => handleChange('ncm', e.target.value)}
@@ -1174,7 +1174,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             {errors.ncm && <p className="text-xs text-red-500 mt-1">{errors.ncm}</p>}
                                         </div>
                                         <div className="col-span-6 md:col-span-3">
-                                            <label className="text-sm font-medium">CEST</label>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">CEST</label>
                                             <Input
                                                 value={formData.cest || ''}
                                                 onChange={(e) => handleChange('cest', e.target.value)}
@@ -1185,7 +1185,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         </div>
 
                                         <div className="col-span-12 md:col-span-4">
-                                            <label className="text-sm font-medium">Origem da Mercadoria (0-8)</label>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Origem da Mercadoria (0-8)</label>
                                             <Select
                                                 value={formData.origin?.toString() || "0"}
                                                 onValueChange={(val) => handleChange('origin', parseInt(val))}
@@ -1207,7 +1207,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             </Select>
                                         </div>
                                         <div className="col-span-12 md:col-span-8">
-                                            <label className="text-sm font-medium">CFOP Padrão</label>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">CFOP Padrão</label>
                                             <CfopSelector
                                                 value={formData.cfop_code || formData.cfop_default || ''}
                                                 onChange={(val) => handleChange('cfop_code', val)}
@@ -1236,7 +1236,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                             <CardContent>
                                 <div className="grid grid-cols-12 gap-6">
                                     <div className="col-span-12 md:col-span-4">
-                                        <label className="text-sm font-medium">Rendimento Padrão (Lote) *</label>
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Rendimento Padrão (Lote) *</label>
                                         <Input
                                             type="number"
                                             value={(formData as any).batch_size || ''}
@@ -1247,7 +1247,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         <p className="text-xs text-gray-500 mt-1">Quanto este lote rende ao final.</p>
                                     </div>
                                     <div className="col-span-12 md:col-span-4">
-                                        <label className="text-sm font-medium">Unidade de Produção</label>
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Unidade de Produção</label>
                                         <UomSelector
                                             value={formData.production_uom_id}
                                             onChange={(val) => handleChange('production_uom_id', val)}
@@ -1256,7 +1256,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         <p className="text-xs text-gray-500 mt-1">Unidade do produto final.</p>
                                     </div>
                                     <div className="col-span-12 md:col-span-4">
-                                        <label className="text-sm font-medium">Perda Padrão (%)</label>
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Perda Padrão (%)</label>
                                         <Input
                                             type="number"
                                             value={(formData as any).loss_percent || 0}

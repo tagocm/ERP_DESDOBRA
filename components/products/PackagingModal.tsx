@@ -120,15 +120,15 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-[600px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-2xl">
-                {/* Header */}
-                <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
+            <DialogContent className="max-w-[500px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-2xl">
+                {/* Header Compact */}
+                <div className="bg-white px-6 py-3 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
                     <div>
-                        <DialogTitle className="text-xl font-semibold text-gray-900">
+                        <DialogTitle className="text-lg font-bold text-gray-900 leading-tight">
                             {initialData ? 'Editar Embalagem' : 'Nova Embalagem'}
                         </DialogTitle>
-                        <DialogDescription className="text-sm text-gray-500 mt-1">
-                            Preencha os dados da embalagem abaixo.
+                        <DialogDescription className="text-xs text-gray-500 mt-0.5">
+                            Dados para logística e automação.
                         </DialogDescription>
                     </div>
                     <Button
@@ -141,16 +141,16 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                     </Button>
                 </div>
 
-                <div className="p-6 overflow-y-auto max-h-[85vh]">
-                    <div className="grid grid-cols-12 gap-5">
-                        {/* Row 1: Tipo + Quantidade + Checkboxes */}
-                        <div className="col-span-6 space-y-1.5">
-                            <Label className="text-xs text-gray-500 font-medium">Tipo *</Label>
+                <div className="p-5 overflow-y-auto max-h-[80vh]">
+                    <div className="grid grid-cols-12 gap-4">
+                        {/* Row 1: Tipo + Quantidade */}
+                        <div className="col-span-12 md:col-span-8 space-y-1">
+                            <Label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Tipo *</Label>
                             <Select
                                 value={formData.type}
                                 onValueChange={(val) => handleChange('type', val)}
                             >
-                                <SelectTrigger className="w-full h-10 rounded-xl bg-white border-gray-200">
+                                <SelectTrigger className="w-full h-9 rounded-xl bg-white border-gray-200">
                                     <SelectValue placeholder="Selecione..." />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -161,8 +161,8 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                             </Select>
                         </div>
 
-                        <div className="col-span-3 space-y-1.5">
-                            <Label className="text-xs text-gray-500 font-medium whitespace-nowrap">Qtd Base ({baseUom}) *</Label>
+                        <div className="col-span-12 md:col-span-4 space-y-1">
+                            <Label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Qtd Base ({baseUom}) *</Label>
                             <Input
                                 type="number"
                                 min="0.001"
@@ -173,81 +173,76 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                                     handleChange('qty_in_base', val);
                                 }}
                                 className={cn(
-                                    "h-10 rounded-xl bg-white border-gray-200 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                                    "h-9 rounded-xl bg-white border-gray-200 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                                     errors.qty_in_base && "border-red-500 ring-red-500/10"
                                 )}
                             />
                         </div>
 
-                        {/* Checkboxes Grouped */}
-                        <div className="col-span-3 flex flex-col gap-2 justify-end pb-1.5">
-                            <label className="flex items-center gap-2 cursor-pointer group">
-                                <div className="relative flex items-center">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.is_default_sales_unit}
-                                        onChange={(e) => handleChange('is_default_sales_unit', e.target.checked)}
-                                        className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300 transition-all cursor-pointer"
-                                    />
-                                </div>
-                                <span className="text-xs font-semibold text-gray-600 group-hover:text-gray-900 transition-colors">Padrão</span>
-                            </label>
-                            <label className="flex items-center gap-2 cursor-pointer group">
-                                <div className="relative flex items-center">
-                                    <input
-                                        type="checkbox"
-                                        checked={formData.is_active}
-                                        onChange={(e) => handleChange('is_active', e.target.checked)}
-                                        className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300 transition-all cursor-pointer"
-                                    />
-                                </div>
-                                <span className="text-xs font-semibold text-gray-600 group-hover:text-gray-900 transition-colors">Ativo</span>
-                            </label>
-                        </div>
-
-                        {/* Row 2: Rótulo - full width */}
-                        <div className="col-span-12 space-y-1.5">
-                            <Label className="text-xs text-gray-500 font-medium">Rótulo / Descrição *</Label>
+                        {/* Row 2: Rótulo */}
+                        <div className="col-span-12 space-y-1">
+                            <Label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Rótulo / Descrição *</Label>
                             <Input
                                 value={formData.label}
                                 onChange={(e) => handleChange('label', e.target.value)}
                                 placeholder="Ex: Caixa 12x1kg"
                                 className={cn(
-                                    "h-10 rounded-xl bg-white border-gray-200",
+                                    "h-9 rounded-xl bg-white border-gray-200",
                                     errors.label && "border-red-500 ring-red-500/10"
                                 )}
                             />
-                            {errors.label && <p className="text-[10px] text-red-500 font-medium px-1 mt-1">{errors.label}</p>}
+                            {errors.label && <p className="text-[10px] text-red-500 font-medium px-1 mt-0.5">{errors.label}</p>}
                         </div>
 
-                        {/* Row 3: GTIN/EAN */}
-                        <div className="col-span-12 space-y-1.5">
-                            <Label className="text-xs text-gray-500 font-medium">GTIN/EAN (Código de Barras)</Label>
+                        {/* Row 3: GTIN/EAN + Checkboxes */}
+                        <div className="col-span-12 md:col-span-7 space-y-1">
+                            <Label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">GTIN/EAN</Label>
                             <Input
                                 value={formData.gtin_ean || ''}
                                 onChange={(e) => handleChange('gtin_ean', e.target.value.replace(/\D/g, ''))}
                                 placeholder="8, 12, 13 ou 14 dígitos"
                                 maxLength={14}
                                 className={cn(
-                                    "h-10 rounded-xl bg-white border-gray-200",
+                                    "h-9 rounded-xl bg-white border-gray-200",
                                     errors.gtin_ean && "border-red-500 ring-red-500/10"
                                 )}
                             />
-                            {errors.gtin_ean && <p className="text-[10px] text-red-500 font-medium px-1 mt-1">{errors.gtin_ean}</p>}
+                            {errors.gtin_ean && <p className="text-[10px] text-red-500 font-medium px-1 mt-0.5">{errors.gtin_ean}</p>}
                         </div>
 
-                        {/* Divider */}
-                        <div className="col-span-12 pt-2">
-                            <div className="flex items-center gap-2 mb-4">
-                                <div className="h-px flex-1 bg-gray-200"></div>
-                                <span className="text-[10px] uppercase tracking-wider font-bold text-gray-400">Dimensões e Pesos</span>
-                                <div className="h-px flex-1 bg-gray-200"></div>
+                        <div className="col-span-12 md:col-span-5 flex items-center gap-4 pt-5">
+                            <label className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.is_default_sales_unit}
+                                    onChange={(e) => handleChange('is_default_sales_unit', e.target.checked)}
+                                    className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300 transition-all cursor-pointer"
+                                />
+                                <span className="text-[11px] font-bold text-gray-600 uppercase tracking-tight group-hover:text-gray-900 transition-colors">Padrão</span>
+                            </label>
+                            <label className="flex items-center gap-2 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={formData.is_active}
+                                    onChange={(e) => handleChange('is_active', e.target.checked)}
+                                    className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300 transition-all cursor-pointer"
+                                />
+                                <span className="text-[11px] font-bold text-gray-600 uppercase tracking-tight group-hover:text-gray-900 transition-colors">Ativo</span>
+                            </label>
+                        </div>
+
+                        {/* Divider Compact */}
+                        <div className="col-span-12 py-1">
+                            <div className="flex items-center gap-2">
+                                <div className="h-px flex-1 bg-gray-200/60"></div>
+                                <span className="text-[9px] uppercase tracking-[0.2em] font-black text-gray-300">Dimensões e Pesos</span>
+                                <div className="h-px flex-1 bg-gray-200/60"></div>
                             </div>
                         </div>
 
-                        {/* Row 4: Dimensões */}
-                        <div className="col-span-4 space-y-1.5">
-                            <Label className="text-xs text-gray-500 font-medium">Altura (cm)</Label>
+                        {/* Row 4: Dimensões Compact */}
+                        <div className="col-span-4 space-y-1">
+                            <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Alt. (cm)</Label>
                             <DecimalInput
                                 value={formData.height_cm}
                                 onChange={(val) => handleChange('height_cm', val)}
@@ -255,12 +250,12 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                                 minPrecision={0}
                                 disableDecimalShift={true}
                                 placeholder="0"
-                                className="h-10 rounded-xl bg-white border-gray-200 text-right"
+                                className="h-9 rounded-xl bg-white border-gray-200 text-right"
                             />
                         </div>
 
-                        <div className="col-span-4 space-y-1.5">
-                            <Label className="text-xs text-gray-500 font-medium">Largura (cm)</Label>
+                        <div className="col-span-4 space-y-1">
+                            <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Larg. (cm)</Label>
                             <DecimalInput
                                 value={formData.width_cm}
                                 onChange={(val) => handleChange('width_cm', val)}
@@ -268,12 +263,12 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                                 minPrecision={0}
                                 disableDecimalShift={true}
                                 placeholder="0"
-                                className="h-10 rounded-xl bg-white border-gray-200 text-right"
+                                className="h-9 rounded-xl bg-white border-gray-200 text-right"
                             />
                         </div>
 
-                        <div className="col-span-4 space-y-1.5">
-                            <Label className="text-xs text-gray-500 font-medium">Comprimento (cm)</Label>
+                        <div className="col-span-4 space-y-1">
+                            <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Comp. (cm)</Label>
                             <DecimalInput
                                 value={formData.length_cm}
                                 onChange={(val) => handleChange('length_cm', val)}
@@ -281,13 +276,13 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                                 minPrecision={0}
                                 disableDecimalShift={true}
                                 placeholder="0"
-                                className="h-10 rounded-xl bg-white border-gray-200 text-right"
+                                className="h-9 rounded-xl bg-white border-gray-200 text-right"
                             />
                         </div>
 
-                        {/* Row 5: Pesos */}
-                        <div className="col-span-6 space-y-1.5 pt-2">
-                            <Label className="text-xs text-gray-500 font-medium">Peso Líquido Unitário (g)</Label>
+                        {/* Row 5: Pesos Compact */}
+                        <div className="col-span-6 space-y-1">
+                            <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">P. Líquido (g)</Label>
                             <DecimalInput
                                 value={formData.net_weight_g}
                                 onChange={(val) => handleChange('net_weight_g', val)}
@@ -295,12 +290,12 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                                 minPrecision={0}
                                 disableDecimalShift={true}
                                 placeholder="0"
-                                className="h-10 rounded-xl bg-white border-gray-200 text-right font-medium"
+                                className="h-9 rounded-xl bg-white border-gray-200 text-right font-medium"
                             />
                         </div>
 
-                        <div className="col-span-6 space-y-1.5 pt-2">
-                            <Label className="text-xs text-gray-500 font-medium">Peso Bruto Total (g)</Label>
+                        <div className="col-span-6 space-y-1">
+                            <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">P. Bruto (g)</Label>
                             <DecimalInput
                                 value={formData.gross_weight_g}
                                 onChange={(val) => handleChange('gross_weight_g', val)}
@@ -308,24 +303,24 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                                 minPrecision={0}
                                 disableDecimalShift={true}
                                 placeholder="0"
-                                className="h-10 rounded-xl bg-white border-gray-200 text-right font-medium"
+                                className="h-9 rounded-xl bg-white border-gray-200 text-right font-medium"
                             />
                         </div>
                     </div>
                 </div>
 
-                {/* Footer Sticky */}
-                <div className="bg-white px-6 py-4 border-t border-gray-100 flex gap-3 sticky bottom-0 z-10">
+                {/* Footer Sticky Compact */}
+                <div className="bg-white px-6 py-3 border-t border-gray-100 flex gap-3 sticky bottom-0 z-10">
                     <Button
                         variant="ghost"
                         onClick={onClose}
-                        className="flex-1 h-11 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
+                        className="flex-1 h-10 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
                     >
                         Cancelar
                     </Button>
                     <Button
                         onClick={handleSave}
-                        className="flex-[2] h-11 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-lg shadow-brand-500/20 active:scale-[0.98] transition-all"
+                        className="flex-[2] h-10 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-lg shadow-brand-500/20 active:scale-[0.98] transition-all"
                     >
                         Salvar Embalagem
                     </Button>
