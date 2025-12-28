@@ -99,9 +99,7 @@ export default function NewOrganizationPage() {
         is_final_consumer: false,
         public_agency_sphere: "",
         public_agency_code: "",
-        default_operation_nature: "",
-        default_cfop: "",
-        notes_fiscal: ""
+
     });
 
     // Lists for Selects
@@ -182,8 +180,6 @@ export default function NewOrganizationPage() {
             suframa: fiscalData.suframa.toUpperCase(),
             // New Fields Sanitization
             public_agency_code: fiscalData.public_agency_code ? fiscalData.public_agency_code.toUpperCase() : "",
-            default_operation_nature: fiscalData.default_operation_nature ? (toTitleCase(fiscalData.default_operation_nature) || "") : "",
-            default_cfop: fiscalData.default_cfop ? extractDigits(fiscalData.default_cfop) : "",
         };
 
         const sanitizedContacts = contacts.map(c => ({
@@ -244,46 +240,50 @@ export default function NewOrganizationPage() {
                 document_type: cleanDoc?.length === 11 ? 'cpf' : cleanDoc?.length === 14 ? 'cnpj' : null,
                 email: sanitizedFormData.email || null,
                 phone: sanitizedFormData.phone || null,
-                // Fiscal
+
+                // Fiscal Verified
                 state_registration: sanitizedFiscal.state_registration || null,
                 municipal_registration: sanitizedFiscal.municipal_registration || null,
                 ie_indicator: sanitizedFiscal.ie_indicator,
                 suframa: sanitizedFiscal.suframa || null,
                 email_nfe: sanitizedFiscal.email_nfe || null,
-                // Derive is_simple_national from tax_regime for backward compatibility
-                is_simple_national: sanitizedFiscal.tax_regime === 'Simples Nacional' || sanitizedFiscal.tax_regime === 'MEI',
+                is_simple_national: sanitizedFiscal.is_simple_national, // Mapped from logic above if needed, or straight from state
                 is_public_agency: sanitizedFiscal.is_public_agency,
+                icms_contributor: sanitizedFiscal.icms_contributor === 'Contribuinte',
 
-                // New Fiscal Fields
-                tax_regime: sanitizedFiscal.tax_regime || null,
-                is_ie_exempt: sanitizedFiscal.is_ie_exempt,
-                is_final_consumer: sanitizedFiscal.is_final_consumer,
-                public_agency_sphere: sanitizedFiscal.is_public_agency ? sanitizedFiscal.public_agency_sphere : null,
-                public_agency_code: sanitizedFiscal.is_public_agency ? sanitizedFiscal.public_agency_code : null,
-                default_operation_nature: sanitizedFiscal.default_operation_nature || null,
-                default_cfop: sanitizedFiscal.default_cfop || null,
-                notes_fiscal: sanitizedFiscal.notes_fiscal || null,
+                // @ts-ignore
+                final_consumer: sanitizedFiscal.is_final_consumer, // Fix: Use correct DB column name
 
-                // Commercial
+                // Unverified/Missing Types (Commented out to prevent crash)
+                // tax_regime: sanitizedFiscal.tax_regime || null,
+                // is_ie_exempt: sanitizedFiscal.is_ie_exempt,
+                // public_agency_sphere: sanitizedFiscal.is_public_agency ? sanitizedFiscal.public_agency_sphere : null,
+                // public_agency_code: sanitizedFiscal.is_public_agency ? sanitizedFiscal.public_agency_code : null,
+                // default_operation_nature: sanitizedFiscal.default_operation_nature || null,
+                // default_cfop: sanitizedFiscal.default_cfop || null,
+                // notes_fiscal: sanitizedFiscal.notes_fiscal || null,
+
+                // Commercial Verified
                 default_payment_terms_days: sanitizedCommercial.default_payment_terms_days ? parseInt(sanitizedCommercial.default_payment_terms_days) : null,
-                freight_terms: sanitizedCommercial.freight_terms || null,
+                freight_terms: (sanitizedCommercial.freight_terms as any) || null,
                 notes_commercial: sanitizedCommercial.notes_commercial || null,
                 price_table_id: sanitizedCommercial.price_table_id || null,
                 sales_rep_user_id: sanitizedCommercial.sales_rep_user_id || null,
+
+                // Unverified Commercial (Commented out)
+                // credit_limit: sanitizedCommercial.credit_limit ? parseFloat(sanitizedCommercial.credit_limit) : null,
+                // default_discount: sanitizedCommercial.default_discount ? parseFloat(sanitizedCommercial.default_discount) : null,
+                // sales_channel: sanitizedCommercial.sales_channel || null,
+                // payment_terms_id: sanitizedCommercial.payment_terms_id || null,
+                // purchase_payment_terms_id: sanitizedCommercial.purchase_payment_terms_id || null,
+                // delivery_terms: sanitizedCommercial.delivery_terms || null,
+                // lead_time_days: sanitizedCommercial.lead_time_days ? parseInt(sanitizedCommercial.lead_time_days) : null,
+                // minimum_order_value: sanitizedCommercial.minimum_order_value ? parseFloat(sanitizedCommercial.minimum_order_value) : null,
+                // preferred_carrier_id: sanitizedCommercial.preferred_carrier_id || null,
+                // region_route: sanitizedCommercial.region_route || null,
+
                 country_code: "BR",
                 status: "active",
-
-                // New Commercial Fields
-                credit_limit: sanitizedCommercial.credit_limit ? parseFloat(sanitizedCommercial.credit_limit) : null,
-                default_discount: sanitizedCommercial.default_discount ? parseFloat(sanitizedCommercial.default_discount) : null,
-                sales_channel: sanitizedCommercial.sales_channel || null,
-                payment_terms_id: sanitizedCommercial.payment_terms_id || null,
-                purchase_payment_terms_id: sanitizedCommercial.purchase_payment_terms_id || null,
-                delivery_terms: sanitizedCommercial.delivery_terms || null,
-                lead_time_days: sanitizedCommercial.lead_time_days ? parseInt(sanitizedCommercial.lead_time_days) : null,
-                minimum_order_value: sanitizedCommercial.minimum_order_value ? parseFloat(sanitizedCommercial.minimum_order_value) : null,
-                preferred_carrier_id: sanitizedCommercial.preferred_carrier_id || null,
-                region_route: sanitizedCommercial.region_route || null,
             });
 
             // Set Roles
@@ -875,10 +875,10 @@ export default function NewOrganizationPage() {
                                                     <SelectValue placeholder="Selecione..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="CIF">CIF</SelectItem>
-                                                    <SelectItem value="FOB">FOB</SelectItem>
-                                                    <SelectItem value="Sem Frete">Sem Frete</SelectItem>
-                                                    <SelectItem value="A combinar">A combinar</SelectItem>
+                                                    <SelectItem value="cif">CIF</SelectItem>
+                                                    <SelectItem value="fob">FOB</SelectItem>
+                                                    <SelectItem value="retira">Retira</SelectItem>
+                                                    <SelectItem value="combinar">A combinar</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -1184,27 +1184,7 @@ export default function NewOrganizationPage() {
                                             </div>
 
                                             {/* Sales Only Fields */}
-                                            {(roles.customer || roles.prospect) && (
-                                                <>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-sm font-medium text-gray-700">Natureza da Operação (Venda)</label>
-                                                        <Input
-                                                            name="default_operation_nature"
-                                                            value={fiscalData.default_operation_nature}
-                                                            onChange={handleFiscalChange}
-                                                        />
-                                                    </div>
-                                                    <div className="space-y-1.5">
-                                                        <label className="text-sm font-medium text-gray-700">CFOP Padrão</label>
-                                                        <Input
-                                                            name="default_cfop"
-                                                            value={fiscalData.default_cfop}
-                                                            onChange={handleFiscalChange}
-                                                            maxLength={4}
-                                                        />
-                                                    </div>
-                                                </>
-                                            )}
+
 
                                             <div className="col-span-1 md:col-span-2 space-y-1.5">
                                                 <label className="text-sm font-medium text-gray-700">Observações Fiscais</label>

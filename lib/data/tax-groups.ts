@@ -6,6 +6,9 @@ export interface TaxGroup {
     company_id: string;
     name: string;
     description?: string;
+    ncm?: string;
+    cest?: string;
+    origin_default?: number;
 }
 
 export async function getTaxGroups(supabase: SupabaseClient, companyId: string): Promise<TaxGroup[]> {
