@@ -25,6 +25,7 @@ import { Uom } from "@/types/product";
 import { Alert } from "@/components/ui/Alert";
 import { PackagingList } from "./PackagingList";
 import { PackagingModal } from "./PackagingModal";
+import { TaxGroupSelector } from "./TaxGroupSelector";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { ItemPackaging } from "@/types/product";
 
@@ -258,9 +259,9 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         setFormData(prev => ({
             ...prev,
             tax_group_id: groupId,
-            // Inherit NCM/CEST automatically
-            ncm: group?.ncm || prev.ncm,
-            cest: group?.cest || prev.cest,
+            // Inherit NCM/CEST automatically (If group is selected, overwrite. If empty, keep prev? Or clear? Safe to overwrite if group exists)
+            ncm: group ? (group.ncm || "") : prev.ncm,
+            cest: group ? (group.cest || "") : prev.cest,
             // Inherit Origin (Default)
             origin: group?.origin_default !== undefined ? group.origin_default : prev.origin
         }));
@@ -914,12 +915,10 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                             </FormTabsTrigger>
                         )}
 
-                        {showFiscal && (
-                            <FormTabsTrigger value="fiscal">
-                                <Receipt className="w-4 h-4 mr-2" />
-                                Fiscal
-                            </FormTabsTrigger>
-                        )}
+                        <FormTabsTrigger value="fiscal">
+                            <Receipt className="w-4 h-4 mr-2" />
+                            Fiscal
+                        </FormTabsTrigger>
 
                         <FormTabsTrigger value="logistics">
                             <Box className="w-4 h-4 mr-2" />
@@ -1313,19 +1312,14 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         {/* Row 1: Tax Group (Source of Truth) */}
                                         <div className="col-span-12 md:col-span-6">
                                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Grupo Tributário *</label>
-                                            <Select
-                                                value={formData.tax_group_id || ''}
-                                                onValueChange={(val) => handleTaxGroupChange(val)}
-                                            >
-                                                <SelectTrigger className={cn("mt-1", errors.tax_group_id && "border-red-500")}>
-                                                    <SelectValue placeholder="Selecione..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {taxGroups.map(bg => (
-                                                        <SelectItem key={bg.id} value={bg.id}>{bg.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <TaxGroupSelector
+                                                value={formData.tax_group_id}
+                                                onChange={(val) => handleTaxGroupChange(val || '')}
+                                                onGroupUpdated={() => {
+                                                    if (selectedCompany) getTaxGroups(createClient(), selectedCompany.id).then(setTaxGroups);
+                                                }}
+                                                className={cn("mt-1", errors.tax_group_id && "border-red-500 rounded-2xl")}
+                                            />
                                             <p className="text-[10px] text-gray-500 mt-1">Define NCM, CEST e regras fiscais.</p>
                                             {errors.tax_group_id && <p className="text-xs text-red-500 mt-1">{errors.tax_group_id}</p>}
                                         </div>
@@ -1367,6 +1361,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             <Select
                                                 value={formData.origin?.toString() || "0"}
                                                 onValueChange={(val) => handleChange('origin', parseInt(val))}
+                                                disabled={!!formData.tax_group_id}
                                             >
                                                 <SelectTrigger className="mt-1">
                                                     <SelectValue placeholder="Selecione..." />
