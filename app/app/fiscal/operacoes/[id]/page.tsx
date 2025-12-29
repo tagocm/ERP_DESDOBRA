@@ -20,12 +20,7 @@ export default function EditFiscalOperationPage({ params }: { params: { id: stri
     if (!data) return <div className="p-8">Carregando...</div>;
 
     return (
-        <div className="container mx-auto max-w-[1200px] px-6 py-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Editar Regra Fiscal</h1>
-            <p className="text-gray-500 mb-8">
-                Atualize os parâmetros fiscais.
-            </p>
-
+        <div className="w-full">
             <FiscalOperationForm initialData={data} />
         </div>
     );

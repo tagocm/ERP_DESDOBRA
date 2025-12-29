@@ -11,15 +11,15 @@ import { FiscalOperation, createFiscalOperation, updateFiscalOperation, getFisca
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Loader2, Save, ArrowLeft, AlertTriangle } from "lucide-react";
+import { Loader2, Save, ArrowLeft, AlertTriangle, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
-import { Checkbox } from "@/components/ui/checkbox"; // Assuming you have this
 import { Label } from "@/components/ui/Label";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { Switch } from "@/components/ui/Switch";
 import { cn } from "@/lib/utils";
+import { ICMS_CST_OPTIONS, ICMS_CSOSN_OPTIONS, PIS_COFINS_CST_OPTIONS, IPI_CST_OPTIONS } from "@/lib/constants/fiscal-codes";
 
 // --- Constants ---
 const STATES = [
@@ -39,6 +39,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
 
     const [isLoading, setIsLoading] = useState(false);
     const [taxGroups, setTaxGroups] = useState<TaxGroup[]>([]);
+    const [taxRegime, setTaxRegime] = useState<string | null>(null);
 
     // Form State
     const [formData, setFormData] = useState<Partial<FiscalOperation>>({
@@ -74,8 +75,22 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
     useEffect(() => {
         if (selectedCompany) {
             getTaxGroups(supabase, selectedCompany.id).then(setTaxGroups);
+
+            // Fetch Company Settings for Tax Regime
+            supabase
+                .from('company_settings')
+                .select('tax_regime')
+                .eq('company_id', selectedCompany.id)
+                .single()
+                .then(({ data, error }) => {
+                    if (data && data.tax_regime) {
+                        setTaxRegime(data.tax_regime);
+                    } else if (error && error.code !== 'PGRST116') {
+                        console.error("Error fetching tax regime:", error);
+                    }
+                });
         }
-    }, [selectedCompany]);
+    }, [selectedCompany, supabase]);
 
     useEffect(() => {
         if (initialData) {
@@ -94,6 +109,34 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
         }
     }, [initialData, isDuplicate]);
 
+    // Smart behavior: clear incompatible fields based on tax regime
+    useEffect(() => {
+        if (!taxRegime) return;
+
+        const isSimples = taxRegime.toLowerCase().includes('simples');
+
+        setFormData(prev => {
+            const next = { ...prev };
+            let changed = false;
+
+            if (isSimples && next.icms_cst) {
+                next.icms_cst = null;
+                changed = true;
+            }
+            if (!isSimples && next.icms_csosn) {
+                next.icms_csosn = null;
+                changed = true;
+            }
+            // Clear IPI CST if IPI not applies
+            if (!next.ipi_applies && next.ipi_cst) {
+                next.ipi_cst = null;
+                changed = true;
+            }
+
+            return changed ? next : prev;
+        });
+    }, [taxRegime, formData.ipi_applies]);
+
 
     const handleChange = (field: keyof FiscalOperation, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
@@ -109,8 +152,16 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
             if (!formData.destination_state) throw new Error("Selecione a UF de Destino.");
             if (!formData.cfop || formData.cfop.length !== 4) throw new Error("CFOP inválido (deve ter 4 dígitos).");
 
+            // Tax Regime Logic
+            const isSimples = taxRegime?.toLowerCase().includes('simples');
+
             // ICMS Validations
-            if (!formData.icms_cst && !formData.icms_csosn) throw new Error("Selecione o CST ou CSOSN do ICMS.");
+            if (isSimples) {
+                if (!formData.icms_csosn) throw new Error("Empresa Simples Nacional: Selecione o CSOSN.");
+            } else {
+                if (!formData.icms_cst) throw new Error("Empresa Regime Normal: Selecione o CST.");
+            }
+
             if ((formData.icms_reduction_bc_percent || 0) > 100) throw new Error("Redução BC ICMS não pode ser maior que 100%.");
 
             // ST Validations
@@ -119,6 +170,13 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                 if (!formData.st_rate_percent) throw new Error("Alíquota ST é obrigatória.");
             }
 
+            // PIS/COFINS Validations
+            if (formData.pis_applies && !formData.pis_cst) throw new Error("PIS Ativo: Selecione o CST do PIS.");
+            if (formData.cofins_applies && !formData.cofins_cst) throw new Error("COFINS Ativo: Selecione o CST do COFINS.");
+
+            // IPI Validations
+            if (formData.ipi_applies && !formData.ipi_cst) throw new Error("IPI Ativo: Selecione o CST do IPI.");
+
             const payload = {
                 ...formData,
                 company_id: selectedCompany.id
@@ -126,10 +184,10 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
 
             if (initialData?.id && !isDuplicate) {
                 await updateFiscalOperation(supabase, initialData.id, payload);
-                toast({ title: "Regra atualizada com sucesso!", className: "bg-green-600 text-white" });
+                toast({ title: "Sucesso!", description: "Regra atualizada com sucesso." });
             } else {
                 await createFiscalOperation(supabase, payload);
-                toast({ title: "Regra criada com sucesso!", className: "bg-green-600 text-white" });
+                toast({ title: "Sucesso!", description: "Regra criada com sucesso." });
             }
 
             router.push('/app/fiscal/operacoes');
@@ -141,25 +199,46 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
         }
     };
 
-    // Helper for Numeric Inputs
-    const renderDecimal = (label: string, field: keyof FiscalOperation, required = false) => (
-        <div>
-            <Label className={cn("text-xs text-gray-500 mb-1 block", required && "font-bold text-gray-700")}>{label}</Label>
-            <DecimalInput
-                value={(formData[field] as number) || 0}
-                onChange={(val) => handleChange(field, val)}
-                precision={2}
-                min={0}
-                max={100}
-                className="bg-white"
-            />
-        </div>
-    );
+    const getSummary = () => {
+        const parts = [];
+        parts.push(`Se Cliente ${formData.customer_ie_indicator === 'contributor' ? 'Contribuinte' : (formData.customer_ie_indicator === 'exempt' ? 'Isento' : 'Não Contribuinte')}`);
+        parts.push(`de ${formData.destination_state}`);
 
-    const isSimples = selectedCompany?.tax_regime === 'simples_nacional' || false;
-    // Note: We don't have tax_regime in context yet, assuming standard logic or needing fetch.
-    // For now we will allow user to pick either CST or CSOSN based on their knowledge, or show both.
-    // Ideally we fetch company details. Let's show toggles? No, let's show based on a quick check or just both for flexibility now.
+        const opType = formData.operation_type === 'sales' ? 'Venda' :
+            formData.operation_type === 'return' ? 'Devolução' :
+                formData.operation_type === 'shipment' ? 'Remessa' : 'Bonificação';
+
+        parts.push(`, então ${opType}`);
+
+        const taxes = [];
+        if (formData.cfop) taxes.push(`CFOP ${formData.cfop}`);
+
+        // ICMS
+        const icmsRate = formData.icms_rate_percent || 0;
+        const icmsRed = formData.icms_reduction_bc_percent || 0;
+        if (icmsRate > 0) {
+            let text = `ICMS ${icmsRate}%`;
+            if (icmsRed > 0) text += ` (Red. ${icmsRed}%)`;
+            taxes.push(text);
+        }
+
+        // ST
+        if (formData.st_applies) {
+            taxes.push(`ST (MVA ${formData.st_mva_percent}%)`);
+        }
+
+        if (formData.ipi_applies) taxes.push(`IPI ${formData.ipi_rate_percent}%`);
+
+        if (taxes.length > 0) {
+            parts.push(` com ${taxes.join(', ')}.`);
+        } else {
+            parts.push('.');
+        }
+
+        return parts.join(' ');
+    };
+
+    const isSimples = taxRegime?.toLowerCase().includes('simples');
 
     // Determine Title
     const pageTitle = initialData?.id && !isDuplicate ? "Editar Regra Fiscal" : (isDuplicate ? "Duplicar Regra Fiscal" : "Nova Regra Fiscal");
@@ -280,14 +359,23 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                         </Card>
 
                         <Card>
-                            <CardHeaderStandard title="Status" />
-                            <CardContent className="pt-4">
-                                <div className="flex items-center gap-2">
+                            <CardHeaderStandard title="Status e Resumo" icon={<FileText className="w-4 h-4 text-gray-500" />} />
+                            <CardContent className="space-y-4 pt-4">
+                                <div className="flex items-center gap-2 pb-4 border-b border-gray-100">
                                     <Switch
                                         checked={formData.is_active}
                                         onCheckedChange={(v) => handleChange('is_active', v)}
                                     />
                                     <Label>Regra Ativa</Label>
+                                </div>
+
+                                <div>
+                                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Resumo da Regra</Label>
+                                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                        <p className="text-sm text-gray-700 leading-relaxed font-medium">
+                                            {getSummary()}
+                                        </p>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -319,47 +407,114 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                 </div>
 
                                 <Tabs defaultValue="icms" className="w-full">
-                                    <TabsList className="w-full justify-start border-b rounded-none px-0 bg-transparent h-auto p-0">
-                                        <TabsTrigger value="icms" className="rounded-t-lg data-[state=active]:bg-white data-[state=active]:border-b-white border border-transparent px-6 py-2">ICMS</TabsTrigger>
-                                        <TabsTrigger value="st" className="rounded-t-lg data-[state=active]:bg-white data-[state=active]:border-b-white border border-transparent px-6 py-2">ICMS ST</TabsTrigger>
-                                        <TabsTrigger value="pis_cofins" className="rounded-t-lg data-[state=active]:bg-white data-[state=active]:border-b-white border border-transparent px-6 py-2">PIS / COFINS</TabsTrigger>
-                                        <TabsTrigger value="ipi" className="rounded-t-lg data-[state=active]:bg-white data-[state=active]:border-b-white border border-transparent px-6 py-2">IPI</TabsTrigger>
+                                    <TabsList className="w-full justify-start h-auto p-1 bg-gray-100 rounded-xl mb-6">
+                                        <TabsTrigger
+                                            value="icms"
+                                            className="flex-1 rounded-lg px-4 py-2 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-brand-600 data-[state=active]:shadow-sm transition-all"
+                                        >
+                                            ICMS
+                                        </TabsTrigger>
+                                        <TabsTrigger
+                                            value="st"
+                                            className="flex-1 rounded-lg px-4 py-2 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-brand-600 data-[state=active]:shadow-sm transition-all"
+                                        >
+                                            ICMS ST
+                                        </TabsTrigger>
+                                        <TabsTrigger
+                                            value="pis_cofins"
+                                            className="flex-1 rounded-lg px-4 py-2 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-brand-600 data-[state=active]:shadow-sm transition-all"
+                                        >
+                                            PIS / COFINS
+                                        </TabsTrigger>
+                                        <TabsTrigger
+                                            value="ipi"
+                                            className="flex-1 rounded-lg px-4 py-2 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-brand-600 data-[state=active]:shadow-sm transition-all"
+                                        >
+                                            IPI
+                                        </TabsTrigger>
                                     </TabsList>
 
-                                    <div className="p-6 border border-t-0 rounded-b-xl bg-white/50 space-y-6">
+                                    <div className="space-y-4">
 
                                         {/* ICMS TAB */}
-                                        <TabsContent value="icms" className="m-0 space-y-6">
-                                            <div className="grid grid-cols-2 gap-6">
+                                        <TabsContent value="icms" className="m-0 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                            <div className="grid grid-cols-2 gap-4">
+
+                                                {!isSimples && (
+                                                    <div className="col-span-2 md:col-span-1">
+                                                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">CST (Normal)</Label>
+                                                        <Select
+                                                            value={formData.icms_cst || ''}
+                                                            onValueChange={(v) => handleChange('icms_cst', v)}
+                                                        >
+                                                            <SelectTrigger className="h-9 text-sm">
+                                                                <SelectValue placeholder="Selecione..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent className="max-h-[300px]">
+                                                                {ICMS_CST_OPTIONS.map(opt => (
+                                                                    <SelectItem key={opt.value} value={opt.value}>
+                                                                        <span className="font-medium mr-2">{opt.value}</span>
+                                                                        <span className="text-gray-500">- {opt.label.split('–')[1]?.trim() || opt.label}</span>
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                )}
+
+                                                {isSimples && (
+                                                    <div className="col-span-2 md:col-span-1">
+                                                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">CSOSN (Simples)</Label>
+                                                        <Select
+                                                            value={formData.icms_csosn || ''}
+                                                            onValueChange={(v) => handleChange('icms_csosn', v)}
+                                                        >
+                                                            <SelectTrigger className="h-9 text-sm">
+                                                                <SelectValue placeholder="Selecione..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent className="max-h-[300px]">
+                                                                {ICMS_CSOSN_OPTIONS.map(opt => (
+                                                                    <SelectItem key={opt.value} value={opt.value}>
+                                                                        <span className="font-medium mr-2">{opt.value}</span>
+                                                                        <span className="text-gray-500">- {opt.label.split('–')[1]?.trim() || opt.label}</span>
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                )}
+
                                                 <div className="col-span-2 md:col-span-1">
-                                                    <Label>CST (Normal)</Label>
-                                                    <Input
-                                                        value={formData.icms_cst || ''}
-                                                        onChange={(e) => handleChange('icms_cst', e.target.value)}
-                                                        placeholder="Ex: 00, 10, 20..."
-                                                        className="mt-1"
-                                                    />
-                                                </div>
-                                                <div className="col-span-2 md:col-span-1">
-                                                    <Label>CSOSN (Simples)</Label>
-                                                    <Input
-                                                        value={formData.icms_csosn || ''}
-                                                        onChange={(e) => handleChange('icms_csosn', e.target.value)}
-                                                        placeholder="Ex: 101, 102..."
-                                                        className="mt-1"
+                                                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Alíquota ICMS (%)</Label>
+                                                    <DecimalInput
+                                                        value={formData.icms_rate_percent || 0}
+                                                        onChange={(val) => handleChange('icms_rate_percent', val)}
+                                                        precision={2}
+                                                        min={0}
+                                                        max={100}
+                                                        className="h-9 bg-white"
                                                     />
                                                 </div>
 
-                                                {renderDecimal("Alíquota ICMS (%)", "icms_rate_percent", true)}
-                                                {renderDecimal("Redução Base Calc. (%)", "icms_reduction_bc_percent")}
+                                                <div className="col-span-2 md:col-span-1">
+                                                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Redução Base Calc. (%)</Label>
+                                                    <DecimalInput
+                                                        value={formData.icms_reduction_bc_percent || 0}
+                                                        onChange={(val) => handleChange('icms_reduction_bc_percent', val)}
+                                                        precision={2}
+                                                        min={0}
+                                                        max={100}
+                                                        className="h-9 bg-white"
+                                                    />
+                                                </div>
 
                                                 <div className="col-span-2 md:col-span-1">
-                                                    <Label>Modalidade Base Calc.</Label>
+                                                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Modalidade Base Calc.</Label>
                                                     <Select
                                                         value={formData.icms_modal_bc}
                                                         onValueChange={(v) => handleChange('icms_modal_bc', v)}
                                                     >
-                                                        <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                                                        <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                                                         <SelectContent>
                                                             <SelectItem value="3">3 - Valor da Operação</SelectItem>
                                                             <SelectItem value="0">0 - Margem Valor Agregado (%)</SelectItem>
@@ -369,107 +524,206 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                                     </Select>
                                                 </div>
 
-                                                <div className="col-span-2 flex items-center gap-2 pt-4">
+                                                <div className="col-span-2 flex items-center gap-3 pt-1 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
                                                     <Switch
                                                         checked={formData.icms_show_in_xml}
                                                         onCheckedChange={(v) => handleChange('icms_show_in_xml', v)}
+                                                        className="data-[state=checked]:bg-blue-600 scale-90"
                                                     />
-                                                    <Label>Destacar valor do ICMS no XML</Label>
+                                                    <Label className="text-xs font-bold text-blue-900 cursor-pointer uppercase tracking-wide" onClick={() => handleChange('icms_show_in_xml', !formData.icms_show_in_xml)}>
+                                                        Destacar valor do ICMS no XML
+                                                    </Label>
                                                 </div>
 
                                             </div>
                                         </TabsContent>
 
                                         {/* ST TAB */}
-                                        <TabsContent value="st" className="m-0 space-y-6">
-                                            <div className="flex items-center gap-2 mb-4 bg-amber-50 p-3 rounded-lg border border-amber-100">
+                                        <TabsContent value="st" className="m-0 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                            <div className="flex items-center gap-3 mb-4 bg-amber-50 p-3 rounded-lg border border-amber-100">
                                                 <Switch
                                                     checked={formData.st_applies}
                                                     onCheckedChange={(v) => handleChange('st_applies', v)}
-                                                    className="data-[state=checked]:bg-amber-500"
+                                                    className="data-[state=checked]:bg-amber-500 scale-90"
                                                 />
-                                                <Label className="font-bold text-amber-900">Aplicar Substituição Tributária (ST)</Label>
+                                                <div className="flex flex-col">
+                                                    <Label className="text-xs font-bold text-amber-900 cursor-pointer uppercase tracking-wide" onClick={() => handleChange('st_applies', !formData.st_applies)}>
+                                                        Aplicar Substituição Tributária (ST)
+                                                    </Label>
+                                                </div>
                                             </div>
 
                                             {formData.st_applies && (
-                                                <div className="grid grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-2">
-                                                    {renderDecimal("MVA (%)", "st_mva_percent", true)}
-                                                    {renderDecimal("Alíquota ST (%)", "st_rate_percent", true)}
-                                                    {renderDecimal("Redução Base ST (%)", "st_reduction_bc_percent")}
-                                                    {renderDecimal("FCP ST (%)", "st_fcp_percent")}
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="col-span-2 md:col-span-1">
+                                                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block font-bold text-amber-700">MVA (%)</Label>
+                                                        <DecimalInput
+                                                            value={formData.st_mva_percent || 0}
+                                                            onChange={(val) => handleChange('st_mva_percent', val)}
+                                                            precision={2}
+                                                            className="h-9 bg-white border-amber-200 focus:border-amber-400 focus:ring-amber-200"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2 md:col-span-1">
+                                                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block font-bold text-amber-700">Alíquota ST (%)</Label>
+                                                        <DecimalInput
+                                                            value={formData.st_rate_percent || 0}
+                                                            onChange={(val) => handleChange('st_rate_percent', val)}
+                                                            precision={2}
+                                                            className="h-9 bg-white border-amber-200 focus:border-amber-400 focus:ring-amber-200"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2 md:col-span-1">
+                                                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Redução Base ST (%)</Label>
+                                                        <DecimalInput
+                                                            value={formData.st_reduction_bc_percent || 0}
+                                                            onChange={(val) => handleChange('st_reduction_bc_percent', val)}
+                                                            precision={2}
+                                                            className="h-9 bg-white"
+                                                        />
+                                                    </div>
+                                                    <div className="col-span-2 md:col-span-1">
+                                                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">FCP ST (%)</Label>
+                                                        <DecimalInput
+                                                            value={formData.st_fcp_percent || 0}
+                                                            onChange={(val) => handleChange('st_fcp_percent', val)}
+                                                            precision={2}
+                                                            className="h-9 bg-white"
+                                                        />
+                                                    </div>
                                                 </div>
                                             )}
                                         </TabsContent>
 
                                         {/* PIS COFINS TAB */}
-                                        <TabsContent value="pis_cofins" className="m-0 space-y-8">
+                                        <TabsContent value="pis_cofins" className="m-0 space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
 
                                             {/* PIS */}
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between border-b pb-2">
-                                                    <Label className="text-base font-bold text-gray-700">PIS</Label>
-                                                    <Switch checked={formData.pis_applies} onCheckedChange={(v) => handleChange('pis_applies', v)} />
+                                            <div className="space-y-3">
+                                                <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                                                    <Label className="text-sm font-bold text-gray-800 uppercase">PIS</Label>
+                                                    <Switch checked={formData.pis_applies} onCheckedChange={(v) => handleChange('pis_applies', v)} className="scale-90" />
                                                 </div>
                                                 {formData.pis_applies && (
-                                                    <div className="grid grid-cols-2 gap-6">
-                                                        <div>
-                                                            <Label>CST PIS</Label>
-                                                            <Input
+                                                    <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-3 rounded-lg border border-gray-100">
+                                                        <div className="col-span-2">
+                                                            <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">CST PIS</Label>
+                                                            <Select
                                                                 value={formData.pis_cst || ''}
-                                                                onChange={(e) => handleChange('pis_cst', e.target.value)}
-                                                                className="mt-1"
-                                                                placeholder="Ex: 01"
+                                                                onValueChange={(v) => handleChange('pis_cst', v)}
+                                                            >
+                                                                <SelectTrigger className="h-9 bg-white">
+                                                                    <SelectValue placeholder="Selecione..." />
+                                                                </SelectTrigger>
+                                                                <SelectContent className="max-h-[300px]">
+                                                                    {PIS_COFINS_CST_OPTIONS.map(opt => (
+                                                                        <SelectItem key={opt.value} value={opt.value}>
+                                                                            <span className="font-medium mr-2">{opt.value}</span>
+                                                                            <span className="text-gray-500">- {opt.label.split('–')[1]?.trim() || opt.label}</span>
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div className="col-span-2 md:col-span-1">
+                                                            <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Alíquota PIS (%)</Label>
+                                                            <DecimalInput
+                                                                value={formData.pis_rate_percent || 0}
+                                                                onChange={(val) => handleChange('pis_rate_percent', val)}
+                                                                precision={2}
+                                                                className="h-9 bg-white"
                                                             />
                                                         </div>
-                                                        {renderDecimal("Alíquota PIS (%)", "pis_rate_percent")}
                                                     </div>
                                                 )}
                                             </div>
 
                                             {/* COFINS */}
-                                            <div className="space-y-4">
-                                                <div className="flex items-center justify-between border-b pb-2">
-                                                    <Label className="text-base font-bold text-gray-700">COFINS</Label>
-                                                    <Switch checked={formData.cofins_applies} onCheckedChange={(v) => handleChange('cofins_applies', v)} />
+                                            <div className="space-y-3">
+                                                <div className="flex items-center justify-between border-b border-gray-100 pb-2">
+                                                    <Label className="text-sm font-bold text-gray-800 uppercase">COFINS</Label>
+                                                    <Switch checked={formData.cofins_applies} onCheckedChange={(v) => handleChange('cofins_applies', v)} className="scale-90" />
                                                 </div>
                                                 {formData.cofins_applies && (
-                                                    <div className="grid grid-cols-2 gap-6">
-                                                        <div>
-                                                            <Label>CST COFINS</Label>
-                                                            <Input
+                                                    <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-3 rounded-lg border border-gray-100">
+                                                        <div className="col-span-2">
+                                                            <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">CST COFINS</Label>
+                                                            <Select
                                                                 value={formData.cofins_cst || ''}
-                                                                onChange={(e) => handleChange('cofins_cst', e.target.value)}
-                                                                className="mt-1"
-                                                                placeholder="Ex: 01"
+                                                                onValueChange={(v) => handleChange('cofins_cst', v)}
+                                                            >
+                                                                <SelectTrigger className="h-9 bg-white">
+                                                                    <SelectValue placeholder="Selecione..." />
+                                                                </SelectTrigger>
+                                                                <SelectContent className="max-h-[300px]">
+                                                                    {PIS_COFINS_CST_OPTIONS.map(opt => (
+                                                                        <SelectItem key={opt.value} value={opt.value}>
+                                                                            <span className="font-medium mr-2">{opt.value}</span>
+                                                                            <span className="text-gray-500">- {opt.label.split('–')[1]?.trim() || opt.label}</span>
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </div>
+                                                        <div className="col-span-2 md:col-span-1">
+                                                            <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Alíquota COFINS (%)</Label>
+                                                            <DecimalInput
+                                                                value={formData.cofins_rate_percent || 0}
+                                                                onChange={(val) => handleChange('cofins_rate_percent', val)}
+                                                                precision={2}
+                                                                className="h-9 bg-white"
                                                             />
                                                         </div>
-                                                        {renderDecimal("Alíquota COFINS (%)", "cofins_rate_percent")}
                                                     </div>
                                                 )}
                                             </div>
                                         </TabsContent>
 
                                         {/* IPI TAB */}
-                                        <TabsContent value="ipi" className="m-0 space-y-6">
-                                            <div className="flex items-center gap-2 mb-4 bg-gray-50 p-3 rounded-lg border">
+                                        <TabsContent value="ipi" className="m-0 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                            <div className="flex items-center gap-3 mb-4 bg-purple-50 p-3 rounded-lg border border-purple-100">
                                                 <Switch
                                                     checked={formData.ipi_applies}
                                                     onCheckedChange={(v) => handleChange('ipi_applies', v)}
+                                                    className="data-[state=checked]:bg-purple-600 scale-90"
                                                 />
-                                                <Label>Aplicar IPI</Label>
+                                                <div className="flex flex-col">
+                                                    <Label className="text-xs font-bold text-purple-900 cursor-pointer uppercase tracking-wide" onClick={() => handleChange('ipi_applies', !formData.ipi_applies)}>
+                                                        Aplicar IPI
+                                                    </Label>
+                                                </div>
                                             </div>
 
                                             {formData.ipi_applies && (
-                                                <div className="grid grid-cols-2 gap-6 animate-in fade-in slide-in-from-top-2">
-                                                    <div>
-                                                        <Label>CST IPI</Label>
-                                                        <Input
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="col-span-2">
+                                                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">CST IPI</Label>
+                                                        <Select
                                                             value={formData.ipi_cst || ''}
-                                                            onChange={(e) => handleChange('ipi_cst', e.target.value)}
-                                                            className="mt-1"
+                                                            onValueChange={(v) => handleChange('ipi_cst', v)}
+                                                        >
+                                                            <SelectTrigger className="h-9 bg-white">
+                                                                <SelectValue placeholder="Selecione..." />
+                                                            </SelectTrigger>
+                                                            <SelectContent className="max-h-[300px]">
+                                                                {IPI_CST_OPTIONS.map(opt => (
+                                                                    <SelectItem key={opt.value} value={opt.value}>
+                                                                        <span className="font-medium mr-2">{opt.value}</span>
+                                                                        <span className="text-gray-500">- {opt.label.split('–')[1]?.trim() || opt.label}</span>
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div className="col-span-2 md:col-span-1">
+                                                        <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Alíquota IPI (%)</Label>
+                                                        <DecimalInput
+                                                            value={formData.ipi_rate_percent || 0}
+                                                            onChange={(val) => handleChange('ipi_rate_percent', val)}
+                                                            precision={2}
+                                                            className="h-9 bg-white"
                                                         />
                                                     </div>
-                                                    {renderDecimal("Alíquota IPI (%)", "ipi_rate_percent")}
                                                 </div>
                                             )}
                                         </TabsContent>

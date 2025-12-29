@@ -1,0 +1,14 @@
+codigo,descricao
+1101,Compra para industrialização ou produção rural
+1102,Compra para comercialização
+1111,Compra para industrialização de mercadoria recebida anteriormente em consignação industrial
+1113,Compra para comercialização de mercadoria recebida anteriormente em consignação mercantil
+5101,Venda de produção do estabelecimento
+5102,Venda de mercadoria adquirida ou recebida de terceiros
+5403,Venda de mercadoria adquirida ou recebida de terceiros em operação com mercadoria sujeita ao regime de substituição tributária
+6101,Venda de produção do estabelecimento - Interestadual
+6102,Venda de mercadoria adquirida ou recebida de terceiros - Interestadual
+2101,Compra para industrialização ou produção rural - Interestadual
+2102,Compra para comercialização - Interestadual
+3101,Compra para industrialização ou produção rural - Importação
+7101,Venda de produção do estabelecimento - Exportação
