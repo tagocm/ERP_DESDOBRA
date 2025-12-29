@@ -21,6 +21,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { getFiscalOperations, deleteFiscalOperation, FiscalOperation } from "@/lib/data/fiscal-operations";
 import { getTaxGroups } from "@/lib/data/tax-groups";
 
+import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
+
 export default function FiscalOperationsPage() {
     const { selectedCompany } = useCompany();
     const supabase = createClient();
@@ -30,6 +32,10 @@ export default function FiscalOperationsPage() {
     const [operations, setOperations] = useState<FiscalOperation[]>([]);
     const [taxGroups, setTaxGroups] = useState<{ id: string, name: string }[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    // Delete Modal State
+    const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
     // Filters
     const [searchState, setSearchState] = useState("");
@@ -45,8 +51,17 @@ export default function FiscalOperationsPage() {
         if (!selectedCompany) return;
         setIsLoading(true);
         try {
+            // Fetch company settings to get Origin State
+            const { data: settings } = await supabase
+                .from('company_settings')
+                .select('address_state')
+                .eq('company_id', selectedCompany.id)
+                .single();
+
+            const originState = settings?.address_state || 'SP'; // Fallback to SP if missing, matching default migration
+
             const [ops, groups] = await Promise.all([
-                getFiscalOperations(supabase, selectedCompany.id),
+                getFiscalOperations(supabase, selectedCompany.id, { originState }),
                 getTaxGroups(supabase, selectedCompany.id)
             ]);
             setOperations(ops);
@@ -59,16 +74,23 @@ export default function FiscalOperationsPage() {
         }
     };
 
-    const handleDelete = async (id: string, e: React.MouseEvent) => {
+    const handleDelete = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        if (!confirm('Tem certeza que deseja excluir esta regra fiscal?')) return;
+        setDeleteId(id);
+        setIsDeleteOpen(true);
+    };
 
+    const confirmDelete = async () => {
+        if (!deleteId) return;
         try {
-            await deleteFiscalOperation(supabase, id);
-            toast({ title: "Regra excluída com sucesso", className: "bg-green-600 text-white" });
+            await deleteFiscalOperation(supabase, deleteId);
+            toast({ title: "Regra excluída com sucesso", description: "Operação realizada." });
             loadData();
         } catch (error: any) {
             toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
+        } finally {
+            setIsDeleteOpen(false);
+            setDeleteId(null);
         }
     };
 
@@ -97,7 +119,7 @@ export default function FiscalOperationsPage() {
                 }
             />
 
-            <div className="max-w-[1600px] mx-auto px-6 h-full">
+            <div className="max-w-[1600px] mx-auto px-6 h-full pb-8">
                 <div className="mb-6 flex gap-4">
                     <div className="relative w-48">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -238,6 +260,21 @@ export default function FiscalOperationsPage() {
                     </Table>
                 </div>
             </div>
+
+            <ConfirmDialogDesdobra
+                open={isDeleteOpen}
+                onOpenChange={setIsDeleteOpen}
+                title="Excluir Regra Fiscal"
+                description={
+                    <div className="space-y-2">
+                        <p>Tem certeza que deseja excluir esta regra fiscal permanentemente?</p>
+                        <p className="font-semibold text-gray-900 text-sm">Esta ação não pode ser desfeita.</p>
+                    </div>
+                }
+                confirmText="Excluir Regra"
+                variant="danger"
+                onConfirm={confirmDelete}
+            />
         </div>
     );
 }

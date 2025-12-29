@@ -84,8 +84,10 @@ export function ConfirmDialogDesdobra({
                     <DialogTitle className="text-xl font-semibold text-gray-900">
                         {title}
                     </DialogTitle>
-                    <DialogDescription className="text-base text-gray-600 leading-relaxed block">
-                        {description}
+                    <DialogDescription asChild className="text-base text-gray-600 leading-relaxed block">
+                        <div>
+                            {description}
+                        </div>
                     </DialogDescription>
                 </DialogHeader>
                 <DialogFooter className="gap-2 sm:gap-0">

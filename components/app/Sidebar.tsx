@@ -15,6 +15,7 @@ import { CommandPalette } from "@/components/ui/CommandPalette";
 import { CadastrosFlyoutPanel } from "./CadastrosFlyoutPanel";
 import { ConfiguracoesFlyoutPanel } from "./ConfiguracoesFlyoutPanel";
 import { VendasFlyoutPanel } from "./VendasFlyoutPanel";
+import { FiscalFlyoutPanel } from "./FiscalFlyoutPanel";
 import { createClient } from "@/lib/supabaseBrowser";
 import { useRouter } from "next/navigation";
 
@@ -53,7 +54,7 @@ const navGroups: NavGroup[] = [
         label: "Administrativo",
         items: [
             { name: "Financeiro", href: "/app/financeiro/receber", icon: DollarSign },
-            { name: "Fiscal", href: "/app/fiscal/nfe", icon: FileText },
+            { name: "Fiscal", href: "#", icon: FileText, isButton: true },
             { name: "RH", href: "/app/rh/colaboradores", icon: Users },
             { name: "Frota", href: "/app/frota/veiculos", icon: Truck },
         ]
@@ -101,6 +102,9 @@ export function Sidebar({ collapsed }: SidebarProps) {
 
     const [isVendasOpen, setIsVendasOpen] = useState(false);
     const vendasRef = React.useRef<HTMLButtonElement>(null);
+
+    const [isFiscalOpen, setIsFiscalOpen] = useState(false);
+    const fiscalRef = React.useRef<HTMLButtonElement>(null);
 
     // Density state based on height
     const [density, setDensity] = useState<'normal' | 'compact' | 'icons'>('normal');
@@ -234,18 +238,20 @@ export function Sidebar({ collapsed }: SidebarProps) {
                                             <TooltipTrigger asChild>
                                                 {item.isButton ? (
                                                     <button
-                                                        ref={item.name === "Cadastros" ? cadastrosRef : item.name === "Configurações" ? settingsRef : item.name === "Vendas" ? vendasRef : null}
+                                                        ref={item.name === "Cadastros" ? cadastrosRef : item.name === "Configurações" ? settingsRef : item.name === "Vendas" ? vendasRef : item.name === "Fiscal" ? fiscalRef : null}
                                                         onClick={() => {
                                                             if (item.name === "Cadastros") setIsCadastrosOpen(true);
                                                             if (item.name === "Configurações") setIsSettingsOpen(true);
                                                             if (item.name === "Vendas") setIsVendasOpen(true);
+                                                            if (item.name === "Fiscal") setIsFiscalOpen(true);
                                                         }}
                                                         className={cn(
                                                             "flex w-full items-center rounded-2xl transition-all duration-300 mb-0.5 group overflow-hidden whitespace-nowrap text-left",
                                                             density === 'compact' ? "h-8" : "h-9",
                                                             (item.name === "Cadastros" && (isActive('/app/cadastros') || isCadastrosOpen)) ||
                                                                 (item.name === "Configurações" && (isActive('/app/configuracoes') || isSettingsOpen)) ||
-                                                                (item.name === "Vendas" && (isActive('/app/vendas') || isVendasOpen))
+                                                                (item.name === "Vendas" && (isActive('/app/vendas') || isVendasOpen)) ||
+                                                                (item.name === "Fiscal" && (isActive('/app/fiscal') || isFiscalOpen))
                                                                 ? "bg-brand-50 text-brand-700 font-medium"
                                                                 : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                                                         )}
@@ -357,6 +363,12 @@ export function Sidebar({ collapsed }: SidebarProps) {
                         isOpen={isVendasOpen}
                         onClose={() => setIsVendasOpen(false)}
                         anchorRef={vendasRef as any}
+                    />
+
+                    <FiscalFlyoutPanel
+                        isOpen={isFiscalOpen}
+                        onClose={() => setIsFiscalOpen(false)}
+                        anchorRef={fiscalRef as any}
                     />
                 </aside>
             </div>

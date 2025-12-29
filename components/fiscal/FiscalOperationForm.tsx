@@ -54,6 +54,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
     const [isLoading, setIsLoading] = useState(false);
     const [taxGroups, setTaxGroups] = useState<TaxGroup[]>([]);
     const [taxRegime, setTaxRegime] = useState<string | null>(null);
+    const [originState, setOriginState] = useState<string>('SP'); // Default fallback
     const [cfops, setCfops] = useState<Cfop[]>([]);
     const [cfopOpen, setCfopOpen] = useState(false);
 
@@ -93,17 +94,18 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
             getTaxGroups(supabase, selectedCompany.id).then(setTaxGroups);
             getCfops(supabase).then(setCfops);
 
-            // Fetch Company Settings for Tax Regime
+            // Fetch Company Settings for Tax Regime and Origin State
             supabase
                 .from('company_settings')
-                .select('tax_regime')
+                .select('tax_regime, address_state')
                 .eq('company_id', selectedCompany.id)
                 .single()
                 .then(({ data, error }) => {
-                    if (data && data.tax_regime) {
-                        setTaxRegime(data.tax_regime);
+                    if (data) {
+                        if (data.tax_regime) setTaxRegime(data.tax_regime);
+                        if (data.address_state) setOriginState(data.address_state);
                     } else if (error && error.code !== 'PGRST116') {
-                        console.error("Error fetching tax regime:", error);
+                        console.error("Error fetching company settings:", error);
                     }
                 });
         }
@@ -121,6 +123,17 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                 delete data.updated_at;
                 // @ts-ignore
                 delete data.deleted_at;
+            } else {
+                // If editing, use the saved origin state if available (though it should match company currently, 
+                // but strictly we should respect the record's origin if we wanted historical accuracy. 
+                // However, requirement says "manter uf_origem imutável" and display "UF da organização ativa".
+                // Actually, if I edit an old rule from a different state, the prompt said: 
+                // "Ao editar... aplicar filtro obrigatório uf_origem = activeOrganization.uf".
+                // So I only see rules from current active org state. 
+                // Thus, the rule being edited MUST match current company state.
+                if (data.uf_origem) {
+                    setOriginState(data.uf_origem);
+                }
             }
             setFormData(data);
         }
@@ -137,16 +150,16 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
             let changed = false;
 
             if (isSimples && next.icms_cst) {
-                next.icms_cst = null;
+                next.icms_cst = undefined;
                 changed = true;
             }
             if (!isSimples && next.icms_csosn) {
-                next.icms_csosn = null;
+                next.icms_csosn = undefined;
                 changed = true;
             }
             // Clear IPI CST if IPI not applies
             if (!next.ipi_applies && next.ipi_cst) {
-                next.ipi_cst = null;
+                next.ipi_cst = undefined;
                 changed = true;
             }
 
@@ -161,7 +174,9 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
 
     // Filter CFOPs
     const filteredCfops = useMemo(() => {
-        const isSP = formData.destination_state === 'SP';
+        // Pattern B: Compare Origin vs Destination
+        const isInternal = originState === formData.destination_state;
+
         return cfops.filter(c => {
             // 1. Must be active
             if (!c.ativo) return false;
@@ -169,15 +184,15 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
             // 2. Operation Type: 'saida'
             if (c.tipo_operacao !== 'saida') return false;
 
-            // 3. Scope based on Destination State
-            if (isSP) {
-                return c.ambito === 'estadual';
+            // 3. Scope based on Origin vs Destination
+            if (isInternal) {
+                return c.ambito === 'estadual'; // 5xxx
             } else {
-                if (formData.destination_state === 'EX') return c.ambito === 'exterior';
-                return c.ambito === 'interestadual' || c.ambito === 'exterior'; // Fallback to include exterior if needed for normal exports
+                if (formData.destination_state === 'EX') return c.ambito === 'exterior'; // 7xxx
+                return c.ambito === 'interestadual' || c.ambito === 'exterior'; // 6xxx (or fallback)
             }
         });
-    }, [cfops, formData.destination_state]);
+    }, [cfops, formData.destination_state, originState]);
 
     // Derived helpers
     const selectedCfopData = cfops.find(c => c.codigo === formData.cfop);
@@ -237,7 +252,8 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                 await updateFiscalOperation(supabase, initialData.id, payload);
                 toast({ title: "Sucesso!", description: "Regra atualizada com sucesso." });
             } else {
-                await createFiscalOperation(supabase, payload);
+                // Pass originState explicitly
+                await createFiscalOperation(supabase, payload, originState);
                 toast({ title: "Sucesso!", description: "Regra criada com sucesso." });
             }
 
@@ -376,7 +392,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="col-span-2 flex items-center gap-2 border p-3 rounded-lg bg-gray-50">
+                                    <div className="col-span-2 flex items-center gap-2 p-3 rounded-lg bg-gray-50">
                                         <Switch
                                             checked={formData.customer_is_final_consumer}
                                             onCheckedChange={(v) => handleChange('customer_is_final_consumer', v)}
@@ -438,16 +454,27 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                             <CardHeaderStandard title="CFOP e Impostos" />
                             <CardContent className="pt-4 space-y-6">
 
-                                {/* CFOP Row - True Gold Combobox */}
-                                <div className="flex flex-col gap-2 relative">
-                                    <Label className="text-brand-900 font-bold">CFOP *</Label>
+                                {/* Origin State (Read-only) */}
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-xs font-medium text-gray-400">Origem (Emitente):</span>
+                                    <span className="inline-flex items-center justify-center min-w-[2rem] px-1.5 py-0.5 rounded text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-100">
+                                        {originState}
+                                    </span>
+                                    <span className="text-[10px] text-gray-300 font-light">
+                                        (Define o âmbito Interestadual)
+                                    </span>
+                                </div>
+
+                                {/* CFOP Row - Searchable Combobox */}
+                                <div className="flex flex-col gap-1.5 relative">
+                                    <Label className="text-gray-700 font-medium text-sm">CFOP *</Label>
                                     <Popover open={cfopOpen} onOpenChange={setCfopOpen}>
                                         <PopoverTrigger asChild>
                                             <div
                                                 role="button"
                                                 tabIndex={0}
                                                 aria-expanded={cfopOpen}
-                                                className="flex w-full items-center justify-between rounded-xl border border-brand-200 bg-white px-3 h-12 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                                                className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 h-10 text-sm shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer transition-all"
                                                 onClick={() => setCfopOpen(!cfopOpen)}
                                                 onKeyDown={(e) => {
                                                     if (e.key === "Enter" || e.key === " ") {
@@ -458,19 +485,19 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                             >
                                                 {selectedCfopData ? (
                                                     <div className="flex items-center gap-2 overflow-hidden">
-                                                        <span className="font-mono font-bold text-brand-700 text-lg">{selectedCfopData.codigo}</span>
-                                                        <span className="text-gray-600 truncate text-sm"> – {selectedCfopData.descricao}</span>
+                                                        <span className="font-mono font-semibold text-gray-900">{selectedCfopData.codigo}</span>
+                                                        <span className="text-gray-500 truncate text-sm"> – {selectedCfopData.descricao}</span>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-gray-400">Selecione um CFOP...</span>
+                                                    <span className="text-gray-400 font-normal">Selecione o CFOP...</span>
                                                 )}
-                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40" />
                                             </div>
                                         </PopoverTrigger>
-                                        <PopoverContent className="w-[600px] p-0 pointer-events-auto" align="start">
+                                        <PopoverContent className="w-[600px] p-0" align="start">
                                             <Command>
-                                                <CommandInput placeholder="Buscar CFOP (código ou descrição)..." />
-                                                <CommandList>
+                                                <CommandInput placeholder="Buscar CFOP (código ou descrição)..." className="h-9" />
+                                                <CommandList className="max-h-[300px] overflow-y-auto">
                                                     <CommandEmpty>Nenhum CFOP encontrado.</CommandEmpty>
                                                     <CommandGroup>
                                                         {filteredCfops.map((cfop) => (
@@ -481,18 +508,18 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                                                     handleChange('cfop', cfop.codigo);
                                                                     setCfopOpen(false);
                                                                 }}
-                                                                className="cursor-pointer w-full justify-start text-left items-center aria-selected:bg-brand-50 aria-selected:text-brand-900 py-2.5 px-3 mb-1 rounded-lg transition-colors border-transparent border aria-selected:border-brand-100"
+                                                                className="cursor-pointer aria-selected:bg-blue-50 aria-selected:text-blue-900 px-2 py-1.5"
                                                             >
                                                                 <Check
                                                                     className={cn(
-                                                                        "mr-3 h-4 w-4 text-brand-600",
+                                                                        "mr-2 h-4 w-4 text-brand-600 shrink-0",
                                                                         formData.cfop === cfop.codigo
                                                                             ? "opacity-100"
                                                                             : "opacity-0"
                                                                     )}
                                                                 />
-                                                                <span className="font-mono font-bold text-brand-700 mr-2 text-base">{cfop.codigo}</span>
-                                                                <span className="text-gray-600 truncate flex-1 block">- {cfop.descricao}</span>
+                                                                <span className="font-mono font-medium text-gray-700 mr-2 shrink-0">{cfop.codigo}</span>
+                                                                <span className="text-gray-600 truncate flex-1 block text-sm">- {cfop.descricao}</span>
                                                             </CommandItem>
                                                         ))}
                                                     </CommandGroup>
@@ -500,7 +527,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                             </Command>
                                         </PopoverContent>
                                     </Popover>
-                                    <p className="text-xs text-brand-600/80">
+                                    <p className="text-[10px] text-gray-400 pl-1">
                                         {formData.destination_state === 'SP'
                                             ? 'Exibindo apenas CFOPs Estaduais (SP)'
                                             : 'Exibindo apenas CFOPs Interestaduais/Exterior'

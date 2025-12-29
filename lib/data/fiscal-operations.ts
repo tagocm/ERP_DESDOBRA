@@ -4,6 +4,7 @@ export interface FiscalOperation {
     id: string;
     company_id: string;
     tax_group_id: string;
+    uf_origem: string; // Pattern B: Origin State
     destination_state: string; // UF
     customer_ie_indicator: 'contributor' | 'exempt' | 'non_contributor';
     customer_is_final_consumer: boolean;
@@ -58,6 +59,7 @@ export async function getFiscalOperations(
         taxGroupId?: string;
         state?: string;
         operationType?: string;
+        originState?: string; // NEW: Mandatory filter for context
     }
 ) {
     let query = supabase
@@ -69,6 +71,11 @@ export async function getFiscalOperations(
         .eq('company_id', companyId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
+
+    // Pattern B: Always filter by Origin State if provided (should be provided by UI context)
+    if (filters?.originState) {
+        query = query.eq('uf_origem', filters.originState);
+    }
 
     if (filters?.taxGroupId) {
         query = query.eq('tax_group_id', filters.taxGroupId);
@@ -87,11 +94,15 @@ export async function getFiscalOperations(
 
 export async function createFiscalOperation(
     supabase: SupabaseClient,
-    data: Omit<FiscalOperation, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'tax_group'>
+    data: Omit<FiscalOperation, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'tax_group' | 'uf_origem'>,
+    originState: string // Enforce Origin
 ) {
     const { data: newOp, error } = await supabase
         .from('fiscal_operations')
-        .insert(data)
+        .insert({
+            ...data,
+            uf_origem: originState
+        })
         .select()
         .single();
 
@@ -107,7 +118,7 @@ export async function createFiscalOperation(
 export async function updateFiscalOperation(
     supabase: SupabaseClient,
     id: string,
-    data: Partial<Omit<FiscalOperation, 'id' | 'company_id'>>
+    data: Partial<Omit<FiscalOperation, 'id' | 'company_id' | 'uf_origem'>>
 ) {
     const { data: updated, error } = await supabase
         .from('fiscal_operations')
