@@ -1,30 +1,26 @@
 
-import { createClient } from '@/lib/supabaseBrowser';
+import { SupabaseClient } from "@supabase/supabase-js";
 
 export interface Cfop {
-    code: string;
-    description: string;
-    is_active: boolean;
+    id: string;
+    codigo: string;
+    descricao: string;
+    tipo_operacao: 'entrada' | 'saida';
+    ambito: 'estadual' | 'interestadual' | 'exterior';
+    ativo: boolean;
 }
 
-export async function getCfops(search?: string): Promise<Cfop[]> {
-    const supabase = createClient();
-    let query = supabase
-        .from('cfops')
+export async function getCfops(supabase: SupabaseClient) {
+    const { data, error } = await supabase
+        .from('cfop')
         .select('*')
-        .eq('is_active', true)
-        .order('code');
-
-    if (search) {
-        query = query.or(`code.ilike.%${search}%,description.ilike.%${search}%`);
-    }
-
-    const { data, error } = await query;
+        .eq('ativo', true)
+        .order('codigo', { ascending: true });
 
     if (error) {
-        console.error("Error fetching CFOPs:", error);
-        throw error;
+        console.error('Error fetching CFOPs:', error);
+        return [];
     }
 
-    return data || [];
+    return data as Cfop[];
 }

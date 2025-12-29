@@ -1,17 +1,30 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/Command";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 import { TaxGroup, getTaxGroups } from "@/lib/data/tax-groups";
 import { FiscalOperation, createFiscalOperation, updateFiscalOperation, getFiscalOperations } from "@/lib/data/fiscal-operations";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Loader2, Save, ArrowLeft, AlertTriangle, FileText } from "lucide-react";
+import { Loader2, Save, ArrowLeft, AlertTriangle, FileText, Check, ChevronsUpDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
@@ -20,6 +33,7 @@ import { DecimalInput } from "@/components/ui/DecimalInput";
 import { Switch } from "@/components/ui/Switch";
 import { cn } from "@/lib/utils";
 import { ICMS_CST_OPTIONS, ICMS_CSOSN_OPTIONS, PIS_COFINS_CST_OPTIONS, IPI_CST_OPTIONS } from "@/lib/constants/fiscal-codes";
+import { getCfops, Cfop } from "@/lib/data/cfops";
 
 // --- Constants ---
 const STATES = [
@@ -40,6 +54,8 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
     const [isLoading, setIsLoading] = useState(false);
     const [taxGroups, setTaxGroups] = useState<TaxGroup[]>([]);
     const [taxRegime, setTaxRegime] = useState<string | null>(null);
+    const [cfops, setCfops] = useState<Cfop[]>([]);
+    const [cfopOpen, setCfopOpen] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState<Partial<FiscalOperation>>({
@@ -75,6 +91,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
     useEffect(() => {
         if (selectedCompany) {
             getTaxGroups(supabase, selectedCompany.id).then(setTaxGroups);
+            getCfops(supabase).then(setCfops);
 
             // Fetch Company Settings for Tax Regime
             supabase
@@ -142,6 +159,30 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
+    // Filter CFOPs
+    const filteredCfops = useMemo(() => {
+        const isSP = formData.destination_state === 'SP';
+        return cfops.filter(c => {
+            // 1. Must be active
+            if (!c.ativo) return false;
+
+            // 2. Operation Type: 'saida'
+            if (c.tipo_operacao !== 'saida') return false;
+
+            // 3. Scope based on Destination State
+            if (isSP) {
+                return c.ambito === 'estadual';
+            } else {
+                if (formData.destination_state === 'EX') return c.ambito === 'exterior';
+                return c.ambito === 'interestadual' || c.ambito === 'exterior'; // Fallback to include exterior if needed for normal exports
+            }
+        });
+    }, [cfops, formData.destination_state]);
+
+    // Derived helpers
+    const selectedCfopData = cfops.find(c => c.codigo === formData.cfop);
+
+
     const handleSave = async () => {
         if (!selectedCompany) return;
         setIsLoading(true);
@@ -150,7 +191,17 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
             // Validations
             if (!formData.tax_group_id) throw new Error("Selecione o Grupo Tributário.");
             if (!formData.destination_state) throw new Error("Selecione a UF de Destino.");
-            if (!formData.cfop || formData.cfop.length !== 4) throw new Error("CFOP inválido (deve ter 4 dígitos).");
+
+            // CFOP Validation
+            if (!formData.cfop) throw new Error("Selecione um CFOP válido para a operação.");
+
+            const isValidCfop = filteredCfops.some(c => c.codigo === formData.cfop);
+            if (!isValidCfop) {
+                // Throw explicit error
+                throw new Error("O CFOP selecionado não é válido para a UF de destino informada (Interna/Interestadual).");
+            }
+
+            if (formData.cfop.length !== 4) throw new Error("CFOP inválido (deve ter 4 dígitos).");
 
             // Tax Regime Logic
             const isSimples = taxRegime?.toLowerCase().includes('simples');
@@ -387,24 +438,76 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                             <CardHeaderStandard title="CFOP e Impostos" />
                             <CardContent className="pt-4 space-y-6">
 
-                                {/* CFOP Row */}
-                                <div className="flex items-end gap-4 p-4 bg-brand-50/50 rounded-xl border border-brand-100">
-                                    <div className="w-32">
-                                        <Label className="text-brand-900 font-bold">CFOP *</Label>
-                                        <Input
-                                            value={formData.cfop || ''}
-                                            onChange={(e) => {
-                                                const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
-                                                handleChange('cfop', val);
-                                            }}
-                                            placeholder="Ex: 5102"
-                                            className="mt-1 bg-white font-mono font-bold text-center tracking-wider"
-                                        />
-                                    </div>
-                                    <div className="pb-3 text-xs text-brand-700">
-                                        Código Fiscal de Operações e Prestações (4 dígitos)
-                                    </div>
+                                {/* CFOP Row - True Gold Combobox */}
+                                <div className="flex flex-col gap-2 relative">
+                                    <Label className="text-brand-900 font-bold">CFOP *</Label>
+                                    <Popover open={cfopOpen} onOpenChange={setCfopOpen}>
+                                        <PopoverTrigger asChild>
+                                            <div
+                                                role="button"
+                                                tabIndex={0}
+                                                aria-expanded={cfopOpen}
+                                                className="flex w-full items-center justify-between rounded-xl border border-brand-200 bg-white px-3 h-12 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                                                onClick={() => setCfopOpen(!cfopOpen)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === "Enter" || e.key === " ") {
+                                                        e.preventDefault();
+                                                        setCfopOpen(!cfopOpen);
+                                                    }
+                                                }}
+                                            >
+                                                {selectedCfopData ? (
+                                                    <div className="flex items-center gap-2 overflow-hidden">
+                                                        <span className="font-mono font-bold text-brand-700 text-lg">{selectedCfopData.codigo}</span>
+                                                        <span className="text-gray-600 truncate text-sm"> – {selectedCfopData.descricao}</span>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-gray-400">Selecione um CFOP...</span>
+                                                )}
+                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                            </div>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-[600px] p-0 pointer-events-auto" align="start">
+                                            <Command>
+                                                <CommandInput placeholder="Buscar CFOP (código ou descrição)..." />
+                                                <CommandList>
+                                                    <CommandEmpty>Nenhum CFOP encontrado.</CommandEmpty>
+                                                    <CommandGroup>
+                                                        {filteredCfops.map((cfop) => (
+                                                            <CommandItem
+                                                                key={cfop.codigo}
+                                                                value={`${cfop.codigo} ${cfop.descricao}`}
+                                                                onSelect={() => {
+                                                                    handleChange('cfop', cfop.codigo);
+                                                                    setCfopOpen(false);
+                                                                }}
+                                                                className="cursor-pointer w-full justify-start text-left items-center aria-selected:bg-brand-50 aria-selected:text-brand-900 py-2.5 px-3 mb-1 rounded-lg transition-colors border-transparent border aria-selected:border-brand-100"
+                                                            >
+                                                                <Check
+                                                                    className={cn(
+                                                                        "mr-3 h-4 w-4 text-brand-600",
+                                                                        formData.cfop === cfop.codigo
+                                                                            ? "opacity-100"
+                                                                            : "opacity-0"
+                                                                    )}
+                                                                />
+                                                                <span className="font-mono font-bold text-brand-700 mr-2 text-base">{cfop.codigo}</span>
+                                                                <span className="text-gray-600 truncate flex-1 block">- {cfop.descricao}</span>
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
+                                    <p className="text-xs text-brand-600/80">
+                                        {formData.destination_state === 'SP'
+                                            ? 'Exibindo apenas CFOPs Estaduais (SP)'
+                                            : 'Exibindo apenas CFOPs Interestaduais/Exterior'
+                                        }
+                                    </p>
                                 </div>
+
 
                                 <Tabs defaultValue="icms" className="w-full">
                                     <TabsList className="w-full justify-start h-auto p-1 bg-gray-100 rounded-xl mb-6">
