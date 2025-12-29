@@ -259,11 +259,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         setFormData(prev => ({
             ...prev,
             tax_group_id: groupId,
-            // Inherit NCM/CEST automatically (If group is selected, overwrite. If empty, keep prev? Or clear? Safe to overwrite if group exists)
-            ncm: group ? (group.ncm || "") : prev.ncm,
-            cest: group ? (group.cest || "") : prev.cest,
-            // Inherit Origin (Default)
-            origin: group?.origin_default !== undefined ? group.origin_default : prev.origin
+            // DECISION: Do NOT inherit NCM/CEST/Origin anymore. Product is source of truth.
         }));
 
         // Clear errors if any
@@ -423,7 +419,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
             getTaxGroups(supabase, selectedCompany.id).then(setTaxGroups);
             getUoms().then(setUoms);
 
-            // Auto-fill SKU if creating new item
+            // ... rest of use effect
+
             if (!isEdit && !formData.sku) {
                 supabase.rpc('get_next_sku', { p_company_id: selectedCompany.id })
                     .then(({ data, error }) => {
@@ -499,6 +496,32 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
             }
         }
     }, [selectedCompany, isEdit, itemId]);
+
+    // One-Time Migration Logic: Copy Tax Group fiscal data to Product if Product data is missing (Legacy Support)
+    const [hasMigrated, setHasMigrated] = useState(false);
+    useEffect(() => {
+        if (!hasMigrated && isEdit && taxGroups.length > 0 && formData.tax_group_id) {
+            const group = taxGroups.find(g => g.id === formData.tax_group_id);
+            if (group) {
+                setFormData(prev => {
+                    const needsMigration = (!prev.ncm && !!group.ncm) || (!prev.cest && !!group.cest);
+                    if (needsMigration) {
+                        console.log("Migrating fiscal data from Tax Group to Product...");
+                        return {
+                            ...prev,
+                            ncm: prev.ncm || group.ncm || "",
+                            cest: prev.cest || group.cest || "",
+                            origin: (prev.origin === 0 && group.origin_default !== undefined && group.origin_default !== 0)
+                                ? group.origin_default
+                                : prev.origin
+                        };
+                    }
+                    return prev;
+                });
+            }
+            setHasMigrated(true);
+        }
+    }, [taxGroups, formData.tax_group_id, isEdit, hasMigrated]);
 
     const executeSave = async (saveAndNew: boolean) => {
         // Apply formatting rules (Frontend)
@@ -610,7 +633,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 item_id: savedItemId,
                 ncm: formData.ncm || null,
                 cest: formData.cest || null,
-                origin: formData.origin || 0,
+                origin: formData.origin !== undefined ? formData.origin : 0, // Ensure origin is saved (0 is a valid value)
                 cfop_default: formData.cfop_code || formData.cfop_default || null, // Fallback for legacy
                 cfop_code: formData.cfop_code || null,
                 tax_group_id: formData.tax_group_id || null,
@@ -1318,7 +1341,9 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                 <CardContent>
                                     <div className="grid grid-cols-12 gap-6">
 
-                                        {/* Row 1: Tax Group (Source of Truth) */}
+
+
+                                        {/* Row 1: Tax Group (Rule Strategy) */}
                                         <div className="col-span-12">
                                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Grupo Tributário *</label>
                                             <TaxGroupSelector
@@ -1329,22 +1354,18 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                 }}
                                                 className={cn("mt-1", errors.tax_group_id && "border-red-500 rounded-2xl")}
                                             />
-                                            <p className="text-[10px] text-gray-500 mt-1">Define NCM, CEST e regras fiscais.</p>
+                                            <p className="text-[10px] text-gray-500 mt-1">Define as regras de tributação (ICMS, IPI, PIS, COFINS).</p>
                                             {errors.tax_group_id && <p className="text-xs text-red-500 mt-1">{errors.tax_group_id}</p>}
                                         </div>
 
-                                        {/* Row 2: Origin, NCM & CEST (Read Only / Inherited) */}
+                                        {/* Row 2: Origin, NCM & CEST (Product Classification - Independent) */}
                                         <div className="col-span-12 md:col-span-6">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Origem da Mercadoria</label>
-                                                <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 rounded">Herdado</span>
-                                            </div>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Origem da Mercadoria *</label>
                                             <Select
-                                                value={formData.origin?.toString() || "0"}
+                                                value={formData.origin?.toString() ?? "0"}
                                                 onValueChange={(val) => handleChange('origin', parseInt(val))}
-                                                disabled={true}
                                             >
-                                                <SelectTrigger className="mt-1 bg-gray-50 text-gray-500">
+                                                <SelectTrigger className="mt-1">
                                                     <SelectValue placeholder="Selecione..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -1362,28 +1383,24 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         </div>
 
                                         <div className="col-span-6 md:col-span-3">
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">NCM</label>
-                                                <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Herdado</span>
-                                            </div>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">NCM *</label>
                                             <Input
                                                 value={formData.ncm || ''}
-                                                disabled
-                                                placeholder="Definido no Grupo"
-                                                className="mt-1 bg-gray-50 text-gray-500 cursor-not-allowed text-center"
+                                                onChange={(e) => handleChange('ncm', e.target.value)}
+                                                placeholder="8 dígitos"
+                                                className={cn("mt-1", errors.ncm && "border-red-500")}
+                                                maxLength={8}
                                             />
                                             {errors.ncm && <p className="text-xs text-red-500 mt-1">{errors.ncm}</p>}
                                         </div>
                                         <div className="col-span-6 md:col-span-3">
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">CEST</label>
-                                                <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Herdado</span>
-                                            </div>
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">CEST</label>
                                             <Input
                                                 value={formData.cest || ''}
-                                                disabled
-                                                placeholder="Definido no Grupo"
-                                                className="mt-1 bg-gray-50 text-gray-500 cursor-not-allowed text-center"
+                                                onChange={(e) => handleChange('cest', e.target.value)}
+                                                placeholder="7 dígitos (Opcional)"
+                                                className={cn("mt-1", errors.cest && "border-red-500")}
+                                                maxLength={7}
                                             />
                                             {errors.cest && <p className="text-xs text-red-500 mt-1">{errors.cest}</p>}
                                         </div>

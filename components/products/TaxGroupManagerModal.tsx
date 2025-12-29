@@ -40,9 +40,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
     const [addBoxOpen, setAddBoxOpen] = useState(false);
 
     const [formName, setFormName] = useState("");
-    const [formNcm, setFormNcm] = useState("");
-    const [formCest, setFormCest] = useState("");
-    const [formOrigin, setFormOrigin] = useState("0");
+    // Deprecated: NCM/CEST/Origin are now on Product
     const [formObservation, setFormObservation] = useState("");
     const [formIsActive, setFormIsActive] = useState(true);
 
@@ -69,9 +67,6 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
 
     const resetForm = () => {
         setFormName("");
-        setFormNcm("");
-        setFormCest("");
-        setFormOrigin("0");
         setFormObservation("");
         setFormIsActive(true);
         setEditingId(null);
@@ -80,9 +75,6 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
     const handleStartEdit = (group: TaxGroup) => {
         setEditingId(group.id);
         setFormName(group.name);
-        setFormNcm(group.ncm || "");
-        setFormCest(group.cest || "");
-        setFormOrigin(group.origin_default?.toString() || "0");
         setFormObservation(group.observation || "");
         setFormIsActive(group.is_active);
         setAddBoxOpen(true); // Re-use the add box for editing
@@ -91,14 +83,6 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
     const validate = () => {
         if (!formName.trim()) {
             toast({ title: "Nome obrigatório", variant: "destructive" });
-            return false;
-        }
-        if (!formNcm || formNcm.length !== 8) {
-            toast({ title: "NCM Inválido", description: "Deve ter exatamente 8 dígitos.", variant: "destructive" });
-            return false;
-        }
-        if (formCest && formCest.length !== 7) {
-            toast({ title: "CEST Inválido", description: "Quando preenchido, deve ter 7 dígitos.", variant: "destructive" });
             return false;
         }
         return true;
@@ -112,9 +96,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
             await createTaxGroup(supabase, {
                 company_id: selectedCompany.id,
                 name: toTitleCase(formName),
-                ncm: formNcm || null,
-                cest: formCest || null,
-                origin_default: parseInt(formOrigin) || 0,
+                // Deprecated: ncm, cest, origin_default removed from payload
                 is_active: formIsActive,
                 observation: formObservation || null
             });
@@ -135,9 +117,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
         try {
             await updateTaxGroup(supabase, id, {
                 name: toTitleCase(formName),
-                ncm: formNcm || null,
-                cest: formCest || null,
-                origin_default: parseInt(formOrigin) || 0,
+                // Deprecated: ncm, cest, origin_default removed from payload
                 is_active: formIsActive,
                 observation: formObservation || null
             });
@@ -174,7 +154,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                 <div>
                     <DialogTitle className="text-xl font-semibold text-gray-900">Grupos Tributários</DialogTitle>
                     <DialogDescription className="text-sm text-gray-500 mt-1">
-                        Gerencie as regras fiscais de saída (NCM, CEST, Origem).
+                        Gerencie os agrupadores de regras fiscais.
                     </DialogDescription>
                 </div>
                 <Button
@@ -231,49 +211,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                                     autoFocus
                                 />
                             </div>
-                            <div className="col-span-6 md:col-span-3">
-                                <label className="text-xs text-gray-500 mb-1.5 block">NCM Padrão *</label>
-                                <Input
-                                    value={formNcm}
-                                    onChange={(e) => {
-                                        const val = e.target.value.replace(/\D/g, '').slice(0, 8);
-                                        setFormNcm(val);
-                                    }}
-                                    placeholder="8 dígitos"
-                                    className="h-9 text-sm rounded-lg"
-                                />
-                            </div>
-                            <div className="col-span-6 md:col-span-3">
-                                <label className="text-xs text-gray-500 mb-1.5 block">CEST Padrão</label>
-                                <Input
-                                    value={formCest}
-                                    onChange={(e) => {
-                                        const val = e.target.value.replace(/\D/g, '').slice(0, 7);
-                                        setFormCest(val);
-                                    }}
-                                    placeholder="7 dígitos"
-                                    className="h-9 text-sm rounded-lg"
-                                />
-                            </div>
-                            <div className="col-span-12 md:col-span-6">
-                                <label className="text-xs text-gray-500 mb-1.5 block">Origem da Mercadoria (Padrão)</label>
-                                <Select value={formOrigin} onValueChange={setFormOrigin}>
-                                    <SelectTrigger className="h-9">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="0">0 - Nacional</SelectItem>
-                                        <SelectItem value="1">1 - Estrangeira (Imp. Direta)</SelectItem>
-                                        <SelectItem value="2">2 - Estrangeira (Adq. Mercado Interno)</SelectItem>
-                                        <SelectItem value="3">3 - Nacional (Conteúdo Superior 40%)</SelectItem>
-                                        <SelectItem value="4">4 - Nacional (Produção conformidade)</SelectItem>
-                                        <SelectItem value="5">5 - Nacional (Conteúdo Inferior 40%)</SelectItem>
-                                        <SelectItem value="6">6 - Estrangeira (Imp. Direta s/ Similar)</SelectItem>
-                                        <SelectItem value="7">7 - Estrangeira (Adq. Mercado Interno s/ Similar)</SelectItem>
-                                        <SelectItem value="8">8 - Nacional (Importação Superior 70%)</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                            {/* NCM/CEST/Origin removed */}
                             <div className="col-span-12 md:col-span-6">
                                 <label className="text-xs text-gray-500 mb-1.5 block">Observação Fiscal</label>
                                 <Input
@@ -317,8 +255,6 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                         <TableHeader className="bg-gray-50/50">
                             <TableRow className="hover:bg-transparent border-gray-100">
                                 <TableHead className="w-full text-xs font-semibold text-gray-500 h-10">NOME DO GRUPO</TableHead>
-                                <TableHead className="text-xs font-semibold text-gray-500 h-10">NCM</TableHead>
-                                <TableHead className="text-xs font-semibold text-gray-500 h-10">CEST</TableHead>
                                 <TableHead className="text-xs font-semibold text-gray-500 h-10 text-right pr-4">AÇÕES</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -341,12 +277,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                                         <TableCell className="py-3 font-medium text-gray-900">
                                             {group.name}
                                         </TableCell>
-                                        <TableCell className="py-3 text-gray-600 text-sm">
-                                            {group.ncm || <span className="text-gray-300 italic">-</span>}
-                                        </TableCell>
-                                        <TableCell className="py-3 text-gray-600 text-sm">
-                                            {group.cest || <span className="text-gray-300 italic">-</span>}
-                                        </TableCell>
+                                        {/* Columns removed */}
                                         <TableCell className="py-3 text-right pr-4">
                                             <div className="flex justify-end gap-1">
                                                 <Button
