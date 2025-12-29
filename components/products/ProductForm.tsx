@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useToast } from "@/components/ui/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
@@ -407,6 +408,15 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         setErrors(newErrors);
         return newErrors;
     };
+
+    const searchParams = useSearchParams();
+    const { toast } = useToast();
+
+    useEffect(() => {
+        if (searchParams.get("success") === "created") {
+            toast({ title: "Item criado com sucesso!", description: "Pronto para cadastrar o próximo.", variant: "default", className: "bg-green-600 text-white border-none" });
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         if (selectedCompany) {

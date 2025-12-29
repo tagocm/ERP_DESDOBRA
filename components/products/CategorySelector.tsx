@@ -105,7 +105,8 @@ export function CategorySelector({ value, onChange, className, disabled }: Categ
                             "font-normal", // Override Button's font-semibold
                             "active:scale-100", // Override Button's active:scale-95
                             disabled && "bg-gray-50",
-                            className
+                            className,
+                            "my-0" // Force reset margins as they are applied to the wrapper
                         )}
                     >
                         {selectedCategory ? (

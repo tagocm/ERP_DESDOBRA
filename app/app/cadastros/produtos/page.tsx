@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Plus, Search, Trash2, Edit2, Package, Layers, Wheat, Box } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useToast } from "@/components/ui/use-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
 import {
     Table,
@@ -49,6 +50,18 @@ export default function ItemsPage() {
     const [typeFilter, setTypeFilter] = useState<string>("all");
 
 
+
+    const searchParams = useSearchParams();
+    const { toast } = useToast();
+
+    useEffect(() => {
+        const success = searchParams.get("success");
+        if (success === "created") {
+            toast({ title: "Item criado com sucesso!", variant: "default", className: "bg-green-600 text-white border-none" });
+        } else if (success === "updated") {
+            toast({ title: "Item atualizado com sucesso!", variant: "default", className: "bg-green-600 text-white border-none" });
+        }
+    }, [searchParams]);
 
     useEffect(() => {
         if (selectedCompany) {

@@ -105,7 +105,8 @@ export function TaxGroupSelector({ value, onChange, className, disabled, onGroup
                             "font-normal",
                             "active:scale-100",
                             disabled && "bg-gray-50",
-                            className
+                            className,
+                            "my-0" // Force reset margins as they are applied to the wrapper
                         )}
                     >
                         {selectedGroup ? (
