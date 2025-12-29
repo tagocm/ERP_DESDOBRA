@@ -818,3 +818,24 @@ After doing this, you may fix the identity used for this commit with:
 fatal: could not read Username for 'https://github.com': Device not configured
 [2025-12-28 21:00:00] Sync complete.
 [2025-12-28 21:30:00] Changes detected. Syncing to GitHub...
+[main 222112b] Auto-sync: 2025-12-28 21:30:00
+ Committer: Tiago Martini <tago@MacBook-Pro-de-Tiago.local>
+Your name and email address were configured automatically based
+on your username and hostname. Please check that they are accurate.
+You can suppress this message by setting them explicitly. Run the
+following command and follow the instructions in your editor to edit
+your configuration file:
+
+    git config --global --edit
+
+After doing this, you may fix the identity used for this commit with:
+
+    git commit --amend --reset-author
+
+ 7 files changed, 675 insertions(+), 28 deletions(-)
+ create mode 100644 components/products/TaxGroupManagerModal.tsx
+ create mode 100644 components/products/TaxGroupSelector.tsx
+ create mode 100644 supabase/migrations/20251228220000_update_tax_groups_schema.sql
+fatal: could not read Username for 'https://github.com': Device not configured
+[2025-12-28 21:30:00] Sync complete.
+[2025-12-28 22:00:00] Changes detected. Syncing to GitHub...

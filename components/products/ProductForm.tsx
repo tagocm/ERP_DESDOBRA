@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/Input";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { CategorySelector } from "./CategorySelector";
 import { UomSelector } from "./UomSelector";
-import { CfopSelector } from "./CfopSelector";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Tabs, TabsContent } from "@/components/ui/Tabs";
 import { FormTabsList, FormTabsTrigger } from "@/components/ui/FormTabs";
@@ -1310,7 +1309,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                     <div className="grid grid-cols-12 gap-6">
 
                                         {/* Row 1: Tax Group (Source of Truth) */}
-                                        <div className="col-span-12 md:col-span-6">
+                                        <div className="col-span-12">
                                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Grupo Tributário *</label>
                                             <TaxGroupSelector
                                                 value={formData.tax_group_id}
@@ -1324,46 +1323,18 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             {errors.tax_group_id && <p className="text-xs text-red-500 mt-1">{errors.tax_group_id}</p>}
                                         </div>
 
-                                        {/* Row 2: NCM & CEST (Read Only / Inherited) */}
-                                        <div className="col-span-6 md:col-span-3">
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">NCM</label>
-                                                <span className="text-[9px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">Herdado</span>
-                                            </div>
-                                            <Input
-                                                value={formData.ncm || ''}
-                                                disabled
-                                                placeholder="Definido no Grupo"
-                                                className="mt-1 bg-gray-50 text-gray-500 cursor-not-allowed text-center"
-                                            />
-                                            {errors.ncm && <p className="text-xs text-red-500 mt-1">{errors.ncm}</p>}
-                                        </div>
-                                        <div className="col-span-6 md:col-span-3">
-                                            <div className="flex items-center justify-between">
-                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">CEST</label>
-                                                <span className="text-[9px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">Herdado</span>
-                                            </div>
-                                            <Input
-                                                value={formData.cest || ''}
-                                                disabled
-                                                placeholder="Definido no Grupo"
-                                                className="mt-1 bg-gray-50 text-gray-500 cursor-not-allowed text-center"
-                                            />
-                                            {errors.cest && <p className="text-xs text-red-500 mt-1">{errors.cest}</p>}
-                                        </div>
-
-                                        {/* Row 3: Origin & CFOP */}
-                                        <div className="col-span-12 md:col-span-5">
+                                        {/* Row 2: Origin, NCM & CEST (Read Only / Inherited) */}
+                                        <div className="col-span-12 md:col-span-6">
                                             <div className="flex items-center gap-2 mb-1">
                                                 <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Origem da Mercadoria</label>
-                                                <span className="text-[10px] text-brand-600 italic font-medium">(Padrão herdado do grupo)</span>
+                                                <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 rounded">Herdado</span>
                                             </div>
                                             <Select
                                                 value={formData.origin?.toString() || "0"}
                                                 onValueChange={(val) => handleChange('origin', parseInt(val))}
-                                                disabled={!!formData.tax_group_id}
+                                                disabled={true}
                                             >
-                                                <SelectTrigger className="mt-1">
+                                                <SelectTrigger className="mt-1 bg-gray-50 text-gray-500">
                                                     <SelectValue placeholder="Selecione..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -1379,16 +1350,32 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                 </SelectContent>
                                             </Select>
                                         </div>
-                                        <div className="col-span-12 md:col-span-7">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">CFOP Padrão (Sugestão)</label>
-                                                <span className="text-[9px] text-gray-400">Será definido na venda</span>
+
+                                        <div className="col-span-6 md:col-span-3">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">NCM</label>
+                                                <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Herdado</span>
                                             </div>
-                                            <CfopSelector
-                                                value={formData.cfop_code || formData.cfop_default || ''}
-                                                onChange={(val) => handleChange('cfop_code', val)}
-                                                className="mt-1"
+                                            <Input
+                                                value={formData.ncm || ''}
+                                                disabled
+                                                placeholder="Definido no Grupo"
+                                                className="mt-1 bg-gray-50 text-gray-500 cursor-not-allowed text-center"
                                             />
+                                            {errors.ncm && <p className="text-xs text-red-500 mt-1">{errors.ncm}</p>}
+                                        </div>
+                                        <div className="col-span-6 md:col-span-3">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">CEST</label>
+                                                <span className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">Herdado</span>
+                                            </div>
+                                            <Input
+                                                value={formData.cest || ''}
+                                                disabled
+                                                placeholder="Definido no Grupo"
+                                                className="mt-1 bg-gray-50 text-gray-500 cursor-not-allowed text-center"
+                                            />
+                                            {errors.cest && <p className="text-xs text-red-500 mt-1">{errors.cest}</p>}
                                         </div>
                                     </div>
                                 </CardContent>

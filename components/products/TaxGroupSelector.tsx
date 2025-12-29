@@ -87,7 +87,7 @@ export function TaxGroupSelector({ value, onChange, className, disabled, onGroup
     }
 
     return (
-        <div className={cn("flex items-center gap-2", className)}>
+        <div className={cn("flex items-center gap-2 w-full", className)}>
             <Popover open={open} onOpenChange={(val) => !disabled && setOpen(val)}>
                 <PopoverTrigger asChild>
                     <Button
@@ -151,7 +151,7 @@ export function TaxGroupSelector({ value, onChange, className, disabled, onGroup
                                             e.stopPropagation();
                                             handleSelect(group.id);
                                         }}
-                                        className="cursor-pointer"
+                                        className="cursor-pointer data-[disabled]:pointer-events-auto data-[disabled]:opacity-100"
                                     >
                                         <Check
                                             className={cn(
