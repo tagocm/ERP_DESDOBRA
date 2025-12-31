@@ -15,6 +15,7 @@ export interface SalesOrder {
     sales_rep_id?: string | null;
     price_table_id?: string | null;
     payment_terms_id?: string | null;
+    payment_mode_id?: string | null;
 
     date_issued: string; // ISO Date YYYY-MM-DD
     valid_until?: string | null;
@@ -32,6 +33,7 @@ export interface SalesOrder {
     discount_amount: number;
     freight_amount: number;
     total_amount: number;
+    total_weight_kg?: number; // New field for total weight
 
     delivery_address_json?: any;
     carrier_id?: string | null;
@@ -74,10 +76,37 @@ export interface SalesOrderItem {
     document_id: string;
     item_id: string;
     quantity: number;
+    qty_base?: number; // Added based on user prompt
     unit_price: number;
     discount_amount: number;
     total_amount: number;
     notes?: string | null;
+
+    // Fiscal Calculation Fields
+    fiscal_operation_id?: string | null;
+    cfop_code?: string | null;
+    cst_icms?: string | null;
+    csosn?: string | null;
+    st_applies?: boolean;
+    st_base_calc?: number | null;
+    st_aliquot?: number | null;
+    st_value?: number | null;
+    pis_cst?: string | null;
+    pis_aliquot?: number | null;
+    pis_value?: number | null;
+    cofins_cst?: string | null;
+    cofins_aliquot?: number | null;
+    cofins_value?: number | null;
+    ipi_applies?: boolean;
+    ipi_cst?: string | null;
+    ipi_aliquot?: number | null;
+    ipi_value?: number | null;
+    fiscal_notes?: string | null;
+    fiscal_status?: 'pending' | 'calculated' | 'no_rule_found' | 'manual';
+    // Snapshot fields for audit
+    ncm_snapshot?: string | null;
+    cest_snapshot?: string | null;
+    origin_snapshot?: number | null;
 
     // Fulfillment & Lifecycle
     qty_fulfilled?: number;
@@ -90,6 +119,7 @@ export interface SalesOrderItem {
         name: string;
         sku?: string;
         un?: string; // unit name
+        base_weight_kg?: number; // New field
     };
 }
 
@@ -149,7 +179,7 @@ export interface DeliveryRoute {
     name: string;
     route_date: string;
     scheduled_date?: string | null; // When set, route appears in calendar. When NULL, appears in unscheduled dashboard
-    status: 'planned' | 'closed' | 'in_transit' | 'done';
+    status: 'planned' | 'closed' | 'in_transit' | 'done' | 'em_rota' | 'concluida' | 'in_progress' | 'cancelada';
     created_at: string;
 
     // Joined
@@ -161,7 +191,10 @@ export interface DeliveryRouteOrder {
     route_id: string;
     sales_document_id: string;
     position: number;
+    volumes?: number;
     assigned_at: string;
+    loading_status?: 'pending' | 'loaded' | 'partial' | 'not_loaded';
+    partial_payload?: any;
 
     // Joined
     sales_order?: SalesOrder;
