@@ -1,6 +1,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SalesOrder, SalesOrderItem, SalesOrderPayment, SalesOrderNfe, SalesOrderAdjustment, SalesStatus, LogisticStatus, FiscalStatus, DocType } from '@/types/sales';
+import { resolveFiscalRulesForOrder } from './fiscal-engine';
 
 export interface SalesFilters {
     page?: number;
@@ -28,22 +29,45 @@ export async function getSalesDocuments(supabase: SupabaseClient, filters: Sales
         .select(`
             *,
             client:organizations!client_id(trade_name, document),
-            sales_rep:users!sales_rep_id(full_name)
+            sales_rep:users!sales_rep_id(full_name),
+            carrier:organizations!carrier_id(trade_name)
         `, { count: 'exact' });
 
     if (filters.docType && filters.docType !== 'all') {
         query = query.eq('doc_type', filters.docType);
     }
 
-    // Generic search: CNPJ, Nome Fantasia, Razão Social, Cidade
+    // Generic search: CNPJ, Nome Fantasia, Razão Social, ID do Pedido
     if (filters.search) {
         const searchTerm = filters.search.trim();
-        // Normalize CNPJ search (remove formatting)
         const normalizedSearch = searchTerm.replace(/[.\/-]/g, '');
 
-        // Build OR condition for multiple fields
-        // Search in: client document (CNPJ), trade_name, legal_name, and addresses city
-        query = query.or(`client.document.ilike.%${normalizedSearch}%,client.trade_name.ilike.%${searchTerm}%,client.legal_name.ilike.%${searchTerm}%,client.addresses.city.ilike.%${searchTerm}%`);
+        // 1. Search matching organizations (Clients)
+        const { data: matchingClients } = await supabase
+            .from('organizations')
+            .select('id')
+            .or(`trade_name.ilike.%${searchTerm}%,legal_name.ilike.%${searchTerm}%,document.ilike.%${normalizedSearch}%`);
+
+        const clientIds = matchingClients?.map(c => c.id) || [];
+        const orConditions: string[] = [];
+
+        // Condition A: Client match
+        if (clientIds.length > 0) {
+            orConditions.push(`client_id.in.(${clientIds.join(',')})`);
+        }
+
+        // Condition B: Order Number match (if numeric)
+        if (!isNaN(Number(searchTerm))) {
+            orConditions.push(`document_number.eq.${searchTerm}`);
+        }
+
+        if (orConditions.length > 0) {
+            query = query.or(orConditions.join(','));
+        } else {
+            // No results found
+            // Force return empty by filtering on a non-existent ID (assuming UUID)
+            query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+        }
     }
 
     if (filters.clientId) {
@@ -58,7 +82,10 @@ export async function getSalesDocuments(supabase: SupabaseClient, filters: Sales
     if (filters.dateFrom) query = query.gte('date_issued', filters.dateFrom);
     if (filters.dateTo) query = query.lte('date_issued', filters.dateTo);
 
-    if (filters.statusCommercial) query = query.eq('status_commercial', filters.statusCommercial);
+    if (filters.statusCommercial) {
+        query = query.eq('status_commercial', filters.statusCommercial);
+    }
+
     if (filters.statusLogistic) query = query.eq('status_logistic', filters.statusLogistic);
     if (filters.financialStatus) query = query.eq('financial_status', filters.financialStatus);
 
@@ -106,28 +133,56 @@ export async function getSalesDocumentById(supabase: SupabaseClient, id: string)
             *,
             client:organizations!client_id(trade_name, document, sales_channel, payment_terms_id),
             sales_rep:users!sales_rep_id(full_name),
-            items:sales_document_items(*, product:items(name, gtin_ean_base, id, sku, un:uom)),
+            items:sales_document_items(*, packaging:item_packaging(label), product:items(name, gtin_ean_base, id, sku, un:uom, net_weight_g_base, gross_weight_g_base, packagings:item_packaging(*))),
             payments:sales_document_payments(*),
-            adjustments:sales_document_adjustments(*)
+            adjustments:sales_document_adjustments(*),
+            route_info:delivery_route_orders(
+                route:delivery_routes(scheduled_date)
+            )
         `)
         .eq('id', id)
         .single();
 
     if (error) throw error;
-    return data as SalesOrder;
+
+    const order = data as any;
+    // Fallback for scheduled_delivery_date if it's null on the document but exists on the route
+    if (!order.scheduled_delivery_date && order.route_info?.[0]?.route?.scheduled_date) {
+        order.scheduled_delivery_date = order.route_info[0].route.scheduled_date;
+    }
+
+    return order as SalesOrder;
 }
 
 export async function upsertSalesDocument(supabase: SupabaseClient, doc: Partial<SalesOrder>) {
     // Remove joined fields to avoid error
     // IMPORTANT: specific fix to ensure document_number is NEVER sent to DB creates/updates
     // This allows the DB trigger/default to handle sequence generation.
-    const { client, sales_rep, items, payments, nfes, history, carrier, adjustments, document_number, ...cleanDoc } = doc;
+    const { client, sales_rep, items, payments, nfes, history, carrier, adjustments, document_number, ...rawDoc } = doc;
 
-    // VALIDATION: Block Edit if Fiscal is Authorized (Issued)
+    // Sanitize Foreign Keys: Convert empty strings to null to avoid UUID errors
+    const cleanDoc = { ...rawDoc };
+    if (cleanDoc.payment_mode_id === '') cleanDoc.payment_mode_id = null;
+    if (cleanDoc.payment_terms_id === '') cleanDoc.payment_terms_id = null;
+    if (cleanDoc.price_table_id === '') cleanDoc.price_table_id = null;
+
+    // VALIDATION: Block Edit if locked statuses are met (Fiscal Authorized or Logistic In Route/Finalized)
     if (cleanDoc.id) {
-        const { data: current } = await supabase.from('sales_documents').select('status_fiscal').eq('id', cleanDoc.id).single();
-        if (current && current.status_fiscal === 'authorized') {
-            throw new Error("ACÃO BLOQUEADA: Pedido faturado (NF-e emitida) não pode ser editado. Use 'Ajustes' se necessário.");
+        const { data: current } = await supabase
+            .from('sales_documents')
+            .select('status_fiscal, status_logistic')
+            .eq('id', cleanDoc.id)
+            .single();
+
+        if (current) {
+            if (current.status_fiscal === 'authorized') {
+                throw new Error("AÇÃO BLOQUEADA: Pedido faturado (NF-e emitida) não pode ser editado.");
+            }
+
+            const lockedLogistics = ['em_rota', 'entregue', 'nao_entregue'];
+            if (lockedLogistics.includes(current.status_logistic)) {
+                throw new Error(`AÇÃO BLOQUEADA: Pedido com status logístico '${current.status_logistic.replace('_', ' ').toUpperCase()}' não pode ser alterado.`);
+            }
         }
     }
 
@@ -142,11 +197,17 @@ export async function upsertSalesDocument(supabase: SupabaseClient, doc: Partial
 }
 
 export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<SalesOrderItem>) {
-    const { product, ...cleanItem } = item;
+    // Remove frontend-only fields or joins
+    const { product, unit_weight_kg, gross_weight_kg_snapshot, ...cleanItem } = item;
 
     // Fix: Remove temp IDs so Supabase generates a real UUID
     if (cleanItem.id && cleanItem.id.startsWith('temp-')) {
         delete cleanItem.id;
+    }
+
+    // Fallback: Populate qty_base with quantity if missing (for legacy or simple items)
+    if (cleanItem.qty_base === undefined && cleanItem.quantity !== undefined) {
+        cleanItem.qty_base = cleanItem.quantity;
     }
 
     const { data, error } = await supabase
@@ -360,4 +421,123 @@ export async function getLastOrderForClient(supabase: SupabaseClient, clientId: 
     }
 
     return { ...order, items: items || [] };
+}
+
+/**
+ * Recalculate fiscal rules for all items in an order
+ * Should be called when: customer changes, company changes, items change
+ */
+export async function recalculateFiscalForOrder(
+    supabase: SupabaseClient,
+    orderId: string,
+    companyId: string,
+    companyUF: string,
+    companyTaxRegime: 'simples' | 'normal',
+    customerUF: string,
+    customerType: 'contribuinte' | 'isento' | 'nao_contribuinte',
+    customerIsFinalConsumer: boolean
+) {
+    // Fetch order items with product fiscal data
+    const { data: items, error } = await supabase
+        .from('sales_document_items')
+        .select(`
+            *,
+            product:items!inner(
+                id,
+                name,
+                fiscal:item_fiscal_profiles!inner(
+                    tax_group_id,
+                    ncm,
+                    cest,
+                    origin
+                )
+            )
+        `)
+        .eq('document_id', orderId);
+
+    if (error || !items || items.length === 0) {
+        console.error('Error fetching items for fiscal recalc:', error);
+        return;
+    }
+
+    // Prepare items for fiscal resolution
+    const itemsForResolution = items.map(item => ({
+        itemId: item.id,
+        taxGroupId: (item.product as any)?.fiscal?.tax_group_id || '',
+        ncm: (item.product as any)?.fiscal?.ncm,
+        cest: (item.product as any)?.fiscal?.cest,
+        origin: (item.product as any)?.fiscal?.origin,
+        unitPrice: item.unit_price,
+        quantity: item.quantity
+    }));
+
+    // Resolve fiscal rules
+    const results = await resolveFiscalRulesForOrder(
+        supabase,
+        companyId,
+        companyUF,
+        companyTaxRegime,
+        customerUF,
+        customerType,
+        customerIsFinalConsumer,
+        itemsForResolution
+    );
+
+    // Update each item with fiscal data
+    for (const item of items) {
+        const fiscalResult = results.get(item.id);
+        if (!fiscalResult) continue;
+
+        const updatePayload: Partial<SalesOrderItem> = {
+            fiscal_status: fiscalResult.status === 'error' ? 'pending' : fiscalResult.status,
+            fiscal_operation_id: fiscalResult.operation?.id || null,
+            cfop_code: fiscalResult.cfop || null,
+            cst_icms: fiscalResult.cst_icms || null,
+            csosn: fiscalResult.csosn || null,
+            st_applies: fiscalResult.st_applies || false,
+            st_aliquot: fiscalResult.st_aliquot || null,
+            pis_cst: fiscalResult.pis_cst || null,
+            pis_aliquot: fiscalResult.pis_aliquot || null,
+            cofins_cst: fiscalResult.cofins_cst || null,
+            cofins_aliquot: fiscalResult.cofins_aliquot || null,
+            ipi_applies: fiscalResult.ipi_applies || false,
+            ipi_cst: fiscalResult.ipi_cst || null,
+            ipi_aliquot: fiscalResult.ipi_aliquot || null,
+            fiscal_notes: fiscalResult.error || null,
+            // Snapshots - use the data we already fetched
+            ncm_snapshot: (item.product as any)?.fiscal?.ncm || null,
+            cest_snapshot: (item.product as any)?.fiscal?.cest || null,
+            origin_snapshot: (item.product as any)?.fiscal?.origin !== undefined ? (item.product as any)?.fiscal?.origin : null
+        };
+
+        const { error: updateError } = await supabase
+            .from('sales_document_items')
+            .update(updatePayload)
+            .eq('id', item.id);
+
+        if (updateError) {
+            console.error('Error updating item fiscal data:', updateError, 'Payload:', updatePayload);
+        }
+    }
+}
+
+// Helper to get fresh totals from DB
+export async function getSalesOrderTotals(supabase: SupabaseClient, id: string) {
+    const { data, error } = await supabase
+        .from('sales_documents')
+        .select('total_amount, subtotal_amount, discount_amount, freight_amount, total_weight_kg, total_gross_weight_kg')
+        .eq('id', id)
+        .single();
+    if (error) throw error;
+    return data;
+}
+
+// RPC: Cleanup old drafts
+export async function cleanupUserDrafts(supabase: SupabaseClient, companyId: string, userId: string, excludeId?: string) {
+    const { error } = await supabase.rpc('cleanup_user_drafts', {
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_exclude_id: excludeId || null
+    });
+    if (error) throw error;
 }

@@ -167,7 +167,9 @@ export async function POST(request: Request) {
                     })
                     .eq('id', originalOrder.id);
 
-                if (itemsToCreate.length > 0) {
+                const shouldCreateComplement = ro.partial_payload.actions?.create_complement_order !== false;
+
+                if (itemsToCreate.length > 0 && shouldCreateComplement) {
                     // Create Complementary Order
 
                     // Calculate Total for the new order

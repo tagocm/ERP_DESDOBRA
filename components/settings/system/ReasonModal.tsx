@@ -8,6 +8,7 @@ import { SystemOccurrenceReasonWithDefaults, SystemOccurrenceReasonDefault } fro
 import { createClient } from "@/lib/supabaseBrowser";
 import { upsertSystemReason } from "@/lib/data/system-preferences";
 import { useToast } from "@/components/ui/use-toast";
+import { OccurrenceActionsPanel, OperationAction } from "@/components/settings/system/OccurrenceActionsPanel";
 
 interface ReasonModalProps {
     isOpen: boolean;
@@ -93,12 +94,58 @@ export function ReasonModal({ isOpen, onClose, typeCode, typeLabel, editingReaso
     // Determine relevant toggles based on typeCode
     const isExpeditionNotLoaded = typeCode === 'EXPEDICAO_NAO_CARREGADO';
     const isExpeditionPartial = typeCode === 'EXPEDICAO_CARREGADO_PARCIAL';
-    const isReturnNotDelivered = typeCode.includes('NAO_ENTREGUE') || typeCode.includes('DEVOLVIDO_TOTAL'); // Covers RETORNO_NAO_ENTREGUE
-    const isReturnPartial = typeCode.includes('PARCIAL') && !typeCode.includes('CARREGADO'); // Covers RETORNO_ENTREGA_PARCIAL, DEVOLVIDO_PARCIAL
+    const isReturnNotDelivered = typeCode.includes('NAO_ENTREGUE') || typeCode.includes('DEVOLVIDO_TOTAL');
+    const isReturnPartial = typeCode.includes('PARCIAL') && !typeCode.includes('CARREGADO');
+
+    // Get available actions
+    let availableActions: OperationAction[] = [];
+    if (isExpeditionNotLoaded) {
+        availableActions = [OperationAction.RETURN_TO_SANDBOX_PENDING, OperationAction.REGISTER_NOTE_ON_ORDER];
+    } else if (isReturnNotDelivered) {
+        availableActions = [OperationAction.RETURN_TO_SANDBOX_PENDING, OperationAction.GENERATE_RETURN_MOVEMENT];
+    } else if (isExpeditionPartial) {
+        // Map create_complement_order to GENERATE_NEW_ORDER_PENDING for consistency in UI
+        availableActions = [OperationAction.GENERATE_NEW_ORDER_PENDING, OperationAction.REGISTER_NOTE_ON_ORDER];
+    } else if (isReturnPartial) {
+        availableActions = [OperationAction.GENERATE_RETURN_MOVEMENT, OperationAction.GENERATE_NEW_ORDER_PENDING];
+    }
+
+    // Map defaults to currentActions
+    const currentActions: Record<string, boolean> = {};
+    if (isExpeditionNotLoaded) {
+        currentActions[OperationAction.RETURN_TO_SANDBOX_PENDING] = defaults.return_to_sandbox_pending || false;
+        currentActions[OperationAction.REGISTER_NOTE_ON_ORDER] = defaults.register_attempt_note || false;
+    } else if (isReturnNotDelivered) {
+        currentActions[OperationAction.RETURN_TO_SANDBOX_PENDING] = defaults.return_to_sandbox_pending || false;
+        currentActions[OperationAction.GENERATE_RETURN_MOVEMENT] = defaults.create_devolution || false;
+    } else if (isExpeditionPartial) {
+        currentActions[OperationAction.GENERATE_NEW_ORDER_PENDING] = defaults.create_complement_order || false;
+        currentActions[OperationAction.REGISTER_NOTE_ON_ORDER] = defaults.write_internal_notes || false;
+    } else if (isReturnPartial) {
+        currentActions[OperationAction.GENERATE_RETURN_MOVEMENT] = defaults.create_devolution || false;
+        currentActions[OperationAction.GENERATE_NEW_ORDER_PENDING] = defaults.create_new_order_for_pending || false;
+    }
+
+    const handleActionChange = (action: OperationAction, value: boolean) => {
+        // Update specific default keys based on action and context
+        if (isExpeditionNotLoaded) {
+            if (action === OperationAction.RETURN_TO_SANDBOX_PENDING) handleToggle('return_to_sandbox_pending', value);
+            if (action === OperationAction.REGISTER_NOTE_ON_ORDER) handleToggle('register_attempt_note', value);
+        } else if (isReturnNotDelivered) {
+            if (action === OperationAction.RETURN_TO_SANDBOX_PENDING) handleToggle('return_to_sandbox_pending', value);
+            if (action === OperationAction.GENERATE_RETURN_MOVEMENT) handleToggle('create_devolution', value);
+        } else if (isExpeditionPartial) {
+            if (action === OperationAction.GENERATE_NEW_ORDER_PENDING) handleToggle('create_complement_order', value);
+            if (action === OperationAction.REGISTER_NOTE_ON_ORDER) handleToggle('write_internal_notes', value);
+        } else if (isReturnPartial) {
+            if (action === OperationAction.GENERATE_RETURN_MOVEMENT) handleToggle('create_devolution', value);
+            if (action === OperationAction.GENERATE_NEW_ORDER_PENDING) handleToggle('create_new_order_for_pending', value);
+        }
+    };
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{editingReason ? 'Editar Motivo' : 'Novo Motivo'} - {typeLabel}</DialogTitle>
                 </DialogHeader>
@@ -135,77 +182,20 @@ export function ReasonModal({ isOpen, onClose, typeCode, typeLabel, editingReaso
                         </div>
                     </div>
 
-                    <div className="border-t pt-4">
-                        <h4 className="font-medium mb-3 text-sm text-gray-900 uppercase tracking-wider">Ações Padrão (Defaults)</h4>
-                        <p className="text-xs text-gray-500 mb-4">
-                            Estas ações virão marcadas por padrão, mas o operador pode alterar (override) no momento da ocorrência.
-                        </p>
-
-                        <div className="space-y-3">
-                            {/* Actions for Not Loaded / Not Delivered */}
-                            {(isExpeditionNotLoaded || isReturnNotDelivered) && (
-                                <>
-                                    <ToggleRow
-                                        label="Voltar para Sandbox (Pendente)"
-                                        description="O pedido sai da rota e volta para a lista de preparação."
-                                        checked={defaults.return_to_sandbox_pending}
-                                        onChange={(v) => handleToggle('return_to_sandbox_pending', v)}
-                                    />
-                                    <ToggleRow
-                                        label="Registrar nota de tentativa"
-                                        description="Adiciona observação interna automática."
-                                        checked={defaults.register_attempt_note}
-                                        onChange={(v) => handleToggle('register_attempt_note', v)}
-                                    />
-                                </>
-                            )}
-
-                            {isReturnNotDelivered && (
-                                <ToggleRow
-                                    label="Estornar estoque e financeiro"
-                                    description="Desfaz baixas e lançamentos (se configurado)."
-                                    checked={defaults.reverse_stock_and_finance}
-                                    onChange={(v) => handleToggle('reverse_stock_and_finance', v)}
-                                />
-                            )}
-
-                            {/* Actions for Expedition Partial */}
-                            {isExpeditionPartial && (
-                                <>
-                                    <ToggleRow
-                                        label="Gerar Pedido Complementar"
-                                        description="Cria novo pedido com os itens faltantes."
-                                        checked={defaults.create_complement_order}
-                                        onChange={(v) => handleToggle('create_complement_order', v)}
-                                    />
-                                    <ToggleRow
-                                        label="Anotar faltas no pedido original"
-                                        description="Registra itens não carregados nas observações."
-                                        checked={defaults.write_internal_notes}
-                                        onChange={(v) => handleToggle('write_internal_notes', v)}
-                                    />
-                                </>
-                            )}
-
-                            {/* Actions for Return Partial */}
-                            {isReturnPartial && (
-                                <>
-                                    <ToggleRow
-                                        label="Gerar Devolução (Movimento)"
-                                        description="Gera entrada de devolução para itens recusados."
-                                        checked={defaults.create_devolution}
-                                        onChange={(v) => handleToggle('create_devolution', v)}
-                                    />
-                                    <ToggleRow
-                                        label="Gerar Novo Pedido (Pendente)"
-                                        description="Cria novo pedido de venda para re-entrega dos itens."
-                                        checked={defaults.create_new_order_for_pending}
-                                        onChange={(v) => handleToggle('create_new_order_for_pending', v)}
-                                    />
-                                </>
-                            )}
+                    {availableActions.length > 0 && (
+                        <div className="border-t pt-4">
+                            <OccurrenceActionsPanel
+                                mode="defaults"
+                                availableActions={availableActions}
+                                currentActions={currentActions}
+                                onChange={handleActionChange}
+                                // Custom label for Partial Load to match context
+                                customLabels={isExpeditionPartial ? {
+                                    [OperationAction.GENERATE_NEW_ORDER_PENDING]: "Gerar Pedido Complementar"
+                                } : undefined}
+                            />
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 <DialogFooter>
@@ -216,17 +206,5 @@ export function ReasonModal({ isOpen, onClose, typeCode, typeLabel, editingReaso
                 </DialogFooter>
             </DialogContent>
         </Dialog>
-    );
-}
-
-function ToggleRow({ label, description, checked, onChange }: { label: string, description: string, checked?: boolean, onChange: (v: boolean) => void }) {
-    return (
-        <div className="flex items-center justify-between py-2">
-            <div className="flex-1 pr-4">
-                <Label className="font-medium text-gray-700">{label}</Label>
-                <p className="text-xs text-gray-500">{description}</p>
-            </div>
-            <Switch checked={checked} onCheckedChange={onChange} />
-        </div>
     );
 }

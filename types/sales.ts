@@ -33,13 +33,28 @@ export interface SalesOrder {
     discount_amount: number;
     freight_amount: number;
     total_amount: number;
-    total_weight_kg?: number; // New field for total weight
+    total_weight_kg?: number; // Net weight
+    total_gross_weight_kg?: number; // Gross weight (new)
+
+    // Delivery tracking (new)
+    scheduled_delivery_date?: string | null; // Set when order is added to route
+    delivered_at?: string | null; // Set when delivery is confirmed in return process
 
     delivery_address_json?: any;
     carrier_id?: string | null;
 
     internal_notes?: string | null;
     client_notes?: string | null;
+
+    // Freight Details
+    freight_mode?: 'cif' | 'fob' | 'exw' | 'sender' | 'recipient' | 'none' | 'third_party' | 'own_delivery' | null;
+    route_tag?: string | null;
+    shipping_notes?: string | null;
+    volumes_qty?: number | null;
+    volumes_species?: string | null;
+    volumes_brand?: string | null;
+    volumes_gross_weight_kg?: number | null;
+    volumes_net_weight_kg?: number | null;
 
     created_at: string;
     updated_at: string;
@@ -114,13 +129,34 @@ export interface SalesOrderItem {
     qty_returned?: number;
 
     // Joined
+    unit_weight_kg?: number | null;
+    gross_weight_kg_snapshot?: number | null;
+
     product?: {
         id: string;
         name: string;
         sku?: string;
         un?: string; // unit name
-        base_weight_kg?: number; // New field
+        base_weight_kg?: number; // Legacy
+        net_weight_g_base?: number | null;
+        gross_weight_g_base?: number | null;
+        packagings?: ItemPackaging[]; // Available packagings
     };
+    packaging_id?: string | null;
+    packaging?: ItemPackaging; // Selected packaging details
+}
+
+export interface ItemPackaging {
+    id: string;
+    item_id: string;
+    type: string;
+    label: string;
+    qty_in_base: number;
+    gtin_ean?: string;
+    net_weight_g?: number;
+    gross_weight_g?: number;
+    is_default_sales_unit: boolean;
+    is_active: boolean;
 }
 
 export interface SalesOrderAdjustment {

@@ -1,59 +1,47 @@
 "use client";
 
 import { useState } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs";
+import { Tabs, TabsContent } from "@/components/ui/Tabs";
+import { FormTabsList, FormTabsTrigger } from "@/components/ui/FormTabs";
 import { LogisticsTab } from "./LogisticsTab";
-import { Button } from "@/components/ui/Button";
-import { Settings, Truck, DollarSign, ShoppingBag, FileText, Target } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export function SystemPreferencesMain() {
+    const [activeTab, setActiveTab] = useState("logistics");
+
     return (
         <div className="flex flex-col h-full">
             <PageHeader
                 title="Preferências do Sistema"
                 subtitle="Configurações globais do ERP (impacta todas as empresas)"
-            />
+            >
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                    <FormTabsList className="px-0 border-b-0">
+                        <FormTabsTrigger value="commercial">Comercial</FormTabsTrigger>
+                        <FormTabsTrigger value="logistics">Logística</FormTabsTrigger>
+                        <FormTabsTrigger value="finance">Financeiro</FormTabsTrigger>
+                        <FormTabsTrigger value="purchasing">Compras</FormTabsTrigger>
+                        <FormTabsTrigger value="fiscal">Fiscal</FormTabsTrigger>
+                    </FormTabsList>
+                </Tabs>
+            </PageHeader>
 
-            <div className="p-6">
-                <Tabs defaultValue="logistics" className="w-full space-y-6">
-                    <TabsList className="bg-white border border-gray-200 p-1 rounded-lg w-auto inline-flex gap-1 h-auto">
-                        <TabsTrigger value="commercial" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 h-9 px-4">
-                            <Target className="w-4 h-4 mr-2" />
-                            Comercial
-                        </TabsTrigger>
-                        <TabsTrigger value="logistics" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 h-9 px-4">
-                            <Truck className="w-4 h-4 mr-2" />
-                            Logística
-                        </TabsTrigger>
-                        <TabsTrigger value="finance" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 h-9 px-4">
-                            <DollarSign className="w-4 h-4 mr-2" />
-                            Financeiro
-                        </TabsTrigger>
-                        <TabsTrigger value="purchasing" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 h-9 px-4">
-                            <ShoppingBag className="w-4 h-4 mr-2" />
-                            Compras
-                        </TabsTrigger>
-                        <TabsTrigger value="fiscal" className="data-[state=active]:bg-blue-50 data-[state=active]:text-blue-700 h-9 px-4">
-                            <FileText className="w-4 h-4 mr-2" />
-                            Fiscal
-                        </TabsTrigger>
-                    </TabsList>
-
-                    <TabsContent value="logistics" className="max-w-4xl space-y-6">
+            <div className="p-6 max-w-[1600px] mx-auto w-full">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                    <TabsContent value="logistics" className="mt-0 focus-visible:outline-none">
                         <LogisticsTab />
                     </TabsContent>
 
-                    <TabsContent value="commercial">
+                    <TabsContent value="commercial" className="mt-0 focus-visible:outline-none">
                         <PlaceholderTab title="Comercial" />
                     </TabsContent>
-                    <TabsContent value="finance">
+                    <TabsContent value="finance" className="mt-0 focus-visible:outline-none">
                         <PlaceholderTab title="Financeiro" />
                     </TabsContent>
-                    <TabsContent value="purchasing">
+                    <TabsContent value="purchasing" className="mt-0 focus-visible:outline-none">
                         <PlaceholderTab title="Compras" />
                     </TabsContent>
-                    <TabsContent value="fiscal">
+                    <TabsContent value="fiscal" className="mt-0 focus-visible:outline-none">
                         <PlaceholderTab title="Fiscal" />
                     </TabsContent>
                 </Tabs>

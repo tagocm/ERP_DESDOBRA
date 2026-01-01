@@ -4,15 +4,16 @@
 import { SalesOrder, SalesOrderPayment } from "@/types/sales";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
 import { Trash2, Plus } from "lucide-react";
 
 interface TabProps {
     data: Partial<SalesOrder>;
     onChange: (field: keyof SalesOrder, value: any) => void;
+    disabled?: boolean;
 }
 
-export function TabPayment({ data, onChange }: TabProps) {
+export function TabPayment({ data, onChange, disabled }: TabProps) {
     const payments = data.payments || [];
 
     const handleAddPayment = () => {
@@ -77,6 +78,7 @@ export function TabPayment({ data, onChange }: TabProps) {
                                     className="text-center h-8"
                                     value={p.installment_number}
                                     onChange={(e) => handleUpdatePayment(index, 'installment_number', e.target.value)}
+                                    disabled={disabled}
                                 />
                             </div>
                             <div className="col-span-3">
@@ -85,6 +87,7 @@ export function TabPayment({ data, onChange }: TabProps) {
                                     className="h-8"
                                     value={p.due_date}
                                     onChange={(e) => handleUpdatePayment(index, 'due_date', e.target.value)}
+                                    disabled={disabled}
                                 />
                             </div>
                             <div className="col-span-3">
@@ -93,28 +96,36 @@ export function TabPayment({ data, onChange }: TabProps) {
                                     className="h-8 text-right font-medium text-gray-900"
                                     value={p.amount}
                                     onChange={(e) => handleUpdatePayment(index, 'amount', e.target.value)}
+                                    disabled={disabled}
                                 />
                             </div>
                             <div className="col-span-3">
                                 <Select
                                     value={p.status}
-                                    onChange={(e) => handleUpdatePayment(index, 'status', e.target.value)}
-                                    className="h-8 text-xs"
+                                    onValueChange={(val) => handleUpdatePayment(index, 'status', val)}
+                                    disabled={disabled}
                                 >
-                                    <option value="pending">Pendente</option>
-                                    <option value="paid">Pago</option>
-                                    <option value="discounted">Descontado</option>
+                                    <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="pending">Pendente</SelectItem>
+                                        <SelectItem value="paid">Pago</SelectItem>
+                                        <SelectItem value="discounted">Descontado</SelectItem>
+                                    </SelectContent>
                                 </Select>
                             </div>
                             <div className="col-span-2 flex justify-end">
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-red-500"
-                                    onClick={() => handleRemovePayment(index)}
-                                >
-                                    <Trash2 className="w-4 h-4" />
-                                </Button>
+                                {!disabled && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-red-500"
+                                        onClick={() => handleRemovePayment(index)}
+                                    >
+                                        <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -124,9 +135,11 @@ export function TabPayment({ data, onChange }: TabProps) {
                 </div>
             </div>
 
-            <Button variant="outline" className="border-dashed w-full" onClick={handleAddPayment}>
-                <Plus className="w-4 h-4 mr-2" /> Adicionar Parcela
-            </Button>
+            {!disabled && (
+                <Button variant="outline" className="border-dashed w-full" onClick={handleAddPayment}>
+                    <Plus className="w-4 h-4 mr-2" /> Adicionar Parcela
+                </Button>
+            )}
         </div>
     );
 }

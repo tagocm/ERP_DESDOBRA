@@ -14,12 +14,6 @@ export async function saveSalesOrderAction(
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
         const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-        console.log("SERVER ACTION DEBUG:");
-        console.log("URL:", supabaseUrl);
-        console.log("Service Key Present:", !!supabaseServiceRoleKey);
-        console.log("Service Key Length:", supabaseServiceRoleKey?.length);
-        console.log("Service Key Start:", supabaseServiceRoleKey?.substring(0, 10));
-
         if (!supabaseUrl || !supabaseServiceRoleKey) {
             throw new Error("Configuração do servidor incompleta: SUPABASE_URL ou SERVICE_ROLE_KEY faltando.");
         }
@@ -31,6 +25,27 @@ export async function saveSalesOrderAction(
                 persistSession: false
             }
         });
+
+        // 1. Save Document Header
+        const savedDoc = await upsertSalesDocument(supabaseAdmin, doc);
+
+        // 2. Save/Update Items
+        const savedItems = [];
+        for (const item of items) {
+            // Link item to document
+            const itemPayload = { ...item, document_id: savedDoc.id };
+            const savedItem = await upsertSalesItem(supabaseAdmin, itemPayload);
+            savedItems.push(savedItem);
+        }
+
+        // 3. Delete Removed Items
+        if (deletedItemIds && deletedItemIds.length > 0) {
+            for (const id of deletedItemIds) {
+                await deleteSalesItem(supabaseAdmin, id);
+            }
+        }
+
+        return { success: true, data: { ...savedDoc, items: savedItems } };
 
     } catch (e: any) {
         console.error("Server Action Error:", e);

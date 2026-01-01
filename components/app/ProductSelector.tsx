@@ -10,9 +10,10 @@ interface ProductSelectorProps {
     value?: string;
     onChange: (product: any) => void;
     className?: string;
+    disabled?: boolean;
 }
 
-export function ProductSelector({ value, onChange, className }: ProductSelectorProps) {
+export function ProductSelector({ value, onChange, className, disabled }: ProductSelectorProps) {
     const { selectedCompany } = useCompany();
     const supabase = createClient();
 
@@ -31,7 +32,7 @@ export function ProductSelector({ value, onChange, className }: ProductSelectorP
         const fetchProduct = async () => {
             const { data } = await supabase
                 .from('items')
-                .select('id, name, sku, uom')
+                .select('id, name, sku, uom, net_weight_g_base, gross_weight_g_base')
                 .eq('id', value)
                 .single();
             if (data) {
@@ -41,6 +42,14 @@ export function ProductSelector({ value, onChange, className }: ProductSelectorP
         };
         fetchProduct();
     }, [value, supabase, selectedProduct]);
+
+    // Handle external clearing
+    useEffect(() => {
+        if (!value && selectedProduct) {
+            setSelectedProduct(null);
+            setSearch("");
+        }
+    }, [value, selectedProduct]);
 
     // Fetch products based on search
     useEffect(() => {
@@ -54,7 +63,7 @@ export function ProductSelector({ value, onChange, className }: ProductSelectorP
             try {
                 let query = supabase
                     .from('items')
-                    .select('id, name, sku, uom')
+                    .select('id, name, sku, uom, net_weight_g_base, gross_weight_g_base')
                     .eq('company_id', selectedCompany.id)
                     .limit(20);
 
@@ -125,13 +134,17 @@ export function ProductSelector({ value, onChange, className }: ProductSelectorP
                     placeholder="Digite nome ou SKU..."
                     value={search}
                     onChange={handleInputChange}
-                    onFocus={() => setOpen(true)}
+                    onFocus={() => {
+                        if (!disabled) setOpen(true);
+                    }}
+                    disabled={disabled}
                 />
-                {selectedProduct && (
+                {selectedProduct && !disabled && (
                     <button
                         type="button"
                         onClick={handleClear}
                         className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-md transition-colors"
+                        disabled={disabled}
                     >
                         <X className="h-4 w-4 text-gray-400" />
                     </button>

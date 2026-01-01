@@ -39,6 +39,7 @@ export interface Organization {
     minimum_order_value: number | null;
     preferred_carrier_id: string | null;
     region_route: string | null;
+    payment_mode_id: string | null; // New field for Payment Mode (Boleto, Pix, etc)
 
     // New Fiscal Fields
     tax_regime: string | null;
@@ -162,13 +163,16 @@ export async function getOrganizationById(
 ) {
     const { data, error } = await supabase
         .from("organizations")
-        .select("*")
+        .select(`
+            *,
+            addresses(*)
+        `)
         .eq("company_id", companyId)
         .eq("id", id)
         .single();
 
     if (error) throw error;
-    return data as Organization;
+    return data as Organization & { addresses: Address[] };
 }
 
 export async function createOrganization(
@@ -509,4 +513,92 @@ export async function getPaymentTerms(
         throw error;
     }
     return data as PaymentTerm[];
+}
+
+export interface PaymentMode {
+    id: string;
+    company_id: string;
+    name: string;
+    is_active: boolean;
+}
+
+export async function getPaymentModes(
+    supabase: SupabaseClient,
+    companyId: string
+) {
+    const { data, error } = await supabase
+        .from("payment_modes")
+        .select("*")
+        .eq("company_id", companyId)
+        .eq("is_active", true)
+        .order("name");
+
+    if (error) {
+        if (error.code === '42P01') {
+            return [];
+        }
+        throw error;
+    }
+    return data as PaymentMode[];
+}
+
+/**
+ * Get all carriers (organizations with 'carrier' role)
+ * @param supabase - Supabase client
+ * @param companyId - Company ID
+ * @param search - Optional search term (name or document)
+ * @returns List of carrier organizations
+ */
+export async function getCarriers(
+    supabase: SupabaseClient,
+    companyId: string,
+    search?: string
+) {
+    let query = supabase
+        .from("organizations")
+        .select(`
+            id,
+            trade_name,
+            legal_name,
+            document_number,
+            addresses!inner(city, state)
+        `)
+        .eq("company_id", companyId)
+        .eq("status", "active")
+        .is("deleted_at", null);
+
+    // Filter by carrier role using organization_roles table
+    const { data: carrierIds, error: rolesError } = await supabase
+        .from("organization_roles")
+        .select("organization_id")
+        .eq("company_id", companyId)
+        .eq("role", "carrier")
+        .is("deleted_at", null);
+
+    if (rolesError) {
+        console.error("Error fetching carrier roles:", rolesError);
+        return [];
+    }
+
+    if (!carrierIds || carrierIds.length === 0) {
+        return [];
+    }
+
+    const carrierIdList = carrierIds.map(r => r.organization_id);
+    query = query.in("id", carrierIdList);
+
+    if (search) {
+        query = query.or(`trade_name.ilike.%${search}%,legal_name.ilike.%${search}%,document_number.ilike.%${search}%`);
+    }
+
+    query = query.order("trade_name", { ascending: true });
+
+    const { data, error } = await query;
+
+    if (error) {
+        console.error("Error fetching carriers:", error);
+        return [];
+    }
+
+    return data || [];
 }

@@ -30,7 +30,13 @@ export function ExpedicaoClient({ initialRoutes }: ExpedicaoClientProps) {
         if (selectedRoute) {
             const updated = initialRoutes.find(r => r.id === selectedRoute.id);
             if (updated) {
-                setSelectedRoute(updated);
+                if (updated.status === 'cancelada') {
+                    setSelectedRoute(null);
+                } else {
+                    setSelectedRoute(updated);
+                }
+            } else {
+                setSelectedRoute(null);
             }
         }
     }, [initialRoutes]);
@@ -112,9 +118,9 @@ export function ExpedicaoClient({ initialRoutes }: ExpedicaoClientProps) {
             // Check if same week
             const start = format(new Date(), 'ww-yyyy');
             const target = format(routeDate, 'ww-yyyy');
-            return start === target;
+            return start === target && route.status !== 'cancelada';
         }
-        return true;
+        return route.status !== 'cancelada';
     });
 
     return (

@@ -1,0 +1,1 @@
+ALTER TABLE delivery_route_orders ADD COLUMN IF NOT EXISTS volumes INTEGER DEFAULT 1;

@@ -20,9 +20,10 @@ interface OrderItem {
 interface OrderItemsPopoverProps {
     orderId: string;
     children: React.ReactNode;
+    onOpenChange?: (open: boolean) => void;
 }
 
-export function OrderItemsPopover({ orderId, children }: OrderItemsPopoverProps) {
+export function OrderItemsPopover({ orderId, children, onOpenChange }: OrderItemsPopoverProps) {
     const [isHovered, setIsHovered] = useState(false);
     const [items, setItems] = useState<OrderItem[]>([]);
     const [loading, setLoading] = useState(false);
@@ -33,6 +34,11 @@ export function OrderItemsPopover({ orderId, children }: OrderItemsPopoverProps)
     const orderTotal = items.reduce((sum, item) => sum + ((item.unit_price || 0) * (item.quantity || 1)), 0);
 
     const supabase = createClient();
+
+    // Effect to notify parent of state changes
+    useEffect(() => {
+        onOpenChange?.(isHovered);
+    }, [isHovered, onOpenChange]);
 
     // Fetch items when popover opens
     useEffect(() => {

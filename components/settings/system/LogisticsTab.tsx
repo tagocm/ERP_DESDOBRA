@@ -1,4 +1,5 @@
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
+import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/Accordion";
 import { ReasonList } from "./ReasonList";
 import { Truck, RotateCcw } from "lucide-react";
@@ -38,38 +39,34 @@ export function LogisticsTab() {
                 </p>
             </div>
 
-            {SECTIONS.map((section) => (
-                <Card key={section.id}>
-                    <CardHeader>
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-gray-100 rounded-lg">
-                                <section.icon className="w-5 h-5 text-gray-600" />
-                            </div>
-                            <div>
-                                <CardTitle>{section.title}</CardTitle>
-                                <CardDescription>{section.description}</CardDescription>
-                            </div>
-                        </div>
-                    </CardHeader>
-                    <CardContent>
-                        <Accordion type="single" collapsible className="w-full">
-                            {section.types.map((type) => (
-                                <AccordionItem key={type.code} value={type.code}>
-                                    <AccordionTrigger className="hover:no-underline hover:bg-gray-50 px-4 rounded-lg">
-                                        <div className="flex items-center gap-2 text-left">
-                                            <span className="font-medium text-gray-800">{type.label}</span>
-                                            <span className="text-xs text-gray-400 font-mono hidden sm:inline-block">({type.code})</span>
-                                        </div>
-                                    </AccordionTrigger>
-                                    <AccordionContent className="p-4 pt-2">
-                                        <ReasonList typeCode={type.code} typeLabel={type.label} />
-                                    </AccordionContent>
-                                </AccordionItem>
-                            ))}
-                        </Accordion>
-                    </CardContent>
-                </Card>
-            ))}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                {SECTIONS.map((section) => (
+                    <Card key={section.id} className="h-full">
+                        <CardHeaderStandard
+                            icon={<section.icon className="w-5 h-5" />}
+                            title={section.title}
+                            description={section.description}
+                        />
+                        <CardContent>
+                            <Accordion type="single" collapsible className="w-full">
+                                {section.types.map((type) => (
+                                    <AccordionItem key={type.code} value={type.code}>
+                                        <AccordionTrigger className="hover:no-underline hover:bg-gray-50 px-4 rounded-lg">
+                                            <div className="flex items-center gap-2 text-left">
+                                                <span className="font-medium text-gray-800">{type.label}</span>
+                                                <span className="text-xs text-gray-400 font-mono hidden xl:inline-block">({type.code})</span>
+                                            </div>
+                                        </AccordionTrigger>
+                                        <AccordionContent className="p-4 pt-2">
+                                            <ReasonList typeCode={type.code} typeLabel={type.label} />
+                                        </AccordionContent>
+                                    </AccordionItem>
+                                ))}
+                            </Accordion>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
         </div>
     );
 }
