@@ -139,12 +139,7 @@ export function SalesFilters({ filters, onChange }: SalesFiltersProps) {
                                 className="pl-9"
                                 value={localFilters.search || ''}
                                 onChange={e => setLocalFilters({ ...localFilters, search: e.target.value })}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                        e.preventDefault();
-                                        handleApply();
-                                    }
-                                }}
+                                onKeyDown={e => e.key === 'Enter' && handleApply()}
                             />
                         </div>
                     </div>
@@ -155,12 +150,7 @@ export function SalesFilters({ filters, onChange }: SalesFiltersProps) {
                             placeholder="Filtrar por cidade..."
                             value={localFilters.clientSearch || ''}
                             onChange={e => setLocalFilters({ ...localFilters, clientSearch: e.target.value })}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    handleApply();
-                                }
-                            }}
+                            onKeyDown={e => e.key === 'Enter' && handleApply()}
                         />
                     </div>
 

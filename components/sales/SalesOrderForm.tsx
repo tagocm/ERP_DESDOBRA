@@ -49,7 +49,6 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
     const [data, setData] = useState<Partial<SalesOrder>>(emptyDoc);
     const [deletedItemIds, setDeletedItemIds] = useState<string[]>([]);
     const [activeTab, setActiveTab] = useState("general");
-    const isLocked = !isNew && (data.status_logistic === 'em_rota' || data.status_logistic === 'entregue' || data.status_logistic === 'nao_entregue');
 
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
@@ -189,7 +188,7 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
                         <Button variant="outline" onClick={() => router.back()}>
                             Cancelar
                         </Button>
-                        <Button onClick={handleSave} disabled={saving || isLocked}>
+                        <Button onClick={handleSave} disabled={saving}>
                             {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                             <Save className="w-4 h-4 mr-2" /> Salvar
                         </Button>
@@ -209,17 +208,6 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
                 </div>
             </PageHeader>
 
-            <div className="px-6 pb-0">
-                {isLocked && (
-                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-center gap-3 text-amber-800 mb-6 shadow-sm">
-                        <Ban className="w-5 h-5" />
-                        <div className="text-sm font-medium">
-                            Este pedido está com status logística <strong>{data.status_logistic?.replace('_', ' ').toUpperCase()}</strong> e não pode mais ser alterado.
-                        </div>
-                    </div>
-                )}
-            </div>
-
             <div className="px-6">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                     <FormTabsList className="px-0 border-b-0 space-x-0 bg-transparent">
@@ -234,16 +222,16 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
                     <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden mt-6">
                         <div className="p-6">
                             <TabsContent value="general" className="focus-visible:outline-none mt-0">
-                                <TabGeneral data={data} onChange={handleChange} disabled={isLocked} />
+                                <TabGeneral data={data} onChange={handleChange} />
                             </TabsContent>
                             <TabsContent value="items" className="focus-visible:outline-none mt-0">
-                                <TabItems items={data.items || []} onChange={(items) => handleItemChangeWrapper('items', items)} orderId={data.id} disabled={isLocked} />
+                                <TabItems items={data.items || []} onChange={(items) => handleItemChangeWrapper('items', items)} orderId={data.id} />
                             </TabsContent>
                             <TabsContent value="payment" className="focus-visible:outline-none mt-0">
-                                <TabPayment data={data} onChange={handleChange} disabled={isLocked} />
+                                <TabPayment data={data} onChange={handleChange} />
                             </TabsContent>
                             <TabsContent value="delivery" className="focus-visible:outline-none mt-0">
-                                <TabDelivery data={data} onChange={handleChange} disabled={isLocked} />
+                                <TabDelivery data={data} onChange={handleChange} />
                             </TabsContent>
                             <TabsContent value="fiscal" className="focus-visible:outline-none mt-0">
                                 {data.id ? <TabFiscal order={data as any} /> : <div className="p-12 text-center text-gray-400">Salve o pedido para gerenciar documentos fiscais</div>}

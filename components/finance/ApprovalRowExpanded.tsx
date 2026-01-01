@@ -5,25 +5,22 @@ import { createClient } from "@/lib/supabaseBrowser";
 import { ArTitle, ArInstallment } from "@/types/financial";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Label } from "@/components/ui/Label";
 import { useToast } from "@/components/ui/use-toast";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
+import { Card, CardContent } from "@/components/ui/Card";
 import {
     Save,
     AlertTriangle,
     CheckCircle,
-    PauseCircle,
     Trash2,
     Plus,
-    DollarSign,
-    Link2,
-    Link2Off,
-    Loader2,
     Coins,
-    X
+    Link2Off,
+    Loader2
 } from "lucide-react";
 import { PaymentMethodSelect } from "./PaymentMethodSelect";
+import { InstallmentPaymentManager } from "./InstallmentPaymentManager";
 import {
     Popover,
     PopoverContent,
@@ -44,18 +41,29 @@ interface Props {
     title: ArTitle;
     onRefresh: () => void;
     onApprove: (id: string) => void;
-    onHold: (id: string) => void;
     onDeleteTitle: (id: string) => void;
 }
 
-export function ApprovalRowExpanded({ title, onRefresh, onApprove, onHold, onDeleteTitle }: Props) {
-    const [installments, setInstallments] = useState<ArInstallment[]>([]);
+// Helper to format currency input (0,00)
+const handleCurrencyInput = (val: string, setter: (num: number, str: string) => void) => {
+    const numbers = val.replace(/\D/g, "");
+    const amount = Number(numbers) / 100;
+    const str = amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    setter(amount, str);
+};
+
+// Helper for initial format
+const formatToInput = (val: number) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+export function ApprovalRowExpanded({ title, onRefresh, onApprove, onDeleteTitle }: Props) {
+    const [installments, setInstallments] = useState<(ArInstallment & { _amountInput?: string, _overridden?: boolean })[]>([]);
     const [loading, setLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [generalPaymentMethod, setGeneralPaymentMethod] = useState(title.payment_method_snapshot || "");
     const [showDeleteTitleDialog, setShowDeleteTitleDialog] = useState(false);
     const { toast } = useToast();
     const supabase = createClient();
+    const [payingInstId, setPayingInstId] = useState<string | null>(null);
 
     // Fetch Installments
     const fetchInstallments = async () => {
@@ -65,7 +73,16 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onHold, onDel
             .select('*')
             .eq('ar_title_id', title.id)
             .order('installment_number', { ascending: true });
-        if (data) setInstallments(data as any);
+
+        if (data) {
+            // Map to state with input helpers
+            const mapped = data.map((d: ArInstallment) => ({
+                ...d,
+                _amountInput: formatToInput(d.amount_original),
+                _overridden: false // Reset on fetch
+            }));
+            setInstallments(mapped);
+        }
         setLoading(false);
     };
 
@@ -78,31 +95,32 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onHold, onDel
 
     const handleGeneralMethodChange = (newVal: string) => {
         setGeneralPaymentMethod(newVal);
-        // Apply to all installments that are not overrides? 
-        // User said "Aplicar a nova modalidade em todas as parcelas automaticamente. Marcar que a parcela está sincronizada"
-        // This implies forcing all.
-        const newInsts = installments.map(i => ({ ...i, payment_method: newVal }));
+        const newInsts = installments.map(i => {
+            if (!i._overridden && i.status === 'OPEN') { // Only update if not overridden and open
+                return { ...i, payment_method: newVal };
+            }
+            return i;
+        });
         setInstallments(newInsts);
     };
 
-    const handleInstallmentChange = (index: number, field: keyof ArInstallment, value: any) => {
+    const handleInstallmentChange = (index: number, field: keyof ArInstallment | '_amountInput', value: any) => {
         const newInstallments = [...installments];
-        newInstallments[index] = { ...newInstallments[index], [field]: value };
+        const current = newInstallments[index];
+
+        if (field === '_amountInput') {
+            // Handle Currency Logic
+            handleCurrencyInput(value, (num, str) => {
+                newInstallments[index] = { ...current, amount_original: num, _amountInput: str };
+            });
+        } else if (field === 'payment_method') {
+            // Mark as overridden
+            newInstallments[index] = { ...current, payment_method: value, _overridden: true };
+        } else {
+            // Standard field
+            newInstallments[index] = { ...current, [field]: value };
+        }
         setInstallments(newInstallments);
-    };
-
-    const redistributeValues = (insts: ArInstallment[]) => {
-        const count = insts.length;
-        if (count === 0) return insts;
-        const total = title.amount_total;
-        const base = Math.floor((total / count) * 100) / 100;
-        const remainder = Math.round((total - base * count) * 100) / 100;
-
-        return insts.map((inst, idx) => ({
-            ...inst,
-            amount_original: idx === count - 1 ? Math.round((base + remainder) * 100) / 100 : base,
-            amount_open: idx === count - 1 ? Math.round((base + remainder) * 100) / 100 : base, // Simplified, should account for paid
-        }));
     };
 
     const handleAddInstallment = () => {
@@ -110,7 +128,7 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onHold, onDel
         let nextDate = new Date().toISOString().split('T')[0];
         if (lastInst) {
             const date = new Date(lastInst.due_date);
-            date.setDate(date.getDate() + 30); // Default 30 days or cadence
+            date.setDate(date.getDate() + 30);
             nextDate = date.toISOString().split('T')[0];
         }
 
@@ -122,13 +140,11 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onHold, onDel
             amount_open: 0,
             status: 'OPEN',
             payment_method: generalPaymentMethod,
-            interest_amount: 0,
-            penalty_amount: 0,
-            discount_amount: 0
+            _amountInput: "0,00",
+            _overridden: false
         };
 
-        const newInsts = redistributeValues([...installments, newInst]);
-        setInstallments(newInsts as ArInstallment[]);
+        setInstallments([...installments, newInst]);
     };
 
     const handleRemoveInstallment = (index: number) => {
@@ -137,12 +153,10 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onHold, onDel
             toast({ title: "Esta parcela possui pagamentos e não pode ser removida.", variant: "destructive" });
             return;
         }
-
         const filtered = installments.filter((_, i) => i !== index);
-        // Correct numbers
+        // Renumber
         const renumbered = filtered.map((inst, i) => ({ ...inst, installment_number: i + 1 }));
-        const redistributed = redistributeValues(renumbered);
-        setInstallments(redistributed);
+        setInstallments(renumbered);
     };
 
     const totalInstallments = installments.reduce((acc, curr) => acc + Number(curr.amount_original || 0), 0);
@@ -151,13 +165,13 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onHold, onDel
 
     const handleSave = async () => {
         if (!isSumValid) {
-            toast({ title: "A soma das parcelas não bate com o total", variant: "destructive" });
+            toast({ title: "A soma das parcelas não confere com o total. Ajuste os valores.", variant: "destructive" });
             return;
         }
 
         setIsSaving(true);
         try {
-            // 1. Update Title Info if changed
+            // Update Title Config if changed
             if (generalPaymentMethod !== title.payment_method_snapshot) {
                 await fetch(`/api/finance/titles/${title.id}`, {
                     method: 'PATCH',
@@ -166,12 +180,12 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onHold, onDel
                 });
             }
 
-            // 2. Sync Installments
+            // Upsert Installments (PUT assumes replacement or smart update)
             const response = await fetch(`/api/finance/titles/${title.id}/installments`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(installments.map(i => ({
-                    id: i.id, // existings have ID, new ones don't
+                    id: i.id,
                     installment_number: i.installment_number,
                     due_date: i.due_date,
                     amount_original: i.amount_original,
@@ -193,311 +207,237 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onHold, onDel
         }
     };
 
-    const [payingInstId, setPayingInstId] = useState<string | null>(null);
-    const [payAmount, setPayAmount] = useState("");
-    const [payMethod, setPayMethod] = useState("");
-    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-
-    const handleRegisterPayment = async (inst: ArInstallment) => {
-        if (!payAmount || Number(payAmount) <= 0) {
-            toast({ title: "Valor inválido", variant: "destructive" });
-            return;
-        }
-        setIsProcessingPayment(true);
-        try {
-            const response = await fetch(`/api/finance/installments/${inst.id}/pay`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    amount: payAmount,
-                    method: payMethod || inst.payment_method,
-                    paid_at: new Date().toISOString()
-                })
-            });
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.error || 'Erro ao processar pagamento');
-            }
-            toast({ title: "Pagamento registrado!" });
-            setPayingInstId(null);
-            setPayAmount("");
-            fetchInstallments();
-            onRefresh();
-        } catch (error: any) {
-            toast({ title: "Erro no pagamento", description: error.message, variant: "destructive" });
-        } finally {
-            setIsProcessingPayment(false);
-        }
-    };
-
-    if (loading) return <div className="p-12 text-center text-gray-500 flex flex-col items-center gap-2">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-        Carregando detalhes...
-    </div>;
+    if (loading) return (
+        <div className="p-10 text-center">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-500 mx-auto" />
+            <span className="text-xs font-medium text-gray-400 mt-2 block">Carregando detalhes...</span>
+        </div>
+    );
 
     return (
-        <div className="bg-white border-x border-b p-6 space-y-6 shadow-md animate-in fade-in slide-in-from-top-4 duration-300">
-
-            {/* Header: Global Settings & Summary */}
-            <div className="flex flex-col md:flex-row gap-6 justify-between items-start">
+        <Card className="border-gray-100 shadow-sm bg-white overflow-hidden">
+            {/* Simple Summary Header */}
+            <div className="px-6 py-4 bg-gray-50 flex flex-wrap gap-6 items-center border-b border-gray-100/50">
                 <div className="flex gap-8">
-                    <div className="space-y-1">
-                        <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Total Título</span>
-                        <div className="text-2xl font-black text-gray-900">{formatCurrency(title.amount_total)}</div>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Valor do Título</span>
+                        <span className="text-lg font-bold text-gray-900">{formatCurrency(title.amount_total)}</span>
                     </div>
-                    <div className="space-y-1">
-                        <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Soma Parcelas</span>
-                        <div className={`text-2xl font-black ${isSumValid ? 'text-green-600' : 'text-red-600'}`}>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Soma Parcelas</span>
+                        <div className={`flex items-center gap-2 text-lg font-bold ${isSumValid ? 'text-emerald-600' : 'text-red-600'}`}>
                             {formatCurrency(totalInstallments)}
-                            {!isSumValid && (
-                                <span className="text-xs font-medium ml-2 opacity-70">
-                                    ({diff > 0 ? '+' : ''}{formatCurrency(diff)})
-                                </span>
-                            )}
+                            {!isSumValid && <AlertTriangle className="w-4 h-4 text-red-500" />}
                         </div>
                     </div>
-                    <div className="space-y-1">
-                        <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Saldo em Aberto</span>
-                        <div className="text-2xl font-black text-blue-600 font-mono">{formatCurrency(title.amount_open)}</div>
+                    <div className="flex flex-col">
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">A Receber</span>
+                        <span className="text-lg font-bold text-blue-600">{formatCurrency(title.amount_open)}</span>
                     </div>
                 </div>
 
-                <div className="flex flex-col gap-1 w-full md:w-64">
-                    <Label className="text-[10px] text-gray-500 uppercase font-bold">Modalidade Geral</Label>
-                    <PaymentMethodSelect
-                        value={generalPaymentMethod}
-                        onChange={handleGeneralMethodChange}
-                        className="h-10 border-gray-200 shadow-sm"
-                    />
-                    <p className="text-[10px] text-gray-400 italic">Mudar gera replicação em massa.</p>
+                <div className="ml-auto">
+                    <div className="flex flex-col items-end">
+                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-1">Aplicação Global</span>
+                        <PaymentMethodSelect
+                            value={generalPaymentMethod}
+                            onChange={handleGeneralMethodChange}
+                            className="h-8 text-xs border-gray-200 w-[200px]"
+                        />
+                    </div>
                 </div>
             </div>
 
-            {/* Installments Table */}
-            <div className="space-y-3">
-                <div className="flex justify-between items-end">
-                    <h4 className="text-sm font-bold text-gray-700 flex items-center gap-2">
-                        Parcelas <Badge variant="outline" className="text-blue-600 border-blue-100 bg-blue-50/50">{installments.length}</Badge>
-                    </h4>
+            <CardContent className="p-0">
+                {/* Actions Bar */}
+                <div className="flex justify-between items-center px-6 py-4 border-b border-gray-100">
+                    <h4 className="font-bold text-sm text-gray-700">Cronograma Financeiro ({installments.length} parcelas)</h4>
                     <Button
                         variant="ghost"
                         size="sm"
                         onClick={handleAddInstallment}
-                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8 gap-1 font-bold text-xs"
+                        disabled={title.status !== 'PENDING_APPROVAL'}
+                        className="h-8 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                     >
-                        <Plus className="w-4 h-4" /> Adicionar Parcela
+                        <Plus className="w-3.5 h-3.5 mr-1" /> Adicionar Parcela
                     </Button>
                 </div>
 
-                <div className="border rounded-xl bg-white shadow-sm overflow-hidden">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="bg-gray-50/50 text-gray-400 text-[10px] uppercase font-bold border-b">
-                                <th className="px-4 py-3 text-left w-12">#</th>
-                                <th className="px-4 py-3 text-left w-44">Vencimento</th>
-                                <th className="px-4 py-3 text-left w-40">Valor</th>
-                                <th className="px-4 py-3 text-left">Modalidade</th>
-                                <th className="px-4 py-3 text-left w-32">Pago</th>
-                                <th className="px-4 py-3 text-left w-32">Saldo</th>
-                                <th className="px-4 py-3 text-center">Status</th>
-                                <th className="px-4 py-3 text-right">Ações</th>
+                {/* Table */}
+                <div className="overflow-x-auto">
+                    <table className="w-full">
+                        <thead className="bg-gray-50/50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-12">#</th>
+                                <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-36">Vencimento</th>
+                                <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-36">Valor</th>
+                                <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-32">Pago</th>
+                                <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-32">Saldo</th>
+                                <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Modalidade</th>
+                                <th className="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider w-24">Status</th>
+                                <th className="px-6 py-3 text-right text-[10px] font-bold text-gray-400 uppercase tracking-wider w-28">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50">
                             {installments.map((inst, index) => {
-                                const isOverride = inst.payment_method !== generalPaymentMethod && generalPaymentMethod !== "";
+                                const isOverride = inst._overridden;
+                                const isEditable = title.status === 'PENDING_APPROVAL' && inst.status === 'OPEN';
+
                                 return (
-                                    <tr key={index} className="hover:bg-gray-50/30 transition-colors group">
-                                        <td className="px-4 py-4 font-black text-gray-400">{inst.installment_number}</td>
-                                        <td className="px-4 py-4">
-                                            <Input
-                                                type="date"
-                                                className="h-9 border-transparent group-hover:border-gray-200 transition-all focus:bg-white"
-                                                value={inst.due_date}
-                                                onChange={(e) => handleInstallmentChange(index, 'due_date', e.target.value)}
-                                            />
-                                        </td>
-                                        <td className="px-4 py-4">
-                                            <div className="relative group/val">
+                                    <tr key={index} className="group hover:bg-gray-50/50 transition-colors">
+                                        <td className="px-6 py-3 font-bold text-gray-500 text-xs">{inst.installment_number}</td>
+                                        <td className="px-6 py-3">
+                                            {isEditable ? (
                                                 <Input
-                                                    type="number"
-                                                    className="h-9 font-bold bg-transparent border-transparent group-hover:border-gray-200 pl-6"
-                                                    value={inst.amount_original}
-                                                    onChange={(e) => handleInstallmentChange(index, 'amount_original', e.target.value)}
+                                                    type="date"
+                                                    className="h-8 text-xs border-transparent bg-transparent hover:border-gray-200 focus:bg-white focus:border-blue-300 w-full"
+                                                    value={inst.due_date}
+                                                    onChange={(e) => handleInstallmentChange(index, 'due_date', e.target.value)}
                                                 />
-                                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-300 text-xs">R$</span>
-                                            </div>
+                                            ) : (
+                                                <span className="text-xs text-gray-700 font-medium">{new Date(inst.due_date).toLocaleDateString('pt-BR')}</span>
+                                            )}
                                         </td>
-                                        <td className="px-4 py-4">
-                                            <div className="flex items-center gap-2">
-                                                <PaymentMethodSelect
-                                                    value={inst.payment_method}
-                                                    onChange={(val) => handleInstallmentChange(index, 'payment_method', val)}
-                                                    className="h-8 py-0 px-2 text-xs border-transparent hover:border-gray-100"
-                                                />
-                                                {isOverride ? (
-                                                    <span title="Diverge do geral (Override)" className="text-orange-500"><Link2Off className="w-3 h-3" /></span>
-                                                ) : (
-                                                    <span title="Seguindo o geral" className="text-blue-300"><Link2 className="w-3 h-3" /></span>
-                                                )}
-                                            </div>
+                                        <td className="px-6 py-3">
+                                            {isEditable ? (
+                                                <div className="relative">
+                                                    <Input
+                                                        type="text"
+                                                        className="h-8 text-xs pl-6 border-transparent bg-transparent hover:border-gray-200 focus:bg-white focus:border-blue-300 w-full font-bold text-gray-900"
+                                                        value={inst._amountInput}
+                                                        onChange={(e) => handleInstallmentChange(index, '_amountInput', e.target.value)}
+                                                    />
+                                                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">R$</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-xs font-bold text-gray-900">{formatCurrency(inst.amount_original)}</span>
+                                            )}
                                         </td>
-                                        <td className="px-4 py-4 text-xs font-medium text-green-600">
+                                        <td className="px-6 py-3 text-xs font-bold text-emerald-600">
                                             {formatCurrency(inst.amount_paid)}
                                         </td>
-                                        <td className="px-4 py-4 text-xs font-bold text-gray-700">
+                                        <td className="px-6 py-3 text-xs font-bold text-blue-600">
                                             {formatCurrency(inst.amount_open)}
                                         </td>
-                                        <td className="px-4 py-4 text-center">
-                                            <Badge
-                                                variant="outline"
-                                                className={
-                                                    inst.status === 'PAID' ? "bg-green-50 text-green-600 border-green-100" :
-                                                        inst.status === 'PARTIAL' ? "bg-orange-50 text-orange-600 border-orange-100" :
-                                                            "bg-blue-50 text-blue-600 border-blue-100"
-                                                }
-                                            >
-                                                {inst.status}
+                                        <td className="px-6 py-3">
+                                            <div className="flex items-center gap-2">
+                                                {isEditable ? (
+                                                    <PaymentMethodSelect
+                                                        value={inst.payment_method}
+                                                        onChange={(val) => handleInstallmentChange(index, 'payment_method', val)}
+                                                        className="h-8 text-xs border-transparent bg-transparent hover:border-gray-200 focus:bg-white"
+                                                    />
+                                                ) : (
+                                                    <span className="text-xs text-gray-600 font-medium">{inst.payment_method}</span>
+                                                )}
+                                                {isOverride && <Link2Off className="w-3 h-3 text-orange-400" title="Manual" />}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-3">
+                                            <Badge variant="outline" className={cn(
+                                                "text-[9px] font-bold px-2 py-0.5 uppercase",
+                                                inst.status === 'PAID' ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+                                                    inst.status === 'PARTIAL' ? "bg-indigo-50 text-indigo-700 border-indigo-100" : "bg-gray-50 text-gray-600"
+                                            )}>
+                                                {inst.status === 'OPEN' ? 'Aberto' : inst.status === 'PAID' ? 'Pago' : 'Parcial'}
                                             </Badge>
                                         </td>
-                                        <td className="px-4 py-4 text-right">
-                                            <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-
-                                                {/* Add Payment Popover */}
+                                        <td className="px-6 py-3">
+                                            <div className="flex justify-end gap-1">
                                                 <Popover open={payingInstId === inst.id} onOpenChange={(o) => {
                                                     if (!o) setPayingInstId(null);
                                                     else {
                                                         setPayingInstId(inst.id);
-                                                        setPayAmount(String(inst.amount_open));
-                                                        setPayMethod(inst.payment_method || "");
                                                     }
                                                 }}>
                                                     <PopoverTrigger asChild>
-                                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50" title="Registrar Pagamento">
-                                                            <Coins className="w-4 h-4" />
+                                                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-emerald-600 hover:bg-emerald-50" title="Registrar Pagamento">
+                                                            <Coins className="w-3.5 h-3.5" />
                                                         </Button>
                                                     </PopoverTrigger>
-                                                    <PopoverContent className="w-64 p-4 space-y-4" align="end">
-                                                        <div className="flex justify-between items-center">
-                                                            <h5 className="font-bold text-xs uppercase tracking-tight">Baixa de Parcela #{inst.installment_number}</h5>
-                                                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setPayingInstId(null)}><X className="w-3 h-3" /></Button>
-                                                        </div>
-                                                        <div className="space-y-3">
-                                                            <div className="space-y-1">
-                                                                <Label className="text-[10px]">Valor Recebido</Label>
-                                                                <Input
-                                                                    type="number"
-                                                                    value={payAmount}
-                                                                    onChange={e => setPayAmount(e.target.value)}
-                                                                    className="h-8 font-bold"
-                                                                />
-                                                            </div>
-                                                            <div className="space-y-1">
-                                                                <Label className="text-[10px]">Modalidade</Label>
-                                                                <PaymentMethodSelect
-                                                                    value={payMethod}
-                                                                    onChange={setPayMethod}
-                                                                    className="h-8"
-                                                                />
-                                                            </div>
-                                                            <Button
-                                                                className="w-full bg-green-600 hover:bg-green-700 h-8 text-xs font-bold"
-                                                                onClick={() => handleRegisterPayment(inst)}
-                                                                disabled={isProcessingPayment}
-                                                            >
-                                                                {isProcessingPayment ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirmar Recebimento"}
-                                                            </Button>
-                                                        </div>
+                                                    <PopoverContent className="w-auto p-0 border-none shadow-xl bg-white rounded-xl" align="end" sideOffset={5}>
+                                                        <InstallmentPaymentManager
+                                                            installment={inst}
+                                                            onUpdate={() => {
+                                                                fetchInstallments();
+                                                                onRefresh(); // Refresh parent status
+                                                            }}
+                                                            onClose={() => setPayingInstId(null)}
+                                                        />
                                                     </PopoverContent>
                                                 </Popover>
 
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-8 w-8 p-0 text-red-400 hover:text-red-700 hover:bg-red-50"
-                                                    onClick={() => handleRemoveInstallment(index)}
-                                                    title="Remover Parcela"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </Button>
+                                                {isEditable && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                                        onClick={() => handleRemoveInstallment(index)}
+                                                        title="Remover Parcela"
+                                                    >
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </Button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
-                                );
+                                )
                             })}
                         </tbody>
                     </table>
                 </div>
-            </div>
 
-            {/* Footer Actions */}
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4 border-t border-gray-100">
-                <div className="flex gap-2 items-center">
+                {/* Footer Actions */}
+                <div className="bg-gray-50 p-4 border-t border-gray-100 flex justify-between items-center">
                     <Button
                         variant="ghost"
                         size="sm"
-                        className="text-red-600 hover:bg-red-50 gap-2 h-9 font-bold text-xs"
+                        className="text-red-400 hover:text-red-600 hover:bg-red-50 text-xs font-bold"
                         onClick={() => setShowDeleteTitleDialog(true)}
                         disabled={title.amount_paid > 0}
                     >
-                        <Trash2 className="w-4 h-4" /> Excluir Lançamento Completo
+                        <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Excluir Lançamento
                     </Button>
+
+                    <div className="flex items-center gap-3">
+                        {!isSumValid && <span className="text-xs text-red-500 font-bold mr-2">Soma inválida!</span>}
+                        <Button
+                            variant="outline"
+                            className="bg-white text-xs font-bold h-9"
+                            onClick={handleSave}
+                            disabled={isSaving}
+                        >
+                            {isSaving ? <Loader2 className="w-3 h-3 animate-spin mr-1.5" /> : <Save className="w-3.5 h-3.5 mr-1.5 text-blue-600" />}
+                            Salvar Alterações
+                        </Button>
+                        <Button
+                            className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold h-9"
+                            onClick={() => onApprove(title.id)}
+                            disabled={!isSumValid || isSaving || title.status !== 'PENDING_APPROVAL'}
+                        >
+                            <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+                            Aprovar Lançamento
+                        </Button>
+                    </div>
                 </div>
+            </CardContent>
 
-                <div className="flex gap-3">
-                    <Button
-                        variant="outline"
-                        className="h-10 px-6 font-bold border-gray-300 hover:bg-gray-50 flex gap-2"
-                        onClick={handleSave}
-                        disabled={isSaving}
-                    >
-                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        Salvar Alterações
-                    </Button>
-
-                    <div className="w-px bg-gray-200 h-10 hidden md:block" />
-
-                    <Button
-                        variant="secondary"
-                        className="h-10 px-6 font-bold text-orange-700 bg-orange-100 hover:bg-orange-200 border-orange-200 gap-2"
-                        onClick={() => onHold(title.id)}
-                    >
-                        <PauseCircle className="w-4 h-4" />
-                        Segurar
-                    </Button>
-
-                    <Button
-                        className="h-10 px-8 font-black bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200 gap-2 disabled:bg-gray-200 disabled:shadow-none transition-all active:scale-95"
-                        onClick={() => onApprove(title.id)}
-                        disabled={!isSumValid || isSaving}
-                    >
-                        <CheckCircle className="w-5 h-5" />
-                        {title.status === 'PENDING_APPROVAL' ? 'Aprovar Definitivo' : 'Confirmar Aprovação'}
-                    </Button>
-                </div>
-            </div>
-
-            {/* Delete Dialog */}
             <AlertDialog open={showDeleteTitleDialog} onOpenChange={setShowDeleteTitleDialog}>
-                <AlertDialogContent>
+                <AlertDialogContent className="rounded-xl">
                     <AlertDialogHeader>
                         <AlertDialogTitle>Excluir Lançamento?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Isso removerá o título financeiro e todas as parcelas associadas.
-                            Essa ação não pode ser desfeita.
+                            Esta ação cancelará o lançamento financeiro. O histórico do pedido (Em Rota) não será alterado automaticamente (verifique o status logístico).
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={() => onDeleteTitle(title.id)}
-                            className="bg-red-600 hover:bg-red-700"
-                        >
+                        <AlertDialogAction onClick={() => onDeleteTitle(title.id)} className="bg-red-600 hover:bg-red-700">
                             Confirmar Exclusão
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-        </div>
+        </Card>
     );
 }

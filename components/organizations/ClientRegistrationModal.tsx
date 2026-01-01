@@ -1,22 +1,20 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { createOrganization, setOrganizationRoles, upsertAddress, upsertPerson } from "@/lib/clients-db";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { getPriceTables, getPaymentTerms, PriceTable, PaymentTerm } from "@/lib/clients-db";
 
 import { Card, CardContent } from "@/components/ui/Card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
 import { AddressForm, AddressFormData } from "@/components/forms/AddressForm";
 import { ContactsTable, ContactFormData } from "@/components/forms/ContactsTable";
 import { extractDigits, validateCNPJ } from "@/lib/cnpj";
-import { Loader2, Search, CheckCircle2, Save, Settings } from "lucide-react";
+import { Loader2, Search, CheckCircle2, Save } from "lucide-react";
 import { cn, toTitleCase, normalizeEmail } from "@/lib/utils"; // Import cn and new helpers
 
 interface ClientRegistrationModalProps {
@@ -60,12 +58,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
         default_payment_terms_days: "",
         freight_terms: "",
         sales_rep_user_id: "",
-        notes_commercial: "",
-        credit_limit: "",
-        default_discount: "",
-        sales_channel: "",
-        payment_mode_id: "",
-        payment_terms_id: ""
+        notes_commercial: ""
     });
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -90,22 +83,6 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
         final_consumer: false,
         icms_contributor: true // Default based on contributor
     });
-
-    const [priceTables, setPriceTables] = useState<PriceTable[]>([]);
-    const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
-
-    // Fetch Commercial Data
-    useEffect(() => {
-        if (isOpen && selectedCompany?.id) {
-            Promise.all([
-                getPriceTables(supabase, selectedCompany.id),
-                getPaymentTerms(supabase, selectedCompany.id)
-            ]).then(([tables, terms]) => {
-                setPriceTables(tables);
-                setPaymentTerms(terms);
-            }).catch(console.error);
-        }
-    }, [isOpen, selectedCompany?.id, supabase]);
 
     const handleFiscalChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
@@ -168,12 +145,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
             default_payment_terms_days: "",
             freight_terms: "",
             sales_rep_user_id: "",
-            notes_commercial: "",
-            credit_limit: "",
-            default_discount: "",
-            sales_channel: "",
-            payment_mode_id: "",
-            payment_terms_id: ""
+            notes_commercial: ""
         });
         setFiscalData({
             is_simple_national: false,
@@ -387,11 +359,6 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                 notes_commercial: sanitizedCommercial.notes_commercial || null,
                 price_table_id: sanitizedCommercial.price_table_id || null,
                 sales_rep_user_id: sanitizedCommercial.sales_rep_user_id || null,
-                payment_mode_id: sanitizedCommercial.payment_mode_id || null,
-                payment_terms_id: sanitizedCommercial.payment_terms_id !== "none" ? sanitizedCommercial.payment_terms_id : null,
-                credit_limit: sanitizedCommercial.credit_limit ? parseFloat(sanitizedCommercial.credit_limit) : null,
-                default_discount: sanitizedCommercial.default_discount ? parseFloat(sanitizedCommercial.default_discount) : null,
-                sales_channel: sanitizedCommercial.sales_channel || null,
 
                 country_code: "BR",
                 status: "active",
@@ -677,130 +644,61 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                             </div>
                         </TabsContent>
 
+                        {/* TAB 2: COMERCIAL - Compacted */}
                         <TabsContent value="comercial" className="p-6 focus-visible:outline-none">
                             <div className="space-y-4">
                                 <div className="grid grid-cols-12 gap-4">
-                                    {/* ROW 1: Tabela (4) | Prazo (4) | Canal (4) */}
                                     <div className="col-span-12 md:col-span-4 space-y-1">
                                         <label className="text-xs font-semibold text-gray-700">Tabela de Preço</label>
-                                        <Select
+                                        <select
+                                            name="price_table_id"
                                             value={commercialData.price_table_id}
-                                            onValueChange={(val) => setCommercialData(prev => ({ ...prev, price_table_id: val }))}
+                                            onChange={handleCommercialChange}
+                                            className="flex h-9 w-full rounded-md border border-gray-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
                                         >
-                                            <SelectTrigger className="h-9">
-                                                <SelectValue placeholder="Selecione..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="standard">Padrão</SelectItem>
-                                                {priceTables.map(t => (
-                                                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                            <option value="">Padrão</option>
+                                        </select>
                                     </div>
 
                                     <div className="col-span-12 md:col-span-4 space-y-1">
-                                        <label className="text-xs font-semibold text-gray-700">Prazo de Pagamento Padrão</label>
-                                        <Select
-                                            value={commercialData.payment_terms_id}
-                                            onValueChange={(val) => setCommercialData(prev => ({ ...prev, payment_terms_id: val }))}
-                                        >
-                                            <SelectTrigger className="h-9">
-                                                <SelectValue placeholder="Selecione..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="none">Nenhum</SelectItem>
-                                                {paymentTerms.map(t => (
-                                                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <label className="text-xs font-semibold text-gray-700">Prazo Padrão (dias)</label>
+                                        <Input
+                                            name="default_payment_terms_days"
+                                            type="number"
+                                            value={commercialData.default_payment_terms_days}
+                                            onChange={handleCommercialChange}
+                                            placeholder="Ex: 30"
+                                            className="h-9 text-sm"
+                                        />
                                     </div>
 
                                     <div className="col-span-12 md:col-span-4 space-y-1">
-                                        <label className="text-xs font-semibold text-gray-700">Canal de Venda</label>
-                                        <Select
-                                            value={commercialData.sales_channel}
-                                            onValueChange={(val) => setCommercialData(prev => ({ ...prev, sales_channel: val }))}
+                                        <label className="text-xs font-semibold text-gray-700">Frete</label>
+                                        <select
+                                            name="freight_terms"
+                                            value={commercialData.freight_terms}
+                                            onChange={handleCommercialChange}
+                                            className="flex h-9 w-full rounded-md border border-gray-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
                                         >
-                                            <SelectTrigger className="h-9">
-                                                <SelectValue placeholder="Selecione..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="direct">Venda Direta</SelectItem>
-                                                <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                                                <SelectItem value="ecommerce">E-commerce</SelectItem>
-                                                <SelectItem value="phone">Telefone</SelectItem>
-                                            </SelectContent>
-                                        </Select>
+                                            <option value="">Selecione...</option>
+                                            <option value="cif">CIF (vendedor paga)</option>
+                                            <option value="fob">FOB (comprador paga)</option>
+                                            <option value="retira">Retira</option>
+                                            <option value="combinar">A Combinar</option>
+                                        </select>
                                     </div>
+                                </div>
 
-                                    {/* ROW 2: [Limite | Desconto] (4) | Modalidade (4) | Representante (4) */}
-                                    <div className="col-span-12 md:col-span-4 grid grid-cols-2 gap-2">
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-semibold text-gray-700">Limite de Crédito (R$)</label>
-                                            <Input
-                                                name="credit_limit"
-                                                type="number"
-                                                value={commercialData.credit_limit}
-                                                onChange={handleCommercialChange}
-                                                placeholder="0,00"
-                                                className="h-9 text-sm"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-xs font-semibold text-gray-700">Desconto Padrão (%)</label>
-                                            <Input
-                                                name="default_discount"
-                                                type="number"
-                                                value={commercialData.default_discount}
-                                                onChange={handleCommercialChange}
-                                                placeholder="0.00"
-                                                className="h-9 text-sm text-right"
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="col-span-12 md:col-span-4 space-y-1">
-                                        <label className="text-xs font-semibold text-gray-700 flex items-center justify-between">
-                                            Modalidade de Pagamento
-                                            <Button variant="ghost" size="icon" className="h-4 w-4 ml-2" title="Gerenciar Modalidades">
-                                                <Settings className="h-3 w-3 text-gray-500" />
-                                            </Button>
-                                        </label>
-                                        <Select
-                                            value={commercialData.payment_mode_id}
-                                            onValueChange={(val) => setCommercialData(prev => ({ ...prev, payment_mode_id: val }))}
-                                        >
-                                            <SelectTrigger className="h-9">
-                                                <SelectValue placeholder="Selecione a Modalidade..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="boleto">Boleto Bancário</SelectItem>
-                                                <SelectItem value="pix">Pix</SelectItem>
-                                                <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
-                                                <SelectItem value="transfer">Transferência Bancária</SelectItem>
-                                                <SelectItem value="cash">Dinheiro</SelectItem>
-                                                <SelectItem value="cheque">Cheque</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-
-                                    <div className="col-span-12 md:col-span-4 space-y-1">
-                                        <label className="text-xs font-semibold text-gray-700">Representante</label>
-                                        <Select
-                                            value={commercialData.sales_rep_user_id}
-                                            onValueChange={(val) => setCommercialData(prev => ({ ...prev, sales_rep_user_id: val }))}
-                                        >
-                                            <SelectTrigger className="h-9">
-                                                <SelectValue placeholder="Selecione..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="user-1">Representante Mock</SelectItem>
-                                                {/* Dynamic reps here */}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
+                                <div className="space-y-1">
+                                    <label className="text-xs font-semibold text-gray-700">Representante</label>
+                                    <select
+                                        name="sales_rep_user_id"
+                                        value={commercialData.sales_rep_user_id}
+                                        onChange={handleCommercialChange}
+                                        className="flex h-9 w-full rounded-md border border-gray-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
+                                    >
+                                        <option value="">Selecione um representante...</option>
+                                    </select>
                                 </div>
 
                                 <div className="space-y-1">

@@ -1,4 +1,3 @@
-"use client"
 
 import * as React from "react"
 import { cn } from "@/lib/utils"
@@ -16,7 +15,7 @@ interface TabsListProps {
     className?: string
 }
 
-interface TabsTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface TabsTriggerProps {
     value: string
     children: React.ReactNode
     className?: string
@@ -69,7 +68,7 @@ const TabsList = React.forwardRef<HTMLDivElement, TabsListProps>(
 TabsList.displayName = "TabsList"
 
 const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
-    ({ value, children, className, ...props }, ref) => {
+    ({ value, children, className }, ref) => {
         const { value: selectedValue, onValueChange } = React.useContext(TabsContext)
         const isActive = selectedValue === value
 
@@ -77,11 +76,7 @@ const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
             <button
                 ref={ref}
                 type="button"
-                onClick={(e) => {
-                    if (props.disabled) return;
-                    if (props.onClick) props.onClick(e);
-                    onValueChange(value);
-                }}
+                onClick={() => onValueChange(value)}
                 data-state={isActive ? "active" : "inactive"}
                 className={cn(
                     "inline-flex items-center justify-center whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
@@ -90,7 +85,6 @@ const TabsTrigger = React.forwardRef<HTMLButtonElement, TabsTriggerProps>(
                         : "text-gray-600 hover:text-gray-900 hover:bg-white/50",
                     className
                 )}
-                {...props}
             >
                 {children}
             </button>

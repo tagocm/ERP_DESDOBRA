@@ -75,7 +75,7 @@ export function ConfirmDialogDesdobra({
             if (!val && !closeOnOutsideClick) return;
             onOpenChange(val);
         }}>
-            <DialogContent className="sm:max-w-[550px] gap-6" onInteractOutside={(e) => {
+            <DialogContent className="sm:max-w-[425px] gap-6" onInteractOutside={(e) => {
                 if (!closeOnOutsideClick || isLoading) {
                     e.preventDefault();
                 }

@@ -11,7 +11,6 @@ import {
     createRoute,
     updateRouteSchedule,
     deleteRoute,
-    checkAndCleanupExpiredRoutes,
 } from "@/lib/data/expedition";
 import { DeliveryRoute, SalesOrder } from "@/types/sales";
 import { Button } from "@/components/ui/Button";
@@ -30,7 +29,6 @@ import { AddToRouteModal } from "./AddToRouteModal";
 import { DayDetailsPopover } from "./DayDetailsPopover";
 import { OrderItemsPopover } from "./OrderItemsPopover";
 import { cn } from "@/lib/utils";
-import { OrderCard } from "./OrderCard";
 
 type DragItem = {
     id: string; // Order ID or Route ID
@@ -129,9 +127,6 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             const weekStart = format(startOfWeek(currentWeek, { locale: ptBR }), 'yyyy-MM-dd');
             const weekEnd = format(endOfWeek(currentWeek, { locale: ptBR }), 'yyyy-MM-dd');
 
-            // Cleanup expired routes (past date and unprocessed)
-            await checkAndCleanupExpiredRoutes(supabase, cId);
-
             const [unscheduledData, scheduledData, sandboxData] = await Promise.all([
                 getUnscheduledRoutes(supabase, cId),
                 getScheduledRoutes(supabase, cId, weekStart, weekEnd),
@@ -167,73 +162,27 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
 
         console.log("Drag:", dragData, "Drop:", dropData);
 
-        // CHECK PAST DATE
-        if (dropData?.type === 'calendar-day') {
-            // dropData.date is "yyyy-MM-dd" string
-            // Compare with current date
-            // We can use string comparison for ISO dates "yyyy-MM-dd"
-            const today = format(new Date(), 'yyyy-MM-dd');
-            if (dropData.date < today) {
-                toast({
-                    title: "Data inválida",
-                    description: "Não é possível agendar para uma data passada.",
-                    variant: "destructive"
-                });
-                return;
-            }
-        }
-
         // Handle different drop scenarios
         if (dragData.type === 'order' && dropData?.type === 'sandbox') {
             // Order back to Sandbox
-            // Check if source route is locked
-            if (dragData.sourceRouteId) {
-                const sourceRoute = scheduledRoutes.find(r => r.id === dragData.sourceRouteId);
-                if (sourceRoute && (sourceRoute.status === 'em_rota' || sourceRoute.status === 'in_progress' || sourceRoute.status === 'concluida' || sourceRoute.status === 'cancelada')) {
-                    toast({ title: "Rota bloqueada", description: "Não é possível remover pedidos de rotas em andamento ou concluídas.", variant: "destructive" });
-                    return;
-                }
-            }
-            await handleOrderToSandbox(dragData.id, dragData.sourceRouteId);
-        } else if (dragData.type === 'order' && (dropData?.type === 'unscheduled-route' || dropData?.type === 'route')) {
-            // Order to Route (Unscheduled or Scheduled)
-            const targetRouteId = dropData.routeId || dropData.id;
-
-            // Check if target route is locked
-            const targetRoute = [...scheduledRoutes, ...unscheduledRoutes].find(r => r.id === targetRouteId);
-            if (targetRoute && (targetRoute.status === 'em_rota' || targetRoute.status === 'in_progress' || targetRoute.status === 'concluida' || targetRoute.status === 'cancelada')) {
-                toast({ title: "Rota bloqueada", description: "Não é possível adicionar pedidos a rotas em andamento ou concluídas.", variant: "destructive" });
-                return;
-            }
-
-            // Check if source route is locked
-            if (dragData.sourceRouteId) {
-                const sourceRoute = scheduledRoutes.find(r => r.id === dragData.sourceRouteId);
-                if (sourceRoute && (sourceRoute.status === 'em_rota' || sourceRoute.status === 'in_progress' || sourceRoute.status === 'concluida' || sourceRoute.status === 'cancelada')) {
-                    toast({ title: "Rota bloqueada", description: "Não é possível mover pedidos de rotas iniciadas.", variant: "destructive" });
-                    return;
-                }
-            }
-
-            await handleOrderToRoute(dragData.id, targetRouteId, dragData.sourceRouteId);
+            await handleOrderToSandbox(dragData.id);
+        } else if (dragData.type === 'order' && dropData?.type === 'unscheduled-route') {
+            // Order to Unscheduled Route
+            await handleOrderToRoute(dragData.id, dropData.routeId, dragData.sourceRouteId);
         } else if (dragData.type === 'order' && dropData?.type === 'calendar-day') {
             // Order to Calendar Day -> Open Modal
+            // Use the date string directly to avoid timezone issues
             setAddToRouteDate(dropData.date);
             setAddToRouteOrderId(dragData.id);
             setAddToRouteModalOpen(true);
         } else if (dragData.type === 'route' && dropData?.type === 'calendar-day') {
-            // Route to Calendar Day (schedule/reschedule)
-            if (dragData.route && (dragData.route.status === 'em_rota' || dragData.route.status === 'in_progress' || dragData.route.status === 'concluida' || dragData.route.status === 'cancelada')) {
-                toast({ title: "Rota bloqueada", description: "Não é possível reagendar rotas em andamento ou concluídas.", variant: "destructive" });
-                return;
-            }
+            // Unscheduled Route to Calendar Day (schedule it)
             await handleScheduleRoute(dragData.route!.id, dropData.date);
+        } else if (dragData.type === 'route' && dropData?.type === 'calendar-day' && dragData.route?.scheduled_date) {
+            // Reschedule route to different day
+            await handleScheduleRoute(dragData.route.id, dropData.date);
         } else if (dragData.type === 'route' && dropData?.type === 'unscheduled-column') {
             // Scheduled Route back to Unscheduled
-            if (dragData.route && (dragData.route.status === 'em_rota' || dragData.route.status === 'in_progress' || dragData.route.status === 'concluida' || dragData.route.status === 'cancelada')) {
-                toast({ title: "Rota bloqueada", description: "Não é possível reagendar rotas em andamento ou concluídas.", variant: "destructive" });
-                return;
-            }
             await handleUnscheduleRoute(dragData.route!.id);
         }
     };
@@ -411,12 +360,7 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
     // Get routes for the selected day (for AddToRouteModal)
     const routesForSelectedDay = useMemo(() => {
         if (!addToRouteDate) return [];
-        return scheduledRoutes.filter(r =>
-            r.scheduled_date === addToRouteDate &&
-            r.status !== 'em_rota' &&
-            r.status !== 'in_progress' &&
-            r.status !== 'concluida'
-        );
+        return scheduledRoutes.filter(r => r.scheduled_date === addToRouteDate);
     }, [addToRouteDate, scheduledRoutes]);
 
     if (loading && scheduledRoutes.length === 0 && unscheduledRoutes.length === 0) {
@@ -636,5 +580,64 @@ const UnscheduledRoutesColumn = memo(function UnscheduledRoutesColumn({ routes, 
     );
 });
 
+const OrderCard = memo(function OrderCard({ order, type, routeId, isSelected, onToggleSelection, isDragOverlay }: any) {
+    const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+        id: `order-${order.id}`,
+        data: { type: 'order', id: order.id, sourceRouteId: routeId, order },
+    });
 
+    const style = transform ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+    } : undefined;
+
+    return (
+        <OrderItemsPopover orderId={order.id}>
+            <div
+                ref={setNodeRef}
+                style={style}
+                {...listeners}
+                {...attributes}
+                className={cn(
+                    "p-2 bg-white rounded-lg shadow-sm border border-gray-200 cursor-grab active:cursor-grabbing hover:shadow-md transition-all",
+                    (isDragging || isDragOverlay) && "opacity-50 ring-2 ring-primary"
+                )}
+            >
+                {/* Line 1: Checkbox, Client Name (left), Date (right) */}
+                <div className="flex items-center gap-2 mb-1">
+                    {type === 'sandbox' && (
+                        <input
+                            type="checkbox"
+                            className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer flex-shrink-0"
+                            checked={isSelected}
+                            onChange={(e) => {
+                                e.stopPropagation();
+                                onToggleSelection?.();
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    )}
+
+                    <span className="text-xs text-gray-900 truncate flex-1">
+                        {order.client?.trade_name || "Cliente Desconhecido"}
+                    </span>
+
+                    <span className="text-[10px] text-gray-400 flex-shrink-0">
+                        {format(new Date(order.date_issued), "dd/MM")}
+                    </span>
+                </div>
+
+                {/* Line 2: Order Number (left), Value (right) */}
+                <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500">
+                        Pedido #{order.document_number?.toString().padStart(4, '0') || '...'}
+                    </span>
+
+                    <span className="text-sm text-green-700">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total_amount || 0)}
+                    </span>
+                </div>
+            </div>
+        </OrderItemsPopover>
+    );
+});
 

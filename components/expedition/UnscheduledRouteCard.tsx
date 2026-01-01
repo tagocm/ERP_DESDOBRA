@@ -1,7 +1,5 @@
 "use client";
 
-import { OrderCard } from "./OrderCard";
-
 import { useState, useRef, memo } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { DeliveryRoute } from "@/types/sales";
@@ -49,12 +47,8 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
 
     const [showDeleteAlert, setShowDeleteAlert] = useState(false);
 
-    // Check if route is locked (em_rota or concluida - cannot be modified)
-    const isRouteLocked = route.status === 'em_rota' || route.status === 'in_progress' || route.status === 'concluida';
-
     const handleDeleteClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        if (isRouteLocked) return;
         setShowDeleteAlert(true);
     };
 
@@ -72,8 +66,6 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
             setShowDeleteAlert(false);
         }
     };
-
-    const [isOrderDetailsOpen, setIsOrderDetailsOpen] = useState(false);
 
     const handleMouseEnter = () => {
         if (closeTimeoutRef.current) {
@@ -98,13 +90,13 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
 
     return (
         <>
-            <Popover open={isHovered && !isOrderDetailsOpen} onOpenChange={setIsHovered}>
+            <Popover open={isHovered} onOpenChange={setIsHovered}>
                 <PopoverTrigger asChild>
                     <div
                         ref={setDropRef}
                         className={cn(
                             "transition-colors rounded-lg",
-                            isOver && !isRouteLocked && "ring-2 ring-blue-300 bg-blue-50"
+                            isOver && "ring-2 ring-blue-300 bg-blue-50"
                         )}
                         onMouseEnter={handleMouseEnter}
                         onMouseLeave={handleMouseLeave}
@@ -113,83 +105,86 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                             ref={setNodeRef}
                             style={style}
                             className={cn(
-                                "bg-white border border-gray-200 rounded-lg overflow-hidden transition-all duration-200 ease-out",
-                                !isRouteLocked && "hover:shadow-md",
-                                isRouteLocked && "opacity-75 bg-gray-50/50",
+                                "bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-md",
+                                "transition-all duration-200 ease-out",
                                 isDragging && "opacity-50 ring-2 ring-blue-400 shadow-lg scale-105",
                                 isDeleting && "opacity-50 pointer-events-none"
                             )}
                         >
                             {/* Header - 1 line: drag handle + route name + delete button */}
-                            <div className="flex items-center gap-2 px-3 py-2 border-b border-gray-100 bg-white">
-                                <div
-                                    {...(!isRouteLocked ? listeners : {})}
-                                    {...(!isRouteLocked ? attributes : {})}
-                                    className={cn(
-                                        "flex items-center gap-2 flex-1 truncate",
-                                        !isRouteLocked && "cursor-grab active:cursor-grabbing",
-                                        isRouteLocked && "cursor-default"
-                                    )}
-                                >
-                                    {!isRouteLocked && <GripVertical className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />}
-                                    <Truck className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                                    <span className="text-sm font-semibold text-gray-800 truncate flex-1">
+                            <div className="flex items-center gap-2 px-2 py-1.5 border-b border-gray-100 bg-gray-50">
+                                <div {...listeners} {...attributes} className="flex items-center gap-1 flex-1 cursor-grab active:cursor-grabbing">
+                                    <GripVertical className="w-3 h-3 text-gray-400 flex-shrink-0" />
+                                    <Truck className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                                    <span className="text-xs font-semibold text-gray-700 truncate">
                                         {route.name}
                                     </span>
-                                    {/* Weight in header */}
-                                    {(() => {
-                                        let hasUnknown = false;
-                                        const weight = route.orders?.reduce((sum, ro) => {
-                                            if (ro.sales_order?.total_weight_kg === undefined || ro.sales_order?.total_weight_kg === null) {
-                                                hasUnknown = true;
-                                                return sum;
-                                            }
-                                            return sum + ro.sales_order.total_weight_kg;
-                                        }, 0) || 0;
-
-                                        return (
-                                            <span className={cn("text-xs font-normal", hasUnknown ? "text-amber-600" : "text-gray-500")}>
-                                                {new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(weight)} kg
-                                                {hasUnknown && "*"}
-                                            </span>
-                                        );
-                                    })()}
                                 </div>
-                                {!isRouteLocked && (
-                                    <button
-                                        onClick={handleDeleteClick}
-                                        disabled={isDeleting}
-                                        className="w-6 h-6 flex items-center justify-center rounded-sm hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors flex-shrink-0 disabled:opacity-50"
-                                        title="Excluir rota"
-                                    >
-                                        <X className="w-3.5 h-3.5" />
-                                    </button>
-                                )}
+                                <button
+                                    onClick={handleDeleteClick}
+                                    disabled={isDeleting}
+                                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors flex-shrink-0 disabled:opacity-50"
+                                    title="Excluir rota"
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
                             </div>
 
                             {/* Order List */}
-                            <div className="min-h-[80px] max-h-[200px] overflow-y-auto scrollbar-thin bg-gray-50/50 p-2">
+                            <div className="max-h-[120px] overflow-y-auto scrollbar-thin">
                                 {route.orders && route.orders.length > 0 ? (
-                                    <div className="space-y-2">
-                                        {route.orders.map((ro) => {
-                                            const order = ro.sales_order;
-                                            if (!order) return null;
+                                    route.orders.map((ro) => {
+                                        const order = ro.sales_order;
+                                        if (!order) return null;
 
-                                            return (
-                                                <OrderCard
-                                                    key={ro.id}
-                                                    order={order}
-                                                    type="route"
-                                                    routeId={route.id}
-                                                    isLocked={isRouteLocked}
-                                                />
-                                            );
-                                        })}
-                                    </div>
+                                        const handleRemoveOrder = async (e: React.MouseEvent) => {
+                                            e.stopPropagation();
+                                            try {
+                                                await removeOrderFromRoute(supabase, route.id, order.id);
+                                                toast({
+                                                    title: "Pedido removido da rota",
+                                                });
+                                                onDelete();
+                                            } catch (err) {
+                                                console.error(err);
+                                                toast({
+                                                    title: "Erro ao remover pedido",
+                                                    variant: "destructive",
+                                                });
+                                            }
+                                        };
+
+                                        return (
+                                            <OrderItemsPopover key={ro.id} orderId={order.id}>
+                                                <div className="px-2 py-1.5 flex items-center justify-between gap-2 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="text-xs font-medium text-gray-900 truncate">
+                                                            {order.client?.trade_name || "Cliente Desconhecido"}
+                                                        </div>
+                                                        <div className="text-[10px] text-gray-500">
+                                                            Pedido #{order.document_number}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-xs text-gray-700 font-medium flex-shrink-0">
+                                                        {new Intl.NumberFormat('pt-BR', {
+                                                            style: 'currency',
+                                                            currency: 'BRL',
+                                                        }).format(order.total_amount || 0)}
+                                                    </div>
+                                                    <button
+                                                        onClick={handleRemoveOrder}
+                                                        className="w-4 h-4 flex items-center justify-center rounded hover:bg-red-50 text-gray-300 hover:text-red-600 transition-colors flex-shrink-0"
+                                                        title="Remover pedido da rota"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            </OrderItemsPopover>
+                                        );
+                                    })
                                 ) : (
-                                    <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 gap-1 py-4 border-2 border-dashed border-gray-200/50 rounded-lg">
-                                        <Package className="w-4 h-4 opacity-50" />
-                                        <span className="text-[10px]">Arraste pedidos aqui</span>
+                                    <div className="px-2 py-3 text-center text-[10px] text-gray-400">
+                                        Nenhum pedido
                                     </div>
                                 )}
                             </div>
@@ -218,28 +213,9 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                                 <div className="flex items-center gap-1 text-gray-600">
                                     <Package className="w-3 h-3" />
                                     <span>{orderCount} {orderCount === 1 ? 'pedido' : 'pedidos'}</span>
-                                    <span className="mx-1 text-gray-300">|</span>
-                                    {(() => {
-                                        let hasUnknown = false;
-                                        const weight = route.orders?.reduce((sum, ro) => {
-                                            if (ro.sales_order?.total_weight_kg === undefined || ro.sales_order?.total_weight_kg === null) {
-                                                hasUnknown = true;
-                                                return sum;
-                                            }
-                                            return sum + ro.sales_order.total_weight_kg;
-                                        }, 0) || 0;
-
-                                        if (hasUnknown && weight === 0) return <span className="text-amber-600 font-medium">Peso desc.</span>;
-
-                                        return (
-                                            <span className={cn("font-medium", hasUnknown && "text-amber-600")}>
-                                                {new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(weight)} kg
-                                                {hasUnknown && "*"}
-                                            </span>
-                                        );
-                                    })()}
                                 </div>
                                 <div className="flex items-center gap-1 text-blue-800 font-semibold">
+                                    <DollarSign className="w-3 h-3" />
                                     <span>
                                         {new Intl.NumberFormat('pt-BR', {
                                             style: 'currency',
@@ -276,21 +252,19 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                                                                 currency: 'BRL',
                                                             }).format(order.total_amount || 0)}
                                                         </div>
-                                                        {!isRouteLocked && (
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                className="h-5 w-5 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setIsHovered(false);
-                                                                    onRemoveOrder(order.id, route.id);
-                                                                }}
-                                                                title="Remover pedido da rota"
-                                                            >
-                                                                <X className="w-3.5 h-3.5" />
-                                                            </Button>
-                                                        )}
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-5 w-5 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setIsHovered(false);
+                                                                onRemoveOrder(order.id, route.id);
+                                                            }}
+                                                            title="Remover pedido da rota"
+                                                        >
+                                                            <X className="w-3.5 h-3.5" />
+                                                        </Button>
                                                     </div>
                                                 </div>
                                             </div>

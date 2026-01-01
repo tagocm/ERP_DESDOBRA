@@ -1,0 +1,340 @@
+▲ Next.js 16.1.0 (webpack)
+- Local:         http://localhost:8080
+- Network:       http://192.168.0.129:8080
+- Environments: .env.local
+
+✓ Starting...
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+✓ Ready in 944ms
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (130kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+ GET /login 200 in 2.8s (compile: 2.6s, proxy.ts: 69ms, render: 107ms)
+ GET / 307 in 688ms (compile: 635ms, proxy.ts: 6ms, render: 47ms)
+ GET /api/health 200 in 169ms (compile: 158ms, proxy.ts: 5ms, render: 6ms)
+ GET /login 200 in 92ms (compile: 24ms, proxy.ts: 3ms, render: 65ms)
+ GET /login 200 in 54ms (compile: 4ms, proxy.ts: 10ms, render: 40ms)
+ GET /login 200 in 34ms (compile: 3ms, proxy.ts: 7ms, render: 24ms)
+ GET /app 200 in 1668ms (compile: 731ms, proxy.ts: 920ms, render: 17ms)
+ GET /app 200 in 276ms (compile: 1676µs, proxy.ts: 266ms, render: 9ms)
+ GET /app/cadastros/produtos 200 in 1210ms (compile: 286ms, proxy.ts: 909ms, render: 14ms)
+ GET /app 200 in 954ms (compile: 26ms, proxy.ts: 913ms, render: 15ms)
+ GET /app 200 in 315ms (compile: 3ms, proxy.ts: 298ms, render: 13ms)
+ GET /app/vendas/pedidos 200 in 3.4s (compile: 1826ms, proxy.ts: 767ms, render: 791ms)
+ GET /app/vendas/pedidos/novo 200 in 1103ms (compile: 796ms, proxy.ts: 288ms, render: 19ms)
+ GET /app/vendas/pedidos/novo 200 in 1072ms (compile: 4ms, proxy.ts: 1053ms, render: 14ms)
+ GET /app/vendas/pedidos/novo 200 in 563ms (compile: 7ms, proxy.ts: 541ms, render: 16ms)
+ GET /app/vendas/pedidos/novo 200 in 274ms (compile: 4ms, proxy.ts: 255ms, render: 14ms)
+ GET /app/vendas/pedidos/novo 200 in 333ms (compile: 2ms, proxy.ts: 320ms, render: 11ms)
+ GET /app/vendas/pedidos/novo 200 in 266ms (compile: 4ms, proxy.ts: 248ms, render: 14ms)
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/app/app/vendas/pedidos/novo/page.js'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/app/app/vendas/pedidos/novo/page.js',
+  page: '/app/vendas/pedidos/novo'
+}
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+[Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/client-development/6.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/client-development/6.pack.gz'
+}
+⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/client-development/6.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/client-development/6.pack.gz'
+}
+⨯ unhandledRejection:  [Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/client-development/6.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/client-development/6.pack.gz'
+}
+[Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/client-development/7.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/client-development/7.pack.gz'
+}
+⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/client-development/7.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/client-development/7.pack.gz'
+}
+⨯ unhandledRejection:  [Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/client-development/7.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/client-development/7.pack.gz'
+}
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/client-development/6.pack.gz'
+Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/app/app/vendas/pedidos/novo/page.js'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/app/app/vendas/pedidos/novo/page.js',
+  page: '/app/vendas/pedidos/novo'
+}
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+ GET /app/vendas/pedidos/novo 500 in 5.8s (compile: 3.6s, proxy.ts: 2.2s, render: 19ms)
+ GET /app/vendas/pedidos/novo 500 in 5.8s (compile: 3.6s, proxy.ts: 2.2s, render: 19ms)
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/tailwind-merge.js'
+    at <unknown> (.next/dev/server/app/app/vendas/pedidos/novo/page.js:824:47)
+    at Object.<anonymous> (.next/dev/server/app/app/vendas/pedidos/novo/page.js:827:3) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/tailwind-merge.js',
+  page: '/app/vendas/pedidos/novo'
+}
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/tailwind-merge.js'
+    at <unknown> (.next/dev/server/app/app/vendas/pedidos/novo/page.js:824:47)
+    at Object.<anonymous> (.next/dev/server/app/app/vendas/pedidos/novo/page.js:827:3) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/tailwind-merge.js',
+  page: '/app/vendas/pedidos/novo'
+}
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+ GET /app/vendas/pedidos/novo 500 in 387ms (compile: 96ms, proxy.ts: 281ms, render: 10ms)
+ GET /app/vendas/pedidos/novo 500 in 387ms (compile: 96ms, proxy.ts: 281ms, render: 10ms)
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/tailwind-merge.js'
+    at <unknown> (.next/dev/server/app/app/vendas/pedidos/novo/page.js:824:47)
+    at Object.<anonymous> (.next/dev/server/app/app/vendas/pedidos/novo/page.js:827:3) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/tailwind-merge.js',
+  page: '/app/vendas/pedidos/novo'
+}
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/tailwind-merge.js'
+    at <unknown> (.next/dev/server/app/app/vendas/pedidos/novo/page.js:824:47)
+    at Object.<anonymous> (.next/dev/server/app/app/vendas/pedidos/novo/page.js:827:3) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/tailwind-merge.js',
+  page: '/app/vendas/pedidos/novo'
+}
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+ GET /app/vendas/pedidos/novo 500 in 369ms (compile: 91ms, proxy.ts: 270ms, render: 9ms)
+ GET /app/vendas/pedidos/novo 500 in 369ms (compile: 91ms, proxy.ts: 270ms, render: 9ms)
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/tailwind-merge.js'
+    at <unknown> (.next/dev/server/app/app/vendas/pedidos/novo/page.js:824:47)
+    at Object.<anonymous> (.next/dev/server/app/app/vendas/pedidos/novo/page.js:827:3) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/tailwind-merge.js',
+  page: '/app/vendas/pedidos/novo'
+}
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/tailwind-merge.js'
+    at <unknown> (.next/dev/server/app/app/vendas/pedidos/novo/page.js:824:47)
+    at Object.<anonymous> (.next/dev/server/app/app/vendas/pedidos/novo/page.js:827:3) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/tailwind-merge.js',
+  page: '/app/vendas/pedidos/novo'
+}
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+ GET /app/vendas/pedidos/novo 500 in 855ms (compile: 99ms, proxy.ts: 748ms, render: 8ms)
+ GET /app/vendas/pedidos/novo 500 in 855ms (compile: 99ms, proxy.ts: 748ms, render: 8ms)
+[Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/2.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/2.pack.gz'
+}
+⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/2.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/2.pack.gz'
+}
+⨯ unhandledRejection:  [Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/2.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/2.pack.gz'
+}
+[Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/4.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/4.pack.gz'
+}
+⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/4.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/4.pack.gz'
+}
+⨯ unhandledRejection:  [Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/4.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/4.pack.gz'
+}
+[Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/6.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/6.pack.gz'
+}
+⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/6.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/6.pack.gz'
+}
+⨯ unhandledRejection:  [Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/6.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/6.pack.gz'
+}
+[Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/7.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/7.pack.gz'
+}
+⨯ unhandledRejection: [Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/7.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/7.pack.gz'
+}
+⨯ unhandledRejection:  [Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/7.pack.gz'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'stat',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/7.pack.gz'
+}
+<w> [webpack.cache.PackFileCacheStrategy] Caching failed for pack: Error: ENOENT: no such file or directory, stat '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/cache/webpack/server-development/1.pack.gz'
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/lucide-react.js'
+    at <unknown> (.next/dev/server/app/page.js:333:47)
+    at Object.<anonymous> (.next/dev/server/app/page.js:336:3) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/lucide-react.js',
+  page: '/'
+}
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/lucide-react.js'
+    at <unknown> (.next/dev/server/app/page.js:333:47)
+    at Object.<anonymous> (.next/dev/server/app/page.js:336:3) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/server/vendor-chunks/lucide-react.js',
+  page: '/'
+}
+⨯ Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+Error: ENOENT: no such file or directory, open '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+    at ignore-listed frames {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/tago/Documents/MARTIGRAN/APPS/ERP_DESDOBRA/.next/dev/routes-manifest.json'
+}
+ GET / 500 in 1765ms (compile: 935ms, proxy.ts: 819ms, render: 10ms)
+ GET / 500 in 1765ms (compile: 935ms, proxy.ts: 819ms, render: 11ms)

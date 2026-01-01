@@ -21,6 +21,11 @@ export interface ArTitle {
     created_at: string;
     approved_at?: string;
 
+    // Attention Flags (Exit Route Logic)
+    attention_status?: 'EM_ATENCAO' | null;
+    attention_reason?: string;
+    attention_at?: string;
+
     // Joined Associations
     sales_document?: {
         id: string;
@@ -32,6 +37,8 @@ export interface ArTitle {
         trade_name: string;
         legal_name?: string;
     } | null;
+
+    ar_installments?: ArInstallment[];
 }
 
 export interface ArInstallment {
@@ -50,4 +57,29 @@ export interface ArInstallment {
     penalty_amount: number;
     discount_amount: number;
     payment_method?: string;
+
+    // Joined
+    ar_title?: ArTitle;
+    ar_payment_allocations?: ArPaymentAllocation[];
+}
+
+export interface ArPayment {
+    id: string;
+    company_id: string;
+    customer_id: string;
+    amount: number;
+    paid_at: string;
+    method: string;
+    reference?: string;
+    notes?: string;
+    created_at?: string;
+}
+
+export interface ArPaymentAllocation {
+    id: string;
+    payment_id: string;
+    installment_id: string;
+    amount_allocated: number;
+    // Joined
+    ar_payments?: ArPayment;
 }

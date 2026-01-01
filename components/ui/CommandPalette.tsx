@@ -64,11 +64,8 @@ export function CommandPalette() {
                                 <CommandItem onSelect={() => runCommand(() => router.push('/app/vendas/pedidos'))}>
                                     Vendas / Pedidos
                                 </CommandItem>
-                                <CommandItem onSelect={() => runCommand(() => router.push('/app/logistica/expedicao'))}>
-                                    Logística / Expedição
-                                </CommandItem>
-                                <CommandItem onSelect={() => runCommand(() => router.push('/app/logistica/rotas'))}>
-                                    Logística / Rotas
+                                <CommandItem onSelect={() => runCommand(() => router.push('/app/expedicao/separacao'))}>
+                                    Expedição / Separação
                                 </CommandItem>
                                 <CommandItem onSelect={() => runCommand(() => router.push('/app/estoque/movimentacoes'))}>
                                     Estoque / Movimentações
