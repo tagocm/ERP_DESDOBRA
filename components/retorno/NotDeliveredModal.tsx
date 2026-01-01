@@ -150,7 +150,7 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
                     </p>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto py-4">
+                <div className="flex-1 overflow-y-auto py-4 px-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-4">
                             <div className="space-y-1.5">

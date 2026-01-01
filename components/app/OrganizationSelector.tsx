@@ -10,11 +10,10 @@ import { useCompany } from "@/contexts/CompanyContext";
 interface OrganizationSelectorProps {
     value?: string;
     onChange: (org: any) => void;
-    type?: 'customer' | 'supplier' | 'carrier' | 'all';
-    disabled?: boolean;
+    type?: 'customer' | 'supplier' | 'all';
 }
 
-export function OrganizationSelector({ value, onChange, type = 'all', disabled }: OrganizationSelectorProps) {
+export function OrganizationSelector({ value, onChange, type = 'all' }: OrganizationSelectorProps) {
     const { selectedCompany } = useCompany();
     const supabase = createClient();
 
@@ -152,17 +151,15 @@ export function OrganizationSelector({ value, onChange, type = 'all', disabled }
                     placeholder="Digite nome ou documento..."
                     value={search}
                     onChange={handleInputChange}
-                    disabled={disabled}
                     onFocus={() => {
                         if (search.length >= 2) setOpen(true);
                     }}
                 />
-                {selectedOrg && !disabled && (
+                {selectedOrg && (
                     <button
                         type="button"
                         onClick={handleClear}
                         className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-md transition-colors"
-                        disabled={disabled}
                     >
                         <X className="h-4 w-4 text-gray-400" />
                     </button>

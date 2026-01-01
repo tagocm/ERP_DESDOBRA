@@ -7,18 +7,14 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Trash2, Plus, GripVertical } from "lucide-react";
 import { ProductSelector } from "@/components/app/ProductSelector";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { createClient } from "@/lib/supabaseBrowser";
 
 interface TabItemsProps {
     orderId?: string;
     items: SalesOrderItem[];
     onChange: (items: SalesOrderItem[]) => void;
-    disabled?: boolean;
 }
 
-export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) {
-    const supabase = createClient();
+export function TabItems({ orderId, items, onChange }: TabItemsProps) {
 
     const handleAddItem = () => {
         const newItem: SalesOrderItem = {
@@ -26,7 +22,6 @@ export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) 
             document_id: orderId || '',
             item_id: '',
             quantity: 1,
-            qty_base: 1,
             unit_price: 0,
             discount_amount: 0,
             total_amount: 0,
@@ -45,43 +40,18 @@ export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) 
         const newItems = [...items];
         const item = { ...newItems[index], [field]: value };
 
-        // Recalculate totals
         if (field === 'quantity' || field === 'unit_price' || field === 'discount_amount') {
             const qty = Number(field === 'quantity' ? value : item.quantity) || 0;
             const price = Number(field === 'unit_price' ? value : item.unit_price) || 0;
             const discount = Number(field === 'discount_amount' ? value : item.discount_amount) || 0;
             item.total_amount = (qty * price) - discount;
-
-            // Recalculate qty_base if specific packaging is selected
-            if (field === 'quantity') {
-                if (item.packaging_id) {
-                    // Check if we have the packaging object loaded
-                    // Ideally we should store packaging details or look it up from product.packagings
-                    const pkg = item.product?.packagings?.find(p => p.id === item.packaging_id);
-                    if (pkg) {
-                        item.qty_base = qty * Number(pkg.qty_in_base);
-                    } else {
-                        item.qty_base = qty; // Fallback
-                    }
-                } else {
-                    item.qty_base = qty;
-                }
-            }
         }
 
         newItems[index] = item;
         onChange(newItems);
     };
 
-    const handleProductSelect = async (index: number, product: any) => {
-        // Fetch packagings for this product
-        const { data: packagings } = await supabase
-            .from('item_packaging')
-            .select('*')
-            .eq('item_id', product.id)
-            .eq('is_active', true)
-            .order('qty_in_base', { ascending: true });
-
+    const handleProductSelect = (index: number, product: any) => {
         const newItems = [...items];
         newItems[index] = {
             ...newItems[index],
@@ -90,35 +60,13 @@ export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) 
                 id: product.id,
                 name: product.name,
                 sku: product.sku,
-                un: product.un || 'UN',
-                packagings: packagings || []
+                un: product.un || 'UN'
             },
             unit_price: Number(product.price) || 0,
             quantity: 1,
-            qty_base: 1,
-            packaging_id: null, // Reset to base unit
             discount_amount: 0,
             total_amount: Number(product.price) || 0
         };
-        onChange(newItems);
-    };
-
-    const handleUnitChange = (index: number, val: string) => {
-        const newItems = [...items];
-        const item = newItems[index];
-        const qty = Number(item.quantity) || 0;
-
-        if (val === 'base') {
-            item.packaging_id = null;
-            item.qty_base = qty;
-        } else {
-            const pkg = item.product?.packagings?.find(p => p.id === val);
-            if (pkg) {
-                item.packaging_id = pkg.id;
-                item.qty_base = qty * Number(pkg.qty_in_base);
-            }
-        }
-        newItems[index] = item;
         onChange(newItems);
     };
 
@@ -128,9 +76,9 @@ export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) 
                 <div className="grid grid-cols-12 gap-4 p-3 bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     <div className="col-span-1">#</div>
                     <div className="col-span-4">Produto</div>
-                    <div className="col-span-2 text-center">Emb./Unid.</div>
+                    <div className="col-span-1 text-center">UN</div>
                     <div className="col-span-1 text-right">Qtd</div>
-                    <div className="col-span-1 text-right">Preço</div>
+                    <div className="col-span-2 text-right">Preço</div>
                     <div className="col-span-1 text-right">Desc.</div>
                     <div className="col-span-1 text-right">Total</div>
                     <div className="col-span-1"></div>
@@ -146,31 +94,10 @@ export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) 
                                 <ProductSelector
                                     value={item.item_id}
                                     onChange={(prod) => handleProductSelect(index, prod)}
-                                    disabled={disabled}
                                 />
                             </div>
-                            <div className="col-span-2 text-center text-sm text-gray-600">
-                                {item.product?.packagings && item.product.packagings.length > 0 ? (
-                                    <Select
-                                        value={item.packaging_id || 'base'}
-                                        onValueChange={(val) => handleUnitChange(index, val)}
-                                        disabled={disabled}
-                                    >
-                                        <SelectTrigger className="h-8 text-xs">
-                                            <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="base">Unidade ({item.product.un || 'UN'})</SelectItem>
-                                            {item.product.packagings.map(p => (
-                                                <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                ) : (
-                                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                                        {item.product?.un || 'UN'}
-                                    </span>
-                                )}
+                            <div className="col-span-1 text-center text-sm text-gray-600">
+                                {item.product?.un || 'UN'}
                             </div>
                             <div className="col-span-1">
                                 <Input
@@ -178,16 +105,14 @@ export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) 
                                     className="text-right h-8"
                                     value={item.quantity}
                                     onChange={(e) => handleUpdateItem(index, 'quantity', e.target.value)}
-                                    disabled={disabled}
                                 />
                             </div>
-                            <div className="col-span-1">
+                            <div className="col-span-2">
                                 <Input
                                     type="number"
                                     className="text-right h-8"
                                     value={item.unit_price}
                                     onChange={(e) => handleUpdateItem(index, 'unit_price', e.target.value)}
-                                    disabled={disabled}
                                 />
                             </div>
                             <div className="col-span-1">
@@ -196,24 +121,21 @@ export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) 
                                     className="text-right h-8 text-red-600"
                                     value={item.discount_amount}
                                     onChange={(e) => handleUpdateItem(index, 'discount_amount', e.target.value)}
-                                    disabled={disabled}
                                 />
                             </div>
                             <div className="col-span-1 text-right font-medium text-sm">
                                 {item.total_amount?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                             </div>
-                            {!disabled && (
-                                <div className="col-span-1 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
-                                        onClick={() => handleRemoveItem(index)}
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                </div>
-                            )}
+                            <div className="col-span-1 flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                    onClick={() => handleRemoveItem(index)}
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </Button>
+                            </div>
                         </div>
                     ))}
                     {items.length === 0 && (
@@ -224,11 +146,9 @@ export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) 
                 </div>
             </div>
 
-            {!disabled && (
-                <Button variant="outline" className="w-full border-dashed" onClick={handleAddItem}>
-                    <Plus className="w-4 h-4 mr-2" /> Adicionar Produto
-                </Button>
-            )}
+            <Button variant="outline" className="w-full border-dashed" onClick={handleAddItem}>
+                <Plus className="w-4 h-4 mr-2" /> Adicionar Produto
+            </Button>
 
             <div className="flex justify-end p-4 bg-gray-50 rounded-lg border">
                 <div className="w-64 space-y-2">

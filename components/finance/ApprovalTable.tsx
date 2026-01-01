@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import * as React from "react";
+import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabaseBrowser";
 import { ArTitle } from "@/types/financial";
 import { Card } from "@/components/ui/Card";
+import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/Badge";
 import { Checkbox } from "@/components/ui/Checkbox";
@@ -26,9 +28,9 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ChevronRight, ChevronDown, CheckCircle, PauseCircle, Loader2, Search, Filter } from "lucide-react";
+import { ChevronDown, CheckCircle, Loader2, Search, Filter, LayoutGrid, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { formatCurrency, toTitleCase } from "@/lib/utils";
+import { formatCurrency, toTitleCase, cn } from "@/lib/utils";
 import { ApprovalRowExpanded } from "./ApprovalRowExpanded";
 
 export function ApprovalTable() {
@@ -39,16 +41,18 @@ export function ApprovalTable() {
 
     const [filterStatus, setFilterStatus] = useState<string>("PENDING_APPROVAL");
     const [searchQuery, setSearchQuery] = useState("");
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+
     const { toast } = useToast();
     const supabase = createClient();
 
+    // Stats for Cards
+    const totalPending = postings.filter(p => p.status === 'PENDING_APPROVAL').reduce((s, c) => s + Number(c.amount_total), 0);
+    const totalSelected = postings.filter(p => selectedIds.has(p.id)).reduce((s, c) => s + (Number(c.amount_total) || 0), 0);
+
     // Batch Action States
     const [isApproving, setIsApproving] = useState(false);
-    const [isHolding, setIsHolding] = useState(false);
-
-    // Dialogs
     const [showApproveDialog, setShowApproveDialog] = useState(false);
-    const [showHoldDialog, setShowHoldDialog] = useState(false);
 
     const fetchPostings = async () => {
         setLoading(true);
@@ -64,6 +68,8 @@ export function ApprovalTable() {
 
         if (filterStatus && filterStatus !== 'ALL') {
             query = query.eq('status', filterStatus);
+        } else if (filterStatus === 'ALL') {
+            query = query.neq('status', 'CANCELLED');
         }
 
         const { data, error } = await query;
@@ -91,9 +97,80 @@ export function ApprovalTable() {
         fetchPostings();
     }, [filterStatus, searchQuery]);
 
+    // Sorting Logic
+    const handleSort = (key: string) => {
+        setSortConfig(current => {
+            if (current?.key === key) {
+                return { key, direction: current.direction === 'asc' ? 'desc' : 'asc' };
+            }
+            return { key, direction: 'asc' };
+        });
+    };
+
+    // Helper to get raw first due date for sorting
+    const getFirstDueDate = (p: ArTitle) => {
+        if (!p.ar_installments || p.ar_installments.length === 0) return 0;
+        const dates = p.ar_installments.map(i => new Date(i.due_date).getTime());
+        return Math.min(...dates);
+    };
+
+    const sortedPostings = useMemo(() => {
+        if (!sortConfig) return postings;
+
+        return [...postings].sort((a, b) => {
+            let aVal: any = '';
+            let bVal: any = '';
+
+            switch (sortConfig.key) {
+                case 'document':
+                    aVal = a.document_number || a.sales_document?.document_number || 0;
+                    bVal = b.document_number || b.sales_document?.document_number || 0;
+                    break;
+                case 'client':
+                    aVal = (a.organization?.trade_name || a.organization?.legal_name || '').toLowerCase();
+                    bVal = (b.organization?.trade_name || b.organization?.legal_name || '').toLowerCase();
+                    break;
+                case 'date_issued':
+                    aVal = new Date(a.date_issued || 0).getTime();
+                    bVal = new Date(b.date_issued || 0).getTime();
+                    break;
+                case 'total':
+                    aVal = Number(a.amount_total || 0);
+                    bVal = Number(b.amount_total || 0);
+                    break;
+                case 'terms':
+                    aVal = (a.payment_terms_snapshot || '').toLowerCase();
+                    bVal = (b.payment_terms_snapshot || '').toLowerCase();
+                    break;
+                case 'flow': // Payment Method
+                    aVal = (a.payment_method_snapshot || '').toLowerCase();
+                    bVal = (b.payment_method_snapshot || '').toLowerCase();
+                    break;
+                case 'installments_count':
+                    aVal = a.ar_installments?.length || 0;
+                    bVal = b.ar_installments?.length || 0;
+                    break;
+                case 'due_date':
+                    aVal = getFirstDueDate(a);
+                    bVal = getFirstDueDate(b);
+                    break;
+                case 'status':
+                    aVal = a.status;
+                    bVal = b.status;
+                    break;
+                default:
+                    return 0;
+            }
+
+            if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [postings, sortConfig]);
+
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            setSelectedIds(new Set(postings.filter(p => p.status === 'PENDING_APPROVAL' || p.status === 'ON_HOLD').map(p => p.id)));
+            setSelectedIds(new Set(postings.filter(p => p.status === 'PENDING_APPROVAL').map(p => p.id)));
         } else {
             setSelectedIds(new Set());
         }
@@ -141,28 +218,6 @@ export function ApprovalTable() {
         }
     };
 
-    const handleBatchHold = async () => {
-        setIsHolding(true);
-        try {
-            const response = await fetch('/api/finance/postings/hold-batch', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: Array.from(selectedIds) })
-            });
-
-            if (!response.ok) throw new Error('Erro ao segurar itens');
-
-            toast({ title: "Itens colocados em espera (Hold) com sucesso." });
-            setSelectedIds(new Set());
-            setShowHoldDialog(false);
-            fetchPostings();
-        } catch (error: any) {
-            toast({ title: "Erro ao processar", description: error.message, variant: "destructive" });
-        } finally {
-            setIsHolding(false);
-        }
-    };
-
     const handleSingleApprove = async (id: string) => {
         try {
             const response = await fetch('/api/finance/postings/approve-batch', {
@@ -175,21 +230,6 @@ export function ApprovalTable() {
             fetchPostings();
         } catch (e) {
             toast({ title: "Erro na aprovação", variant: "destructive" });
-        }
-    };
-
-    const handleSingleHold = async (id: string) => {
-        try {
-            const response = await fetch('/api/finance/postings/hold-batch', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ids: [id] })
-            });
-            if (!response.ok) throw new Error('Erro ao colocar em hold');
-            toast({ title: "Lançamento em espera." });
-            fetchPostings();
-        } catch (e) {
-            toast({ title: "Erro ao alterar status", variant: "destructive" });
         }
     };
 
@@ -216,7 +256,6 @@ export function ApprovalTable() {
             PAID: "bg-emerald-50 text-emerald-700 border-emerald-200",
             CANCELLED: "bg-gray-50 text-gray-700 border-gray-200",
             PARTIAL: "bg-indigo-50 text-indigo-700 border-indigo-200",
-            ON_HOLD: "bg-orange-50 text-orange-700 border-orange-200 shadow-sm"
         };
         const labels: any = {
             PENDING_APPROVAL: "Pendente",
@@ -224,9 +263,8 @@ export function ApprovalTable() {
             PAID: "Liquidado",
             CANCELLED: "Cancelado",
             PARTIAL: "Parcial",
-            ON_HOLD: "Segurado"
         };
-        return <Badge variant="outline" className={`${styles[status] || "bg-gray-100"} font-bold px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider`}>
+        return <Badge variant="outline" className={`${styles[status] || "bg-gray-100"} font-bold px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wider whitespace-nowrap`}>
             {labels[status] || status}
         </Badge>;
     };
@@ -239,226 +277,259 @@ export function ApprovalTable() {
         return { count: insts.length, first };
     };
 
-    const totalSelectedValue = postings
-        .filter(p => selectedIds.has(p.id))
-        .reduce((sum, curr) => sum + (Number(curr.amount_total) || 0), 0);
+    // Helper Component for Sortable Header
+    const SortableHead = ({ label, sortKey, className = "" }: { label: string, sortKey: string, className?: string }) => {
+        const isActive = sortConfig?.key === sortKey;
+        return (
+            <TableHead
+                className={cn("cursor-pointer hover:bg-gray-100 transition-colors select-none group h-10", className)}
+                onClick={() => handleSort(sortKey)}
+            >
+                <div className={cn("flex items-center gap-1.5", className?.includes("text-right") && "justify-end", className?.includes("text-center") && "justify-center")}>
+                    {label}
+                    <div className="flex flex-col items-center justify-center w-3">
+                        {isActive ? (
+                            sortConfig?.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-blue-600" /> : <ArrowDown className="w-3 h-3 text-blue-600" />
+                        ) : (
+                            <ArrowUpDown className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        )}
+                    </div>
+                </div>
+            </TableHead>
+        );
+    };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
-            {/* Action Bar */}
-            <div className="flex flex-col md:flex-row gap-4 justify-between items-center bg-white p-5 rounded-2xl border shadow-sm">
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                    <div className="relative group">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+        <div className="space-y-6 animate-in fade-in duration-700">
+            {/* Top Stats Row */}
+            <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-1 relative overflow-hidden group hover:border-blue-200 transition-all">
+                    <span className="text-[10px] uppercase font-black text-gray-400 tracking-widest pl-1">Total Pendente</span>
+                    <div className="text-2xl font-black text-gray-900 tabular-nums">
+                        {formatCurrency(totalPending)}
+                    </div>
+                    <div className="absolute -right-6 -top-6 bg-blue-50 w-24 h-24 rounded-full opacity-50 group-hover:scale-110 transition-transform" />
+                </div>
+                <div className="flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-1 relative overflow-hidden group hover:border-blue-200 transition-all">
+                    <span className="text-[10px] uppercase font-black text-gray-400 tracking-widest pl-1">Seleção Ativa</span>
+                    <div className={`text-2xl font-black tabular-nums ${selectedIds.size > 0 ? 'text-blue-600' : 'text-gray-300'}`}>
+                        {formatCurrency(totalSelected)}
+                    </div>
+                    <div className="absolute -right-6 -top-6 bg-blue-50 w-24 h-24 rounded-full opacity-50 group-hover:scale-110 transition-transform" />
+                </div>
+            </div>
+
+            <Card className="min-h-[500px]">
+                <CardHeaderStandard
+                    title="Fluxo de Aprovação"
+                    description="Revise e valide lançamentos financeiros antes de efetivá-los."
+                    icon={<LayoutGrid className="w-5 h-5" />}
+                    actions={
+                        selectedIds.size > 0 && (
+                            <div className="flex items-center gap-2 animate-in slide-in-from-right-4 bg-blue-50/50 p-1.5 rounded-xl border border-blue-100/50">
+                                <span className="text-xs font-bold text-blue-700 px-2">
+                                    {selectedIds.size} selecionados
+                                </span>
+                                <Button
+                                    size="sm"
+                                    className="h-8 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                                    onClick={() => setShowApproveDialog(true)}
+                                >
+                                    <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Aprovar
+                                </Button>
+                            </div>
+                        )
+                    }
+                />
+
+                {/* Embedded Toolbar */}
+                <div className="px-6 pb-6 border-b border-gray-100 flex flex-col sm:flex-row gap-4 justify-between items-center">
+                    <div className="relative w-full sm:w-auto flex-1 max-w-md">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                             placeholder="Buscar cliente ou pedido..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full md:w-80 bg-gray-50/50 border-gray-100 pl-10 h-11 focus:bg-white focus:ring-2 focus:ring-blue-100 transition-all rounded-xl"
+                            className="pl-9 h-10 w-full bg-gray-50/50 border-gray-200 focus:bg-white transition-colors"
                         />
                     </div>
-
-                    <div className="flex items-center gap-2 bg-gray-50/50 p-1 rounded-xl border border-gray-100">
-                        <Select value={filterStatus} onValueChange={setFilterStatus}>
-                            <SelectTrigger className="w-[160px] border-none bg-transparent h-9 shadow-none focus:ring-0">
-                                <Filter className="w-3 h-3 mr-2 text-gray-400" />
-                                <SelectValue placeholder="Status" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border-gray-100 shadow-xl">
-                                <SelectItem value="PENDING_APPROVAL" className="rounded-lg">Pendentes</SelectItem>
-                                <SelectItem value="ON_HOLD" className="rounded-lg">Segurados</SelectItem>
-                                <SelectItem value="OPEN" className="rounded-lg">Aprovados</SelectItem>
-                                <SelectItem value="ALL" className="rounded-lg">Todos os Status</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <Select value={filterStatus} onValueChange={setFilterStatus}>
+                        <SelectTrigger className="w-full sm:w-[180px] h-10 bg-white border-gray-200">
+                            <Filter className="w-4 h-4 mr-2 text-gray-500" />
+                            <SelectValue placeholder="Filtrar Status" />
+                        </SelectTrigger>
+                        <SelectContent align="end">
+                            <SelectItem value="PENDING_APPROVAL">Pendentes</SelectItem>
+                            <SelectItem value="APPROVED">Aprovados</SelectItem>
+                            <SelectItem value="ALL">Todos</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
 
-                {selectedIds.size > 0 ? (
-                    <div className="flex items-center gap-4 bg-blue-50/50 p-2 pl-4 rounded-2xl border border-blue-100 animate-in slide-in-from-right-4">
-                        <div className="flex flex-col -space-y-1">
-                            <span className="text-[10px] uppercase font-black text-blue-400 tracking-tighter">Selecionados ({selectedIds.size})</span>
-                            <span className="text-sm font-black text-blue-700">{formatCurrency(totalSelectedValue)}</span>
-                        </div>
-
-                        <div className="flex gap-2">
-                            <Button
-                                size="sm"
-                                variant="secondary"
-                                onClick={() => setShowHoldDialog(true)}
-                                className="h-10 bg-white text-orange-600 hover:bg-orange-50 border border-orange-100 rounded-xl px-4 font-bold active:scale-95 transition-all"
-                            >
-                                <PauseCircle className="w-4 h-4 mr-2" /> Segurar
-                            </Button>
-
-                            <Button
-                                size="sm"
-                                className="h-10 bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-6 font-bold shadow-lg shadow-blue-100 active:scale-95 transition-all"
-                                onClick={() => setShowApproveDialog(true)}
-                            >
-                                <CheckCircle className="w-4 h-4 mr-2" /> Aprovar Lote
-                            </Button>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="hidden md:flex flex-col items-end -space-y-1 text-right">
-                        <span className="text-[10px] uppercase font-bold text-gray-400">Total em Tela</span>
-                        <span className="text-lg font-black text-gray-900">{formatCurrency(postings.reduce((s, c) => s + Number(c.amount_total), 0))}</span>
-                    </div>
-                )}
-            </div>
-
-            {/* Table */}
-            <Card className="overflow-hidden border-gray-100 shadow-xl rounded-2xl">
-                <Table>
-                    <TableHeader className="bg-gray-50/50">
-                        <TableRow className="border-b-gray-100">
-                            <TableHead className="w-[50px]"></TableHead>
-                            <TableHead className="w-[50px]">
-                                <Checkbox
-                                    className="rounded-md border-gray-300"
-                                    checked={selectedIds.size === postings.filter(p => p.status === 'PENDING_APPROVAL' || p.status === 'ON_HOLD').length && postings.length > 0}
-                                    onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
-                                />
-                            </TableHead>
-                            <TableHead className="text-[10px] uppercase font-black text-gray-500 tracking-widest">Pedido</TableHead>
-                            <TableHead className="text-[10px] uppercase font-black text-gray-500 tracking-widest">Cliente</TableHead>
-                            <TableHead className="text-[10px] uppercase font-black text-gray-500 tracking-widest">Em Rota</TableHead>
-                            <TableHead className="text-[10px] uppercase font-black text-gray-500 tracking-widest">Valor Total</TableHead>
-                            <TableHead className="text-[10px] uppercase font-black text-gray-500 tracking-widest">Condição</TableHead>
-                            <TableHead className="text-[10px] uppercase font-black text-gray-500 tracking-widest">Modalidade</TableHead>
-                            <TableHead className="text-[10px] uppercase font-black text-gray-500 tracking-widest text-center">Parcelas</TableHead>
-                            <TableHead className="text-[10px] uppercase font-black text-gray-500 tracking-widest">1º Vencimento</TableHead>
-                            <TableHead className="text-[10px] uppercase font-black text-gray-500 tracking-widest text-right">Status</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {loading ? (
-                            <TableRow>
-                                <TableCell colSpan={11} className="text-center py-20 text-gray-500">
-                                    <Loader2 className="h-10 w-10 animate-spin mx-auto mb-4 text-blue-500 opacity-20" />
-                                    <p className="font-bold text-gray-300 uppercase tracking-widest text-xs">Sincronizando fluxo...</p>
-                                </TableCell>
+                <div className="relative">
+                    <Table>
+                        <TableHeader>
+                            <TableRow className="bg-gray-50/40 hover:bg-gray-50/40 border-b border-gray-200">
+                                <TableHead className="w-[50px] text-center"></TableHead>
+                                <TableHead className="w-[50px]">
+                                    <Checkbox
+                                        checked={postings.length > 0 && selectedIds.size === postings.filter(p => p.status === 'PENDING_APPROVAL').length}
+                                        onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
+                                        className="translate-y-[2px]"
+                                    />
+                                </TableHead>
+                                <SortableHead sortKey="document" label="Documento" className="w-[120px]" />
+                                <SortableHead sortKey="client" label="Cliente Parceiro" />
+                                <SortableHead sortKey="date_issued" label="Lançado em" className="w-[120px]" />
+                                <SortableHead sortKey="total" label="Total" className="w-[140px]" />
+                                <SortableHead sortKey="terms" label="Condição" className="w-[100px]" />
+                                <SortableHead sortKey="flow" label="Fluxo" className="w-[100px]" />
+                                <SortableHead sortKey="installments_count" label="Parc." className="w-[80px] text-center" />
+                                <SortableHead sortKey="due_date" label="Vencimento" className="w-[120px]" />
+                                <SortableHead sortKey="status" label="Situação" className="w-[150px] text-right" />
                             </TableRow>
-                        ) : postings.length === 0 ? (
-                            <TableRow>
-                                <TableCell colSpan={11} className="text-center py-20">
-                                    <div className="flex flex-col items-center gap-2 opacity-30 grayscale">
-                                        <Filter className="w-12 h-12" />
-                                        <p className="font-bold text-xs uppercase tracking-widest">Nenhum lançamento pendente encontrado.</p>
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            postings.map((posting) => {
-                                const isExpanded = expandedIds.has(posting.id);
-                                const instInfo = getInstallmentInfo(posting);
-                                const isPending = posting.status === 'PENDING_APPROVAL' || posting.status === 'ON_HOLD';
+                        </TableHeader>
+                        <TableBody>
+                            {loading ? (
+                                <TableRow>
+                                    <TableCell colSpan={11} className="h-64 text-center">
+                                        <div className="flex flex-col items-center gap-3">
+                                            <Loader2 className="h-8 w-8 animate-spin text-blue-500/30" />
+                                            <span className="text-xs font-medium text-gray-400 uppercase tracking-widest">Carregando...</span>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ) : sortedPostings.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={11} className="h-64 text-center">
+                                        <div className="flex flex-col items-center gap-2 opacity-50">
+                                            <LayoutGrid className="w-10 h-10 text-gray-300" />
+                                            <span className="text-sm font-medium text-gray-500">Nenhum registro encontrado</span>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                sortedPostings.map((posting) => {
+                                    const isExpanded = expandedIds.has(posting.id);
+                                    const instInfo = getInstallmentInfo(posting);
+                                    const isPending = posting.status === 'PENDING_APPROVAL';
 
-                                return (
-                                    <React.Fragment key={posting.id}>
-                                        <TableRow className={`group cursor-pointer transition-all ${isExpanded ? 'bg-blue-50/20' : 'hover:bg-gray-50/80 border-b-gray-50'}`} onClick={() => toggleExpand(posting.id)}>
-                                            <TableCell onClick={(e) => e.stopPropagation()}>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className={`h-8 w-8 p-0 rounded-full transition-all ${isExpanded ? 'bg-blue-100 text-blue-600 rotate-180' : 'text-gray-400'}`}
-                                                    onClick={() => toggleExpand(posting.id)}
-                                                >
-                                                    <ChevronDown className="h-4 w-4" />
-                                                </Button>
-                                            </TableCell>
-                                            <TableCell onClick={(e) => e.stopPropagation()}>
-                                                <Checkbox
-                                                    className="rounded-md border-gray-300 data-[state=checked]:bg-blue-600"
-                                                    checked={selectedIds.has(posting.id)}
-                                                    onCheckedChange={(checked) => handleSelectOne(posting.id, checked as boolean)}
-                                                    disabled={!isPending}
-                                                />
-                                            </TableCell>
-                                            <TableCell className="font-black text-gray-900">
-                                                #{posting.document_number || posting.sales_document?.document_number}
-                                            </TableCell>
-                                            <TableCell className="max-w-[180px] truncate font-bold text-gray-600" title={posting.organization?.trade_name || ""}>
-                                                {toTitleCase(posting.organization?.trade_name || posting.organization?.legal_name || 'NI')}
-                                            </TableCell>
-                                            <TableCell className="text-gray-500 font-medium">
-                                                {posting.date_issued ? new Date(posting.date_issued).toLocaleDateString('pt-BR') : '-'}
-                                            </TableCell>
-                                            <TableCell className="font-black text-gray-900 bg-gray-50/30 group-hover:bg-transparent">
-                                                {formatCurrency(posting.amount_total)}
-                                            </TableCell>
-                                            <TableCell className="text-[10px] font-bold text-gray-400 max-w-[100px] truncate">
-                                                {posting.payment_terms_snapshot || '-'}
-                                            </TableCell>
-                                            <TableCell className="text-[10px] font-bold text-gray-400">
-                                                {posting.payment_method_snapshot || '-'}
-                                            </TableCell>
-                                            <TableCell className="text-center font-black text-blue-600/60">
-                                                {instInfo.count > 0 ? `${instInfo.count}x` : '-'}
-                                            </TableCell>
-                                            <TableCell className="text-gray-500 font-medium">
-                                                {instInfo.first}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                {getStatusBadge(posting.status)}
-                                            </TableCell>
-                                        </TableRow>
-
-                                        {isExpanded && (
-                                            <TableRow className="bg-transparent border-none">
-                                                <TableCell colSpan={11} className="p-0 border-none">
-                                                    <div className="px-4 pb-4 animate-in slide-in-from-top-4 duration-500">
-                                                        <ApprovalRowExpanded
-                                                            title={posting}
-                                                            onRefresh={fetchPostings}
-                                                            onApprove={handleSingleApprove}
-                                                            onHold={handleSingleHold}
-                                                            onDeleteTitle={handleDeleteTitle}
-                                                        />
+                                    return (
+                                        <React.Fragment key={posting.id}>
+                                            <TableRow
+                                                className={cn(
+                                                    "cursor-pointer transition-colors border-b-gray-50",
+                                                    isExpanded ? 'bg-blue-50/30' : 'hover:bg-gray-50/50'
+                                                )}
+                                                onClick={() => toggleExpand(posting.id)}
+                                            >
+                                                <TableCell className="text-center pl-4 py-3">
+                                                    <div
+                                                        className={cn(
+                                                            "w-6 h-6 rounded-md flex items-center justify-center transition-all duration-300",
+                                                            isExpanded ? 'bg-blue-100 text-blue-600 rotate-180' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-500'
+                                                        )}
+                                                    >
+                                                        <ChevronDown className="h-4 w-4" />
                                                     </div>
                                                 </TableCell>
+                                                <TableCell onClick={(e) => e.stopPropagation()} className="py-3">
+                                                    <Checkbox
+                                                        checked={selectedIds.has(posting.id)}
+                                                        onCheckedChange={(checked) => handleSelectOne(posting.id, checked as boolean)}
+                                                        disabled={!isPending}
+                                                        className="translate-y-[2px]"
+                                                    />
+                                                </TableCell>
+                                                <TableCell className="py-3">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-bold text-gray-900">
+                                                            #{posting.document_number || posting.sales_document?.document_number}
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-400 font-medium uppercase">Financiero</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="max-w-[200px] py-3">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-medium text-gray-700 truncate" title={posting.organization?.legal_name || ""}>
+                                                            {toTitleCase(posting.organization?.trade_name || posting.organization?.legal_name || 'Não identificado')}
+                                                        </span>
+                                                        <span className="text-[10px] text-gray-400">CNPJ/CPF: {posting.organization?.id?.slice(0, 8)}...</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-gray-500 font-medium text-xs py-3">
+                                                    {posting.date_issued ? new Date(posting.date_issued).toLocaleDateString('pt-BR') : '-'}
+                                                </TableCell>
+                                                <TableCell className="py-3">
+                                                    <span className="text-sm font-bold text-gray-900 tabular-nums">
+                                                        {formatCurrency(posting.amount_total)}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="py-3">
+                                                    <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md truncate block uppercase">
+                                                        {posting.payment_terms_snapshot || '-'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="py-3">
+                                                    <span className="text-[10px] font-bold text-blue-600 uppercase">
+                                                        {posting.payment_method_snapshot || '-'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-center py-3">
+                                                    <span className="text-xs text-gray-500 font-medium">
+                                                        {instInfo.count > 0 ? `${instInfo.count}x` : '-'}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="text-gray-500 font-medium text-xs py-3">
+                                                    {instInfo.first}
+                                                </TableCell>
+                                                <TableCell className="text-right py-3 pr-4">
+                                                    {getStatusBadge(posting.status)}
+                                                </TableCell>
                                             </TableRow>
-                                        )}
-                                    </React.Fragment>
-                                );
-                            })
-                        )}
-                    </TableBody>
-                </Table>
+
+                                            {isExpanded && (
+                                                <TableRow className="bg-transparent border-none hover:bg-transparent">
+                                                    <TableCell colSpan={11} className="p-0 border-none bg-blue-50/10">
+                                                        <div className="px-4 pb-6 pt-2 animate-in slide-in-from-top-2 duration-300">
+                                                            <ApprovalRowExpanded
+                                                                title={posting}
+                                                                onRefresh={fetchPostings}
+                                                                onApprove={handleSingleApprove}
+                                                                onDeleteTitle={handleDeleteTitle}
+                                                            />
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )}
+                                        </React.Fragment>
+                                    );
+                                })
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
             </Card>
 
-            {/* Dialogs */}
             <AlertDialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
-                <AlertDialogContent className="rounded-2xl border-none shadow-2xl">
+                <AlertDialogContent className="rounded-2xl border-none shadow-xl">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="font-black text-2xl text-gray-900">Confirmar Aprovação?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-gray-500 font-medium">
-                            Você está prestes a aprovar <span className="text-blue-600 font-bold">{selectedIds.size} lançamentos</span>.
-                            Isso irá gerar títulos abertos no Contas a Receber e permitirá a baixa financeira definitiva.
+                        <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mb-2 mx-auto sm:mx-0">
+                            <CheckCircle className="w-6 h-6 text-blue-600" />
+                        </div>
+                        <AlertDialogTitle>Confirmar Aprovação?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Você está aprovando <b>{selectedIds.size} lançamentos</b>. Isso irá gerar os títulos no Contas a Receber.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
-                    <AlertDialogFooter className="mt-6">
-                        <AlertDialogCancel className="rounded-xl border-gray-100 font-bold">Voltar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleBatchApprove} className="bg-blue-600 hover:bg-blue-700 rounded-xl font-bold px-8">
-                            Aprovar Lote
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-
-            <AlertDialog open={showHoldDialog} onOpenChange={setShowHoldDialog}>
-                <AlertDialogContent className="rounded-2xl border-none shadow-2xl">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle className="font-black text-2xl text-orange-700">Pausar Lançamentos?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-gray-500 font-medium">
-                            Os <span className="font-bold">{selectedIds.size} itens</span> serão marcados como "Segurado" (Hold) e sairão do fluxo principal de aprovações pendentes até que sejam liberados novamente.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter className="mt-6">
-                        <AlertDialogCancel className="rounded-xl border-gray-100 font-bold">Voltar</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleBatchHold} className="bg-orange-600 hover:bg-orange-700 rounded-xl font-bold px-8">
-                            Confirmar Hold
+                    <AlertDialogFooter>
+                        <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleBatchApprove}
+                            disabled={isApproving}
+                            className="bg-blue-600 hover:bg-blue-700 rounded-xl"
+                        >
+                            {isApproving ? "Processando..." : "Sim, Aprovar"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -466,5 +537,3 @@ export function ApprovalTable() {
         </div>
     );
 }
-
-import React from "react";

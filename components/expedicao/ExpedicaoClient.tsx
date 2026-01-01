@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { Calendar, PackageCheck, Play, Printer, Check } from 'lucide-react';
+import { Calendar, PackageCheck, Play, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select-shadcn';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -30,19 +30,13 @@ export function ExpedicaoClient({ initialRoutes }: ExpedicaoClientProps) {
         if (selectedRoute) {
             const updated = initialRoutes.find(r => r.id === selectedRoute.id);
             if (updated) {
-                if (updated.status === 'cancelada') {
-                    setSelectedRoute(null);
-                } else {
-                    setSelectedRoute(updated);
-                }
-            } else {
-                setSelectedRoute(null);
+                setSelectedRoute(updated);
             }
         }
     }, [initialRoutes]);
 
     const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-    const [dialogConfig, setDialogConfig] = useState({ countFull: 0, countPartial: 0, countNotLoaded: 0, totalCount: 0 });
+    const [dialogConfig, setDialogConfig] = useState({ loadedCount: 0, totalCount: 0, hasPendingItems: false });
 
     const handleStartRoute = () => {
         if (!selectedRoute) {
@@ -50,24 +44,11 @@ export function ExpedicaoClient({ initialRoutes }: ExpedicaoClientProps) {
             return;
         }
 
-        const countFull = selectedRoute.orders?.filter((o: any) => o.loading_status === 'loaded' || (!o.loading_status && o.sales_order?.loading_checked)).length || 0;
-        const countPartial = selectedRoute.orders?.filter((o: any) => o.loading_status === 'partial').length || 0;
-        const countNotLoaded = selectedRoute.orders?.filter((o: any) => o.loading_status === 'not_loaded').length || 0;
+        const loadedCount = selectedRoute.orders?.filter((o: any) => o.sales_order?.loading_checked).length || 0;
         const totalCount = selectedRoute.orders?.length || 0;
+        const hasPendingItems = loadedCount < totalCount;
 
-        const countProcessed = countFull + countPartial + countNotLoaded;
-        const hasPendingItems = countProcessed < totalCount;
-
-        if (hasPendingItems) {
-            toast({
-                title: "Pendências de carregamento",
-                description: "Defina o status de carregamento de todos os pedidos (Completo/Parcial/Não carregado).",
-                variant: "destructive"
-            });
-            return;
-        }
-
-        setDialogConfig({ countFull, countPartial, countNotLoaded, totalCount });
+        setDialogConfig({ loadedCount, totalCount, hasPendingItems });
         setConfirmDialogOpen(true);
     };
 
@@ -87,19 +68,15 @@ export function ExpedicaoClient({ initialRoutes }: ExpedicaoClientProps) {
             toast({ title: "Sucesso", description: 'Rota iniciada com sucesso!' });
             setConfirmDialogOpen(false);
             router.refresh();
-        } catch (err: any) {
+        } catch (err) {
             console.error(err);
-            toast({ title: "Erro", description: err.message || 'Erro ao iniciar rota', variant: "destructive" });
+            toast({ title: "Erro", description: 'Erro ao iniciar rota', variant: "destructive" });
         } finally {
             setStarting(false);
         }
     };
 
     const hasInRouteOrders = selectedRoute?.orders?.some((o: any) => o.sales_order?.status_logistic === 'em_rota');
-
-    // Check if ALL orders are marked as Not Loaded
-    const allOrdersNotLoaded = selectedRoute?.orders?.length > 0 &&
-        selectedRoute.orders.every((o: any) => o.loading_status === 'not_loaded');
 
     // Filter logic
     const filteredRoutes = routes.filter(route => {
@@ -118,9 +95,9 @@ export function ExpedicaoClient({ initialRoutes }: ExpedicaoClientProps) {
             // Check if same week
             const start = format(new Date(), 'ww-yyyy');
             const target = format(routeDate, 'ww-yyyy');
-            return start === target && route.status !== 'cancelada';
+            return start === target;
         }
-        return route.status !== 'cancelada';
+        return true;
     });
 
     return (
@@ -137,75 +114,44 @@ export function ExpedicaoClient({ initialRoutes }: ExpedicaoClientProps) {
                         <Button
                             onClick={handleStartRoute}
                             disabled={!selectedRoute || starting || hasInRouteOrders}
-                            variant={allOrdersNotLoaded ? "danger" : "primary"}
                         >
                             <Play className="w-4 h-4 mr-2" />
-                            {starting ? (allOrdersNotLoaded ? 'Cancelando...' : 'Iniciando...') : (allOrdersNotLoaded ? 'Cancelar Rota' : 'Iniciar Rota')}
+                            {starting ? 'Iniciando...' : 'Iniciar Rota'}
                         </Button>
                     </div>
                 }
             />
 
             <div className="px-6 pb-6 space-y-6">
+
+
                 {/* Confirm Dialog */}
                 <ConfirmDialogDesdobra
                     open={confirmDialogOpen}
                     onOpenChange={setConfirmDialogOpen}
-                    title={allOrdersNotLoaded ? "Cancelar Rota" : "Iniciar rota"}
+                    title="Iniciar rota"
                     description={
-                        allOrdersNotLoaded ? (
-                            <div className="space-y-3">
-                                <div className="p-3 bg-red-50 border-l-4 border-red-500 rounded-r text-red-800 text-sm">
-                                    <p className="font-semibold">⚠️ Cancelamento de Rota</p>
-                                    <p>Todos os {dialogConfig.totalCount} pedidos foram marcados como <strong>NÃO CARREGADO</strong>.</p>
+                        <div className="space-y-3">
+                            {dialogConfig.hasPendingItems && (
+                                <div className="p-3 bg-amber-50 border-l-4 border-amber-500 rounded-r text-amber-800 text-sm">
+                                    <p className="font-semibold">⚠️ Pendências de carregamento</p>
+                                    <p>Apenas {dialogConfig.loadedCount} de {dialogConfig.totalCount} pedidos foram conferidos.</p>
                                 </div>
-                                <p>
-                                    Deseja cancelar a rota <span className="font-semibold text-gray-900">"{selectedRoute?.name}"</span>?
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                    A rota ficará vermelha no calendário e todos os pedidos voltarão para a Sandbox como <strong>Pendentes</strong>.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {(dialogConfig.countPartial > 0 || dialogConfig.countNotLoaded > 0) ? (
-                                    <div className="p-3 bg-amber-50 border-l-4 border-amber-500 rounded-r text-amber-800 text-sm">
-                                        <p className="font-semibold">⚠️ Atenção para exceções</p>
-                                        <ul className="list-disc ml-4 mt-1">
-                                            {dialogConfig.countPartial > 0 && (
-                                                <li>
-                                                    <strong>{dialogConfig.countPartial} Parciais:</strong> Serão gerados pedidos complementares.
-                                                </li>
-                                            )}
-                                            {dialogConfig.countNotLoaded > 0 && (
-                                                <li>
-                                                    <strong>{dialogConfig.countNotLoaded} Não Carregados:</strong> voltarão para a Sandbox como PENDENTE (com observação).
-                                                </li>
-                                            )}
-                                        </ul>
-                                    </div>
-                                ) : (
-                                    <div className="p-3 bg-green-50 border-l-4 border-green-500 rounded-r text-green-800 text-sm">
-                                        <p className="font-semibold">✓ Tudo conferido</p>
-                                        <p>Todos os {dialogConfig.totalCount} pedidos estão completos.</p>
-                                    </div>
-                                )}
-
-                                <p>
-                                    Deseja iniciar a rota <span className="font-semibold text-gray-900">"{selectedRoute?.name}"</span>?
-                                </p>
-                                <p className="text-sm text-gray-500">
-                                    Ao iniciar, a rota e os pedidos carregados serão marcados como <span className="font-medium text-gray-700">Em rota</span>.
-                                    <br />
-                                    Pedidos não carregados voltarão para a Sandbox como Pendente.
-                                </p>
-                            </div>
-                        )
+                            )}
+                            <p>
+                                Deseja iniciar a rota <span className="font-semibold text-gray-900">"{selectedRoute?.name}"</span>?
+                            </p>
+                            <p className="text-sm text-gray-500">
+                                Ao iniciar, a rota e todos os pedidos vinculados serão marcados como <span className="font-medium text-gray-700">Em rota</span>.
+                                <br />
+                                Você pode desfazer movendo pedidos de volta ao Sandbox.
+                            </p>
+                        </div>
                     }
-                    confirmText={allOrdersNotLoaded ? "Confirmar Cancelamento" : "Iniciar rota"}
+                    confirmText="Iniciar rota"
                     cancelText="Cancelar"
                     onConfirm={confirmStartRoute}
-                    variant={allOrdersNotLoaded ? "danger" : "success"}
+                    variant="success"
                     isLoading={starting}
                 />
 
@@ -236,28 +182,14 @@ export function ExpedicaoClient({ initialRoutes }: ExpedicaoClientProps) {
                                 {filteredRoutes.length > 0 ? (
                                     filteredRoutes.map((route: any) => {
                                         const isSelected = selectedRoute?.id === route.id;
-                                        const orders = route.orders || [];
-                                        const totalOrders = orders.length;
-
-                                        // Calculate statuses for dots and completion
-                                        const processedOrders = orders.map((o: any) => {
-                                            let status = o.loading_status || (o.sales_order?.loading_checked ? 'loaded' : 'pending');
-                                            if (!['pending', 'loaded', 'partial', 'not_loaded'].includes(status)) status = 'pending';
-                                            return { ...o, effectiveStatus: status };
-                                        });
-
-                                        const countPending = processedOrders.filter((o: any) => o.effectiveStatus === 'pending').length;
-                                        const isFullyChecked = countPending === 0 && totalOrders > 0;
-                                        const processedCount = totalOrders - countPending;
+                                        const totalOrders = route.orders?.length || 0;
+                                        const loadedOrders = route.orders?.filter((o: any) => o.sales_order?.loading_checked).length || 0;
+                                        const isComplete = loadedOrders === totalOrders && totalOrders > 0;
 
                                         return (
                                             <button
                                                 key={route.id}
-                                                onClick={() => {
-                                                    // Close any open flyouts
-                                                    window.dispatchEvent(new CustomEvent('closeFlyouts'));
-                                                    setSelectedRoute(route);
-                                                }}
+                                                onClick={() => setSelectedRoute(route)}
                                                 className={`w-full text-left p-4 hover:bg-gray-50 transition-colors ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
                                                     }`}
                                             >
@@ -268,35 +200,16 @@ export function ExpedicaoClient({ initialRoutes }: ExpedicaoClientProps) {
                                                             <Calendar className="w-3 h-3" />
                                                             {format(new Date(route.scheduled_date), 'dd/MM/yyyy')}
                                                         </div>
-
-                                                        {/* Status Dots */}
-                                                        <div className="flex flex-wrap gap-1.5 mt-2">
-                                                            {processedOrders.map((o: any, idx: number) => {
-                                                                let dotColor = 'bg-gray-200 border-gray-300'; // pending
-                                                                if (o.effectiveStatus === 'loaded') dotColor = 'bg-green-500 border-green-600';
-                                                                else if (o.effectiveStatus === 'partial') dotColor = 'bg-amber-400 border-amber-500';
-                                                                else if (o.effectiveStatus === 'not_loaded') dotColor = 'bg-red-500 border-red-600';
-
-                                                                return (
-                                                                    <div
-                                                                        key={idx}
-                                                                        className={`w-2.5 h-2.5 rounded-full border ${dotColor}`}
-                                                                        title={`Pedido #${o.sales_order?.document_number}: ${o.effectiveStatus}`}
-                                                                    />
-                                                                );
-                                                            })}
-                                                        </div>
-
-                                                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                                                        <div className="flex items-center gap-2 mt-1 text-sm">
                                                             <PackageCheck className="w-3 h-3" />
-                                                            <span>{processedCount}/{totalOrders}</span>
+                                                            <span className={isComplete ? 'text-green-600 font-medium' : 'text-gray-600'}>
+                                                                {loadedOrders}/{totalOrders}
+                                                            </span>
                                                         </div>
                                                     </div>
-
-                                                    {/* Completion Check */}
-                                                    {isFullyChecked && (
-                                                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-700 ml-2">
-                                                            <Check className="w-4 h-4" />
+                                                    {isComplete && (
+                                                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-500 text-white">
+                                                            <PackageCheck className="w-4 h-4" />
                                                         </span>
                                                     )}
                                                 </div>

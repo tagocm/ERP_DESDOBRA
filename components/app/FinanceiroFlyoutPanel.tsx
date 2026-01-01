@@ -18,14 +18,12 @@ const menuItems = [
         icon: CheckCircle
     },
     {
-        name: "Contas a Receber",
-        href: "/app/financeiro/receber",
-        icon: ArrowDownCircle
-    },
-    {
-        name: "Contas a Pagar",
-        href: "/app/financeiro/pagar",
-        icon: ArrowUpCircle
+        name: "Contas",
+        href: "/app/financeiro/contas",
+        icon: ArrowDownCircle // Using a generic icon or one of the arrows for now, or maybe 'Wallet' if imported. 
+        // Let's stick to ArrowDownCircle since Receivables is the main data for now, 
+        // or better, use 'Receipt' or 'FileText' if available. 
+        // I'll check imports. 
     },
     {
         name: "Fluxo de Caixa",

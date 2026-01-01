@@ -119,7 +119,11 @@ export function TabFiscal({ data, onChange, isAdmin }: TabFiscalProps) {
                     </div>
 
                     {/* Future: Flags/Parametrizações */}
-
+                    <div className="col-span-full">
+                        <div className="p-4 bg-yellow-50 text-yellow-800 text-sm rounded-md border border-yellow-100">
+                            Novos campos de parametrização fiscal serão adicionados aqui conforme a integração com o módulo emissor for desenvolvida.
+                        </div>
+                    </div>
 
                 </div>
             </div>

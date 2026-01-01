@@ -1,0 +1,13 @@
+▲ Next.js 16.1.0 (webpack)
+- Local:         http://localhost:8080
+- Network:       http://192.168.0.129:8080
+- Environments: .env.local
+
+✓ Starting...
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+✓ Ready in 923ms
+[Middleware] Checking user...
+[Middleware] User check complete. User: false
+[Middleware] Passing request
+ GET /api/health 200 in 916ms (compile: 833ms, proxy.ts: 72ms, render: 11ms)
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (130kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)

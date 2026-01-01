@@ -13,7 +13,7 @@ import { Plus, Search, Trash2, Edit2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { formatCNPJ } from "@/lib/cnpj";
-import { useToast } from "@/components/ui/use-toast";
+import { Alert } from "@/components/ui/Alert";
 
 
 
@@ -43,19 +43,20 @@ function PessoasEmpresasContent() {
     const [searchDebounced, setSearchDebounced] = useState("");
     const [roleFilter, setRoleFilter] = useState<string>("all");
 
-    const { toast } = useToast();
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
 
     // Check for success param on mount
     useEffect(() => {
         const successParam = searchParams.get('success');
         if (successParam === 'created') {
-            toast({ title: "Sucesso", description: "Cadastro criado com sucesso!" });
+            setSuccess("Cadastro criado com sucesso!");
             router.replace('/app/cadastros/pessoas-e-empresas');
         } else if (successParam === 'updated') {
-            toast({ title: "Sucesso", description: "Cadastro atualizado com sucesso!" });
+            setSuccess("Cadastro atualizado com sucesso!");
             router.replace('/app/cadastros/pessoas-e-empresas');
         }
-    }, [searchParams, router, toast]);
+    }, [searchParams, router]);
 
     // Debounce search
     useEffect(() => {
@@ -169,16 +170,26 @@ function PessoasEmpresasContent() {
     const handleDelete = async (id: string) => {
         try {
             await deleteOrganization(supabase, id);
-            toast({ title: "Sucesso", description: "Cadastro excluído com sucesso!" });
+            setSuccess("Cadastro excluído com sucesso!");
             fetchOrganizations(); // Refresh
         } catch (e) {
             console.error(e);
-            toast({ title: "Erro", description: "Erro ao excluir cadastro.", variant: "destructive" });
+            setError("Erro ao excluir cadastro.");
         }
     }
 
     return (
         <div>
+            {error && (
+                <Alert variant="destructive" onClose={() => setError(null)}>
+                    {error}
+                </Alert>
+            )}
+            {success && (
+                <Alert variant="success" onClose={() => setSuccess(null)}>
+                    {success}
+                </Alert>
+            )}
             <PageHeader
                 title="Pessoas & Empresas"
                 subtitle="Gerencie clientes, fornecedores e parceiros."
