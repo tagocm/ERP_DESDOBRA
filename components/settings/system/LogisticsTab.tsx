@@ -2,28 +2,17 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/Accordion";
 import { ReasonList } from "./ReasonList";
-import { Truck, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
+
+import { DELIVERY_REASON_GROUPS } from "@/types/reasons";
 
 const SECTIONS = [
     {
-        id: "expedition",
-        title: "Expedição",
-        icon: Truck,
-        description: "Motivos para falhas ou divergências durante o carregamento.",
-        types: [
-            { code: "EXPEDICAO_NAO_CARREGADO", label: "Não Carregado (Total)" },
-            { code: "EXPEDICAO_CARREGADO_PARCIAL", label: "Carregamento Parcial" }
-        ]
-    },
-    {
         id: "return",
-        title: "Retorno de Rota",
+        title: "Ocorrências Logísticas",
         icon: RotateCcw,
-        description: "Motivos para ocorrências no ato da entrega (app motorista/conferente).",
-        types: [
-            { code: "RETORNO_NAO_ENTREGUE", label: "Não Entregue / Devolução Total" },
-            { code: "RETORNO_ENTREGA_PARCIAL", label: "Entrega Parcial / Devolução Parcial" }
-        ]
+        description: "Motivos utilizados para registrar ocorrências logísticas quando o carregamento ou a entrega não ocorrem conforme o planejado.",
+        types: DELIVERY_REASON_GROUPS
     }
 ];
 
@@ -31,11 +20,11 @@ export function LogisticsTab() {
     return (
         <div className="space-y-8">
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <h4 className="font-semibold text-blue-900 mb-1">Como funcionam as Regras Padrão?</h4>
+                <h4 className="font-semibold text-blue-900 mb-1">Como funcionam as Ocorrências Logísticas?</h4>
                 <p className="text-sm text-blue-800">
-                    Ao definir um motivo, você escolhe quais ações o sistema deve sugerir (ex: voltar para sandbox, gerar devolução).
+                    Ao definir um motivo, você configura exigências e sinalizações que o sistema utilizará para registrar a ocorrência e gerar pendências para outras áreas.
                     <br />
-                    O operador sempre poderá alterar essas sugestões no momento da ocorrência (override).
+                    Nenhuma ação é executada automaticamente no pedido. As decisões comerciais e financeiras são tratadas posteriormente.
                 </p>
             </div>
 

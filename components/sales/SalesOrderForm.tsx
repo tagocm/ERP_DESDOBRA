@@ -20,6 +20,7 @@ import { TabDelivery } from "./TabDelivery";
 import { TabFiscal } from "./TabFiscal";
 import { TabHistory } from "./order/TabHistory";
 import { Loader2, Save, Ban } from "lucide-react";
+import { getFinancialBadgeStyle } from "@/lib/constants/statusColors";
 
 interface SalesOrderFormProps {
     id: string; // 'novo' or uuid
@@ -28,14 +29,16 @@ interface SalesOrderFormProps {
 const emptyDoc: Partial<SalesOrder> = {
     doc_type: 'proposal',
     status_commercial: 'draft',
-    status_logistic: 'pending',
+    status_logistic: 'pendente',
     status_fiscal: 'none',
     date_issued: new Date().toISOString().split('T')[0],
     items: [],
     subtotal_amount: 0,
     discount_amount: 0,
     total_amount: 0,
-    freight_amount: 0
+    freight_amount: 0,
+    total_weight_kg: 0,
+    total_gross_weight_kg: 0
 };
 
 export function SalesOrderForm({ id }: SalesOrderFormProps) {
@@ -49,6 +52,7 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
     const [data, setData] = useState<Partial<SalesOrder>>(emptyDoc);
     const [deletedItemIds, setDeletedItemIds] = useState<string[]>([]);
     const [activeTab, setActiveTab] = useState("general");
+    const isLocked = !isNew && (data.status_logistic === 'em_rota' || data.status_logistic === 'entregue' || data.status_logistic === 'devolvido');
 
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
@@ -83,6 +87,28 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
                 next.subtotal_amount = subtotal;
                 const globalDisc = Number(next.discount_amount) || 0;
                 next.total_amount = subtotal + (Number(next.freight_amount) || 0) - globalDisc;
+
+                // Calculate Weights (using qty_base if available, or quantity)
+                const totalNetWeight = items.reduce((acc, item) => {
+                    const weightKg = Number(item.product?.net_weight_kg_base);
+                    const weightG = Number(item.product?.net_weight_g_base) || 0;
+                    const finalWeight = !isNaN(weightKg) && weightKg > 0 ? weightKg : (weightG / 1000);
+
+                    const qty = Number(item.qty_base) || Number(item.quantity) || 0;
+                    return acc + (finalWeight * qty);
+                }, 0);
+
+                const totalGrossWeight = items.reduce((acc, item) => {
+                    const weightKg = Number(item.product?.gross_weight_kg_base);
+                    const weightG = Number(item.product?.gross_weight_g_base) || 0;
+                    const finalWeight = !isNaN(weightKg) && weightKg > 0 ? weightKg : (weightG / 1000);
+
+                    const qty = Number(item.qty_base) || Number(item.quantity) || 0;
+                    return acc + (finalWeight * qty);
+                }, 0);
+
+                next.total_weight_kg = totalNetWeight;
+                next.total_gross_weight_kg = totalGrossWeight;
             }
 
             return next;
@@ -188,7 +214,7 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
                         <Button variant="outline" onClick={() => router.back()}>
                             Cancelar
                         </Button>
-                        <Button onClick={handleSave} disabled={saving}>
+                        <Button onClick={handleSave} disabled={saving || isLocked}>
                             {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                             <Save className="w-4 h-4 mr-2" /> Salvar
                         </Button>
@@ -205,8 +231,22 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
                     <span className={`${badgeClass} bg-gray-100 text-gray-800`}>
                         Fiscal: {data.status_fiscal?.toUpperCase()}
                     </span>
+                    <span className={`${badgeClass} ${getFinancialBadgeStyle(data.financial_status || 'pendente').bg} ${getFinancialBadgeStyle(data.financial_status || 'pendente').text}`}>
+                        Fin.: {getFinancialBadgeStyle(data.financial_status || 'pendente').label.toUpperCase()}
+                    </span>
                 </div>
             </PageHeader>
+
+            <div className="px-6 pb-0">
+                {isLocked && (
+                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-center gap-3 text-amber-800 mb-6 shadow-sm">
+                        <Ban className="w-5 h-5" />
+                        <div className="text-sm font-medium">
+                            Este pedido está com status logística <strong>{data.status_logistic?.replace('_', ' ').toUpperCase()}</strong> e não pode mais ser alterado.
+                        </div>
+                    </div>
+                )}
+            </div>
 
             <div className="px-6">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -222,16 +262,16 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
                     <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden mt-6">
                         <div className="p-6">
                             <TabsContent value="general" className="focus-visible:outline-none mt-0">
-                                <TabGeneral data={data} onChange={handleChange} />
+                                <TabGeneral data={data} onChange={handleChange} disabled={isLocked} />
                             </TabsContent>
                             <TabsContent value="items" className="focus-visible:outline-none mt-0">
-                                <TabItems items={data.items || []} onChange={(items) => handleItemChangeWrapper('items', items)} orderId={data.id} />
+                                <TabItems items={data.items || []} onChange={(items) => handleItemChangeWrapper('items', items)} orderId={data.id} disabled={isLocked} />
                             </TabsContent>
                             <TabsContent value="payment" className="focus-visible:outline-none mt-0">
-                                <TabPayment data={data} onChange={handleChange} />
+                                <TabPayment data={data} onChange={handleChange} disabled={isLocked} />
                             </TabsContent>
                             <TabsContent value="delivery" className="focus-visible:outline-none mt-0">
-                                <TabDelivery data={data} onChange={handleChange} />
+                                <TabDelivery data={data} onChange={handleChange} disabled={isLocked} />
                             </TabsContent>
                             <TabsContent value="fiscal" className="focus-visible:outline-none mt-0">
                                 {data.id ? <TabFiscal order={data as any} /> : <div className="p-12 text-center text-gray-400">Salve o pedido para gerenciar documentos fiscais</div>}

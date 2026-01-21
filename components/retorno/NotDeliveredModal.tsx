@@ -9,8 +9,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select-shadcn';
 import { Label } from '@/components/ui/Label';
 import { createClient } from "@/utils/supabase/client";
-import { getSystemReasons } from "@/lib/data/system-preferences";
-import { SystemOccurrenceReasonWithDefaults } from "@/types/system-preferences";
+// import { getSystemReasons } from "@/lib/data/system-preferences";
+// import { SystemOccurrenceReasonWithDefaults } from "@/types/system-preferences";
 import { OccurrenceActionsPanel, OperationAction } from "@/components/settings/system/OccurrenceActionsPanel";
 
 interface NotDeliveredModalProps {
@@ -25,7 +25,7 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
     const { toast } = useToast();
 
     // Data State
-    const [reasons, setReasons] = useState<SystemOccurrenceReasonWithDefaults[]>([]);
+    const [reasons, setReasons] = useState<any[]>([]);
     const [isLoadingReasons, setIsLoadingReasons] = useState(false);
     const [reasonsError, setReasonsError] = useState(false);
 
@@ -51,13 +51,28 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
                 setReasonsError(false);
 
                 try {
-                    const data = await getSystemReasons(supabase, 'RETORNO_NAO_ENTREGUE');
+                    // Try getting company ID from order or sales_order
+                    const companyId = order?.company_id || order?.sales_order?.company_id;
+
+                    if (!companyId) {
+                        console.warn("No company ID found on order");
+                        // Fallback or error? For now, empty list better than crash.
+                        if (isMounted) setReasons([]);
+                        return;
+                    }
+
+                    // Import dynamically to avoid top-level issues if needed, or just use the imported one.
+                    const { getDeliveryReasons } = await import("@/lib/data/reasons");
+                    const data = await getDeliveryReasons(supabase, companyId, 'RETORNO_NAO_ENTREGUE');
 
                     if (isMounted) {
                         if (data && data.length > 0) {
                             setReasons(data);
                         } else {
-                            throw new Error("No reasons found");
+                            // If no custom reasons, maybe fallback to system? 
+                            // Or just show empty/other. User explicitly asked for "registered reasons".
+                            // If none found, empty list is correct (and "Other" option shows up).
+                            setReasons([]);
                         }
                     }
                 } catch (error) {
@@ -84,21 +99,16 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
 
             return () => { isMounted = false; };
         }
-    }, [isOpen, supabase]);
+    }, [isOpen, supabase, order]);
 
     // Handle Reason Selection & Defaults
     const handleReasonChange = (reasonId: string) => {
         setSelectedReasonId(reasonId);
 
         const reason = reasons.find(r => r.id === reasonId);
-        if (reason?.defaults) {
-            const defaults = {
-                [OperationAction.GENERATE_RETURN_MOVEMENT]: reason.defaults.create_devolution ?? true,
-                [OperationAction.RETURN_TO_SANDBOX_PENDING]: reason.defaults.return_to_sandbox_pending ?? false
-            };
-            setDefaultActions(defaults);
-            setCurrentActions(defaults);
-        }
+        // DeliveryReason doesn't have complex defaults currently, so we stick to currentActions defaults
+        // If we need to implement defaults for custom reasons, we'd need to extend the DeliveryReason schema.
+        // For now, we preserve the "require_note" check which IS in DeliveryReason.
     };
 
     const handleActionChange = (action: OperationAction, value: boolean) => {
@@ -111,7 +121,7 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
         const selectedReason = reasons.find(r => r.id === selectedReasonId);
         const isOther = selectedReasonId === 'other';
 
-        if (selectedReason?.defaults?.require_note && !notes.trim()) {
+        if (selectedReason?.require_note && !notes.trim()) {
             toast({ title: "Erro", description: "Observação obrigatória.", variant: "destructive" });
             return;
         }
@@ -122,7 +132,7 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
 
         setIsSubmitting(true);
         try {
-            const finalReasonLabel = isOther ? "Outro" : selectedReason?.label || "Desconhecido";
+            const finalReasonLabel = isOther ? "Outro" : selectedReason?.name || "Desconhecido";
             const actionFlags = {
                 create_devolution: currentActions[OperationAction.GENERATE_RETURN_MOVEMENT],
                 return_to_pending: currentActions[OperationAction.RETURN_TO_SANDBOX_PENDING],
@@ -150,8 +160,8 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
                     </p>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto py-4 px-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="flex-1 overflow-y-auto py-4 px-6 px-1">
+                    <div className="grid grid-cols-1 gap-6">
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <Label>Motivo <span className="text-red-500">*</span></Label>
@@ -165,7 +175,7 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
                                     </SelectTrigger>
                                     <SelectContent>
                                         {reasons.map((r) => (
-                                            <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>
+                                            <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
                                         ))}
                                         {(reasonsError || reasons.length === 0) && (
                                             <SelectItem value="other">Outro (Manual)</SelectItem>
@@ -175,7 +185,7 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
                             </div>
 
                             <div className="space-y-1.5">
-                                <Label>Observações {reasons.find(r => r.id === selectedReasonId)?.defaults?.require_note && <span className="text-red-500">*</span>}</Label>
+                                <Label>Observações {reasons.find(r => r.id === selectedReasonId)?.require_note && <span className="text-red-500">*</span>}</Label>
                                 <Textarea
                                     placeholder="Detalhes adicionais..."
                                     value={notes}
@@ -183,19 +193,6 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
                                     className="resize-none h-24"
                                 />
                             </div>
-                        </div>
-
-                        <div>
-                            <OccurrenceActionsPanel
-                                mode="operation"
-                                availableActions={[
-                                    OperationAction.GENERATE_RETURN_MOVEMENT,
-                                    OperationAction.RETURN_TO_SANDBOX_PENDING
-                                ]}
-                                currentActions={currentActions}
-                                defaultActions={defaultActions}
-                                onChange={handleActionChange}
-                            />
                         </div>
                     </div>
                 </div>

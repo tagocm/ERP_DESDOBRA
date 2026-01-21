@@ -69,12 +69,15 @@ function DayColumn({ date, dateKey, routes, isToday, onDayClick, renderRouteCard
         data: { type: 'calendar-day', date: dateKey },
     });
 
+    const isPast = dateKey < format(new Date(), "yyyy-MM-dd");
+
     return (
         <div
             ref={setNodeRef}
             className={cn(
                 "bg-white flex flex-col transition-colors",
-                isOver && "bg-blue-50 ring-2 ring-blue-300 ring-inset"
+                isOver && !isPast && "bg-blue-50 ring-2 ring-blue-300 ring-inset",
+                isOver && isPast && "bg-red-50 ring-2 ring-red-300 ring-inset"
             )}
         >
             {/* Day Header - 3 column layout */}
@@ -85,20 +88,36 @@ function DayColumn({ date, dateKey, routes, isToday, onDayClick, renderRouteCard
                     isToday && "bg-blue-50"
                 )}
             >
-                <div className="grid grid-cols-3 items-center gap-1">
+                <div className="flex items-center justify-between gap-1 w-full">
                     {/* Weekday on left */}
-                    <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wide text-left">
+                    <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wide text-left flex-shrink-0 w-8">
                         {format(date, "EEE", { locale: ptBR })}
                     </div>
 
                     {/* Route count in center */}
-                    <div className="text-[9px] text-gray-400 text-center">
-                        {routes.length > 0 ? `${routes.length} ${routes.length === 1 ? 'rota' : 'rotas'}` : ''}
+                    <div className="text-[9px] text-gray-400 text-center flex items-center justify-center gap-x-1 leading-tight flex-1 whitespace-nowrap overflow-hidden">
+                        <span>{routes.length > 0 ? `${routes.length} ${routes.length === 1 ? 'rota' : 'rotas'}` : ''}</span>
+                        {routes.length > 0 && (() => {
+                            const totalWeight = routes.reduce((acc, r) => {
+                                const routeWeight = r.orders?.reduce((sum, o) => sum + (o.sales_order?.total_weight_kg || 0), 0) || 0;
+                                return acc + routeWeight;
+                            }, 0);
+
+
+                            return (
+                                <>
+                                    <span className="text-gray-300">•</span>
+                                    <span className="text-gray-500 font-medium">
+                                        {new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(totalWeight)} kg
+                                    </span>
+                                </>
+                            );
+                        })()}
                     </div>
 
                     {/* Day number on right */}
                     <div className={cn(
-                        "text-lg font-bold leading-none text-right",
+                        "text-lg font-bold leading-none text-right flex-shrink-0 w-8",
                         isToday ? "text-blue-600" : "text-gray-900"
                     )}>
                         {format(date, "dd", { locale: ptBR })}
@@ -107,9 +126,9 @@ function DayColumn({ date, dateKey, routes, isToday, onDayClick, renderRouteCard
             </button>
 
             {/* Routes Container - Fixed height for 3 cards, scroll for more */}
-            <div className="p-1 space-y-0.5 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 max-h-[89px]">
+            <div className="p-1 space-y-0.5 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 h-[96px]">
                 {routes.length === 0 ? (
-                    <div className="h-[79px] flex items-center justify-center text-center">
+                    <div className="h-full flex items-center justify-center text-center">
                         <div className="text-[10px] text-gray-300 px-1 leading-tight">
                             Arraste rotas
                         </div>

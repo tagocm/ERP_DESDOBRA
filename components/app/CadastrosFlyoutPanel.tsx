@@ -39,24 +39,8 @@ const menuItems = [
             href: "/app/cadastros/tabelas-de-preco/nova"
         }
     },
-    {
-        name: "Condições de Pagamento",
-        href: "/app/cadastros/condicoes-de-pagamento",
-        icon: CreditCard,
-        newItem: {
-            name: "Nova Condição",
-            href: "/app/cadastros/condicoes-de-pagamento/nova"
-        }
-    },
-    {
-        name: "Grupos Tributários",
-        href: "/app/cadastros/grupos-tributarios",
-        icon: Scale,
-        newItem: {
-            name: "Novo Grupo",
-            href: "/app/cadastros/grupos-tributarios/novo"
-        }
-    }
+
+
 ];
 
 export function CadastrosFlyoutPanel({ isOpen, onClose, anchorRef }: CadastrosFlyoutPanelProps) {

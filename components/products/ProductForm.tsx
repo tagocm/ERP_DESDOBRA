@@ -60,7 +60,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
     const [activeTab, setActiveTab] = useState("general");
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [success, setSuccess] = useState<string | null>(null);
-    const [submitError, setSubmitError] = useState<string | null>(null);
+
     const [uoms, setUoms] = useState<Uom[]>([]);
 
     // Recipe State
@@ -76,8 +76,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         type: "raw_material",
         uom: "UN",
         gtin_ean_base: "",
-        net_weight_g_base: 0,
-        gross_weight_g_base: 0,
+        net_weight_kg_base: 0,
+        gross_weight_kg_base: 0,
         is_active: true,
         packagings: [],
         // Inventory
@@ -110,6 +110,11 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
 
     // --- Helpers ---
     const cleanDigits = (str: string) => str.replace(/\D/g, '');
+
+    // Derived State
+    const currentBaseUom = formData.uom_id
+        ? (uoms.find(u => u.id === formData.uom_id)?.abbrev || formData.uom)
+        : formData.uom;
 
     // --- Handlers ---
     const handleTypeChange = (newType: string) => {
@@ -409,15 +414,20 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
     const { toast } = useToast();
 
     useEffect(() => {
-        if (searchParams.get("success") === "created") {
-            toast({ title: "Item criado com sucesso!", description: "Pronto para cadastrar o próximo.", variant: "default", className: "bg-green-600 text-white border-none" });
+        if (searchParams && searchParams.get("success") === "created") {
+            toast({
+                title: "Item criado com sucesso!",
+                description: "Pronto para cadastrar o próximo.",
+                // @ts-ignore
+                className: "bg-green-600 text-white border-none"
+            });
         }
     }, [searchParams]);
 
     useEffect(() => {
         if (selectedCompany) {
             getTaxGroups(supabase, selectedCompany.id).then(setTaxGroups);
-            getUoms().then(setUoms);
+            getUoms(selectedCompany.id).then(setUoms);
 
             // ... rest of use effect
 
@@ -448,7 +458,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                     .select('id, yield_qty, yield_uom, lines:bom_lines(*)')
                     .eq('item_id', itemId)
                     .eq('is_active', true)
-                    .single()
+                    .maybeSingle()
                     .then(({ data, error }) => {
                         if (data && !error) {
                             setRecipeHeaderId(data.id);
@@ -497,7 +507,6 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         }
     }, [selectedCompany, isEdit, itemId]);
 
-    // One-Time Migration Logic: Copy Tax Group fiscal data to Product if Product data is missing (Legacy Support)
     const [hasMigrated, setHasMigrated] = useState(false);
     useEffect(() => {
         if (!hasMigrated && isEdit && taxGroups.length > 0 && formData.tax_group_id) {
@@ -522,6 +531,13 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
             setHasMigrated(true);
         }
     }, [taxGroups, formData.tax_group_id, isEdit, hasMigrated]);
+
+    // Force is_produced=true for consistency if type requires it (Fix for saving issue)
+    useEffect(() => {
+        if (['finished_good', 'wip'].includes(formData.type) && !formData.is_produced) {
+            setFormData(prev => ({ ...prev, is_produced: true }));
+        }
+    }, [formData.type, formData.is_produced]);
 
     const executeSave = async (saveAndNew: boolean) => {
         // Apply formatting rules (Frontend)
@@ -548,24 +564,27 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
 
                 const { data: existingSku } = await query.single();
                 if (existingSku) {
-                    setSubmitError(`O SKU "${formData.sku}" já está em uso por outro item. Por favor, escolha outro.`);
+                    toast({
+                        title: "Erro de Validação",
+                        description: `O SKU "${formData.sku}" já está em uso por outro item. Por favor, escolha outro.`,
+                        variant: "destructive"
+                    });
                     setIsLoading(false);
                     return;
                 }
             }
-
             // 1. Upsert Item
             const itemPayload = {
                 company_id: selectedCompany.id,
                 name: finalName,
                 sku: formData.sku || null,
                 type: formData.type,
-                uom: formData.uom,
+                uom: formData.uom_id ? (uoms.find(u => u.id === formData.uom_id)?.abbrev || formData.uom) : formData.uom,
                 uom_id: formData.uom_id || null,
                 is_active: formData.is_active,
                 gtin_ean_base: formData.gtin_ean_base || null,
-                net_weight_g_base: formData.net_weight_g_base || null,
-                gross_weight_g_base: formData.gross_weight_g_base || null,
+                net_weight_kg_base: formData.net_weight_kg_base || null,
+                gross_weight_kg_base: formData.gross_weight_kg_base || null,
                 height_base: formData.height_base || null,
                 width_base: formData.width_base || null,
                 length_base: formData.length_base || null,
@@ -605,14 +624,83 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 control_expiry: formData.control_expiry
             }, { onConflict: 'item_id' });
 
+            // 4. Upsert Packagings (MUST BE BEFORE PURCHASE PROFILE due to FK)
+            let resolvedPackagings: any[] = [];
+            if (formData.packagings && formData.packagings.length > 0) {
+                const packagingsToUpsert = formData.packagings.map(p => {
+                    const packaging: any = {
+                        company_id: selectedCompany.id,
+                        item_id: savedItemId,
+                        type: p.type?.trim() || '',
+                        label: p.label?.trim() || '',
+                        qty_in_base: p.qty_in_base,
+                        gtin_ean: p.gtin_ean || null,
+                        net_weight_kg: p.net_weight_kg || null,
+                        gross_weight_kg: p.gross_weight_kg || null,
+                        height_cm: p.height_cm || null,
+                        width_cm: p.width_cm || null,
+                        length_cm: p.length_cm || null,
+                        is_default_sales_unit: p.is_default_sales_unit || false,
+                        is_active: p.is_active,
+                        deleted_at: null, // ensure it is not deleted
+                        uom_id: null // New field for UOM standardization (NFe description enhancement)
+                    };
+
+                    // Only include id if it exists (for updates)
+                    if (p.id && !String(p.id).startsWith('temp-')) {
+                        packaging.id = p.id;
+                    }
+
+                    return packaging;
+                });
+
+                const { data: upsertedPackagings, error: pkgError } = await supabase
+                    .from('item_packaging')
+                    .upsert(packagingsToUpsert)
+                    .select('*');
+
+                if (pkgError) throw pkgError;
+                resolvedPackagings = upsertedPackagings;
+            }
+
             // Purchase Profile (Merged into Operations in UI, but separate table)
+            // MOVED AFTER PACKAGING due to default_purchase_packaging_id FK
+
+            // Resolve default packaging ID (handle temp IDs)
+            let finalDefaultPkgId: string | null | undefined = formData.default_purchase_packaging_id;
+
+            // If it's a temp ID or if we just saved new packagings, ensure we use the real ID
+            if (finalDefaultPkgId && (String(finalDefaultPkgId).startsWith('temp-') || resolvedPackagings.length > 0)) {
+                // If it's a real ID, verify it still exists/matches (optional but good)
+                // If it's temp, we MUST find it
+                if (String(finalDefaultPkgId).startsWith('temp-')) {
+                    const tempPkg = formData.packagings?.find(p => p.id === finalDefaultPkgId);
+                    if (tempPkg && resolvedPackagings.length > 0) {
+                        // Match by unique combo: label + qty_in_base
+                        const match = resolvedPackagings.find(rp =>
+                            rp.label === tempPkg.label &&
+                            Number(rp.qty_in_base) === Number(tempPkg.qty_in_base)
+                        );
+                        if (match) {
+                            finalDefaultPkgId = match.id;
+                        } else {
+                            // Fallback: This shouldn't happen if upsert worked
+                            finalDefaultPkgId = null;
+                        }
+                    } else {
+                        finalDefaultPkgId = null;
+                    }
+                }
+            }
+
             await supabase.from('item_purchase_profiles').upsert({
                 company_id: selectedCompany.id,
                 item_id: savedItemId,
                 preferred_supplier_id: formData.preferred_supplier_id || null,
                 lead_time_days: formData.lead_time_days || null,
                 purchase_uom: formData.purchase_uom || null, // Legacy
-                purchase_uom_id: formData.purchase_uom_id || null,
+                purchase_uom_id: formData.uom_id || null, // Sync with base UOM for now if not distinct
+                default_purchase_packaging_id: finalDefaultPkgId,
                 conversion_factor: formData.conversion_factor || 1,
                 notes: formData.purchase_notes || null
             }, { onConflict: 'item_id' });
@@ -673,7 +761,10 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 } else {
                     const { data: newBom } = await supabase.from('bom_headers')
                         .insert(bomPayload).select().single();
-                    if (newBom) currentBomId = newBom.id;
+                    if (newBom) {
+                        currentBomId = newBom.id;
+                        setRecipeHeaderId(newBom.id); // Prevent duplicate headers on next save
+                    }
                 }
 
                 if (currentBomId) {
@@ -681,17 +772,32 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                     await supabase.from('bom_lines').delete().eq('bom_id', currentBomId);
 
                     if (recipeLines.length > 0) {
-                        const linesToInsert = recipeLines.map((l, idx) => ({
+                        // Aggregate duplicates (same component_item_id)
+                        const aggregatedLines = new Map<string, any>();
+
+                        recipeLines.forEach((l, idx) => {
+                            if (!l.component_item_id) return;
+                            const key = l.component_item_id;
+                            if (aggregatedLines.has(key)) {
+                                const existing = aggregatedLines.get(key);
+                                existing.qty += l.qty;
+                                existing.notes = existing.notes ? `${existing.notes}; ${l.notes || ''}` : (l.notes || null);
+                            } else {
+                                aggregatedLines.set(key, { ...l, sort_order: idx });
+                            }
+                        });
+
+                        const linesToInsert = Array.from(aggregatedLines.values()).map((l, idx) => ({
                             company_id: selectedCompany.id,
                             bom_id: currentBomId,
                             component_item_id: l.component_item_id,
                             qty: l.qty,
                             uom: l.uom,
-                            loss_percent: 0, // Ignored/Removed feature
                             notes: l.notes || null,
-                            sort_order: idx
+                            sort_order: l.sort_order // or just idx
                         }));
-                        await supabase.from('bom_lines').insert(linesToInsert);
+                        const { error: linesError } = await supabase.from('bom_lines').insert(linesToInsert);
+                        if (linesError) throw linesError;
                     }
 
                     // Sync Byproducts
@@ -711,41 +817,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 }
             }
 
-            // 4. Upsert Packagings
-            if (formData.packagings && formData.packagings.length > 0) {
-                const packagingsToUpsert = formData.packagings.map(p => {
-                    const packaging: any = {
-                        company_id: selectedCompany.id,
-                        item_id: savedItemId,
-                        type: p.type,
-                        label: p.label,
-                        qty_in_base: p.qty_in_base,
-                        gtin_ean: p.gtin_ean || null,
-                        net_weight_g: p.net_weight_g || null,
-                        gross_weight_g: p.gross_weight_g || null,
-                        height_cm: p.height_cm || null,
-                        width_cm: p.width_cm || null,
-                        length_cm: p.length_cm || null,
-                        is_default_sales_unit: p.is_default_sales_unit || false,
-                        is_active: p.is_active,
-                        deleted_at: null // ensure it is not deleted
-                    };
-
-                    // Only include id if it exists (for updates)
-                    if (p.id) {
-                        packaging.id = p.id;
-                    }
-
-                    return packaging;
-                });
-
-                const { data: upsertedPackagings, error: pkgError } = await supabase
-                    .from('item_packaging')
-                    .upsert(packagingsToUpsert)
-                    .select('id');
-
-                if (pkgError) throw pkgError;
-            }
+            // Packagings (Moved up before Purchase Profile)
+            // if (formData.packagings && formData.packagings.length > 0) { ... } // ALREADY HANDLED ABOVE
 
             // Delete removed packagings
             if (deletedPackagingIds.length > 0) {
@@ -771,7 +844,11 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
             else if (error?.error_description) msg = error.error_description;
             else if (error?.details) msg = error.details;
 
-            setSubmitError("Erro ao salvar: " + msg);
+            toast({
+                title: "Erro ao Salvar",
+                description: msg,
+                variant: "destructive"
+            });
         } finally {
             setIsLoading(false);
         }
@@ -781,12 +858,15 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         if (!selectedCompany) return;
 
         setSuccess(null);
-        setSubmitError(null);
 
         // Run validation
         const formErrors = validateForm();
         if (Object.keys(formErrors).length > 0) {
-            setSubmitError("Existem erros no formulário. Verifique os campos em destaque.");
+            toast({
+                title: "Erro de Validação",
+                description: "Existem erros no formulário. Verifique os campos em destaque.",
+                variant: "destructive"
+            });
 
             // Auto-switch to tab with error
             const generalFields = ['name', 'type', 'uom', 'gtin_ean_base', 'brand', 'line'];
@@ -808,7 +888,11 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         if (formData.is_produced) {
             const invalidLines = recipeLines.filter(l => !l.component_item_id || l.qty <= 0);
             if (invalidLines.length > 0) {
-                setSubmitError("A receita possui linhas inválidas (sem insumo ou quantidade zero).");
+                toast({
+                    title: "Erro na Receita",
+                    description: "A receita possui linhas inválidas (sem insumo ou quantidade zero).",
+                    variant: "destructive"
+                });
                 setActiveTab("production");
                 return;
             }
@@ -882,14 +966,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
 
     return (
         <div>
-            {submitError && (
-                <div className="mb-4">
-                    {/* @ts-ignore */}
-                    <Alert variant="destructive" onClose={() => setSubmitError(null)}>
-                        {submitError}
-                    </Alert>
-                </div>
-            )}
+
             {success && (
                 <div className="mb-4">
                     {/* @ts-ignore */}
@@ -1054,6 +1131,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                     onChange={(val) => handleChange('category_id', val)}
                                                     className="mt-1"
                                                     disabled={formData.type !== 'finished_good'}
+                                                    companyId={selectedCompany?.id || ""}
                                                 />
                                             </div>
                                         </div>
@@ -1144,13 +1222,13 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             </div>
 
                                             <div className="col-span-12 mt-2">
-                                                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-2">PESOS (g)</p>
+                                                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-2">PESOS (KG)</p>
                                                 <div className="flex gap-2">
                                                     <div className="flex-1">
                                                         <label className="text-[10px] text-gray-500 mb-1 block">Líquido</label>
                                                         <DecimalInput
-                                                            value={formData.net_weight_g_base || 0}
-                                                            onChange={(val) => handleChange('net_weight_g_base', val)}
+                                                            value={formData.net_weight_kg_base || 0}
+                                                            onChange={(val) => handleChange('net_weight_kg_base', val)}
                                                             precision={2}
                                                             minPrecision={0}
                                                             disableDecimalShift={true}
@@ -1161,8 +1239,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                     <div className="flex-1">
                                                         <label className="text-[10px] text-gray-500 mb-1 block">Bruto</label>
                                                         <DecimalInput
-                                                            value={formData.gross_weight_g_base || 0}
-                                                            onChange={(val) => handleChange('gross_weight_g_base', val)}
+                                                            value={formData.gross_weight_kg_base || 0}
+                                                            onChange={(val) => handleChange('gross_weight_kg_base', val)}
                                                             precision={2}
                                                             minPrecision={0}
                                                             disableDecimalShift={true}
@@ -1206,34 +1284,37 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         {/* Row 1: Stock Levels */}
                                         <div className="col-span-6 md:col-span-3 lg:col-span-2">
                                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Mínimo</label>
-                                            <Input
-                                                type="number"
-                                                value={formData.min_stock || ''}
-                                                onChange={(e) => handleChange('min_stock', parseFloat(e.target.value))}
-                                                className={cn("mt-1 text-right no-spinners", errors.min_stock && "border-red-500")}
-                                                min={0}
+                                            <DecimalInput
+                                                value={formData.min_stock || 0}
+                                                onChange={(val) => handleChange('min_stock', val)}
+                                                className={cn("mt-1 text-right", errors.min_stock && "border-red-500")}
+                                                precision={3}
+                                                minPrecision={0}
+                                                disableDecimalShift={true}
                                             />
                                             {errors.min_stock && <p className="text-xs text-red-500 mt-1">{errors.min_stock}</p>}
                                         </div>
                                         <div className="col-span-6 md:col-span-3 lg:col-span-2">
                                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Máximo</label>
-                                            <Input
-                                                type="number"
-                                                value={formData.max_stock || ''}
-                                                onChange={(e) => handleChange('max_stock', parseFloat(e.target.value))}
-                                                className={cn("mt-1 text-right no-spinners", errors.max_stock && "border-red-500")}
-                                                min={0}
+                                            <DecimalInput
+                                                value={formData.max_stock || 0}
+                                                onChange={(val) => handleChange('max_stock', val)}
+                                                className={cn("mt-1 text-right", errors.max_stock && "border-red-500")}
+                                                precision={3}
+                                                minPrecision={0}
+                                                disableDecimalShift={true}
                                             />
                                             {errors.max_stock && <p className="text-xs text-red-500 mt-1">{errors.max_stock}</p>}
                                         </div>
                                         <div className="col-span-6 md:col-span-3 lg:col-span-2">
                                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Ponto de Pedido</label>
-                                            <Input
-                                                type="number"
-                                                value={formData.reorder_point || ''}
-                                                onChange={(e) => handleChange('reorder_point', parseFloat(e.target.value))}
-                                                className="mt-1 text-right no-spinners"
-                                                min={0}
+                                            <DecimalInput
+                                                value={formData.reorder_point || 0}
+                                                onChange={(val) => handleChange('reorder_point', val)}
+                                                className="mt-1 text-right"
+                                                precision={3}
+                                                minPrecision={0}
+                                                disableDecimalShift={true}
                                             />
                                         </div>
                                         <div className="col-span-6 md:col-span-3 lg:col-span-4">
@@ -1291,28 +1372,44 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             className="mt-1 text-right no-spinners"
                                         />
                                     </div>
-                                    <div className="col-span-6 md:col-span-3">
-                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Unidade de Compra</label>
-                                        <UomSelector
-                                            value={formData.purchase_uom_id}
-                                            onChange={(val) => handleChange('purchase_uom_id', val)}
-                                            className="mt-1"
-                                        />
-                                    </div>
-                                    <div className="col-span-6 md:col-span-3">
-                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Fator de Conversão</label>
-                                        <div className="w-[40%]">
-                                            <Input
-                                                type="number"
-                                                value={formData.conversion_factor || ''}
-                                                onChange={(e) => handleChange('conversion_factor', parseFloat(e.target.value))}
-                                                placeholder="Ex: 1"
-                                                className={cn("mt-1 text-right no-spinners", errors.conversion_factor && "border-red-500")}
-                                                min={0}
-                                            />
-                                        </div>
-                                        {errors.conversion_factor && <p className="text-xs text-red-500 mt-1">{errors.conversion_factor}</p>}
-                                        <p className="text-[10px] text-gray-500 mt-1">Quantas UN entram no estoque</p>
+                                    <div className="col-span-6 md:col-span-4">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Embalagem de Compra Padrão</label>
+                                        <Select
+                                            value={formData.default_purchase_packaging_id || "none"}
+                                            onValueChange={(val) => handleChange('default_purchase_packaging_id', val === "none" ? null : val)}
+                                        >
+                                            <SelectTrigger className="mt-1">
+                                                <SelectValue placeholder="Selecione..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">Nenhuma (Usa UM Base)</SelectItem>
+                                                {formData.packagings?.map((pkg, idx) => (
+                                                    <SelectItem key={pkg.id || `temp-${idx}`} value={pkg.id || `temp-${idx}`} disabled={!pkg.id}>
+                                                        {pkg.label} {pkg.qty_in_base ? `(${pkg.qty_in_base} ${currentBaseUom})` : ''} {!pkg.id ? '(Salve para usar)' : ''}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+
+                                        {formData.default_purchase_packaging_id && (
+                                            <div className="mt-2 text-xs text-brand-600 font-medium">
+                                                Entrada no estoque: {
+                                                    (() => {
+                                                        const pkg = formData.packagings?.find(p => p.id === formData.default_purchase_packaging_id);
+                                                        return pkg ? `${pkg.qty_in_base} ${currentBaseUom}` : '...';
+                                                    })()
+                                                }
+                                            </div>
+                                        )}
+
+                                        {(!formData.packagings || formData.packagings.length === 0) && (
+                                            <div
+                                                className="mt-2 text-xs text-brand-600 hover:text-brand-700 cursor-pointer flex items-center gap-1"
+                                                onClick={() => setPackagingModalOpen(true)}
+                                            >
+                                                <Plus className="w-3 h-3" /> Criar Embalagem de Compra
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </CardContent>
@@ -1781,7 +1878,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                             <CardContent>
                                 <PackagingList
                                     packagings={formData.packagings || []}
-                                    baseUom={formData.uom}
+                                    baseUom={currentBaseUom}
                                     onEdit={handleOpenPackagingModal}
                                     onDelete={(idx) => setPackagingToDeleteIndex(idx)}
                                 />
@@ -1797,7 +1894,9 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 onClose={() => setPackagingModalOpen(false)}
                 onSave={handleSavePackaging}
                 initialData={editingPackagingIndex !== null ? (formData.packagings?.[editingPackagingIndex]) : undefined}
-                baseUom={formData.uom}
+                baseUom={currentBaseUom}
+                baseNetWeight={formData.net_weight_kg_base || 0}
+                baseGrossWeight={formData.gross_weight_kg_base || 0}
             />
 
             <ConfirmDialogDesdobra

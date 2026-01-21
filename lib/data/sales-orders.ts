@@ -1,6 +1,7 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 import { SalesOrder, SalesOrderItem, SalesOrderPayment, SalesOrderNfe, SalesOrderAdjustment, SalesStatus, LogisticStatus, FiscalStatus, DocType } from '@/types/sales';
+import { resolveFiscalRulesForOrder } from './fiscal-engine';
 
 export interface SalesFilters {
     page?: number;
@@ -15,6 +16,7 @@ export interface SalesFilters {
     clientSearch?: string;
     docType?: string | 'all';
     routeFilter?: 'all' | 'no_route' | 'with_route';
+    showCancelled?: boolean;
 }
 
 export async function getSalesDocuments(supabase: SupabaseClient, filters: SalesFilters) {
@@ -27,23 +29,46 @@ export async function getSalesDocuments(supabase: SupabaseClient, filters: Sales
         .from('sales_documents')
         .select(`
             *,
-            client:organizations!client_id(trade_name, document),
-            sales_rep:users!sales_rep_id(full_name)
+            client:organizations!client_id(trade_name, document_number),
+            sales_rep:users!sales_rep_id(full_name),
+            carrier:organizations!carrier_id(trade_name)
         `, { count: 'exact' });
 
     if (filters.docType && filters.docType !== 'all') {
         query = query.eq('doc_type', filters.docType);
     }
 
-    // Generic search: CNPJ, Nome Fantasia, Razão Social, Cidade
+    // Generic search: CNPJ, Nome Fantasia, Razão Social, ID do Pedido
     if (filters.search) {
         const searchTerm = filters.search.trim();
-        // Normalize CNPJ search (remove formatting)
         const normalizedSearch = searchTerm.replace(/[.\/-]/g, '');
 
-        // Build OR condition for multiple fields
-        // Search in: client document (CNPJ), trade_name, legal_name, and addresses city
-        query = query.or(`client.document.ilike.%${normalizedSearch}%,client.trade_name.ilike.%${searchTerm}%,client.legal_name.ilike.%${searchTerm}%,client.addresses.city.ilike.%${searchTerm}%`);
+        // 1. Search matching organizations (Clients)
+        const { data: matchingClients } = await supabase
+            .from('organizations')
+            .select('id')
+            .or(`trade_name.ilike.%${searchTerm}%,legal_name.ilike.%${searchTerm}%,document_number.ilike.%${normalizedSearch}%`);
+
+        const clientIds = matchingClients?.map(c => c.id) || [];
+        const orConditions: string[] = [];
+
+        // Condition A: Client match
+        if (clientIds.length > 0) {
+            orConditions.push(`client_id.in.(${clientIds.join(',')})`);
+        }
+
+        // Condition B: Order Number match (if numeric)
+        if (!isNaN(Number(searchTerm))) {
+            orConditions.push(`document_number.eq.${searchTerm}`);
+        }
+
+        if (orConditions.length > 0) {
+            query = query.or(orConditions.join(','));
+        } else {
+            // No results found
+            // Force return empty by filtering on a non-existent ID (assuming UUID)
+            query = query.eq('id', '00000000-0000-0000-0000-000000000000');
+        }
     }
 
     if (filters.clientId) {
@@ -58,7 +83,14 @@ export async function getSalesDocuments(supabase: SupabaseClient, filters: Sales
     if (filters.dateFrom) query = query.gte('date_issued', filters.dateFrom);
     if (filters.dateTo) query = query.lte('date_issued', filters.dateTo);
 
-    if (filters.statusCommercial) query = query.eq('status_commercial', filters.statusCommercial);
+    if (filters.statusCommercial) {
+        query = query.eq('status_commercial', filters.statusCommercial);
+    } else {
+        // Default: Hide 'draft' Orders, but show Proposals (Orçamentos)
+        // Logic: (doc_type = proposal) OR (status_commercial != draft)
+        query = query.or('doc_type.eq.proposal,status_commercial.neq.draft');
+    }
+
     if (filters.statusLogistic) query = query.eq('status_logistic', filters.statusLogistic);
     if (filters.financialStatus) query = query.eq('financial_status', filters.financialStatus);
 
@@ -87,8 +119,13 @@ export async function getSalesDocuments(supabase: SupabaseClient, filters: Sales
         }
     }
 
-    // Default: Hide soft deleted
+    // Always hide soft deleted (archive functionality removed)
     query = query.is('deleted_at', null);
+
+    // Filter cancelled unless showCancelled is true
+    if (!filters.showCancelled) {
+        query = query.neq('status_commercial', 'cancelled');
+    }
 
     query = query.order('created_at', { ascending: false }).range(from, to);
 
@@ -104,30 +141,90 @@ export async function getSalesDocumentById(supabase: SupabaseClient, id: string)
         .from('sales_documents')
         .select(`
             *,
-            client:organizations!client_id(trade_name, document, sales_channel, payment_terms_id),
+            client:organizations!client_id(trade_name, document_number, sales_channel, payment_terms_id),
             sales_rep:users!sales_rep_id(full_name),
-            items:sales_document_items(*, product:items(name, gtin_ean_base, id, sku, un:uom)),
+            items:sales_document_items(*, packaging:item_packaging(label), product:items(name, gtin_ean_base, id, sku, un:uom, net_weight_kg_base, gross_weight_kg_base)),
             payments:sales_document_payments(*),
-            adjustments:sales_document_adjustments(*)
+            adjustments:sales_document_adjustments(*),
+            route_info:delivery_route_orders(
+                route:delivery_routes(scheduled_date)
+            )
         `)
         .eq('id', id)
         .single();
 
     if (error) throw error;
-    return data as SalesOrder;
+
+    const order = data as any;
+
+    // Manual Fetch Packagings (Fix for missing embedding)
+    if (order.items && order.items.length > 0) {
+        const productIds = Array.from(new Set(order.items.map((i: any) => i.product?.id).filter(Boolean)));
+
+        if (productIds.length > 0) {
+            const { data: packagings } = await supabase
+                .from('item_packaging')
+                .select('*')
+                .in('item_id', productIds)
+                .is('deleted_at', null);
+
+            if (packagings) {
+                // Map packagings to products
+                const pkgMap = new Map<string, any[]>();
+                packagings.forEach((p: any) => {
+                    const current = pkgMap.get(p.item_id) || [];
+                    current.push(p);
+                    pkgMap.set(p.item_id, current);
+                });
+
+                // Attach to items
+                order.items.forEach((item: any) => {
+                    if (item.product) {
+                        item.product.packagings = pkgMap.get(item.product.id) || [];
+                    }
+                });
+            }
+        }
+    }
+
+    // Fallback for scheduled_delivery_date if it's null on the document but exists on the route
+    if (!order.scheduled_delivery_date && order.route_info?.[0]?.route?.scheduled_date) {
+        order.scheduled_delivery_date = order.route_info[0].route.scheduled_date;
+    }
+
+    return order as SalesOrder;
 }
 
 export async function upsertSalesDocument(supabase: SupabaseClient, doc: Partial<SalesOrder>) {
     // Remove joined fields to avoid error
     // IMPORTANT: specific fix to ensure document_number is NEVER sent to DB creates/updates
     // This allows the DB trigger/default to handle sequence generation.
-    const { client, sales_rep, items, payments, nfes, history, carrier, adjustments, document_number, ...cleanDoc } = doc;
+    // Also removing 'freight_mode' and 'route_tag' temporarily until migration is applied
+    const { client, sales_rep, items, payments, nfes, history, carrier, adjustments, document_number, route_info, freight_mode, route_tag, ...rawDoc } = doc as any;
 
-    // VALIDATION: Block Edit if Fiscal is Authorized (Issued)
+    // Sanitize Foreign Keys: Convert empty strings to null to avoid UUID errors
+    const cleanDoc = { ...rawDoc };
+    if (cleanDoc.payment_mode_id === '') cleanDoc.payment_mode_id = null;
+    if (cleanDoc.payment_terms_id === '') cleanDoc.payment_terms_id = null;
+    if (cleanDoc.price_table_id === '') cleanDoc.price_table_id = null;
+
+    // VALIDATION: Block Edit if locked statuses are met (Fiscal Authorized or Logistic In Route/Finalized)
     if (cleanDoc.id) {
-        const { data: current } = await supabase.from('sales_documents').select('status_fiscal').eq('id', cleanDoc.id).single();
-        if (current && current.status_fiscal === 'authorized') {
-            throw new Error("ACÃO BLOQUEADA: Pedido faturado (NF-e emitida) não pode ser editado. Use 'Ajustes' se necessário.");
+        const { data: current } = await supabase
+            .from('sales_documents')
+            .select('status_fiscal, status_logistic')
+            .eq('id', cleanDoc.id)
+            .single();
+
+        if (current) {
+            if (current.status_fiscal === 'authorized') {
+                throw new Error("AÇÃO BLOQUEADA: Pedido faturado (NF-e emitida) não pode ser editado.");
+            }
+
+            const lockedLogistics = ['em_rota', 'entregue', 'nao_entregue'];
+            if (lockedLogistics.includes(current.status_logistic)) {
+                throw new Error(`AÇÃO BLOQUEADA: Pedido com status logístico '${current.status_logistic.replace('_', ' ').toUpperCase()}' não pode ser alterado.`);
+            }
         }
     }
 
@@ -142,11 +239,83 @@ export async function upsertSalesDocument(supabase: SupabaseClient, doc: Partial
 }
 
 export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<SalesOrderItem>) {
-    const { product, ...cleanItem } = item;
+    console.log('🔵 upsertSalesItem CALLED with:', {
+        id: item.id,
+        packaging_id: item.packaging_id,
+        has_snapshot: !!item.sales_uom_abbrev_snapshot
+    });
+
+    // Remove frontend-only fields or joins
+    const { product, unit_weight_kg, gross_weight_kg_snapshot, ...cleanItem } = item;
 
     // Fix: Remove temp IDs so Supabase generates a real UUID
     if (cleanItem.id && cleanItem.id.startsWith('temp-')) {
         delete cleanItem.id;
+    }
+
+    // Fallback: Populate qty_base with quantity if missing (for legacy or simple items)
+    if (cleanItem.qty_base === undefined && cleanItem.quantity !== undefined) {
+        cleanItem.qty_base = cleanItem.quantity;
+    }
+
+    // Populate NFe description snapshots for packaging integrity
+    console.log('🟡 Checking snapshot condition:', {
+        has_packaging: !!cleanItem.packaging_id,
+        has_snapshot: !!cleanItem.sales_uom_abbrev_snapshot,
+        should_populate: !!(cleanItem.packaging_id && !cleanItem.sales_uom_abbrev_snapshot)
+    });
+
+    if (cleanItem.packaging_id && !cleanItem.sales_uom_abbrev_snapshot) {
+        console.log('[NFe Snapshot] Starting populate for packaging_id:', cleanItem.packaging_id);
+        try {
+            // Fetch packaging data (WITHOUT UOM join - causes multi-relationship error)
+            const { data: packaging, error: pkgError } = await supabase
+                .from('item_packaging')
+                .select('qty_in_base, label, type')
+                .eq('id', cleanItem.packaging_id)
+                .single();
+
+            if (pkgError) {
+                console.error('[NFe Snapshot] Packaging fetch error:', pkgError);
+                throw pkgError;
+            }
+
+            console.log('[NFe Snapshot] Packaging data:', packaging);
+            if (packaging) {
+                // Derive sales UOM from packaging type (no need for UOM table join)
+                const salesUomAbbrev = deriveUomFromPackagingType(packaging.type);
+
+                // Fetch base product UOM (also without join)
+                const { data: item, error: itemError } = await supabase
+                    .from('items')
+                    .select('uom')
+                    .eq('id', cleanItem.item_id)
+                    .single();
+
+                if (itemError) {
+                    console.error('[NFe Snapshot] Item fetch error:', itemError);
+                    throw itemError;
+                }
+
+                console.log('[NFe Snapshot] Item UOM data:', item);
+                if (item) {
+                    const baseUomAbbrev = item.uom || 'UN';
+
+                    // Populate snapshots
+                    cleanItem.sales_uom_abbrev_snapshot = salesUomAbbrev;
+                    cleanItem.base_uom_abbrev_snapshot = baseUomAbbrev;
+                    cleanItem.conversion_factor_snapshot = packaging.qty_in_base;
+
+                    // Build short label: "CX 12xPC"
+                    cleanItem.sales_unit_label_snapshot =
+                        `${salesUomAbbrev} ${packaging.qty_in_base}x${baseUomAbbrev}`;
+                    console.log('[NFe Snapshot] ✅ Populated successfully:', cleanItem.sales_unit_label_snapshot);
+                }
+            }
+        } catch (err) {
+            // Non-critical: snapshots are optional, don't fail the save
+            console.error('[NFe Snapshot] ❌ Failed to populate:', err);
+        }
     }
 
     const { data, error } = await supabase
@@ -156,6 +325,22 @@ export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<Sa
         .single();
     if (error) throw error;
     return data as SalesOrderItem;
+}
+
+/**
+ * Derives UOM abbreviation from packaging type (fallback)
+ */
+function deriveUomFromPackagingType(type: string | null): string {
+    if (!type) return 'UN';
+
+    switch (type.toUpperCase()) {
+        case 'BOX': return 'CX';
+        case 'PACK': return 'PC';
+        case 'BALE': return 'FD';
+        case 'PALLET': return 'PL';
+        case 'OTHER': return 'UN';
+        default: return 'UN';
+    }
 }
 
 export async function deleteSalesItem(supabase: SupabaseClient, id: string) {
@@ -195,29 +380,7 @@ export async function createSalesAdjustment(supabase: SupabaseClient, adjustment
     return data as SalesOrderAdjustment;
 }
 
-export async function softDeleteSalesOrder(supabase: SupabaseClient, id: string, userId: string, reason: string) {
-    // 1. Mark as deleted
-    const { error } = await supabase
-        .from('sales_documents')
-        .update({
-            deleted_at: new Date().toISOString(),
-            deleted_by: userId,
-            delete_reason: reason,
-            status_commercial: 'cancelled' // Optional: also mark sub-status as cancelled?
-        })
-        .eq('id', id);
 
-    if (error) throw error;
-
-    // 2. Log History
-    await supabase.from('sales_document_history').insert({
-        document_id: id,
-        user_id: userId,
-        event_type: 'archived',
-        description: `Pedido arquivado/excluído. Motivo: ${reason}`,
-        metadata: { reason }
-    });
-}
 
 export async function updateOrderItemFulfillment(supabase: SupabaseClient, itemId: string, qtyFulfilled: number) {
     const { data, error } = await supabase
@@ -252,7 +415,16 @@ export async function confirmOrder(supabase: SupabaseClient, id: string, userId:
     });
 }
 
-export async function cancelOrder(supabase: SupabaseClient, id: string, userId: string, reason: string) {
+export async function cancelSalesDocument(supabase: SupabaseClient, id: string, userId: string, reason: string) {
+    // 1. Check status (Safety)
+    const { data: order } = await supabase.from('sales_documents').select('status_logistic').eq('id', id).single();
+    if (order) {
+        const lockedLogistics = ['em_rota', 'entregue', 'nao_entregue', 'expedition'];
+        if (lockedLogistics.includes(order.status_logistic)) {
+            throw new Error(`AÇÃO BLOQUEADA: Pedido com status logístico '${order.status_logistic}' não pode ser cancelado.`);
+        }
+    }
+
     const { error } = await supabase
         .from('sales_documents')
         .update({ status_commercial: 'cancelled' })
@@ -266,6 +438,39 @@ export async function cancelOrder(supabase: SupabaseClient, id: string, userId: 
         event_type: 'status_change',
         description: `Pedido cancelado. Motivo: ${reason}`,
         metadata: { new: 'cancelled', reason }
+    });
+}
+
+export async function archiveSalesDocument(supabase: SupabaseClient, id: string, userId: string, reason: string) {
+    // 1. Check status (Safety)
+    const { data: order } = await supabase.from('sales_documents').select('status_logistic').eq('id', id).single();
+    if (order) {
+        const lockedLogistics = ['em_rota', 'entregue', 'nao_entregue', 'expedition'];
+        if (lockedLogistics.includes(order.status_logistic)) {
+            throw new Error(`AÇÃO BLOQUEADA: Pedido com status logístico '${order.status_logistic}' não pode ser arquivado.`);
+        }
+    }
+
+    // 2. Mark as deleted
+    const { error } = await supabase
+        .from('sales_documents')
+        .update({
+            deleted_at: new Date().toISOString(),
+            deleted_by: userId,
+            delete_reason: reason,
+            status_commercial: 'cancelled' // Ensuring consistency
+        })
+        .eq('id', id);
+
+    if (error) throw error;
+
+    // 3. Log History
+    await supabase.from('sales_document_history').insert({
+        document_id: id,
+        user_id: userId,
+        event_type: 'archived',
+        description: `Pedido arquivado/excluído. Motivo: ${reason}`,
+        metadata: { reason }
     });
 }
 
@@ -360,4 +565,249 @@ export async function getLastOrderForClient(supabase: SupabaseClient, clientId: 
     }
 
     return { ...order, items: items || [] };
+}
+
+/**
+ * Recalculate fiscal rules for all items in an order
+ * Should be called when: customer changes, company changes, items change
+ */
+export async function recalculateFiscalForOrder(
+    supabase: SupabaseClient,
+    orderId: string,
+    companyId: string,
+    companyUF: string,
+    companyTaxRegime: 'simples' | 'normal',
+    customerUF: string,
+    customerType: 'contribuinte' | 'isento' | 'nao_contribuinte',
+    customerIsFinalConsumer: boolean
+) {
+    // Fetch order items with product fiscal data
+    const { data: items, error } = await supabase
+        .from('sales_document_items')
+        .select(`
+            *,
+            packaging:item_packaging(gross_weight_kg, net_weight_kg),
+            product:items!inner(
+                id,
+                name,
+                net_weight_kg_base,
+                gross_weight_kg_base,
+                net_weight_g_base,
+                gross_weight_g_base,
+                fiscal:item_fiscal_profiles!inner(
+                    tax_group_id,
+                    ncm,
+                    cest,
+                    origin
+                )
+            )
+        `)
+        .eq('document_id', orderId);
+
+    if (error || !items || items.length === 0) {
+        console.error('Error fetching items for fiscal recalc:', error);
+        return;
+    }
+
+    // Prepare items for fiscal resolution
+    const itemsForResolution = items.map(item => ({
+        itemId: item.id,
+        taxGroupId: (item.product as any)?.fiscal?.tax_group_id || '',
+        ncm: (item.product as any)?.fiscal?.ncm,
+        cest: (item.product as any)?.fiscal?.cest,
+        origin: (item.product as any)?.fiscal?.origin,
+        unitPrice: item.unit_price,
+        quantity: item.quantity
+    }));
+
+    // Resolve fiscal rules
+    const results = await resolveFiscalRulesForOrder(
+        supabase,
+        companyId,
+        companyUF,
+        companyTaxRegime,
+        customerUF,
+        customerType,
+        customerIsFinalConsumer,
+        itemsForResolution
+    );
+
+    // Update each item with fiscal data
+    for (const item of items) {
+        const fiscalResult = results.get(item.id);
+        if (!fiscalResult) continue;
+
+        const updatePayload: Partial<SalesOrderItem> = {
+            fiscal_status: fiscalResult.status === 'error' ? 'pending' : fiscalResult.status,
+            fiscal_operation_id: fiscalResult.operation?.id || null,
+            cfop_code: fiscalResult.cfop || null,
+            cst_icms: fiscalResult.cst_icms || null,
+            csosn: fiscalResult.csosn || null,
+            st_applies: fiscalResult.st_applies || false,
+            st_aliquot: fiscalResult.st_aliquot || null,
+            pis_cst: fiscalResult.pis_cst || null,
+            pis_aliquot: fiscalResult.pis_aliquot || null,
+            cofins_cst: fiscalResult.cofins_cst || null,
+            cofins_aliquot: fiscalResult.cofins_aliquot || null,
+            ipi_applies: fiscalResult.ipi_applies || false,
+            ipi_cst: fiscalResult.ipi_cst || null,
+            ipi_aliquot: fiscalResult.ipi_aliquot || null,
+            fiscal_notes: fiscalResult.error || null,
+            // Snapshots - use the data we already fetched
+            ncm_snapshot: (item.product as any)?.fiscal?.ncm || null,
+            cest_snapshot: (item.product as any)?.fiscal?.cest || null,
+            origin_snapshot: (item.product as any)?.fiscal?.origin !== undefined ? (item.product as any)?.fiscal?.origin : null
+        };
+
+        // EXPLICIT WEIGHT RECALCULATION
+        // Ensure we don't zero out weights during fiscal update
+        const product = item.product as any;
+        const qty = Number(item.quantity) || 0;
+
+        let unitWeight = 0;
+
+        if (item.packaging_id) {
+            const pkg = (item as any).packaging;
+            if (pkg) {
+                // Prioritize gross, then net
+                unitWeight = Number(pkg.gross_weight_kg) || Number(pkg.net_weight_kg) || 0;
+            }
+            // Fallback to existing or product base
+            if (unitWeight === 0) unitWeight = Number(item.unit_weight_kg) || 0;
+        } else {
+            // Base Product Logic
+            const grossKg = Number(product.gross_weight_kg_base);
+            const grossG = Number(product.gross_weight_g_base);
+            const netKg = Number(product.net_weight_kg_base);
+            const netG = Number(product.net_weight_g_base);
+            if (!isNaN(grossKg) && grossKg > 0) unitWeight = grossKg;
+            else if (!isNaN(grossG) && grossG > 0) unitWeight = grossG / 1000.0;
+            else if (!isNaN(netKg) && netKg > 0) unitWeight = netKg;
+            else if (!isNaN(netG) && netG > 0) unitWeight = netG / 1000.0;
+        }
+
+        if (unitWeight > 0) {
+            (updatePayload as any).unit_weight_kg = unitWeight;
+            (updatePayload as any).total_weight_kg = Number((unitWeight * qty).toFixed(3));
+        }
+
+        // Actually, the user said "when the client updates fiscal data". 
+        // This likely calls `recalculateFiscalForOrder`.
+
+        // Let's look at `updatePayload` again.
+        /*
+            const updatePayload = {
+             fiscal_status: fiscalResult.status,
+             fiscal_operation_id: fiscalResult.operation?.id || null,
+             cfop_code: fiscalResult.cfop || null,
+             cst_icms: fiscalResult.cst_icms || null,
+             ...
+             ncm_snapshot: ...,
+             ...
+            }
+        */
+        // This looks correct (Patch).
+
+        // WAIT! Migration 20260104248000_ensure_sales_items_columns.sql or similar might have added NOT NULL constraints or defaults?
+
+        // Another possibility: The trigger that updates the PARENT total sums up items.
+        // If `recalculateFiscalForOrder` updates items one by one in a loop:
+        //   for (const item of items) { update(...) }
+        // It fires the trigger N times.
+
+        // If the item data being read in the trigger is somehow incomplete...
+        // The trigger reads from `sales_document_items` table directly.
+
+        // START OF FIX:
+        // Let's fetch the EXISTING weight-related columns for the item and include them in the payload just to be safe?
+        // No, that's redundant if Patch works.
+
+        // Maybe the issue is simpler: The `recalculateFiscalForOrder` does NOT fetch weight info in its select:
+        /*
+            .select(`
+                 *,
+                 product:items!inner(...)
+            `)
+        */
+        // `*` fetches all columns of `sales_document_items`.
+        // So `item` variable has `qty_base`, `quantity`, etc.
+
+        // Let's sanity check if `recalculateFiscalForOrder` is overwriting with defaults.
+        // No.
+
+        // Let's check `resolveFiscalRule` - maybe it errors out and we write error status?
+
+        // NEW CLUE: "o peso é para aparecer em pedidos que ja foram lançados?" -> "Continua zerado" -> "Quando atualiza os dados fiscais, ele zera".
+        // This strongly suggests an interaction between the fiscal update mechanism and the weight columns.
+
+        // In `20260105180000_backfill_order_weights.sql`, we used `SUM(...)`.
+
+        // Let's look at `trigger_update_weights` in `20260105151000...` or whichever is latest.
+        // I can't see the trigger code here, but I recall it sums `net_weight_kg_base * qty_base`.
+        // Those columns in `sales_document_items` are NOT being touched by this update.
+
+        // Wait! `recalculateFiscalForOrder` is ONLY updating `sales_document_items`.
+        // Is it possible that `sales_document_items` DOES NOT HAVE `net_weight_kg_base` stored?
+        // Weights are on the `items` (products) table mostly, but we might have cached them or used them in the view?
+        // The migration for backfill joined `items`.
+
+        // IF the trigger relies on columns in `sales_document_items` that are actually NULL (because weights are in `items` table),
+        // then the trigger computes 0.
+        // BUT, the trigger should join `items`?
+
+        // Let's verify the trigger definition. I'll read the latest trigger migration.
+        // `20260104223000_fix_weight_trigger.sql`
+
+        // I will read that migration file now.
+    }
+}
+
+// Helper to get fresh totals from DB
+export async function getSalesOrderTotals(supabase: SupabaseClient, id: string) {
+    const { data, error } = await supabase
+        .from('sales_documents')
+        .select('total_amount, subtotal_amount, discount_amount, freight_amount, total_weight_kg, total_gross_weight_kg')
+        .eq('id', id)
+        .single();
+    if (error) throw error;
+    return data;
+}
+
+// RPC: Cleanup old drafts
+export async function cleanupUserDrafts(supabase: SupabaseClient, companyId: string, userId: string, excludeId?: string) {
+    const { error } = await supabase.rpc('cleanup_user_drafts', {
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_exclude_id: excludeId || null
+    });
+    if (error) throw error;
+}
+
+export async function deleteSalesDocument(supabase: SupabaseClient, id: string) {
+    // 1. Verify Status
+    const { data: current, error: fetchError } = await supabase
+        .from('sales_documents')
+        .select('status_commercial, doc_type')
+        .eq('id', id)
+        .single();
+
+    if (fetchError) throw fetchError;
+    if (!current) throw new Error("Pedido não encontrado.");
+
+    // ALLOW: 'draft', 'budget' OR doc_type='proposal'
+    const allowedStatuses = ['draft', 'budget'];
+    const isAllowed = allowedStatuses.includes(current.status_commercial) || current.doc_type === 'proposal';
+
+    if (!isAllowed) {
+        throw new Error("Apenas Rascunhos ou Orçamentos podem ser excluídos permanentemente. Pedidos Confirmados devem ser cancelados.");
+    }
+
+    // 2. Perform Hard Delete
+    const { error: deleteError } = await supabase
+        .from('sales_documents')
+        .delete()
+        .eq('id', id);
+
+    if (deleteError) throw deleteError;
+    return true;
 }

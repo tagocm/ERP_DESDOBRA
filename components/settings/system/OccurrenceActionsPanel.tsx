@@ -36,6 +36,7 @@ interface OccurrenceActionsPanelProps {
     defaultActions?: Record<string, boolean>; // Required in operation mode
     onChange: (action: OperationAction, value: boolean) => void;
     customLabels?: Partial<Record<OperationAction, string>>;
+    locked?: boolean;
 }
 
 export function OccurrenceActionsPanel({
@@ -45,7 +46,8 @@ export function OccurrenceActionsPanel({
     currentActions,
     defaultActions,
     onChange,
-    customLabels
+    customLabels,
+    locked = false
 }: OccurrenceActionsPanelProps) {
     const isDefaultsMode = mode === 'defaults';
     const panelTitle = isDefaultsMode ? "Ações Padrão (Defaults)" : title;
@@ -93,6 +95,7 @@ export function OccurrenceActionsPanel({
                             <Switch
                                 checked={isChecked}
                                 onCheckedChange={(val) => onChange(action, val)}
+                                disabled={locked}
                                 className="mt-0.5 scale-90 origin-right"
                             />
                         </div>

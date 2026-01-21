@@ -22,7 +22,7 @@ export const COMMERCIAL_STATUS_COLORS: Record<string, StatusBadgeStyle> = {
     draft: {
         bg: "bg-gray-100",
         text: "text-gray-700",
-        label: "Orçamento"
+        label: "Rascunho"
     },
     confirmed: {
         bg: "bg-green-100",
@@ -61,6 +61,11 @@ export const LOGISTICS_STATUS_COLORS: Record<string, StatusBadgeStyle> = {
         text: "text-yellow-700",
         label: "Pendente"
     },
+    pendente: {
+        bg: "bg-yellow-100",
+        text: "text-yellow-700",
+        label: "Pendente"
+    },
     roteirizado: {
         bg: "bg-gray-100",
         text: "text-gray-700",
@@ -86,6 +91,11 @@ export const LOGISTICS_STATUS_COLORS: Record<string, StatusBadgeStyle> = {
         text: "text-red-700",
         label: "Não Entregue"
     },
+    parcial: {
+        bg: "bg-amber-100",
+        text: "text-amber-700",
+        label: "Parcial"
+    },
     // Legacy statuses (mantidos para compatibilidade)
     separation: {
         bg: "bg-orange-100",
@@ -108,37 +118,38 @@ export const LOGISTICS_STATUS_COLORS: Record<string, StatusBadgeStyle> = {
 // FINANCIAL STATUS (Status Financeiro)
 // ============================================
 export const FINANCIAL_STATUS_COLORS: Record<string, StatusBadgeStyle> = {
-    pending: {
-        bg: "bg-yellow-100",
-        text: "text-yellow-700",
+    pendente: {
+        bg: "bg-gray-100",
+        text: "text-gray-600", // #6B7280 matches gray-500/600 range
         label: "Pendente"
     },
-    billed: {
+    pre_lancado: {
         bg: "bg-blue-100",
-        text: "text-blue-700",
-        label: "Faturado"
+        text: "text-blue-700", // #2563EB matches blue-600/700
+        label: "Pré-lançado"
     },
-    partial: {
-        bg: "bg-purple-100",
-        text: "text-purple-700",
-        label: "Parcialmente Pago"
-    },
-    paid: {
+    aprovado: {
         bg: "bg-green-100",
-        text: "text-green-700",
-        label: "Pago"
+        text: "text-green-700", // #16A34A matches green-600/700
+        label: "Aprovado"
     },
-    overdue: {
+    em_revisao: {
+        bg: "bg-amber-100",
+        text: "text-amber-700", // #F59E0B matches amber-500/600
+        label: "Em Revisão"
+    },
+    cancelado: {
         bg: "bg-red-100",
-        text: "text-red-700",
-        label: "Em Atraso"
+        text: "text-red-700", // #DC2626 matches red-600/700
+        label: "Cancelado"
     },
-    // Legacy statuses (mantidos para compatibilidade)
-    refunded: {
-        bg: "bg-gray-100",
-        text: "text-gray-600",
-        label: "Reembolsado"
-    }
+    // Legacy mapping (to prevent UI crashes if frontend still sees old data temporarily)
+    pending: { bg: "bg-gray-100", text: "text-gray-600", label: "Pendente" },
+
+    paid: { bg: "bg-green-100", text: "text-green-700", label: "Aprovado" },
+    partial: { bg: "bg-green-100", text: "text-green-700", label: "Aprovado" },
+    overdue: { bg: "bg-green-100", text: "text-green-700", label: "Aprovado" },
+    refunded: { bg: "bg-red-100", text: "text-red-700", label: "Cancelado" }
 };
 
 // ============================================

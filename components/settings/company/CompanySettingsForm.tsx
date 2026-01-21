@@ -37,42 +37,57 @@ export function CompanySettingsForm() {
 
     // Fetch Data
     useEffect(() => {
-        if (!selectedCompany || !user) return;
+        console.log("CompanySettingsForm Effect Triggered. Company:", selectedCompany?.id, "User:", user?.id);
+
+        if (!selectedCompany || !user) {
+            console.log("Aborting load: Missing company or user");
+            return;
+        }
 
         const load = async () => {
+            console.log("Starting load function...");
             setLoading(true);
+
             try {
-                // Check Role
-                const { data: member } = await supabase
+                // Check Role: Use maybeSingle to avoid errors on empty result
+                console.log("Fetching member role...");
+                const { data: member, error: roleError } = await supabase
                     .from('company_members')
                     .select('role')
                     .eq('company_id', selectedCompany.id)
                     .eq('auth_user_id', user.id)
-                    .single();
+                    .maybeSingle();
+
+                if (roleError) console.error("Error fetching role:", roleError);
+                console.log("Member found:", member);
 
                 const admin = member?.role === 'owner' || member?.role === 'admin';
                 setIsAdmin(admin);
 
                 // Load Settings
+                console.log("Fetching company settings...");
                 const data = await getCompanySettings(supabase, selectedCompany.id);
+                console.log("Settings data:", data);
+
                 setSettings({
                     ...(data || { company_id: selectedCompany.id }),
                     nfe_series: data?.nfe_series || "1" // Default to 1
                 });
 
             } catch (err: any) {
-                console.error(err);
+                console.error("Critical Error in load:", err);
                 toast({
                     title: "Erro ao carregar dados",
                     description: "Não foi possível carregar as configurações da empresa.",
                     variant: "destructive"
                 });
             } finally {
+                console.log("Finished loading. Setting loading=false");
                 setLoading(false);
             }
         };
         load();
-    }, [selectedCompany, user, supabase, toast]);
+    }, [selectedCompany, user]); // Removed unstable dependencies to prevent infinite loop
 
     const handleChange = (field: keyof CompanySettings, value: any) => {
         setSettings(prev => ({ ...prev, [field]: value }));
@@ -128,20 +143,33 @@ export function CompanySettingsForm() {
     };
 
     const handleConfirmSave = async () => {
+        console.log("handleConfirmSave called. Company:", selectedCompany?.id);
         if (!selectedCompany) return;
         setSaving(true);
 
         try {
             // Validation
+            console.log("Validating settings...");
             const error = validateSettings();
-            if (error) throw new Error(error);
+            if (error) {
+                console.log("Validation failed:", error);
+                toast({
+                    title: "Atenção",
+                    description: error,
+                    variant: "destructive"
+                });
+                return; // Return triggers finally -> setLoading(false)
+            }
 
             // Save Settings
-            await updateCompanySettings(supabase, selectedCompany.id, settings);
+            console.log("Saving settings to DB...");
+            const result = await updateCompanySettings(supabase, selectedCompany.id, settings);
+            console.log("Save result:", result);
 
             // Update Company Name (Secondary, non-blocking)
             if (settings.trade_name) {
                 try {
+                    console.log("Updating trade name...");
                     await updateCompanyName(supabase, selectedCompany.id, settings.trade_name);
                 } catch (nameErr) {
                     console.warn("Failed to update company name in 'companies' table:", nameErr);
@@ -149,6 +177,7 @@ export function CompanySettingsForm() {
                 }
             }
 
+            console.log("Save successful. Showing toast.");
             toast({
                 title: "Sucesso!",
                 description: "Configurações salvas com sucesso.",
@@ -164,6 +193,7 @@ export function CompanySettingsForm() {
                 description: errorMessage || "Ocorreu um erro desconhecido ao salvar.",
                 variant: "destructive"
             });
+            throw err; // Re-throw so ReauthModal knows it failed
         } finally {
             setSaving(false);
         }

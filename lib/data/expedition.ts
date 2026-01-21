@@ -5,23 +5,32 @@ import { format, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export async function getSandboxOrders(supabase: SupabaseClient, companyId: string) {
-    // Sandbox: Confirmed orders NOT in any route
-    // Using NOT EXISTS via left join with null check for better performance
-    const { data, error } = await supabase
+    // Sandbox: Confirmed orders NOT in any route (pending logistic status)
+    const { data: orders, error } = await supabase
         .from('sales_documents')
         .select(`
-            id, document_number, total_amount, date_issued, status_commercial, status_logistic,
-            client:organizations!client_id(trade_name)
+            id, document_number, total_amount, date_issued, status_commercial, status_logistic, total_weight_kg,
+            client:organizations!client_id(trade_name),
+            items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items(id, name, sku, net_weight_g_base)),
+            deliveries:deliveries(
+                id, status,
+                items:delivery_items(sales_document_item_id, qty_delivered)
+            )
         `)
         .eq('company_id', companyId)
         .eq('status_commercial', 'confirmed')
-        .eq('status_logistic', 'pending')
+        .eq('status_commercial', 'confirmed')
+        .in('status_logistic', ['pendente', 'parcial'])
+        .eq('dispatch_blocked', false)
         .is('deleted_at', null)
         .order('date_issued', { ascending: false });
 
     if (error) throw error;
 
-    return data || [];
+    if (!orders) return [];
+
+    // Calculate balances
+    return orders.map((order: any) => calculateOrderBalances(order));
 }
 
 export async function getRoutes(supabase: SupabaseClient, companyId: string, dateFrom?: string, dateTo?: string) {
@@ -30,10 +39,16 @@ export async function getRoutes(supabase: SupabaseClient, companyId: string, dat
         .select(`
             *,
             orders:delivery_route_orders(
-                id, position, sales_document_id,
-                sales_document:sales_documents(
-                    id, document_number, total_amount, date_issued, status_commercial, status_logistic,
-                    client:organizations!client_id(trade_name)
+                id, position, volumes, sales_document_id, loading_status, return_outcome,
+                sales_order:sales_documents(
+                    id, document_number, total_amount, date_issued, status_commercial, status_logistic, dispatch_blocked, total_weight_kg,
+                    client:organizations!client_id(trade_name),
+                    items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items(id, name, sku, net_weight_g_base)),
+                    deliveries:deliveries(
+                        id, status,
+                        items:delivery_items(sales_document_item_id, qty_delivered)
+                    ),
+                    events:order_delivery_events(id, event_type, note, reason:delivery_reasons(name))
                 )
             )
         `)
@@ -47,9 +62,15 @@ export async function getRoutes(supabase: SupabaseClient, companyId: string, dat
     if (error) throw error;
 
     // Sort orders by position
+    // Sort orders by position and calculate balances (for Loading Checklist etc)
     const routes = data?.map((route: any) => ({
         ...route,
-        orders: route.orders?.sort((a: any, b: any) => a.position - b.position) || []
+        orders: route.orders?.filter((ro: any) => !ro.sales_order?.dispatch_blocked).sort((a: any, b: any) => a.position - b.position).map((ro: any) => {
+            if (ro.sales_order) {
+                ro.sales_order = calculateOrderBalances(ro.sales_order);
+            }
+            return ro;
+        }) || []
     }));
 
     return routes as DeliveryRoute[];
@@ -72,7 +93,31 @@ export async function createRoute(supabase: SupabaseClient, route: Partial<Deliv
 }
 
 export async function deleteRoute(supabase: SupabaseClient, routeId: string) {
-    // Actually just soft-delete by removing all orders first
+    // 1. Get all orders in this route
+    const { data: routeOrders } = await supabase
+        .from('delivery_route_orders')
+        .select('sales_document_id')
+        .eq('route_id', routeId);
+
+    if (routeOrders && routeOrders.length > 0) {
+        const orderIds = routeOrders.map(ro => ro.sales_document_id);
+
+        // 2. Reset order status to 'pendente' (Sandbox)
+        const { error: updateError } = await supabase
+            .from('sales_documents')
+            .update({
+                status_logistic: 'pendente',
+                scheduled_delivery_date: null
+            })
+            .in('id', orderIds)
+            // Safety check: don't reset if already delivered/returned (though typically one wouldn't delete such a route)
+            .neq('status_logistic', 'entregue')
+            .neq('status_logistic', 'devolvido');
+
+        if (updateError) throw updateError;
+    }
+
+    // 3. Delete route orders relation
     const { error: ordersError } = await supabase
         .from('delivery_route_orders')
         .delete()
@@ -80,6 +125,7 @@ export async function deleteRoute(supabase: SupabaseClient, routeId: string) {
 
     if (ordersError) throw ordersError;
 
+    // 4. Delete the route itself
     const { error } = await supabase
         .from('delivery_routes')
         .delete()
@@ -95,21 +141,104 @@ export async function addOrderToRoute(
     position: number,
     companyId: string
 ) {
-    const { error } = await supabase.from('delivery_route_orders').insert({
-        company_id: companyId,
-        route_id: routeId,
-        sales_document_id: orderId,
-        position
-    });
+    // 1. Verify if order is BLOCKED
+    const { data: order, error: orderError } = await supabase
+        .from('sales_documents')
+        .select('dispatch_blocked, dispatch_blocked_reason')
+        .eq('id', orderId)
+        .single();
 
-    if (error) throw error;
+    if (orderError) throw orderError;
 
-    // Update order status to 'roteirizado'
+    if (order?.dispatch_blocked) {
+        throw new Error(`Pedido bloqueado para despacho: ${order.dispatch_blocked_reason || 'Sem motivo especificado'}`);
+    }
+
+    const { data: route } = await supabase
+        .from('delivery_routes')
+        .select('name, scheduled_date')
+        .eq('id', routeId)
+        .single();
+
+    const isAutomaticRoute = route?.name?.toLowerCase().startsWith('rota automática');
+    const loadingStatus = isAutomaticRoute ? 'loaded' : 'pendente'; // Default to pendente (gray)
+
+    // Check if order is already in ANY ACTIVE route
+    // We ignore completed/cancelled routes (history)
+    const { data: existing } = await supabase
+        .from('delivery_route_orders')
+        .select(`
+            id, 
+            route_id,
+            route:delivery_routes!inner (
+                status
+            )
+        `)
+        .eq('sales_document_id', orderId)
+        .neq('route.status', 'concluida')
+        .neq('route.status', 'cancelada')
+        .maybeSingle();
+
+    if (existing) {
+        // If already in THIS route, do nothing (or update position?)
+        if (existing.route_id === routeId) {
+            // Already there
+        } else {
+            // Move to new route - update loading status if it's automatic or reset to pendente
+            const updatePayload: any = {
+                route_id: routeId,
+                position,
+                company_id: companyId
+            };
+
+            if (isAutomaticRoute) {
+                updatePayload.loading_status = 'loaded';
+            } else {
+                // Reset to pendente when moving between routes to force re-check
+                // Unless we explicitly want to keep it? Safest is to reset.
+                updatePayload.loading_status = 'pendente';
+                updatePayload.partial_payload = null; // Clear any partial data
+            }
+
+            const { error: moveError } = await supabase
+                .from('delivery_route_orders')
+                .update(updatePayload)
+                .eq('id', existing.id);
+
+            if (moveError) throw moveError;
+        }
+    } else {
+        // Insert new (Fresh start for this route)
+        // This preserves the history of the order in previous completed routes
+        const { error } = await supabase.from('delivery_route_orders').insert({
+            company_id: companyId,
+            route_id: routeId,
+            sales_document_id: orderId,
+            position,
+            loading_status: loadingStatus
+        });
+        if (error) throw error;
+    }
+
+    // Prepare update for sales_document
+    const orderUpdate: any = {
+        status_logistic: 'roteirizado',
+        scheduled_delivery_date: route?.scheduled_date || null
+    };
+
+    if (isAutomaticRoute) {
+        orderUpdate.loading_checked = true;
+        orderUpdate.loading_checked_at = new Date().toISOString();
+    }
+
+    // Update order status and schedule date
+    // ensure we don't accidentally overwrite 'entregue' if there's a race condition (though kanban checks this)
     const { error: updateError } = await supabase
         .from('sales_documents')
-        .update({ status_logistic: 'roteirizado' })
+        .update(orderUpdate)
         .eq('id', orderId)
-        .not('status_logistic', 'in', '(entregue,nao_entregue)');
+        .neq('status_logistic', 'entregue')
+        .neq('status_logistic', 'devolvido');
 
     if (updateError) throw updateError;
 }
@@ -126,9 +255,11 @@ export async function removeOrderFromRoute(supabase: SupabaseClient, routeId: st
     // Update order status back to 'pending'
     const { error: updateError } = await supabase
         .from('sales_documents')
-        .update({ status_logistic: 'pending' })
+        .update({ status_logistic: 'pendente' })
         .eq('id', orderId)
-        .not('status_logistic', 'in', '(entregue,nao_entregue,em_rota)');
+        .neq('status_logistic', 'entregue')
+        .neq('status_logistic', 'devolvido')
+        .neq('status_logistic', 'em_rota');
 
     if (updateError) throw updateError;
 }
@@ -189,12 +320,16 @@ export async function updateRouteSchedule(
     if (routeOrders && routeOrders.length > 0) {
         const orderIds = routeOrders.map(ro => ro.sales_document_id);
 
-        // Update logistics status of all orders in this route (except already delivered/not delivered)
+        // Update logistics status and scheduled date of all orders in this route
         const { error: updateError } = await supabase
             .from('sales_documents')
-            .update({ status_logistic: targetStatus })
+            .update({
+                status_logistic: targetStatus,
+                scheduled_delivery_date: scheduledDate
+            })
             .in('id', orderIds)
-            .not('status_logistic', 'in', '(entregue,nao_entregue)');
+            .neq('status_logistic', 'entregue')
+            .neq('status_logistic', 'devolvido');
 
         if (updateError) throw updateError;
     }
@@ -208,10 +343,15 @@ export async function getScheduledRoutes(supabase: SupabaseClient, companyId: st
         .select(`
             *,
             orders:delivery_route_orders(
-                id, position, sales_document_id,
-                sales_document:sales_documents(
-                    id, document_number, total_amount, date_issued, status_commercial, status_logistic,
-                    client:organizations!client_id(trade_name)
+                id, position, volumes, loading_status, partial_payload, sales_document_id,
+                sales_order:sales_documents(
+                    id, document_number, total_amount, date_issued, status_commercial, status_logistic, total_weight_kg, loading_checked,
+                    client:organizations!client_id(trade_name),
+                    items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items(id, name, sku, net_weight_g_base)),
+                    deliveries:deliveries(
+                        id, status,
+                        items:delivery_items(sales_document_item_id, qty_delivered)
+                    )
                 )
             )
         `)
@@ -225,9 +365,15 @@ export async function getScheduledRoutes(supabase: SupabaseClient, companyId: st
     if (error) throw error;
 
     // Sort orders by position
+    // Sort orders by position and calculate balances
     const routes = data?.map((route: any) => ({
         ...route,
-        orders: route.orders?.sort((a: any, b: any) => a.position - b.position) || []
+        orders: route.orders?.sort((a: any, b: any) => a.position - b.position).map((ro: any) => {
+            if (ro.sales_order) {
+                ro.sales_order = calculateOrderBalances(ro.sales_order);
+            }
+            return ro;
+        }) || []
     }));
 
     return routes as DeliveryRoute[];
@@ -239,10 +385,15 @@ export async function getUnscheduledRoutes(supabase: SupabaseClient, companyId: 
         .select(`
             *,
             orders:delivery_route_orders(
-                id, position, sales_document_id,
-                sales_document:sales_documents(
-                    id, document_number, total_amount, date_issued, status_commercial, status_logistic,
-                    client:organizations!client_id(trade_name)
+                id, position, volumes, loading_status, partial_payload, sales_document_id,
+                sales_order:sales_documents(
+                    id, document_number, total_amount, date_issued, status_commercial, status_logistic, total_weight_kg, loading_checked,
+                    client:organizations!client_id(trade_name),
+                    items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items(id, name, sku, net_weight_g_base)),
+                    deliveries:deliveries(
+                        id, status,
+                        items:delivery_items(sales_document_item_id, qty_delivered)
+                    )
                 )
             )
         `)
@@ -254,9 +405,15 @@ export async function getUnscheduledRoutes(supabase: SupabaseClient, companyId: 
     if (error) throw error;
 
     // Sort orders by position
+    // Sort orders by position and calculate balances
     const routes = data?.map((route: any) => ({
         ...route,
-        orders: route.orders?.sort((a: any, b: any) => a.position - b.position) || []
+        orders: route.orders?.sort((a: any, b: any) => a.position - b.position).map((ro: any) => {
+            if (ro.sales_order) {
+                ro.sales_order = calculateOrderBalances(ro.sales_order);
+            }
+            return ro;
+        }) || []
     }));
 
     return routes as DeliveryRoute[];
@@ -312,18 +469,24 @@ export async function getExpeditionRoutes(
         .select(`
             *,
             orders:delivery_route_orders(
-                id, position, sales_document_id,
-                sales_document:sales_documents(
-                    id, document_number, total_amount, status_logistic,
+                id, position, volumes, loading_status, partial_payload, sales_document_id,
+                sales_order:sales_documents(
+                    id, document_number, total_amount, status_logistic, total_weight_kg, dispatch_blocked,
                     loading_checked, loading_checked_at,
                     client:organizations!client_id(
                         id, trade_name, legal_name,
                         addresses(city, state)
                     ),
                     items:sales_document_items(
-                        id, quantity, unit_price,
-                        product:items(id, name, sku, uom)
-                    )
+                        id, quantity, unit_price, unit_weight_kg,
+                        packaging:item_packaging(id, label, qty_in_base),
+                        product:items(id, name, sku, uom, net_weight_g_base)
+                    ),
+                    deliveries:deliveries(
+                        id, status,
+                        items:delivery_items(sales_document_item_id, qty_delivered)
+                    ),
+                    events:order_delivery_events(id, event_type, note, reason:delivery_reasons(name))
                 )
             )
         `)
@@ -333,25 +496,90 @@ export async function getExpeditionRoutes(
     if (filters?.dateFrom) query = query.gte('scheduled_date', filters.dateFrom);
     if (filters?.dateTo) query = query.lte('scheduled_date', filters.dateTo);
 
-    // Filter by logistics status if needed
-    if (!filters?.includeInRoute) {
-        // Only show AGENDADO routes (default)
-        // Note: This filters at route level, might need to check order status
-    }
+    // Filter: Expedição only shows PLANNED routes (not yet started)
+    // Routes in 'em_rota' status should appear in Retorno screen instead
+    query = query.neq('status', 'em_rota').neq('status', 'concluida');
 
     query = query.order('scheduled_date');
 
     const { data, error } = await query;
     if (error) throw error;
 
-    // Sort orders by position
+    // Sort orders by position and calculate balances
     const routes = data?.map((route: any) => ({
         ...route,
-        orders: route.orders?.sort((a: any, b: any) => a.position - b.position) || []
+        orders: route.orders?.filter((ro: any) => !ro.sales_order?.dispatch_blocked).sort((a: any, b: any) => a.position - b.position).map((ro: any) => {
+            if (ro.sales_order) {
+                ro.sales_order = calculateOrderBalances(ro.sales_order);
+            }
+            return ro;
+        }) || []
     }));
 
     return routes as any[];
 }
+
+/**
+ * Get routes for Retorno screen (only in_progress routes)
+ */
+export async function getRetornoRoutes(
+    supabase: SupabaseClient,
+    companyId: string,
+    filters?: {
+        dateFrom?: string;
+        dateTo?: string;
+    }
+) {
+    let query = supabase
+        .from('delivery_routes')
+        .select(`
+            *,
+            orders:delivery_route_orders(
+                id, position, volumes, loading_status, partial_payload, return_outcome_type, return_payload, return_updated_at, sales_document_id,
+                sales_order:sales_documents(
+                    id, document_number, total_amount, status_logistic, total_weight_kg,
+                    loading_checked, loading_checked_at,
+                    client:organizations!client_id(
+                        id, trade_name, legal_name,
+                        addresses(city, state)
+                    ),
+                    items:sales_document_items(
+                        id, quantity, unit_price, unit_weight_kg,
+                        packaging:item_packaging(id, label, qty_in_base),
+                        product:items(id, name, sku, uom, net_weight_g_base)
+                    ),
+                    deliveries:deliveries(
+                        id, status,
+                        items:delivery_items(sales_document_item_id, qty_delivered)
+                    )
+                )
+            )
+        `)
+        .eq('company_id', companyId)
+        .eq('status', 'em_rota'); // Only show routes that are EM_ROTA
+
+    if (filters?.dateFrom) query = query.gte('scheduled_date', filters.dateFrom);
+    if (filters?.dateTo) query = query.lte('scheduled_date', filters.dateTo);
+
+    query = query.order('scheduled_date');
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    // Sort orders by position and calculate balances
+    const routes = data?.map((route: any) => ({
+        ...route,
+        orders: route.orders?.sort((a: any, b: any) => a.position - b.position).map((ro: any) => {
+            if (ro.sales_order) {
+                ro.sales_order = calculateOrderBalances(ro.sales_order);
+            }
+            return ro;
+        }) || []
+    }));
+
+    return routes as any[];
+}
+
 
 /**
  * Get product separation list (aggregated by SKU) for a route
@@ -398,26 +626,389 @@ export async function startRoute(
     supabase: SupabaseClient,
     routeId: string
 ) {
-    // Get all orders from route
+    // We delegate the complex logic (partial splits, order duplication) to the Server API
+    const response = await fetch('/api/expedition/start-route', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ routeId })
+    });
+
+    if (!response.ok) {
+        let errorMessage = 'Failed to start route';
+        try {
+            const err = await response.json();
+            errorMessage = err.error || errorMessage;
+        } catch (e) {
+            // ignore json parse error
+        }
+        throw new Error(errorMessage);
+    }
+
+    return await response.json();
+}
+
+/**
+ * Check for and cleanup expired routes (scheduled for past dates but not processed)
+ */
+export async function checkAndCleanupExpiredRoutes(supabase: SupabaseClient, companyId: string) {
+    const today = format(new Date(), 'yyyy-MM-dd');
+
+    // Get routes scheduled before today
+    const { data: expiredCandidates, error } = await supabase
+        .from('delivery_routes')
+        .select(`
+            id, 
+            orders:delivery_route_orders(
+                sales_order:sales_documents(status_logistic)
+            )
+        `)
+        .eq('company_id', companyId)
+        .lt('scheduled_date', today)
+        .not('scheduled_date', 'is', null);
+
+    if (error) throw error;
+    if (!expiredCandidates || expiredCandidates.length === 0) return 0;
+
+    // Filter routes that are truly "unprocessed"
+    // Unprocessed = No orders are 'em_rota', 'entregue', 'nao_entregue'
+    // If a route has NO orders, it is also considered unprocessed/expired
+    const toResetIds = expiredCandidates
+        .filter((route: any) => {
+            const orders = route.orders || [];
+            if (orders.length === 0) return true;
+
+            const hasProcessedOrders = orders.some((o: any) =>
+                ['em_rota', 'entregue', 'devolvido', 'parcial'].includes(o.sales_order?.status_logistic)
+            );
+
+            return !hasProcessedOrders;
+        })
+        .map((r: any) => r.id);
+
+    if (toResetIds.length === 0) return 0;
+
+    // Reset scheduled_date to null
+    const { error: updateError } = await supabase
+        .from('delivery_routes')
+        .update({ scheduled_date: null })
+        .in('id', toResetIds);
+
+    if (updateError) throw updateError;
+
+    // Reset status_logistic of orders in these routes to 'roteirizado' (since they are no longer scheduled)
+    // We get all orders from these routes first
+    const { data: routeOrders } = await supabase
+        .from('delivery_route_orders')
+        .select('sales_document_id')
+        .in('route_id', toResetIds);
+
+    if (routeOrders && routeOrders.length > 0) {
+        const orderIds = routeOrders.map(ro => ro.sales_document_id);
+
+        await supabase
+            .from('sales_documents')
+            .update({
+                status_logistic: 'roteirizado',
+                scheduled_delivery_date: null
+            })
+            .in('id', orderIds)
+            .neq('status_logistic', 'entregue')
+            .neq('status_logistic', 'devolvido')
+            .neq('status_logistic', 'em_rota');
+    }
+
+    return toResetIds.length;
+}
+
+/**
+ * Update volumes for an order in a route
+ */
+export async function updateOrderVolumes(
+    supabase: SupabaseClient,
+    routeId: string,
+    orderId: string,
+    volumes: number
+) {
+    const { error } = await supabase
+        .from('delivery_route_orders')
+        .update({ volumes })
+        .eq('route_id', routeId)
+        .eq('sales_document_id', orderId);
+
+    if (error) throw error;
+}
+
+/**
+ * Finish route - mark route as completed after return process
+ */
+export async function finishRoute(
+    supabase: SupabaseClient,
+    routeId: string
+) {
+    // Update route status to CONCLUIDA
+    const { error } = await supabase
+        .from('delivery_routes')
+        .update({ status: 'concluida' })
+        .eq('id', routeId);
+
+    if (error) throw error;
+
+    return { success: true };
+}
+
+/**
+ * Get completed routes for history
+ */
+export async function getCompletedRoutes(
+    supabase: SupabaseClient,
+    companyId: string,
+    filters?: {
+        startDate?: string;
+        endDate?: string;
+        search?: string;
+    }
+) {
+    let query = supabase
+        .from('delivery_routes')
+        .select(`
+            id,
+            name,
+            route_date,
+            created_at,
+            status,
+            orders:delivery_route_orders(
+                id,
+                sales_document_id,
+                sales_order:sales_documents!sales_document_id(
+                    id,
+                    total_amount,
+                    document_number,
+                    total_weight_kg,
+                    status_logistic,
+                    client:organizations!client_id(trade_name)
+                )
+            )
+        `)
+        .eq('company_id', companyId)
+        .eq('status', 'concluida')
+        .order('route_date', { ascending: false });
+
+    if (filters?.startDate) {
+        query = query.gte('route_date', filters.startDate);
+    }
+    if (filters?.endDate) {
+        query = query.lte('route_date', filters.endDate);
+    }
+    if (filters?.search) {
+        query = query.ilike('name', `%${filters.search}%`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+}
+
+/**
+ * Get details of a completed route
+ */
+export async function getCompletedRouteDetails(supabase: SupabaseClient, routeId: string, companyId: string) {
+    const { data, error } = await supabase
+        .from('delivery_routes')
+        .select(`
+            *,
+            orders:delivery_route_orders(
+                id,
+                sales_document_id,
+                volumes,
+                sales_order:sales_documents!sales_document_id(
+                    id,
+                    document_number,
+                    total_amount,
+                    status_logistic,
+                    internal_notes,
+                    date_issued,
+                    client:organizations!client_id(trade_name),
+                    items:sales_document_items(
+                        id,
+                        item_id,
+                        quantity,
+                        unit_price,
+                        total_amount,
+                        item:items(name)
+                    )
+                )
+            )
+        `)
+        .eq('id', routeId)
+        .eq('company_id', companyId)
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+/**
+ * Update return staging data for a route order
+ */
+export async function updateReturnStaging(
+    supabase: SupabaseClient,
+    routeOrderId: string,
+    outcomeType: string,
+    payload: any
+) {
+    const { error } = await supabase
+        .from('delivery_route_orders')
+        .update({
+            return_outcome_type: outcomeType,
+            return_payload: payload,
+            return_updated_at: new Date().toISOString()
+        })
+        .eq('id', routeOrderId);
+
+    if (error) throw error;
+}
+
+/**
+ * Get or create an automatic route for immediate dispatch.
+ * Status: em_rota
+ * Name: Rota Automática - dd/MM/yyyy
+ */
+export async function getOrCreateAutomaticDispatcherRoute(supabase: SupabaseClient, companyId: string) {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const displayDate = format(new Date(), 'dd/MM/yyyy');
+
+    // 1. Check for existing OPEN automatic route (em_rota)
+    const { data: existing } = await supabase
+        .from('delivery_routes')
+        .select('*')
+        .eq('company_id', companyId)
+        .eq('status', 'em_rota')
+        .ilike('name', `Rota Automática%`)
+        .gte('route_date', today)
+        .limit(1)
+        .maybeSingle();
+
+    if (existing) return existing;
+
+    // 2. Create new if not found
+    const time = format(new Date(), 'HH:mm');
+    const routeName = `Rota Automática - ${displayDate} - ${time}`;
+
+    const { data: newRoute, error } = await supabase
+        .from('delivery_routes')
+        .insert([{
+            company_id: companyId,
+            name: routeName,
+            route_date: today,
+            scheduled_date: today,
+            status: 'em_rota'
+        }])
+        .select()
+        .single();
+
+    if (error) throw error;
+    return newRoute;
+}
+
+/**
+ * Reset loading status and unschedule a route (Cancel Route action)
+ */
+export async function resetAndUnscheduleRoute(
+    supabase: SupabaseClient,
+    routeId: string
+) {
+    // 1. Reset loading_status, return_outcome, etc in delivery_route_orders
+    const { error: resetError } = await supabase
+        .from('delivery_route_orders')
+        .update({
+            loading_status: 'pendente',
+            partial_payload: null,
+            return_outcome_type: null,
+            return_payload: null,
+            return_updated_at: null
+        })
+        .eq('route_id', routeId);
+
+    if (resetError) throw resetError;
+
+    // 2. Unschedule the route
+    const { error: routeError } = await supabase
+        .from('delivery_routes')
+        .update({
+            scheduled_date: null,
+            status: 'pendente'
+        })
+        .eq('id', routeId);
+
+    if (routeError) throw routeError;
+
+    // 3. Update Sales Documents status to 'roteirizado'
     const { data: routeOrders } = await supabase
         .from('delivery_route_orders')
         .select('sales_document_id')
         .eq('route_id', routeId);
 
-    if (!routeOrders || routeOrders.length === 0) {
-        throw new Error('Nenhum pedido encontrado nesta rota');
+    if (routeOrders && routeOrders.length > 0) {
+        const orderIds = routeOrders.map(ro => ro.sales_document_id);
+
+        await supabase
+            .from('sales_documents')
+            .update({
+                status_logistic: 'roteirizado',
+                scheduled_delivery_date: null,
+                loading_checked: false,
+                loading_checked_at: null,
+                loading_checked_by: null
+            })
+            .in('id', orderIds)
+            .neq('status_logistic', 'entregue')
+            .neq('status_logistic', 'devolvido');
+    }
+}
+// Helper function to calculate order balances (Partial Delivery Logic)
+function calculateOrderBalances(order: any) {
+    let totalBalanceWeight = 0;
+    let totalBalanceAmount = 0;
+    let hasPartialDelivery = false;
+
+    // Map of Delivered Qty per Item ID
+    const deliveredMap = new Map<string, number>();
+
+    if (order.deliveries && order.deliveries.length > 0) {
+        order.deliveries.forEach((d: any) => {
+            if (d.status === 'delivered' || d.status === 'returned_partial' || d.status === 'returned_total') {
+                d.items?.forEach((di: any) => {
+                    const current = deliveredMap.get(di.sales_document_item_id) || 0;
+                    deliveredMap.set(di.sales_document_item_id, current + (di.qty_delivered || 0));
+                });
+            }
+        });
     }
 
-    const orderIds = routeOrders.map(ro => ro.sales_document_id);
+    const itemsWithBalance = order.items?.map((item: any) => {
+        const delivered = deliveredMap.get(item.id) || 0;
 
-    // Update orders to EM_ROTA (except finished ones)
-    const { error } = await supabase
-        .from('sales_documents')
-        .update({ status_logistic: 'em_rota' })
-        .in('id', orderIds)
-        .not('status_logistic', 'in', '(entregue,nao_entregue)');
+        // Calculate balance: quantity - delivered
+        const balance = Math.max(0, item.quantity - delivered);
 
-    if (error) throw error;
+        if (delivered > 0) hasPartialDelivery = true;
 
-    return { affected: orderIds.length };
+        const itemWeightKg = item.unit_weight_kg || ((item.product?.net_weight_g_base || 0) / 1000);
+        totalBalanceWeight += (balance * itemWeightKg);
+        totalBalanceAmount += (balance * item.unit_price);
+
+        return { ...item, balance, delivered };
+    });
+
+    return {
+        ...order,
+        original_weight: order.total_weight_kg,
+        original_amount: order.total_amount,
+        total_weight_kg: hasPartialDelivery ? totalBalanceWeight : (order.total_weight_kg || totalBalanceWeight),
+        total_amount: hasPartialDelivery ? totalBalanceAmount : (order.total_amount || totalBalanceAmount),
+        is_partial_balance: hasPartialDelivery,
+        items: itemsWithBalance
+    };
 }

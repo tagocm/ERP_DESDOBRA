@@ -390,7 +390,7 @@ export function RetornoClient({ initialRoutes }: RetornoClientProps) {
                             <ul className="space-y-1 ml-4 list-disc">
                                 {summary.entregues > 0 && (
                                     <li className="text-green-700">
-                                        <strong>{summary.entregues}</strong> {summary.entregues === 1 ? 'pedido será marcado' : 'pedidos serão marcados'} como ENTREGUE
+                                        <strong>{summary.entregues}</strong> {summary.entregues === 1 ? 'pedido' : 'pedidos'} com carga entregue (pode ficar PARCIAL se houver saldo)
                                     </li>
                                 )}
                                 {summary.naoEntregues > 0 && (
@@ -400,7 +400,7 @@ export function RetornoClient({ initialRoutes }: RetornoClientProps) {
                                 )}
                                 {summary.parciais > 0 && (
                                     <li className="text-amber-700">
-                                        <strong>{summary.parciais}</strong> {summary.parciais === 1 ? 'pedido gerará um complementar' : 'pedidos gerarão complementares'} (devolução parcial)
+                                        <strong>{summary.parciais}</strong> {summary.parciais === 1 ? 'pedido com' : 'pedidos com'} devolução parcial → Status PARCIAL
                                     </li>
                                 )}
                             </ul>

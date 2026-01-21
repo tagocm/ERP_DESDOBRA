@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { Plus, Search, Trash2, Pencil, Copy, Calendar, Tag } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, Copy, Calendar, Tag, Edit2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/PageHeader";
 

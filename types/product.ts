@@ -5,12 +5,12 @@ export type ItemPackaging = {
     id: string;
     item_id: string;
     company_id: string;
-    type: 'BOX' | 'PACK' | 'BALE' | 'PALLET' | 'OTHER';
+    type: string;
     label: string;
     qty_in_base: number;
     gtin_ean?: string | null;
-    net_weight_g?: number | null;
-    gross_weight_g?: number | null;
+    net_weight_kg?: number | null;
+    gross_weight_kg?: number | null;
     height_cm?: number | null;
     width_cm?: number | null;
     length_cm?: number | null;
@@ -21,7 +21,9 @@ export type ItemPackaging = {
 };
 
 export type ItemInventoryProfile = Database['public']['Tables']['item_inventory_profiles']['Row'];
-export type ItemPurchaseProfile = Database['public']['Tables']['item_purchase_profiles']['Row'];
+export type ItemPurchaseProfile = Database['public']['Tables']['item_purchase_profiles']['Row'] & {
+    default_purchase_packaging_id?: string | null;
+};
 export type ItemSalesProfile = Database['public']['Tables']['item_sales_profiles']['Row'];
 export type ItemFiscalProfile = Database['public']['Tables']['item_fiscal_profiles']['Row'];
 export type ItemProductionProfile = Database['public']['Tables']['item_production_profiles']['Row'];
@@ -58,6 +60,7 @@ export interface Uom {
 
 export interface ProductCategory {
     id: string;
+    company_id?: string | null;
     name: string;
     normalized_name: string;
     product_count?: number; // Virtual field for UI
@@ -84,8 +87,8 @@ export type ProductFormData = {
     uom: string; // @deprecated
     uom_id?: string;
     gtin_ean_base?: string; // Renamed from gtin
-    net_weight_g_base?: number;
-    gross_weight_g_base?: number;
+    net_weight_kg_base?: number;
+    gross_weight_kg_base?: number;
     height_base?: number;
     width_base?: number;
     length_base?: number;
@@ -114,7 +117,8 @@ export type ProductFormData = {
     lead_time_days?: number;
     purchase_uom?: string; // @deprecated
     purchase_uom_id?: string;
-    conversion_factor?: number;
+    default_purchase_packaging_id?: string;
+    conversion_factor?: number; // @deprecated
     purchase_notes?: string;
 
     // Sales

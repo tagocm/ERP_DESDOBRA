@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, forwardRef } from "react";
 import { Check, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabaseBrowser";
@@ -10,9 +10,10 @@ interface ProductSelectorProps {
     value?: string;
     onChange: (product: any) => void;
     className?: string;
+    disabled?: boolean;
 }
 
-export function ProductSelector({ value, onChange, className }: ProductSelectorProps) {
+export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps>(({ value, onChange, className, disabled }, ref) => {
     const { selectedCompany } = useCompany();
     const supabase = createClient();
 
@@ -23,7 +24,18 @@ export function ProductSelector({ value, onChange, className }: ProductSelectorP
     const [selectedProduct, setSelectedProduct] = useState<any>(null);
 
     const wrapperRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
+    const internalInputRef = useRef<HTMLInputElement>(null);
+
+    // Sync forwarded ref with internal ref
+    useEffect(() => {
+        if (ref) {
+            if (typeof ref === 'function') {
+                ref(internalInputRef.current);
+            } else {
+                ref.current = internalInputRef.current;
+            }
+        }
+    }, [ref]);
 
     // Fetch initial product if value exists
     useEffect(() => {
@@ -41,6 +53,14 @@ export function ProductSelector({ value, onChange, className }: ProductSelectorP
         };
         fetchProduct();
     }, [value, supabase, selectedProduct]);
+
+    // Handle external clearing
+    useEffect(() => {
+        if (!value && selectedProduct) {
+            setSelectedProduct(null);
+            setSearch("");
+        }
+    }, [value, selectedProduct]);
 
     // Fetch products based on search
     useEffect(() => {
@@ -98,7 +118,7 @@ export function ProductSelector({ value, onChange, className }: ProductSelectorP
         setSearch("");
         onChange(null);
         setOptions([]);
-        inputRef.current?.focus();
+        internalInputRef.current?.focus();
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,11 +132,19 @@ export function ProductSelector({ value, onChange, className }: ProductSelectorP
         }
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Tab' && options.length === 1) {
+            e.preventDefault();
+            handleSelect(options[0]);
+        }
+    };
+
     return (
         <div className={cn("relative", className)} ref={wrapperRef}>
             <div className="relative">
                 <input
-                    ref={inputRef}
+                    ref={internalInputRef}
+                    onKeyDown={handleKeyDown}
                     type="text"
                     className={cn(
                         "flex h-9 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:cursor-not-allowed disabled:opacity-50",
@@ -125,13 +153,17 @@ export function ProductSelector({ value, onChange, className }: ProductSelectorP
                     placeholder="Digite nome ou SKU..."
                     value={search}
                     onChange={handleInputChange}
-                    onFocus={() => setOpen(true)}
+                    onFocus={() => {
+                        if (!disabled) setOpen(true);
+                    }}
+                    disabled={disabled}
                 />
-                {selectedProduct && (
+                {selectedProduct && !disabled && (
                     <button
                         type="button"
                         onClick={handleClear}
                         className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-md transition-colors"
+                        disabled={disabled}
                     >
                         <X className="h-4 w-4 text-gray-400" />
                     </button>
@@ -182,4 +214,5 @@ export function ProductSelector({ value, onChange, className }: ProductSelectorP
             )}
         </div>
     );
-}
+});
+ProductSelector.displayName = "ProductSelector";

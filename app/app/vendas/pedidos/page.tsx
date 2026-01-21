@@ -37,6 +37,7 @@ export default async function SalesOrdersPage({
         financialStatus: (params.financialStatus as string) || undefined,
         clientSearch: (params.clientSearch as string) || undefined,
         routeFilter: (params.routeFilter as 'all' | 'no_route' | 'with_route') || 'all',
+        showCancelled: params.showCancelled === 'true'
     };
 
     let data: any[] = [];

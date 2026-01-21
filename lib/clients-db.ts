@@ -98,6 +98,7 @@ export interface Address {
     country: string;
     city_code_ibge: string | null;
     is_default: boolean;
+    deleted_at: string | null;
 }
 
 
@@ -478,7 +479,6 @@ export async function getPriceTables(
         .select("*")
         .eq("company_id", companyId)
         .eq("is_active", true)
-        .is("deleted_at", null)
         .order("name");
 
     if (error) {
@@ -501,7 +501,6 @@ export async function getPaymentTerms(
         .select("*")
         .eq("company_id", companyId)
         .eq("is_active", true)
-        .is("deleted_at", null)
         .order("name");
 
     if (error) {

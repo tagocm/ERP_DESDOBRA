@@ -31,6 +31,7 @@ export interface ArTitle {
         id: string;
         document_number: number;
         status_logistic: string;
+        financial_status: string; // "Processamento" status from sales_documents
     };
     organization?: {
         id: string;

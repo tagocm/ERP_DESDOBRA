@@ -8,6 +8,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/Label";
 import { ItemPackaging } from "@/types/product";
 import { cn } from "@/lib/utils";
+import { PackagingTypeManagerModal } from "./PackagingTypeManagerModal";
+import { getPackagingTypes } from "@/lib/data/packaging-types";
+import { Settings } from "lucide-react";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface PackagingModalProps {
     isOpen: boolean;
@@ -15,9 +19,12 @@ interface PackagingModalProps {
     onSave: (packaging: Partial<ItemPackaging>) => void;
     initialData?: Partial<ItemPackaging>;
     baseUom: string;
+    baseNetWeight: number;
+    baseGrossWeight: number;
 }
 
-const PACKAGING_TYPES = [
+// Default types to show while loading or if offline
+const DEFAULT_TYPES = [
     { value: 'BOX', label: 'Caixa' },
     { value: 'PACK', label: 'Pacote' },
     { value: 'BALE', label: 'Fardo' },
@@ -25,14 +32,18 @@ const PACKAGING_TYPES = [
     { value: 'OTHER', label: 'Outro' }
 ];
 
-export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }: PackagingModalProps) {
+export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, baseNetWeight, baseGrossWeight }: PackagingModalProps) {
+    const { selectedCompany } = useCompany();
+    const [types, setTypes] = useState<{ value: string, label: string }[]>(DEFAULT_TYPES);
+    const [manageTypesOpen, setManageTypesOpen] = useState(false);
+
     const [formData, setFormData] = useState<Partial<ItemPackaging>>({
         type: 'BOX',
         label: '',
         qty_in_base: 1,
         gtin_ean: '',
-        net_weight_g: 0,
-        gross_weight_g: 0,
+        net_weight_kg: 0,
+        gross_weight_kg: 0,
         height_cm: 0,
         width_cm: 0,
         length_cm: 0,
@@ -43,24 +54,31 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && selectedCompany?.id) {
+            // Load types
+            getPackagingTypes(selectedCompany.id).then(data => {
+                if (data && data.length > 0) {
+                    setTypes(data.map(t => ({ value: t.code, label: t.name })));
+                }
+            }).catch(console.error);
+
             if (initialData) {
                 setFormData({
                     ...initialData,
-                    net_weight_g: initialData.net_weight_g || 0,
-                    gross_weight_g: initialData.gross_weight_g || 0,
+                    net_weight_kg: initialData.net_weight_kg || 0,
+                    gross_weight_kg: initialData.gross_weight_kg || 0,
                     height_cm: initialData.height_cm || 0,
                     width_cm: initialData.width_cm || 0,
                     length_cm: initialData.length_cm || 0
                 });
             } else {
                 setFormData({
-                    type: 'BOX',
+                    type: types[0]?.value || 'BOX',
                     label: '',
                     qty_in_base: 1,
                     gtin_ean: '',
-                    net_weight_g: 0,
-                    gross_weight_g: 0,
+                    net_weight_kg: 0,
+                    gross_weight_kg: 0,
                     height_cm: 0,
                     width_cm: 0,
                     length_cm: 0,
@@ -70,12 +88,47 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
             }
             setErrors({});
         }
-    }, [isOpen, initialData]);
+    }, [isOpen, initialData, selectedCompany, manageTypesOpen]); // Reload when management modal closes
+
+    // Auto-calculate weights when Qty changes (only if it matches base unit * qty roughly)
+    useEffect(() => {
+        if (isOpen && formData.qty_in_base) {
+            // Only calc if we are CREATING or if user specifically changed qty (hard to track "user changed qty" in simple effect, but we can check if it deviates)
+            // Ideally: If I change Qty, Recalc.
+            // But if I load an existing item, don't overwrite unless I change qty.
+            // We can just rely on the user seeing the update.
+            // Simple approach: When qty changes, update weights.
+
+            // However, we must avoid overwriting manual edits if qty didn't change (initial load).
+            // Initial load sets formData.
+
+            // Use a ref to track previous qty? Or just let it be reactive.
+            // Reactivity: Qty changes -> we update weights.
+            // Problem: On initial load (editing), Qty is set. We shouldn't overwrite saved weights.
+            // Solution: only run this effect if `initialData` didn't already provide weights OR if user changes Qty diff from initial.
+
+            // Better: We track if qty matches initial. If so, do nothing. If not, calc.
+
+            const isInitialQty = initialData && initialData.qty_in_base === formData.qty_in_base;
+
+            if (!isInitialQty) {
+                const calculatedNet = (baseNetWeight || 0) * (formData.qty_in_base || 0);
+                const calculatedGross = (baseGrossWeight || 0) * (formData.qty_in_base || 0);
+
+                setFormData(prev => ({
+                    ...prev,
+                    net_weight_kg: calculatedNet,
+                    gross_weight_kg: calculatedGross
+                }));
+            }
+        }
+    }, [formData.qty_in_base, baseNetWeight, baseGrossWeight, isOpen]); // removed initialData from dep to avoid loops, handled in logic
+
 
     // Auto-suggest label
     useEffect(() => {
         if (!initialData && formData.type && formData.qty_in_base && baseUom) {
-            const typeLabel = PACKAGING_TYPES.find(t => t.value === formData.type)?.label;
+            const typeLabel = types.find(t => t.value === formData.type)?.label;
             if (typeLabel && (!formData.label || formData.label.includes(typeLabel))) {
                 setFormData(prev => ({
                     ...prev,
@@ -146,19 +199,30 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                         {/* Row 1: Tipo + Quantidade */}
                         <div className="col-span-12 md:col-span-8 space-y-1">
                             <Label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Tipo *</Label>
-                            <Select
-                                value={formData.type}
-                                onValueChange={(val) => handleChange('type', val)}
-                            >
-                                <SelectTrigger className="w-full h-9 rounded-xl bg-white border-gray-200">
-                                    <SelectValue placeholder="Selecione..." />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {PACKAGING_TYPES.map(t => (
-                                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <div className="flex gap-2 items-center">
+                                <Select
+                                    value={formData.type}
+                                    onValueChange={(val) => handleChange('type', val)}
+                                >
+                                    <SelectTrigger className="flex-1 h-9 rounded-xl bg-white border-gray-200">
+                                        <SelectValue placeholder="Selecione..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {types.map(t => (
+                                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => setManageTypesOpen(true)}
+                                    className="shrink-0 h-9 w-9 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100"
+                                    title="Gerenciar Tipos de Embalagem"
+                                >
+                                    <Settings className="w-4 h-4" />
+                                </Button>
+                            </div>
                         </div>
 
                         <div className="col-span-12 md:col-span-4 space-y-1">
@@ -282,10 +346,10 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
 
                         {/* Row 5: Pesos Compact */}
                         <div className="col-span-6 space-y-1">
-                            <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">P. Líquido (g)</Label>
+                            <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">P. Líquido (KG)</Label>
                             <DecimalInput
-                                value={formData.net_weight_g}
-                                onChange={(val) => handleChange('net_weight_g', val)}
+                                value={formData.net_weight_kg}
+                                onChange={(val) => handleChange('net_weight_kg', val)}
                                 precision={2}
                                 minPrecision={0}
                                 disableDecimalShift={true}
@@ -295,10 +359,10 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                         </div>
 
                         <div className="col-span-6 space-y-1">
-                            <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">P. Bruto (g)</Label>
+                            <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">P. Bruto (KG)</Label>
                             <DecimalInput
-                                value={formData.gross_weight_g}
-                                onChange={(val) => handleChange('gross_weight_g', val)}
+                                value={formData.gross_weight_kg}
+                                onChange={(val) => handleChange('gross_weight_kg', val)}
                                 precision={2}
                                 minPrecision={0}
                                 disableDecimalShift={true}
@@ -326,6 +390,8 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom }
                     </Button>
                 </div>
             </DialogContent>
+
+            <PackagingTypeManagerModal open={manageTypesOpen} onOpenChange={setManageTypesOpen} />
         </Dialog>
     );
 }

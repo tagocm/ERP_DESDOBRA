@@ -1,14 +1,33 @@
-
 import { createClient } from '@/utils/supabase/server';
 import { getCompletedRouteDetails } from '@/lib/data/expedition';
 import { format } from 'date-fns';
 import { ArrowLeft, CheckCircle2, XCircle, FileText } from 'lucide-react';
 import Link from 'next/link';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
-export default async function RouteHistoryDetailsPage({ params }: { params: { id: string } }) {
+export default async function RouteHistoryDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
+
+    const { id } = await params;
+
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!id || !uuidRegex.test(id)) {
+        return (
+            <div className="flex flex-col items-center justify-center p-12 text-center">
+                <div className="bg-red-50 p-4 rounded-full mb-4">
+                    <XCircle className="w-8 h-8 text-red-500" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 mb-2">Rota Inválida</h2>
+                <p className="text-gray-500 mb-6">O identificador da rota não é válido.</p>
+                <Link href="/app/logistica/historico">
+                    <Button variant="outline">Voltar para Histórico</Button>
+                </Link>
+            </div>
+        );
+    }
 
     if (!user) return <div className="p-8">Não autorizado</div>;
 
@@ -20,85 +39,137 @@ export default async function RouteHistoryDetailsPage({ params }: { params: { id
 
     if (!memberData?.company_id) return <div className="p-8">Empresa não encontrada</div>;
 
-    const route = await getCompletedRouteDetails(supabase, params.id, memberData.company_id);
+    const route = await getCompletedRouteDetails(supabase, id, memberData.company_id);
 
     if (!route) return <div className="p-8">Rota não encontrada</div>;
 
+    // Calculate Stats
+    const stats = route.orders?.reduce((acc: any, order: any) => {
+        acc.total++;
+        if (order.sales_order?.status_logistic === 'entregue') acc.delivered++;
+        else if (order.sales_order?.status_logistic === 'nao_entregue') acc.notDelivered++;
+
+        acc.weight += order.sales_order?.total_weight_kg || 0;
+        return acc;
+    }, { total: 0, delivered: 0, notDelivered: 0, weight: 0 });
+
     return (
-        <div className="flex flex-col gap-6 p-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
+        <div className="flex flex-col min-h-screen bg-gray-50/30">
+            <PageHeader
+                title={route.name}
+                subtitle={`Rota realizada em ${route.route_date ? format(new Date(route.route_date + 'T12:00:00'), 'dd/MM/yyyy') : '-'}`}
+                actions={
                     <Link href="/app/logistica/historico">
-                        <Button variant="ghost" size="sm">
-                            <ArrowLeft className="w-4 h-4 mr-2" />
+                        <Button variant="outline" size="sm" className="gap-2">
+                            <ArrowLeft className="w-4 h-4" />
                             Voltar
                         </Button>
                     </Link>
-                    <div>
-                        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                            {route.name}
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-200">
-                                CONCLUÍDA
-                            </span>
-                        </h1>
-                        <p className="text-sm text-gray-500">
-                            Data da Rota: {route.route_date ? format(new Date(route.route_date + 'T12:00:00'), 'dd/MM/yyyy') : '-'}
+                }
+            />
+
+            <div className="flex flex-col gap-6 px-6 pb-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-white p-4 rounded-xl border border-gray-200/60 shadow-sm">
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Total Pedidos</p>
+                        <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-gray-200/60 shadow-sm">
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Peso Total</p>
+                        <p className="text-2xl font-bold text-gray-900">{stats.weight.toFixed(1)} <span className="text-sm font-normal text-gray-500">kg</span></p>
+                    </div>
+                    <div className="bg-white p-4 rounded-xl border border-gray-200/60 shadow-sm">
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Entregues</p>
+                        <p className="text-2xl font-bold text-green-600 flex items-center gap-2">
+                            {stats.delivered}
+                            <span className="text-xs font-normal bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{(stats.delivered / stats.total * 100).toFixed(0)}%</span>
                         </p>
                     </div>
+                    <div className="bg-white p-4 rounded-xl border border-gray-200/60 shadow-sm">
+                        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Devoluções</p>
+                        <p className="text-2xl font-bold text-red-600">{stats.notDelivered}</p>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {route.orders?.map((ro: any) => {
+                        const order = ro.sales_order;
+                        if (!order) return null;
+
+                        const status = order.status_logistic;
+
+                        let statusBadge = null;
+                        if (status === 'entregue') {
+                            statusBadge = (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-100">
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    Entregue
+                                </span>
+                            );
+                        } else if (status === 'nao_entregue') {
+                            statusBadge = (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-100">
+                                    <XCircle className="w-3.5 h-3.5" />
+                                    Não Entregue
+                                </span>
+                            );
+                        } else {
+                            statusBadge = (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
+                                    {status}
+                                </span>
+                            );
+                        }
+
+                        return (
+                            <Card key={ro.id} className="h-full flex flex-col hover:shadow-lg transition-all duration-300">
+                                <CardHeader className="pb-3 border-b border-gray-100">
+                                    <div className="flex justify-between items-start mb-1">
+                                        <div className="space-y-1">
+                                            <CardTitle className="text-base line-clamp-1" title={order.client?.trade_name}>
+                                                {order.client?.trade_name || 'Cliente Desconhecido'}
+                                            </CardTitle>
+                                            <Link href={`/app/vendas/pedidos/${order.id}`} className="inline-block text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline">
+                                                Pedido #{order.document_number}
+                                            </Link>
+                                        </div>
+                                        <div className="shrink-0 ml-3">
+                                            {statusBadge}
+                                        </div>
+                                    </div>
+                                </CardHeader>
+
+                                <CardContent className="flex-1 py-4">
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Itens do Pedido</p>
+                                    <ul className="space-y-2">
+                                        {order.items?.map((item: any) => (
+                                            <li key={item.id} className="text-sm flex justify-between items-start gap-3 group">
+                                                <span className="text-gray-700 line-clamp-2 group-hover:text-gray-900 transition-colors">
+                                                    {item.quantity}x {item.item?.name}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </CardContent>
+
+                                {order.internal_notes && (
+                                    <div className="mt-auto p-4 bg-amber-50/50 border-t border-amber-100/50 rounded-b-2xl">
+                                        <div className="flex gap-2">
+                                            <FileText className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                                            <div className="space-y-1">
+                                                <p className="text-xs font-bold text-amber-800">Ocorrências / Notas</p>
+                                                <p className="text-xs text-amber-700/90 whitespace-pre-wrap leading-relaxed">
+                                                    {order.internal_notes}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </Card>
+                        )
+                    })}
                 </div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {route.orders?.map((ro: any) => {
-                    const order = ro.sales_order;
-                    if (!order) return null;
-
-                    const status = order.status_logistic;
-
-                    let statusBadge = null;
-                    // Logic matching update status in finish return
-                    if (status === 'entregue') statusBadge = <span className="flex items-center text-green-700 text-xs font-bold bg-green-50 px-2 py-1 rounded-full border border-green-100"><CheckCircle2 className="w-3 h-3 mr-1" /> Entregue</span>;
-                    else if (status === 'nao_entregue') statusBadge = <span className="flex items-center text-red-700 text-xs font-bold bg-red-50 px-2 py-1 rounded-full border border-red-100"><XCircle className="w-3 h-3 mr-1" /> Não Entregue</span>;
-                    else statusBadge = <span className="text-gray-500 text-xs bg-gray-100 px-2 py-1 rounded-full">{status}</span>;
-
-                    return (
-                        <div key={ro.id} className="bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-all flex flex-col h-full">
-                            <div className="flex justify-between items-start mb-3">
-                                <div>
-                                    <h3 className="font-bold text-gray-900 line-clamp-1 text-base">{order.client?.trade_name || 'Cliente Desconhecido'}</h3>
-                                    <Link href={`/app/vendas/pedidos/${order.id}`} className="text-xs text-blue-600 hover:underline font-medium">
-                                        Pedido #{order.document_number}
-                                    </Link>
-                                </div>
-                                <div className="shrink-0 ml-2">
-                                    {statusBadge}
-                                </div>
-                            </div>
-
-                            <div className="border-t border-gray-100 my-3 pt-3 flex-1">
-                                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Itens</p>
-                                <ul className="text-sm text-gray-700 space-y-1.5 max-h-40 overflow-y-auto pr-1 scrollbar-thin">
-                                    {order.items?.map((item: any) => (
-                                        <li key={item.id} className="flex justify-between items-center bg-gray-50 p-1.5 rounded">
-                                            <span className="truncate flex-1 mr-2">{item.item?.name}</span>
-                                            <span className="font-mono text-xs bg-white border border-gray-200 px-1.5 rounded text-gray-500 whitespace-nowrap">{item.quantity} un</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-
-                            {order.internal_notes && (
-                                <div className="mt-auto pt-3 border-t border-gray-100">
-                                    <div className="bg-amber-50 p-3 rounded-md text-xs text-amber-900 border border-amber-100">
-                                        <p className="font-bold mb-1 flex items-center"><FileText className="w-3 h-3 mr-1" /> Notas / Ocorrências:</p>
-                                        <p className="whitespace-pre-wrap leading-relaxed opacity-90">{order.internal_notes}</p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )
-                })}
-            </div>
         </div>
-    )
+    );
 }

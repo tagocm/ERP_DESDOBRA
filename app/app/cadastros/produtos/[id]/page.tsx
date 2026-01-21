@@ -54,8 +54,8 @@ export default function ItemEditPage() {
                 uom_id: item.uom_id || undefined,
                 is_active: item.is_active,
                 gtin_ean_base: item.gtin_ean_base || "",
-                net_weight_g_base: item.net_weight_g_base || 0,
-                gross_weight_g_base: item.gross_weight_g_base || 0,
+                net_weight_kg_base: item.net_weight_kg_base || 0,
+                gross_weight_kg_base: item.gross_weight_kg_base || 0,
                 height_base: item.height_base || 0,
                 width_base: item.width_base || 0,
                 length_base: item.length_base || 0,
@@ -79,6 +79,7 @@ export default function ItemEditPage() {
                 lead_time_days: purchase?.lead_time_days ?? undefined,
                 purchase_uom: purchase?.purchase_uom || "",
                 purchase_uom_id: purchase?.purchase_uom_id || undefined,
+                default_purchase_packaging_id: purchase?.default_purchase_packaging_id || undefined,
                 conversion_factor: purchase?.conversion_factor ?? undefined,
                 purchase_notes: purchase?.notes || "",
 

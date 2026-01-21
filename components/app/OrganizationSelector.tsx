@@ -10,10 +10,11 @@ import { useCompany } from "@/contexts/CompanyContext";
 interface OrganizationSelectorProps {
     value?: string;
     onChange: (org: any) => void;
-    type?: 'customer' | 'supplier' | 'all';
+    type?: 'customer' | 'supplier' | 'carrier' | 'all';
+    disabled?: boolean;
 }
 
-export function OrganizationSelector({ value, onChange, type = 'all' }: OrganizationSelectorProps) {
+export function OrganizationSelector({ value, onChange, type = 'all', disabled }: OrganizationSelectorProps) {
     const { selectedCompany } = useCompany();
     const supabase = createClient();
 
@@ -32,8 +33,9 @@ export function OrganizationSelector({ value, onChange, type = 'all' }: Organiza
         const fetchOrg = async () => {
             const { data } = await supabase
                 .from('organizations')
-                .select('id, trade_name, document, document_number')
+                .select('id, trade_name, document_number')
                 .eq('id', value)
+                .is('deleted_at', null)
                 .single();
             if (data) {
                 setSelectedOrg(data);
@@ -63,33 +65,38 @@ export function OrganizationSelector({ value, onChange, type = 'all' }: Organiza
                 const isNumericSearch = cleanSearch.length >= 2;
 
                 // Fetch organizations - get more if doing numeric search for client-side filtering
-                const { data } = await supabase
+                let selectQuery = 'id, trade_name, legal_name, document_number';
+
+                // If filtering by type, use inner join on roles
+                if (type !== 'all') {
+                    selectQuery += ', organization_roles!inner(role)';
+                }
+
+                let query = supabase
                     .from('organizations')
-                    .select('id, trade_name, document, document_number')
+                    .select(selectQuery)
                     .eq('company_id', selectedCompany.id)
-                    .limit(isNumericSearch ? 100 : 20);
+                    .is('deleted_at', null); // Exclude soft-deleted records
 
+                if (type !== 'all') {
+                    query = query.eq('organization_roles.role', type);
+                }
 
+                if (isNumericSearch) {
+                    // Search in document_number (clean)
+                    // We also include trade_name and legal_name just in case there are numbers in the name
+                    query = query.or(`trade_name.ilike.%${search}%,legal_name.ilike.%${search}%,document_number.ilike.%${cleanSearch}%`);
+                } else {
+                    query = query.or(`trade_name.ilike.%${search}%,legal_name.ilike.%${search}%`);
+                }
 
-                let filteredData = data || [];
+                const { data } = await query.limit(20);
 
-                // Filter results
-                filteredData = filteredData.filter(org => {
-                    // Check name match
-                    const nameMatch = org.trade_name?.toLowerCase().includes(search.toLowerCase());
+                // Filter duplicates by ID and ensure trade_name
+                const uniqueData = Array.from(new Map((data || []).map((item: any) => [item.id, item])).values())
+                    .filter((item: any) => item.trade_name);
 
-                    // Check document match (search in both formatted and unformatted fields)
-                    if (isNumericSearch) {
-                        const cleanDoc = (org.document || '').replace(/[^\d]/g, '');
-                        const cleanDocNumber = (org.document_number || '');
-                        const docMatch = cleanDoc.includes(cleanSearch) || cleanDocNumber.includes(cleanSearch);
-                        return nameMatch || docMatch;
-                    }
-
-                    return nameMatch;
-                }).slice(0, 20); // Limit to 20 results
-
-                setOptions(filteredData);
+                setOptions(uniqueData);
                 setOpen(true);
             } finally {
                 setLoading(false);
@@ -151,15 +158,17 @@ export function OrganizationSelector({ value, onChange, type = 'all' }: Organiza
                     placeholder="Digite nome ou documento..."
                     value={search}
                     onChange={handleInputChange}
+                    disabled={disabled}
                     onFocus={() => {
                         if (search.length >= 2) setOpen(true);
                     }}
                 />
-                {selectedOrg && (
+                {selectedOrg && !disabled && (
                     <button
                         type="button"
                         onClick={handleClear}
                         className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-md transition-colors"
+                        disabled={disabled}
                     >
                         <X className="h-4 w-4 text-gray-400" />
                     </button>
@@ -191,8 +200,8 @@ export function OrganizationSelector({ value, onChange, type = 'all' }: Organiza
                         >
                             <div className="flex flex-col">
                                 <span className="block truncate">{option.trade_name}</span>
-                                {option.document && (
-                                    <span className="text-xs text-gray-400">{option.document}</span>
+                                {option.document_number && (
+                                    <span className="text-xs text-gray-400">{option.document_number}</span>
                                 )}
                             </div>
                             {selectedOrg?.id === option.id && (
@@ -214,7 +223,9 @@ export function OrganizationSelector({ value, onChange, type = 'all' }: Organiza
                             }}
                         >
                             <Plus className="w-3 h-3 mr-2" />
-                            Novo Cliente
+                            {type === 'supplier' ? 'Novo Fornecedor' :
+                                type === 'carrier' ? 'Nova Transportadora' :
+                                    'Novo Cliente'}
                         </Button>
                     </div>
                 </div>

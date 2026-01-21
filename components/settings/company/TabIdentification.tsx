@@ -13,6 +13,7 @@ import { createClient } from "@/lib/supabaseBrowser";
 import { validateLogoFile, generateFilePath } from "@/lib/upload-helpers";
 import { useCompany } from "@/contexts/CompanyContext";
 import { cn, toTitleCase } from "@/lib/utils";
+import { useToast } from "@/components/ui/use-toast";
 
 interface TabIdentificationProps {
     data: Partial<CompanySettings>;
@@ -23,6 +24,7 @@ interface TabIdentificationProps {
 export function TabIdentification({ data, onChange, isAdmin }: TabIdentificationProps) {
     const { selectedCompany } = useCompany();
     const supabase = createClient();
+    const { toast } = useToast();
     const [loadingCnpj, setLoadingCnpj] = useState(false);
     const [loadingCep, setLoadingCep] = useState(false);
 
@@ -144,9 +146,16 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
 
             // Auto-fill Address (with Title Case)
             if (info.address) {
-                // If we have a ZIP, try to fetch full address details (ID IBGE) first
+                // Populate ZIP field
                 if (info.address.zip) {
-                    await fetchCep(info.address.zip);
+                    const zipDigits = info.address.zip.toString().replace(/\D/g, '');
+                    const formattedZip = zipDigits.length === 8
+                        ? `${zipDigits.substring(0, 5)}-${zipDigits.substring(5, 8)}`
+                        : zipDigits;
+                    onChange('address_zip', formattedZip);
+
+                    // Fetch details to get IBGE code
+                    await fetchCep(zipDigits);
                 }
 
                 // Overwrite with CNPJ data if specific fields are present (CNPJ data usually more accurate for legal address than generic CEP)
@@ -165,13 +174,13 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
             if (info.email) onChange('email', info.email);
             if (info.phone) onChange('phone', info.phone);
 
-        } catch (e) {
-            console.error(e);
-            // alert("Não foi possível buscar os dados do CNPJ."); // Toast handles errors upstream usually? No, this component uses alerts/logging. 
-            // Ideally should use useToast, but component structure not showing it passed in or imported. 
-            // Wait, I can see useToast is NOT imported in this file. I should probably add it or keep existing behavior. 
-            // Existing was `alert`. I will keep `alert` or console for now to minimal change, or use toast if I add it.
-            // Let's stick to existing pattern of this function.
+        } catch (e: any) {
+            console.warn("CNPJ Fetch Warning:", e); // warn doesn't trigger overlay
+            toast({
+                title: "Erro ao buscar CNPJ",
+                description: e.message || "Não foi possível buscar os dados.",
+                variant: "destructive"
+            });
         } finally {
             setLoadingCnpj(false);
         }
@@ -194,7 +203,15 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
 
     const fetchCep = async (zip: string) => {
         const cleanZip = zip.replace(/\D/g, '');
-        if (cleanZip.length !== 8) return;
+
+        if (cleanZip.length !== 8) {
+            toast({
+                title: "CEP Inválido",
+                description: "O CEP deve conter 8 números.",
+                variant: "destructive"
+            });
+            return;
+        }
 
         setLoadingCep(true);
         try {
@@ -203,19 +220,32 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
             const info = await res.json();
 
             if (info.erro) {
-                alert("CEP não encontrado.");
+                toast({
+                    title: "CEP não encontrado",
+                    description: "Verifique o CEP digitado.",
+                    variant: "destructive"
+                });
                 return;
             }
 
             onChange('address_street', toTitleCase(info.logradouro));
             onChange('address_neighborhood', toTitleCase(info.bairro));
             onChange('address_city', toTitleCase(info.localidade));
-            onChange('address_state', info.uf?.toUpperCase()); // UF always uppercase
+            onChange('address_state', info.uf?.toUpperCase());
             onChange('city_code_ibge', info.ibge);
 
-        } catch (e) {
+            toast({
+                title: "Endereço encontrado",
+                description: "Os campos foram preenchidos.",
+            });
+
+        } catch (e: any) {
             console.error(e);
-            alert("Não foi possível buscar o CEP.");
+            toast({
+                title: "Erro na busca",
+                description: e.message || "Não foi possível buscar o CEP.",
+                variant: "destructive"
+            });
         } finally {
             setLoadingCep(false);
         }
@@ -317,6 +347,13 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                                     <Input
                                         value={data.cnpj || ''}
                                         onChange={handleCnpjChange}
+                                        onBlur={fetchCnpj}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') {
+                                                e.preventDefault();
+                                                fetchCnpj();
+                                            }
+                                        }}
                                         placeholder="00.000.000/0000-00"
                                         disabled={!isAdmin}
                                         maxLength={18}
@@ -467,6 +504,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                             />
                             {isAdmin && (
                                 <Button
+                                    type="button"
                                     variant="secondary"
                                     onClick={() => fetchCep(data.address_zip || '')}
                                     disabled={loadingCep}

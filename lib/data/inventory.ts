@@ -7,13 +7,15 @@ export interface InventoryMovement {
     item_id: string
     qty_in: number
     qty_out: number
-    unit_cost: number
-    total_cost: number
-    reason: 'purchase_in' | 'adjustment_in' | 'adjustment_out' | 'production_in' | 'production_out' | 'sale_out' | 'return_in'
-    ref_type: string | null
-    ref_id: string | null
+    movement_type: 'ENTRADA' | 'SAIDA' | 'AJUSTE'
+    qty_base: number
+    reason: string
+    reference_type: string | null
+    reference_id: string | null
+    source_ref: string | null
     notes: string | null
     created_at: string
+    occurred_at: string
 }
 
 export interface StockSummary {
@@ -85,7 +87,7 @@ export const inventoryRepo = {
 
         const { data, error } = await query
         if (error) throw error
-        return data as InventoryMovement[]
+        return data as unknown as InventoryMovement[]
     },
 
     async createMovement(companyId: string, movement: Partial<InventoryMovement>) {
@@ -97,7 +99,7 @@ export const inventoryRepo = {
             .single()
 
         if (error) throw error
-        return data as InventoryMovement
+        return data as unknown as InventoryMovement
     },
 
     async createPurchaseIn(companyId: string, payload: {
@@ -118,10 +120,11 @@ export const inventoryRepo = {
             item_id,
             qty_in: qty,
             qty_out: 0,
-            unit_cost,
-            total_cost: qty * unit_cost,
+            qty_base: qty,
+            movement_type: 'ENTRADA',
             reason: 'purchase_in',
-            notes
+            notes,
+            occurred_at: new Date().toISOString()
         })
 
         // Recalculate avg cost
@@ -166,10 +169,11 @@ export const inventoryRepo = {
             item_id,
             qty_in: reason === 'adjustment_in' ? qty : 0,
             qty_out: reason === 'adjustment_out' ? qty : 0,
-            unit_cost: 0,
-            total_cost: 0,
+            qty_base: qty,
+            movement_type: reason === 'adjustment_in' ? 'ENTRADA' : 'SAIDA',
             reason,
-            notes
+            notes,
+            occurred_at: new Date().toISOString()
         })
 
         // If adjustment in, recalculate avg cost with current avg cost as unit cost

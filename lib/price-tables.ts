@@ -110,13 +110,22 @@ export async function getSellableItems(
 ) {
     const { data, error } = await supabase
         .from('items')
-        .select('id, name, sku, uom, line, brand, type, avg_cost')
+        .select(`
+            id, 
+            name, 
+            sku, 
+            uom, 
+            line, 
+            brand, 
+            type, 
+            avg_cost, 
+            category:product_categories(name)
+        `)
         .eq('company_id', companyId)
         .eq('is_active', true)
         .is('deleted_at', null)
         // Filter sellable types
         .in('type', ['finished_good', 'resale', 'service', 'wip', 'raw_material']) // Including raw/wip if user wants to sell them occasionally
-        .order('line', { ascending: true }) // Grouping by line
         .order('name', { ascending: true });
 
     if (error) throw error;

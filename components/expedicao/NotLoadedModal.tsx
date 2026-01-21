@@ -1,49 +1,46 @@
-"use client";
 
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/Dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select-shadcn';
 import { Label } from '@/components/ui/Label';
+import { Switch } from "@/components/ui/Switch";
 import { createClient } from "@/utils/supabase/client";
-import { getSystemReasons } from "@/lib/data/system-preferences";
-import { SystemOccurrenceReasonWithDefaults } from "@/types/system-preferences";
-import { OccurrenceActionsPanel, OperationAction } from "@/components/settings/system/OccurrenceActionsPanel";
+import { getOccurrenceReasons } from "@/lib/data/reasons";
+import { OccurrenceReason } from "@/types/reasons";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface NotLoadedModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (reasonLabel: string, notes?: string, actionFlags?: any) => void;
+    onSuccess: () => void;
     order: any;
+    routeId: string;
+    initialData?: any;
 }
 
-export function NotLoadedModal({ isOpen, onClose, onConfirm, order }: NotLoadedModalProps) {
+export function NotLoadedModal({ isOpen, onClose, onSuccess, order, routeId, initialData }: NotLoadedModalProps) {
     const [supabase] = useState(() => createClient());
     const { toast } = useToast();
+    const { selectedCompany } = useCompany();
 
     // Data State
-    const [reasons, setReasons] = useState<SystemOccurrenceReasonWithDefaults[]>([]);
+    const [reasons, setReasons] = useState<OccurrenceReason[]>([]);
     const [isLoadingReasons, setIsLoadingReasons] = useState(false);
     const [reasonsError, setReasonsError] = useState(false);
 
     // Form State
     const [selectedReasonId, setSelectedReasonId] = useState("");
     const [notes, setNotes] = useState("");
+    const [createNewOrderCopy, setCreateNewOrderCopy] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Actions State
-    const [currentActions, setCurrentActions] = useState<Record<string, boolean>>({
-        [OperationAction.RETURN_TO_SANDBOX_PENDING]: true,
-        [OperationAction.REGISTER_NOTE_ON_ORDER]: true
-    });
-    const [defaultActions, setDefaultActions] = useState<Record<string, boolean>>({});
-
-    // Fetch Reasons
+    // Fetch Reasons and Set Initial Data
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && selectedCompany?.id) {
             let isMounted = true;
 
             const loadReasons = async () => {
@@ -51,20 +48,46 @@ export function NotLoadedModal({ isOpen, onClose, onConfirm, order }: NotLoadedM
                 setReasonsError(false);
 
                 try {
-                    const data = await getSystemReasons(supabase, 'EXPEDICAO_NAO_CARREGADO');
+                    const data = await getOccurrenceReasons(supabase, selectedCompany.id, 'exp_nao_carregado');
 
                     if (isMounted) {
                         if (data && data.length > 0) {
                             setReasons(data);
+
+                            // Pre-fill if editing
+                            if (initialData) {
+                                let reasonToSelect = null;
+                                if (initialData.reasonId) {
+                                    reasonToSelect = data.find(r => r.id === initialData.reasonId);
+                                }
+                                if (!reasonToSelect && initialData.reason) { // Fallback to name
+                                    reasonToSelect = data.find(r => r.name === initialData.reason);
+                                }
+
+                                if (reasonToSelect) {
+                                    setSelectedReasonId(reasonToSelect.id);
+                                } else if (initialData.reason) {
+                                    // "Other" or custom reason not in list
+                                    setSelectedReasonId("other");
+                                }
+
+                                if (initialData.text_other) setNotes(initialData.text_other);
+                                if (initialData.observation) setNotes(initialData.observation);
+
+                                // Restore toggle state from payload actions
+                                if (initialData.payload?.actions?.create_new_order_copy) {
+                                    setCreateNewOrderCopy(true);
+                                }
+                            }
                         } else {
-                            throw new Error("No reasons found");
+                            setReasons([]);
                         }
                     }
                 } catch (error) {
                     console.error("Failed to load reasons:", error);
                     if (isMounted) {
                         setReasonsError(true);
-                        setReasons([]); // Allow manual standard fallback or just Other
+                        setReasons([]);
                     }
                 } finally {
                     if (isMounted) setIsLoadingReasons(false);
@@ -73,37 +96,16 @@ export function NotLoadedModal({ isOpen, onClose, onConfirm, order }: NotLoadedM
 
             loadReasons();
 
-            // Reset Form
-            setSelectedReasonId("");
-            setNotes("");
-            setCurrentActions({
-                [OperationAction.RETURN_TO_SANDBOX_PENDING]: true,
-                [OperationAction.REGISTER_NOTE_ON_ORDER]: true
-            });
-            setDefaultActions({});
+            // Reset Form (if no initialData, or cleanup)
+            if (!initialData) {
+                setSelectedReasonId("");
+                setNotes("");
+                setCreateNewOrderCopy(false);
+            }
 
             return () => { isMounted = false; };
         }
-    }, [isOpen, supabase]);
-
-    // Handle Reason Selection & Defaults
-    const handleReasonChange = (reasonId: string) => {
-        setSelectedReasonId(reasonId);
-
-        const reason = reasons.find(r => r.id === reasonId);
-        if (reason?.defaults) {
-            const defaults = {
-                [OperationAction.RETURN_TO_SANDBOX_PENDING]: reason.defaults.return_to_sandbox_pending ?? true,
-                [OperationAction.REGISTER_NOTE_ON_ORDER]: reason.defaults.register_attempt_note ?? true
-            };
-            setDefaultActions(defaults);
-            setCurrentActions(defaults);
-        }
-    };
-
-    const handleActionChange = (action: OperationAction, value: boolean) => {
-        setCurrentActions(prev => ({ ...prev, [action]: value }));
-    };
+    }, [isOpen, supabase, selectedCompany, initialData]);
 
     const handleSubmit = async () => {
         if (!selectedReasonId && selectedReasonId !== 'other') return;
@@ -111,103 +113,127 @@ export function NotLoadedModal({ isOpen, onClose, onConfirm, order }: NotLoadedM
         const selectedReason = reasons.find(r => r.id === selectedReasonId);
         const isOther = selectedReasonId === 'other';
 
-        if (selectedReason?.defaults?.require_note && !notes.trim()) {
-            toast({ title: "Erro", description: "Observação obrigatória.", variant: "destructive" });
-            return;
-        }
-        if (isOther && !notes.trim()) {
-            toast({ title: "Erro", description: "Observação obrigatória para 'Outro'.", variant: "destructive" });
+        // Validation based on requirements
+        // Note: We removed 'require_reasons' dynamic check to keep it simple as per requirement "d) Textarea Observação (Livre)"
+        // But user requirement says: "Confirmar apenas registra..." 
+        // User request: "b) Textarea Observação (livre)" implying optional? 
+        // But usually "Livre" means free text. Let's make it optional unless 'Other' is selected or reason strictly requires it.
+
+        if (selectedReason?.require_notes && !notes.trim()) {
+            toast({ title: "Erro", description: "Observação é obrigatória para este motivo.", variant: "destructive" });
             return;
         }
 
         setIsSubmitting(true);
         try {
-            const finalReasonLabel = isOther ? "Outro" : selectedReason?.label || "Desconhecido";
-            const actionFlags = {
-                return_to_pending: currentActions[OperationAction.RETURN_TO_SANDBOX_PENDING],
-                register_notes: currentActions[OperationAction.REGISTER_NOTE_ON_ORDER]
-            };
+            const finalReasonLabel = isOther ? "Outro" : selectedReason?.name || "Desconhecido";
 
-            await onConfirm(finalReasonLabel, notes, actionFlags);
+            // Call API
+            const response = await fetch(`/api/logistics/routes/${routeId}/occurrences`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    salesDocumentId: order.id,
+                    occurrenceType: 'NOT_LOADED_TOTAL',
+                    reasonId: isOther ? null : selectedReasonId,
+                    reasonNameSnapshot: finalReasonLabel,
+                    observation: notes,
+                    payload: {
+                        reasonId: isOther ? null : selectedReasonId,
+                        actions: {
+                            create_new_order_copy: createNewOrderCopy
+                        }
+                    },
+                    companyId: selectedCompany?.id
+                })
+            });
+
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || "Falha ao registrar ocorrência");
+            }
+
+            toast({ title: "Sucesso", description: "Ocorrência registrada." });
+            onSuccess();
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
+            toast({ title: "Erro", description: error.message, variant: "destructive" });
         } finally {
             setIsSubmitting(false);
         }
     };
 
-    const selectedReason = reasons.find(r => r.id === selectedReasonId);
-
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-3xl h-[80vh] flex flex-col">
+            <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Não Carregamento (Rascunho)</DialogTitle>
-                    <p className="text-sm text-gray-500">
-                        O pedido <strong>#{order?.sales_order?.document_number || order?.document_number || ''}</strong> não será carregado.
-                    </p>
+                    <DialogTitle>Pedido Não Carregado</DialogTitle>
+                    <DialogDescription>
+                        Pedido <strong>#{order?.document_number}</strong>
+                    </DialogDescription>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto py-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-4">
-                            <div className="space-y-1.5">
-                                <Label>Motivo <span className="text-red-500">*</span></Label>
-                                <Select value={selectedReasonId} onValueChange={handleReasonChange} disabled={isLoadingReasons}>
-                                    <SelectTrigger className={reasonsError ? "border-red-300 bg-red-50" : ""}>
-                                        <SelectValue placeholder={
-                                            isLoadingReasons ? "Carregando motivos..." :
-                                                reasonsError ? "Erro ao carregar motivos." :
-                                                    "Selecione o motivo..."
-                                        } />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {reasons.map((r) => (
-                                            <SelectItem key={r.id} value={r.id}>{r.label}</SelectItem>
-                                        ))}
-                                        {(reasonsError || reasons.length === 0) && (
-                                            <SelectItem value="other">Outro (Manual)</SelectItem>
-                                        )}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label>Observações {reasons.find(r => r.id === selectedReasonId)?.defaults?.require_note && <span className="text-red-500">*</span>}</Label>
-                                <Textarea
-                                    placeholder="Detalhes adicionais..."
-                                    value={notes}
-                                    onChange={(e) => setNotes(e.target.value)}
-                                    className="resize-none h-24"
-                                />
-                            </div>
+                <div className="space-y-6 py-4">
+                    <div className="grid gap-4">
+                        <div className="space-y-1.5">
+                            <Label>Motivo</Label>
+                            <Select value={selectedReasonId} onValueChange={setSelectedReasonId} disabled={isLoadingReasons}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione o motivo..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {reasons.map((r) => (
+                                        <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                                    ))}
+                                    <SelectItem value="other">Outros</SelectItem>
+                                </SelectContent>
+                            </Select>
                         </div>
 
-                        <div>
-                            <OccurrenceActionsPanel
-                                mode="operation"
-                                availableActions={[
-                                    OperationAction.RETURN_TO_SANDBOX_PENDING,
-                                    OperationAction.REGISTER_NOTE_ON_ORDER
-                                ]}
-                                currentActions={currentActions}
-                                defaultActions={defaultActions}
-                                onChange={handleActionChange}
+                        <div className="space-y-1.5">
+                            <Label>Observação</Label>
+                            <Textarea
+                                placeholder="Descreva o ocorrido..."
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                className="resize-none h-24"
                             />
+                        </div>
+
+                        <div className="flex items-center space-x-2 pt-2">
+                            <Switch
+                                id="create-copy"
+                                checked={createNewOrderCopy}
+                                onCheckedChange={setCreateNewOrderCopy}
+                            />
+                            <Label htmlFor="create-copy" className="font-normal cursor-pointer">
+                                Gerar novo pedido com os itens
+                            </Label>
+                        </div>
+
+                        <div className="bg-amber-50 p-3 rounded-md flex gap-3 text-xs text-amber-800 border border-amber-100">
+                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                            <div>
+                                <p className="font-semibold mb-0.5">Atenção</p>
+                                <p>Ao processar a rota, este pedido voltará para status <strong>Pendente</strong>.</p>
+                                {createNewOrderCopy && (
+                                    <p className="mt-1 font-medium">+ Um novo pedido será criado idêntico a este.</p>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose}>Cancelar</Button>
+                <DialogFooter className="gap-2 sm:gap-0">
+                    <Button variant="outline" onClick={onClose} disabled={isSubmitting}>Cancelar</Button>
                     <Button
+                        variant="primary" // Using primary as it's a confirmation
                         onClick={handleSubmit}
-                        disabled={!selectedReasonId || isSubmitting}
-                        className="bg-red-600 hover:bg-red-700 text-white"
+                        disabled={isSubmitting || !selectedReasonId}
                     >
-                        {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        Confirmar Não Carregamento
+                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Confirmar
                     </Button>
                 </DialogFooter>
             </DialogContent>

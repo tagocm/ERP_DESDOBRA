@@ -17,32 +17,35 @@ export default async function RetornoPage() {
         );
     }
 
-    let companyId = user.user_metadata?.company_id;
+    // Always fetch the canonical company_id from the database to avoid metadata desync
+    let companyId: string | null = null;
 
-    // Fallback: fetch from DB if metadata is invalid or missing associated company
+    // We try to find the company_id associated with this user in the DB
+    const { data: member } = await supabase
+        .from('company_members')
+        .select('company_id')
+        .eq('auth_user_id', user.id)
+        .maybeSingle();
+
+    if (member) {
+        companyId = member.company_id;
+    }
+
     if (!companyId) {
-        const { data: member } = await supabase
-            .from('company_members')
-            .select('company_id')
-            .eq('auth_user_id', user.id)
-            .limit(1)
-            .single();
-
-        if (member) {
-            companyId = member.company_id;
-        }
+        // Fallback to metadata ONLY if DB lookup failed
+        companyId = user.user_metadata?.company_id;
     }
 
     if (!companyId) {
         return (
             <div className="p-8 text-center text-red-600">
-                Empresa não identificada no usuário.
+                Empresa não identificada no usuário. (ID: {user.id})
             </div>
         );
     }
 
     try {
-        // Get routes for expanded range (Today - 7 days to Today + 14 days) to support client-side filtering
+        // Get routes for expanded range (Today - 7 days to Today + 14 days)
         const today = new Date();
         const dateFrom = format(new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
         const dateTo = format(new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
@@ -51,6 +54,9 @@ export default async function RetornoPage() {
             dateFrom,
             dateTo
         });
+
+        // Debug log (server side)
+        console.log(`[Retorno] User: ${user.id}, Company: ${companyId}, Routes Found: ${routes?.length}`);
 
         return <RetornoClient initialRoutes={routes || []} />;
     } catch (error: any) {

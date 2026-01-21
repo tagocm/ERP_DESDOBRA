@@ -29,9 +29,10 @@ interface CategorySelectorProps {
     onChange: (value: string | null) => void;
     className?: string;
     disabled?: boolean;
+    companyId: string;
 }
 
-export function CategorySelector({ value, onChange, className, disabled }: CategorySelectorProps) {
+export function CategorySelector({ value, onChange, className, disabled, companyId }: CategorySelectorProps) {
     const { toast } = useToast()
     const [open, setOpen] = React.useState(false)
     const [categories, setCategories] = React.useState<ProductCategory[]>([])
@@ -40,8 +41,9 @@ export function CategorySelector({ value, onChange, className, disabled }: Categ
 
     // Fetch initial
     const fetchCategories = async () => {
+        if (!companyId) return;
         try {
-            const data = await getCategories();
+            const data = await getCategories(companyId);
             setCategories(data);
         } catch (e) {
             console.error(e);
@@ -50,12 +52,12 @@ export function CategorySelector({ value, onChange, className, disabled }: Categ
 
     React.useEffect(() => {
         fetchCategories();
-    }, []);
+    }, [companyId]);
 
     const handleCreateOption = async () => {
         if (!searchValue) return;
         try {
-            const newCat = await createCategory(searchValue);
+            const newCat = await createCategory(companyId, searchValue);
             setCategories(prev => [...prev, newCat]);
             onChange(newCat.id);
             setOpen(false);
@@ -180,7 +182,7 @@ export function CategorySelector({ value, onChange, className, disabled }: Categ
                         <Settings className="h-4 w-4 text-gray-500" />
                     </Button>
                 </DialogTrigger>
-                <CategoryManagerModal onChange={fetchCategories} />
+                <CategoryManagerModal companyId={companyId} onChange={fetchCategories} />
             </Dialog>
         </div >
     )

@@ -20,11 +20,12 @@ import {
 } from "@/components/ui/table";
 
 interface CategoryManagerModalProps {
+    companyId: string;
     onClose?: () => void;
     onChange?: () => void; // Trigger reload in parent
 }
 
-export function CategoryManagerModal({ onClose, onChange }: CategoryManagerModalProps) {
+export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryManagerModalProps) {
     const { toast } = useToast();
     const [categories, setCategories] = useState<ProductCategory[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -41,7 +42,7 @@ export function CategoryManagerModal({ onClose, onChange }: CategoryManagerModal
     const fetchCategories = async () => {
         setIsLoading(true);
         try {
-            const data = await getCategories();
+            const data = await getCategories(companyId);
             setCategories(data);
         } catch (error) {
             console.error(error);
@@ -52,14 +53,16 @@ export function CategoryManagerModal({ onClose, onChange }: CategoryManagerModal
     };
 
     useEffect(() => {
-        fetchCategories();
-    }, []);
+        if (companyId) {
+            fetchCategories();
+        }
+    }, [companyId]);
 
     const handleCreate = async () => {
         if (!newItemName.trim()) return;
         setIsCreating(true);
         try {
-            await createCategory(newItemName);
+            await createCategory(companyId, newItemName);
             setNewItemName("");
             fetchCategories();
             onChange?.();
@@ -202,7 +205,15 @@ export function CategoryManagerModal({ onClose, onChange }: CategoryManagerModal
                                 categories.map((cat) => (
                                     <TableRow key={cat.id} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
                                         <TableCell className="py-3 font-medium text-gray-900">
-                                            {cat.name}
+                                            <div className="flex items-center gap-2">
+                                                {cat.name}
+                                                {/* Global Indicator */}
+                                                {!cat.company_id && (
+                                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 border border-gray-200" title="Categoria Global (Sistema)">
+                                                        Global
+                                                    </span>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="py-3 text-center">
                                             {cat.product_count! > 0 ? (
@@ -223,7 +234,12 @@ export function CategoryManagerModal({ onClose, onChange }: CategoryManagerModal
                                                         setEditingId(cat.id);
                                                         setEditName(cat.name);
                                                     }}
-                                                    className="h-7 w-7 p-0 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
+                                                    disabled={!cat.company_id} // Disable edit for global
+                                                    className={cn(
+                                                        "h-7 w-7 p-0 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors",
+                                                        !cat.company_id && "opacity-30 cursor-not-allowed hover:bg-transparent hover:text-gray-400"
+                                                    )}
+                                                    title={!cat.company_id ? "Categorias globais não podem ser editadas" : "Editar"}
                                                 >
                                                     <Edit className="h-3.5 w-3.5" />
                                                 </Button>
@@ -232,13 +248,14 @@ export function CategoryManagerModal({ onClose, onChange }: CategoryManagerModal
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={() => setCategoryToDelete(cat.id)}
-                                                    disabled={cat.product_count! > 0}
+                                                    disabled={cat.product_count! > 0 || !cat.company_id}
                                                     className={cn(
                                                         "h-7 w-7 p-0 rounded-lg transition-colors border-none bg-transparent",
-                                                        cat.product_count! > 0
+                                                        cat.product_count! > 0 || !cat.company_id
                                                             ? "opacity-20 cursor-not-allowed"
                                                             : "hover:bg-red-50 hover:text-red-600 text-gray-400"
                                                     )}
+                                                    title={!cat.company_id ? "Categorias globais não podem ser excluídas" : "Excluir"}
                                                 >
                                                     <Trash2 className="h-3.5 w-3.5" />
                                                 </Button>
@@ -252,6 +269,7 @@ export function CategoryManagerModal({ onClose, onChange }: CategoryManagerModal
                 </div>
             </div>
 
+
             <ConfirmDialogDesdobra
                 open={!!categoryToDelete}
                 onOpenChange={(val) => !val && setCategoryToDelete(null)}
@@ -260,6 +278,6 @@ export function CategoryManagerModal({ onClose, onChange }: CategoryManagerModal
                 onConfirm={handleDelete}
                 variant="danger"
             />
-        </DialogContent>
+        </DialogContent >
     );
 }

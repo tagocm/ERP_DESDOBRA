@@ -1,5 +1,4 @@
-"use client";
-import React from "react";
+import { cn } from "@/lib/utils";
 
 interface PageHeaderProps {
     title: string;
@@ -9,13 +8,14 @@ interface PageHeaderProps {
     rightSlot?: React.ReactNode; // Legacy alias to avoid breaking immediate usages, will map to actions
     errorSummary?: React.ReactNode;
     children?: React.ReactNode;
+    className?: string;
 }
 
-export function PageHeader({ title, subtitle, description, actions, rightSlot, errorSummary, children }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, description, actions, rightSlot, errorSummary, children, className }: PageHeaderProps) {
     const finalSubtitle = subtitle || description;
     const finalActions = actions || rightSlot;
     return (
-        <div className="bg-white border-b border-gray-200 pt-6 px-6 mb-6">
+        <div className={cn("bg-white border-b border-gray-200 pt-6 px-6 mb-6", className)}>
             <div className="flex items-start justify-between pb-4">
                 <div className="space-y-1">
                     <h1 className="text-2xl md:text-3xl font-semibold text-gray-900 tracking-tight">

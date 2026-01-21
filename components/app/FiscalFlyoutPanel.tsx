@@ -18,9 +18,14 @@ const menuItems = [
         icon: FileText,
     },
     {
+        name: "Grupos Tributários",
+        href: "/app/fiscal/configuracoes",
+        icon: ScrollText,
+    },
+    {
         name: "Operações Fiscais",
         href: "/app/fiscal/operacoes",
-        icon: Settings, // or ScrollText? Settings fits "Regras" better or Sliders. Let's stick to Settings or maybe FileCog? Settings is fine.
+        icon: Settings,
         newItem: {
             name: "Nova Regra",
             href: "/app/fiscal/operacoes/novo"

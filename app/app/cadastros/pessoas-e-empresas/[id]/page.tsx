@@ -29,10 +29,14 @@ import { Tabs, TabsContent } from "@/components/ui/Tabs";
 import { FormTabsList, FormTabsTrigger } from "@/components/ui/FormTabs";
 import { ContactsTable, ContactFormData } from "@/components/forms/ContactsTable";
 import { extractDigits, formatCNPJ, validateCNPJ } from "@/lib/cnpj";
-import { Loader2, Search, CheckCircle2, Save, ArrowLeft, ShoppingCart, Package, Truck, FileText, Receipt, Users, MessageSquare } from "lucide-react";
+import { Loader2, Search, CheckCircle2, Save, ArrowLeft, ShoppingCart, Package, Truck, FileText, Receipt, Users, MessageSquare, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AddressFormData } from "@/components/forms/AddressForm";
+import { Dialog, DialogContent } from "@/components/ui/Dialog";
+import { PaymentModeManagerModal } from "@/components/organizations/PaymentModeManagerModal";
+import { getPaymentModes, PaymentMode } from "@/lib/data/payment-modes";
+import { CarrierSelector } from "@/components/app/CarrierSelector";
 
 // Helper for Title Case
 const toTitleCase = (str: string) => {
@@ -84,7 +88,7 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
         price_table_id: "",
         default_payment_terms_days: "",
         sales_rep_user_id: "",
-        freight_terms: "" as '' | 'cif' | 'fob' | 'retira' | 'combinar' | 'sem_frete',
+        freight_terms: "" as '' | 'cif' | 'fob' | 'retira',
         notes_commercial: "",
 
         // New Fields
@@ -97,7 +101,8 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
         lead_time_days: "",
         minimum_order_value: "",
         preferred_carrier_id: "",
-        region_route: ""
+        region_route: "",
+        payment_mode_id: ""
     });
 
     const [fiscalData, setFiscalData] = useState({
@@ -133,17 +138,21 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
     // Lists for Selects
     const [priceTables, setPriceTables] = useState<PriceTable[]>([]);
     const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
+    const [paymentModes, setPaymentModes] = useState<PaymentMode[]>([]);
+    const [manageModesOpen, setManageModesOpen] = useState(false);
 
     useEffect(() => {
         if (!selectedCompany) return;
         const loadOptions = async () => {
             try {
-                const [pts, terms] = await Promise.all([
+                const [pts, terms, modes] = await Promise.all([
                     getPriceTables(supabase, selectedCompany.id),
-                    getPaymentTerms(supabase, selectedCompany.id)
+                    getPaymentTerms(supabase, selectedCompany.id),
+                    getPaymentModes(selectedCompany.id)
                 ]);
                 setPriceTables(pts);
                 setPaymentTerms(terms);
+                setPaymentModes(modes);
             } catch (err: any) {
                 console.error("Error loading options:", err.message || err);
             }
@@ -191,7 +200,7 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                     price_table_id: org.price_table_id || "",
                     default_payment_terms_days: org.default_payment_terms_days ? String(org.default_payment_terms_days) : "",
                     sales_rep_user_id: org.sales_rep_user_id || "",
-                    freight_terms: org.freight_terms || "",
+                    freight_terms: (['cif', 'fob', 'retira'].includes(org.freight_terms || '') ? org.freight_terms : "") as '' | 'cif' | 'fob' | 'retira',
                     notes_commercial: org.notes_commercial || "",
 
                     // New Fields
@@ -204,7 +213,8 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                     lead_time_days: org.lead_time_days ? String(org.lead_time_days) : "",
                     minimum_order_value: org.minimum_order_value ? String(org.minimum_order_value) : "",
                     preferred_carrier_id: org.preferred_carrier_id || "",
-                    region_route: org.region_route || ""
+                    region_route: org.region_route || "",
+                    payment_mode_id: org.payment_mode_id || ""
                 });
 
                 setFiscalData({
@@ -392,6 +402,7 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                 minimum_order_value: sanitizedCommercial.minimum_order_value ? parseFloat(sanitizedCommercial.minimum_order_value) : null,
                 preferred_carrier_id: sanitizedCommercial.preferred_carrier_id || null,
                 region_route: sanitizedCommercial.region_route || null,
+                payment_mode_id: sanitizedCommercial.payment_mode_id || null,
             });
 
             // Set Roles
@@ -500,6 +511,16 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
         }
     };
 
+    const reloadPaymentModes = async () => {
+        if (!selectedCompany) return;
+        try {
+            const data = await getPaymentModes(selectedCompany.id);
+            setPaymentModes(data);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
 
     if (isFetching) {
         return (
@@ -521,6 +542,10 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                     {success}
                 </Alert>
             )}
+
+            <Dialog open={manageModesOpen} onOpenChange={setManageModesOpen}>
+                <PaymentModeManagerModal onChange={reloadPaymentModes} />
+            </Dialog>
 
             <PageHeader
                 title={formData.trade_name || "Editando Cadastro"}
@@ -554,7 +579,7 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                 </Tabs>
             </PageHeader>
 
-            <div className="max-w-[1600px] mx-auto pb-20 px-6">
+            <div className="w-full pb-20 px-6">
 
 
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -690,101 +715,141 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                                         icon={<ShoppingCart className="w-5 h-5" />}
                                         title="Condições de Venda"
                                     />
-                                    <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        <div className="space-y-1.5">
-                                            <label className="text-sm font-medium text-gray-700">Tabela de Preço</label>
-                                            <Select
-                                                name="price_table_id"
-                                                value={commercialData.price_table_id}
-                                                onValueChange={(val) => setCommercialData(prev => ({ ...prev, price_table_id: val }))}
-                                            >
-                                                <SelectTrigger className="w-full">
-                                                    <SelectValue placeholder="Selecione..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {priceTables.map(pt => (
-                                                        <SelectItem key={pt.id} value={pt.id}>{pt.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                    <CardContent className="space-y-6">
+                                        {/* ROW 1: Tabela | Prazo | Canal */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div className="space-y-1.5">
+                                                <label className="text-sm font-medium text-gray-700">Tabela de Preço</label>
+                                                <Select
+                                                    name="price_table_id"
+                                                    value={commercialData.price_table_id}
+                                                    onValueChange={(val) => setCommercialData(prev => ({ ...prev, price_table_id: val }))}
+                                                >
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Selecione..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="standard">Padrão</SelectItem>
+                                                        {priceTables.map(pt => (
+                                                            <SelectItem key={pt.id} value={pt.id}>{pt.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <label className="text-sm font-medium text-gray-700">Prazo de Pagamento</label>
+                                                <Select
+                                                    name="payment_terms_id"
+                                                    value={commercialData.payment_terms_id}
+                                                    onValueChange={(val) => setCommercialData(prev => ({ ...prev, payment_terms_id: val }))}
+                                                >
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Selecione..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {paymentTerms.map(pt => (
+                                                            <SelectItem key={pt.id} value={pt.id}>{pt.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+
+                                            <div className="space-y-1.5">
+                                                <label className="text-sm font-medium text-gray-700">Canal de Venda</label>
+                                                <Select
+                                                    name="sales_channel"
+                                                    value={commercialData.sales_channel}
+                                                    onValueChange={(val) => setCommercialData(prev => ({ ...prev, sales_channel: val }))}
+                                                >
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Selecione..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="WhatsApp">WhatsApp</SelectItem>
+                                                        <SelectItem value="Telefone">Telefone</SelectItem>
+                                                        <SelectItem value="Email">Email</SelectItem>
+                                                        <SelectItem value="Presencial">Presencial</SelectItem>
+                                                        <SelectItem value="E-commerce">E-commerce</SelectItem>
+                                                        <SelectItem value="Outro">Outro</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
                                         </div>
 
-                                        <div className="space-y-1.5">
-                                            <label className="text-sm font-medium text-gray-700">Prazo de Pagamento Padrão</label>
-                                            <Select
-                                                name="payment_terms_id"
-                                                value={commercialData.payment_terms_id}
-                                                onValueChange={(val) => setCommercialData(prev => ({ ...prev, payment_terms_id: val }))}
-                                            >
-                                                <SelectTrigger className="w-full">
-                                                    <SelectValue placeholder="Selecione..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {paymentTerms.map(pt => (
-                                                        <SelectItem key={pt.id} value={pt.id}>{pt.name}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
+                                        {/* ROW 2: [Limite|Desconto] | Modalidade | Representante */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            {/* Col 1: Split Limits */}
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="space-y-1.5">
+                                                    <label className="text-sm font-medium text-gray-700">Limite de Crédito (R$)</label>
+                                                    <DecimalInput
+                                                        value={commercialData.credit_limit ? parseFloat(commercialData.credit_limit) : undefined}
+                                                        onChange={(val) => setCommercialData(prev => ({ ...prev, credit_limit: val !== null ? String(val) : "" }))}
+                                                        className="w-full text-right"
+                                                        precision={2}
+                                                        placeholder="0,00"
+                                                    />
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <label className="text-sm font-medium text-gray-700">Desconto Padrão (%)</label>
+                                                    <DecimalInput
+                                                        value={commercialData.default_discount ? parseFloat(commercialData.default_discount) : undefined}
+                                                        onChange={(val) => setCommercialData(prev => ({ ...prev, default_discount: val !== null ? String(val) : "" }))}
+                                                        className="w-full text-right"
+                                                        precision={2}
+                                                        placeholder="0,00"
+                                                    />
+                                                </div>
+                                            </div>
 
-                                        <div className="space-y-1.5">
-                                            <label className="text-sm font-medium text-gray-700">Canal de Venda</label>
-                                            <Select
-                                                name="sales_channel"
-                                                value={commercialData.sales_channel}
-                                                onValueChange={(val) => setCommercialData(prev => ({ ...prev, sales_channel: val }))}
-                                            >
-                                                <SelectTrigger className="w-full">
-                                                    <SelectValue placeholder="Selecione..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="WhatsApp">WhatsApp</SelectItem>
-                                                    <SelectItem value="Telefone">Telefone</SelectItem>
-                                                    <SelectItem value="Email">Email</SelectItem>
-                                                    <SelectItem value="Presencial">Presencial</SelectItem>
-                                                    <SelectItem value="E-commerce">E-commerce</SelectItem>
-                                                    <SelectItem value="Outro">Outro</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
+                                            {/* Col 2: Payment Mode */}
+                                            <div className="space-y-1.5">
+                                                <label className="text-sm font-medium text-gray-700">
+                                                    Modalidade de Pagamento
+                                                </label>
+                                                <div className="flex items-center gap-2">
+                                                    <Select
+                                                        value={commercialData.payment_mode_id}
+                                                        onValueChange={(val) => setCommercialData(prev => ({ ...prev, payment_mode_id: val }))}
+                                                    >
+                                                        <SelectTrigger className="w-full">
+                                                            <SelectValue placeholder="Selecione..." />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {paymentModes.map(m => (
+                                                                <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-9 w-9 shrink-0"
+                                                        title="Gerenciar Modalidades"
+                                                        onClick={() => setManageModesOpen(true)}
+                                                    >
+                                                        <Settings className="h-4 w-4 text-gray-500" />
+                                                    </Button>
+                                                </div>
+                                            </div>
 
-                                        <div className="space-y-1.5">
-                                            <label className="text-sm font-medium text-gray-700">Limite de Crédito (R$)</label>
-                                            <DecimalInput
-                                                value={commercialData.credit_limit ? parseFloat(commercialData.credit_limit) : undefined}
-                                                onChange={(val) => setCommercialData(prev => ({ ...prev, credit_limit: val !== null ? String(val) : "" }))}
-                                                className="w-32 text-right"
-                                                precision={2}
-                                                placeholder="0,00"
-                                            />
-                                        </div>
-
-                                        <div className="space-y-1.5">
-                                            <label className="text-sm font-medium text-gray-700">Desconto Padrão (%)</label>
-                                            <DecimalInput
-                                                value={commercialData.default_discount ? parseFloat(commercialData.default_discount) : undefined}
-                                                onChange={(val) => setCommercialData(prev => ({ ...prev, default_discount: val !== null ? String(val) : "" }))}
-                                                className="w-32 text-right"
-                                                precision={2}
-                                                placeholder="0,00"
-                                            />
-                                        </div>
-
-                                        {/* TODO: Fetch Users for Sales Rep */}
-                                        <div className="space-y-1.5">
-                                            <label className="text-sm font-medium text-gray-700">Representante</label>
-                                            <Select
-                                                name="sales_rep_user_id"
-                                                value={commercialData.sales_rep_user_id}
-                                                onValueChange={(val) => setCommercialData(prev => ({ ...prev, sales_rep_user_id: val }))}
-                                            >
-                                                <SelectTrigger className="w-full">
-                                                    <SelectValue placeholder="Selecione..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {/* Items will be populated once users are fetched */}
-                                                </SelectContent>
-                                            </Select>
+                                            {/* Col 3: Rep */}
+                                            <div className="space-y-1.5">
+                                                <label className="text-sm font-medium text-gray-700">Representante</label>
+                                                <Select
+                                                    name="sales_rep_user_id"
+                                                    value={commercialData.sales_rep_user_id}
+                                                    onValueChange={(val) => setCommercialData(prev => ({ ...prev, sales_rep_user_id: val }))}
+                                                >
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Selecione..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {/* Items will be populated once users are fetched */}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -801,7 +866,7 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                                     />
                                     <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                         <div className="space-y-1.5">
-                                            <label className="text-sm font-medium text-gray-700">Prazo Pagamento (Compras)</label>
+                                            <label className="text-sm font-medium text-gray-700">Prazo de Pagamento</label>
                                             <Select
                                                 name="purchase_payment_terms_id"
                                                 value={commercialData.purchase_payment_terms_id}
@@ -859,6 +924,36 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                                                 placeholder="0,00"
                                             />
                                         </div>
+
+                                        <div className="space-y-1.5">
+                                            <label className="text-sm font-medium text-gray-700">
+                                                Modalidade de Pagamento
+                                            </label>
+                                            <div className="flex items-center gap-2">
+                                                <Select
+                                                    value={commercialData.payment_mode_id}
+                                                    onValueChange={(val) => setCommercialData(prev => ({ ...prev, payment_mode_id: val }))}
+                                                >
+                                                    <SelectTrigger className="w-full">
+                                                        <SelectValue placeholder="Selecione..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {paymentModes.map(m => (
+                                                            <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-9 w-9 shrink-0"
+                                                    title="Gerenciar Modalidades"
+                                                    onClick={() => setManageModesOpen(true)}
+                                                >
+                                                    <Settings className="h-4 w-4 text-gray-500" />
+                                                </Button>
+                                            </div>
+                                        </div>
                                     </CardContent>
                                 </Card>
                             </div>
@@ -884,33 +979,25 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                                                     <SelectValue placeholder="Selecione..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="CIF">CIF</SelectItem>
-                                                    <SelectItem value="FOB">FOB</SelectItem>
-                                                    <SelectItem value="Sem Frete">Sem Frete</SelectItem>
-                                                    <SelectItem value="A combinar">A combinar</SelectItem>
+                                                    <SelectItem value="cif">CIF (Pago pelo Remetente)</SelectItem>
+                                                    <SelectItem value="fob">FOB (Pago pelo Destinatário)</SelectItem>
+                                                    <SelectItem value="retira">Retira (Cliente retira)</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
 
-                                        {/* TODO: Autocomplete for Carrier */}
+                                        {/* Carrier Selector */}
                                         <div className="space-y-1.5">
                                             <label className="text-sm font-medium text-gray-700">Transportadora Preferencial</label>
-                                            <Select
-                                                name="preferred_carrier_id"
-                                                value={commercialData.preferred_carrier_id}
-                                                onValueChange={(val) => setCommercialData(prev => ({ ...prev, preferred_carrier_id: val }))}
-                                            >
-                                                <SelectTrigger className="w-full">
-                                                    <SelectValue placeholder="Selecione..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {/* Items will be populated once carriers are fetched */}
-                                                </SelectContent>
-                                            </Select>
+                                            <CarrierSelector
+                                                value={commercialData.preferred_carrier_id || null}
+                                                onChange={(id) => setCommercialData(prev => ({ ...prev, preferred_carrier_id: id || '' }))}
+                                                placeholder="Selecione..."
+                                            />
                                         </div>
 
                                         <div className="space-y-1.5">
-                                            <label className="text-sm font-medium text-gray-700">Região / Rota</label>
+                                            <label className="text-sm font-medium text-gray-700">Região</label>
                                             <Input
                                                 name="region_route"
                                                 value={commercialData.region_route}

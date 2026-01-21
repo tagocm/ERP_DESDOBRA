@@ -95,3 +95,9 @@ export function formatCurrency(value: number | string | null | undefined): strin
         currency: 'BRL',
     });
 }
+export function formatDate(date: string | Date | null | undefined): string {
+    if (!date) return "-";
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return "-";
+    return d.toLocaleDateString("pt-BR");
+}

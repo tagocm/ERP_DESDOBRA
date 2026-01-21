@@ -8,6 +8,7 @@ import { formatCurrency, cn, toTitleCase } from "@/lib/utils";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { AccountsInstallmentRowExpanded } from "./AccountsInstallmentRowExpanded";
+import { Checkbox } from "@/components/ui/Checkbox";
 
 export interface GroupedOrder {
     id: string; // Title ID
@@ -24,16 +25,30 @@ export interface GroupedOrder {
 
 interface AccountsGroupRowProps {
     group: GroupedOrder;
+    selectedIds: Set<string>;
+    onToggleGroup: (ids: string[], checked: boolean) => void;
+    onToggleInstallment: (id: string, checked: boolean) => void;
     onRefresh: () => void;
 }
 
-export function AccountsGroupRow({ group, onRefresh }: AccountsGroupRowProps) {
+export function AccountsGroupRow({ group, selectedIds, onToggleGroup, onToggleInstallment, onRefresh }: AccountsGroupRowProps) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [expandedInstallmentId, setExpandedInstallmentId] = useState<string | null>(null);
 
     const toggleInstallment = (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         setExpandedInstallmentId(prev => prev === id ? null : id);
+    };
+
+    // Selection Logic
+    // We only select/deselect the installments present in this group (filtered ones)
+    const groupInstallmentIds = group.installments.map(i => i.id);
+    const selectedCount = groupInstallmentIds.filter(id => selectedIds.has(id)).length;
+    const isAllSelected = groupInstallmentIds.length > 0 && selectedCount === groupInstallmentIds.length;
+    const isIndeterminate = selectedCount > 0 && selectedCount < groupInstallmentIds.length;
+
+    const handleGroupCheckboxChange = (checked: boolean) => {
+        onToggleGroup(groupInstallmentIds, checked);
     };
 
     const getGroupStatusBadge = (status: string) => {
@@ -59,11 +74,21 @@ export function AccountsGroupRow({ group, onRefresh }: AccountsGroupRowProps) {
         <>
             {/* Group Header Row */}
             <TableRow
-                className={cn("cursor-pointer border-l-4", isExpanded ? "bg-gray-50 border-l-blue-500" : "hover:bg-gray-50 border-l-transparent")}
+                className={cn("cursor-pointer border-l-4 transition-colors",
+                    isExpanded ? "bg-gray-50 border-l-blue-500" : "hover:bg-gray-50 border-l-transparent",
+                    selectedCount > 0 && !isExpanded ? "bg-blue-50/20" : ""
+                )}
                 onClick={() => setIsExpanded(!isExpanded)}
             >
                 <TableCell>
                     <ChevronDown className={cn("w-4 h-4 transition-transform text-gray-400", isExpanded && "rotate-180 text-blue-600")} />
+                </TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                        checked={isAllSelected ? true : isIndeterminate ? "indeterminate" : false}
+                        onCheckedChange={handleGroupCheckboxChange}
+                        className="translate-y-[2px]"
+                    />
                 </TableCell>
                 <TableCell className="font-bold text-gray-900">
                     Pedido #{group.document_number}
@@ -95,7 +120,7 @@ export function AccountsGroupRow({ group, onRefresh }: AccountsGroupRowProps) {
             {/* Expanded Content: List of Installments */}
             {isExpanded && (
                 <TableRow className="bg-gray-50/50 hover:bg-gray-50/50">
-                    <TableCell colSpan={9} className="p-0 border-none">
+                    <TableCell colSpan={10} className="p-0 border-none">
                         <div className="pl-12 pr-4 py-4 space-y-2">
                             {/* Inner Table of Installments */}
                             <div className="rounded-lg border border-gray-200 bg-white overflow-hidden shadow-sm">
@@ -103,6 +128,7 @@ export function AccountsGroupRow({ group, onRefresh }: AccountsGroupRowProps) {
                                     <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase font-bold">
                                         <tr>
                                             <th className="px-4 py-2 w-10"></th>
+                                            <th className="px-4 py-2 w-10"></th> {/* Checkbox Column */}
                                             <th className="px-4 py-2 text-left">Parcela</th>
                                             <th className="px-4 py-2 text-left">Vencimento</th>
                                             <th className="px-4 py-2 text-left">Valor</th>
@@ -115,14 +141,24 @@ export function AccountsGroupRow({ group, onRefresh }: AccountsGroupRowProps) {
                                     <tbody className="divide-y divide-gray-50">
                                         {group.installments.map(inst => {
                                             const isInstExpanded = expandedInstallmentId === inst.id;
+                                            const isSelected = selectedIds.has(inst.id);
                                             return (
                                                 <div key={inst.id} className="contents">
                                                     <tr
-                                                        className={cn("hover:bg-blue-50/50 transition-colors cursor-pointer", isInstExpanded && "bg-blue-50/30")}
+                                                        className={cn("hover:bg-blue-50/50 transition-colors cursor-pointer",
+                                                            isInstExpanded && "bg-blue-50/30",
+                                                            isSelected && !isInstExpanded && "bg-blue-50/20"
+                                                        )}
                                                         onClick={(e) => toggleInstallment(inst.id, e)}
                                                     >
                                                         <td className="px-4 py-3">
                                                             <ChevronDown className={cn("w-3 h-3 text-gray-400 transition-transform", isInstExpanded && "rotate-180 text-blue-600")} />
+                                                        </td>
+                                                        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                                                            <Checkbox
+                                                                checked={isSelected}
+                                                                onCheckedChange={(checked) => onToggleInstallment(inst.id, checked as boolean)}
+                                                            />
                                                         </td>
                                                         <td className="px-4 py-3 font-medium text-gray-900">
                                                             {inst.installment_number}
@@ -145,7 +181,7 @@ export function AccountsGroupRow({ group, onRefresh }: AccountsGroupRowProps) {
                                                     {/* Inline Expansion of the Installment */}
                                                     {isInstExpanded && (
                                                         <tr>
-                                                            <td colSpan={8} className="p-4 bg-blue-50/10 border-t border-blue-100 shadow-inner">
+                                                            <td colSpan={9} className="p-4 bg-blue-50/10 border-t border-blue-100 shadow-inner">
                                                                 <AccountsInstallmentRowExpanded installment={inst} onRefresh={onRefresh} />
                                                             </td>
                                                         </tr>
