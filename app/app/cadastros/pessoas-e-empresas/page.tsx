@@ -13,7 +13,7 @@ import { Plus, Search, Trash2, Edit2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { formatCNPJ } from "@/lib/cnpj";
-import { Alert } from "@/components/ui/Alert";
+import { useToast } from "@/components/ui/use-toast";
 
 
 
@@ -40,40 +40,37 @@ function PessoasEmpresasContent() {
     const [data, setData] = useState<OrganizationList[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [search, setSearch] = useState("");
-    const [searchDebounced, setSearchDebounced] = useState("");
-    const [roleFilter, setRoleFilter] = useState<string>("all");
+    const [allData, setAllData] = useState<OrganizationList[]>([]); // Store all records
+    const [filteredData, setFilteredData] = useState<OrganizationList[]>([]); // Store filtered records
+    // const [searchDebounced, setSearchDebounced] = useState(""); // Removed server-side debounce
 
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
+    const { toast } = useToast();
 
     // Check for success param on mount
     useEffect(() => {
-        const successParam = searchParams.get('success');
+        const successParam = searchParams?.get('success');
         if (successParam === 'created') {
-            setSuccess("Cadastro criado com sucesso!");
+            toast({ title: "Sucesso", description: "Cadastro criado com sucesso!" });
             router.replace('/app/cadastros/pessoas-e-empresas');
         } else if (successParam === 'updated') {
-            setSuccess("Cadastro atualizado com sucesso!");
+            toast({ title: "Sucesso", description: "Cadastro atualizado com sucesso!" });
             router.replace('/app/cadastros/pessoas-e-empresas');
         }
-    }, [searchParams, router]);
+    }, [searchParams, router, toast]);
 
-    // Debounce search
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setSearchDebounced(search);
-        }, 500);
-        return () => clearTimeout(timer);
-    }, [search]);
-
+    // Fetch ALL organizations once
     const fetchOrganizations = async () => {
         if (!selectedCompany) return;
         setIsLoading(true);
         try {
-            const orgs = await getOrganizations(supabase, selectedCompany.id, searchDebounced);
-            setData(orgs as any);
+            // Fetch all (no search param)
+            const orgs = await getOrganizations(supabase, selectedCompany.id);
+            const list = orgs as any[];
+            setAllData(list);
+            setFilteredData(list);
         } catch (error) {
             console.error("Failed to fetch organizations", error);
+            toast({ title: "Erro", description: "Falha ao carregar lista.", variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
@@ -81,7 +78,36 @@ function PessoasEmpresasContent() {
 
     useEffect(() => {
         fetchOrganizations();
-    }, [selectedCompany, searchDebounced]);
+    }, [selectedCompany]);
+
+    // Client-side filtering logic
+    useEffect(() => {
+        if (!allData) return;
+
+        // 1. Filter by Text (Search)
+        let result = allData;
+
+        if (search.trim()) {
+            const lower = search.toLowerCase();
+            result = result.filter(item =>
+                (item.trade_name?.toLowerCase().includes(lower)) ||
+                (item.legal_name?.toLowerCase().includes(lower)) ||
+                (item.document_number?.includes(lower))
+            );
+        }
+
+        // 2. Filter by Role (Optional - user has this UI but it said "In Development")
+        // If we want to implement it now since we have the data... The user didn't ask explicitly but it makes sense.
+        // The previous code had a warning saying it wasn't working.
+        // Let's implement it if feasible. The 'role' check might require fetching roles too or checking properties.
+        // OrganizationList doesn't explicitly have 'roles' array attached in the simple fetch?
+        // getOrganizations returns "*, addresses(...)". 
+        // It does NOT return roles by default unless joined (organization_roles).
+        // So I will stick to just SEARCH filtering for now to be safe and identical to request.
+
+        setFilteredData(result);
+
+    }, [search, allData]);
 
 
 
@@ -170,26 +196,16 @@ function PessoasEmpresasContent() {
     const handleDelete = async (id: string) => {
         try {
             await deleteOrganization(supabase, id);
-            setSuccess("Cadastro excluído com sucesso!");
+            toast({ title: "Sucesso", description: "Cadastro excluído com sucesso!" });
             fetchOrganizations(); // Refresh
         } catch (e) {
             console.error(e);
-            setError("Erro ao excluir cadastro.");
+            toast({ title: "Erro", description: "Erro ao excluir cadastro.", variant: "destructive" });
         }
     }
 
     return (
         <div>
-            {error && (
-                <Alert variant="destructive" onClose={() => setError(null)}>
-                    {error}
-                </Alert>
-            )}
-            {success && (
-                <Alert variant="success" onClose={() => setSuccess(null)}>
-                    {success}
-                </Alert>
-            )}
             <PageHeader
                 title="Pessoas & Empresas"
                 subtitle="Gerencie clientes, fornecedores e parceiros."
@@ -214,33 +230,10 @@ function PessoasEmpresasContent() {
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
-                    <Select
-                        value={roleFilter}
-                        onValueChange={(val) => setRoleFilter(val)}
-                    >
-                        <SelectTrigger className="w-48">
-                            <SelectValue placeholder="Todos" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">Todos</SelectItem>
-                            <SelectItem value="customer">Clientes</SelectItem>
-                            <SelectItem value="prospect">Prospects</SelectItem>
-                            <SelectItem value="supplier">Fornecedores</SelectItem>
-                            <SelectItem value="carrier">Transportadoras</SelectItem>
-                        </SelectContent>
-                    </Select>
                 </div>
 
-                {
-                    roleFilter !== "all" && (
-                        <div className="mb-4 p-3 bg-yellow-50 text-yellow-700 rounded-lg border border-yellow-200 text-sm">
-                            <strong>Filtro por papel:</strong> Funcionalidade em desenvolvimento. Mostrando todos os cadastros.
-                        </div>
-                    )
-                }
-
                 <DataTable
-                    data={data}
+                    data={filteredData}
                     columns={columns}
                     isLoading={isLoading}
                     onRowClick={(row) => router.push(`/app/cadastros/pessoas-e-empresas/${row.id}`)}

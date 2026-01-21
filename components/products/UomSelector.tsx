@@ -45,9 +45,10 @@ export function UomSelector({ value, onChange, onSelect, className, disabled }: 
     const [searchQuery, setSearchQuery] = React.useState("")
 
     const fetchUoms = async () => {
+        if (!selectedCompany?.id) return;
         setLoading(true);
         try {
-            const data = await getUoms();
+            const data = await getUoms(selectedCompany.id);
             setUoms(data);
         } catch (e) {
             console.error(e);
@@ -59,10 +60,10 @@ export function UomSelector({ value, onChange, onSelect, className, disabled }: 
     }
 
     React.useEffect(() => {
-        if (open && !initialLoadDone) {
+        if (open && !initialLoadDone && selectedCompany?.id) {
             fetchUoms();
         }
-    }, [open, initialLoadDone]);
+    }, [open, initialLoadDone, selectedCompany]);
 
     // Ensure we load if there is an initial value to display the label
     React.useEffect(() => {

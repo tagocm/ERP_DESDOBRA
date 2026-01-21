@@ -64,7 +64,8 @@ export function encryptPassword(password: string): string {
  * Decrypt password using AES-256-GCM
  */
 export function decryptPassword(encryptedData: string): string {
-    if (!ENCRYPTION_KEY) {
+    const key = process.env.CERT_PASSWORD_ENCRYPTION_KEY || ENCRYPTION_KEY;
+    if (!key) {
         throw new Error('CERT_PASSWORD_ENCRYPTION_KEY not configured in environment variables');
     }
 
@@ -79,10 +80,10 @@ export function decryptPassword(encryptedData: string): string {
         const encrypted = combined.subarray(SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH);
 
         // Derive key from encryption key and salt
-        const key = crypto.pbkdf2Sync(ENCRYPTION_KEY, salt, 100000, 32, 'sha512');
+        const derivedKey = crypto.pbkdf2Sync(key, salt, 100000, 32, 'sha512');
 
         // Create decipher
-        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+        const decipher = crypto.createDecipheriv(ALGORITHM, derivedKey, iv);
         decipher.setAuthTag(authTag);
 
         // Decrypt

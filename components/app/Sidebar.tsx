@@ -16,8 +16,14 @@ import { CadastrosFlyoutPanel } from "./CadastrosFlyoutPanel";
 import { ConfiguracoesFlyoutPanel } from "./ConfiguracoesFlyoutPanel";
 import { VendasFlyoutPanel } from "./VendasFlyoutPanel";
 import { FiscalFlyoutPanel } from "./FiscalFlyoutPanel";
+import { LogisticaFlyoutPanel } from "./LogisticaFlyoutPanel";
+import { EstoqueFlyoutPanel } from "./EstoqueFlyoutPanel";
+import { FinanceiroFlyoutPanel } from "./FinanceiroFlyoutPanel";
+import { ProducaoFlyoutPanel } from "./ProducaoFlyoutPanel";
+import { ComprasFlyoutPanel } from "./ComprasFlyoutPanel";
 import { createClient } from "@/lib/supabaseBrowser";
 import { useRouter } from "next/navigation";
+import { useEffect } from 'react';
 
 interface NavItem {
     name: string;
@@ -44,16 +50,16 @@ const navGroups: NavGroup[] = [
     {
         label: "Suprimentos & Produção",
         items: [
-            { name: "Compras", href: "/app/compras/pedidos", icon: ShoppingBag },
-            { name: "Produção (PCP)", href: "/app/producao/ordens", icon: Factory },
-            { name: "Estoque", href: "/app/estoque/movimentacoes", icon: Package },
-            { name: "Expedição", href: "/app/expedicao-separacao", icon: PackageCheck },
+            { name: "Compras", href: "#", icon: ShoppingBag, isButton: true },
+            { name: "Produção (PCP)", href: "#", icon: Factory, isButton: true },
+            { name: "Estoque", href: "#", icon: Package, isButton: true },
+            { name: "Logística", href: "#", icon: PackageCheck, isButton: true },
         ]
     },
     {
         label: "Administrativo",
         items: [
-            { name: "Financeiro", href: "/app/financeiro/receber", icon: DollarSign },
+            { name: "Financeiro", href: "#", icon: DollarSign, isButton: true },
             { name: "Fiscal", href: "#", icon: FileText, isButton: true },
             { name: "RH", href: "/app/rh/colaboradores", icon: Users },
             { name: "Frota", href: "/app/frota/veiculos", icon: Truck },
@@ -106,6 +112,40 @@ export function Sidebar({ collapsed }: SidebarProps) {
     const [isFiscalOpen, setIsFiscalOpen] = useState(false);
     const fiscalRef = React.useRef<HTMLButtonElement>(null);
 
+    const [isComprasOpen, setIsComprasOpen] = useState(false);
+    const comprasRef = React.useRef<HTMLButtonElement>(null);
+
+    const [isLogisticaOpen, setIsLogisticaOpen] = useState(false);
+    const logisticaRef = React.useRef<HTMLButtonElement>(null);
+
+    const [isEstoqueOpen, setIsEstoqueOpen] = useState(false);
+    const estoqueRef = React.useRef<HTMLButtonElement>(null);
+
+    const [isFinanceiroOpen, setIsFinanceiroOpen] = useState(false);
+    const financeiroRef = React.useRef<HTMLButtonElement>(null);
+
+    const [isProducaoOpen, setIsProducaoOpen] = useState(false);
+    const producaoRef = React.useRef<HTMLButtonElement>(null);
+
+    // Listen for close flyouts event
+    useEffect(() => {
+        const handleCloseFlyouts = () => {
+            setIsCadastrosOpen(false);
+            setIsSettingsOpen(false);
+            setIsVendasOpen(false);
+            setIsFiscalOpen(false);
+            setIsComprasOpen(false);
+            setIsLogisticaOpen(false);
+
+            setIsEstoqueOpen(false);
+            setIsProducaoOpen(false);
+            setIsFinanceiroOpen(false);
+        };
+
+        window.addEventListener('closeFlyouts', handleCloseFlyouts);
+        return () => window.removeEventListener('closeFlyouts', handleCloseFlyouts);
+    }, []);
+
     // Density state based on height
     const [density, setDensity] = useState<'normal' | 'compact' | 'icons'>('normal');
 
@@ -116,7 +156,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
 
     const isActive = (href: string) => {
         const moduleRoot = href.split('/').slice(0, 3).join('/');
-        return pathname.startsWith(moduleRoot);
+        return pathname?.startsWith(moduleRoot) ?? false;
     };
 
     // Auto-expand section based on active route
@@ -238,12 +278,27 @@ export function Sidebar({ collapsed }: SidebarProps) {
                                             <TooltipTrigger asChild>
                                                 {item.isButton ? (
                                                     <button
-                                                        ref={item.name === "Cadastros" ? cadastrosRef : item.name === "Configurações" ? settingsRef : item.name === "Vendas" ? vendasRef : item.name === "Fiscal" ? fiscalRef : null}
+                                                        ref={
+                                                            item.name === "Cadastros" ? cadastrosRef :
+                                                                item.name === "Configurações" ? settingsRef :
+                                                                    item.name === "Vendas" ? vendasRef :
+                                                                        item.name === "Fiscal" ? fiscalRef :
+                                                                            item.name === "Logística" ? logisticaRef :
+                                                                                item.name === "Estoque" ? estoqueRef :
+                                                                                    item.name === "Produção (PCP)" ? producaoRef :
+                                                                                        item.name === "Compras" ? comprasRef :
+                                                                                            item.name === "Financeiro" ? financeiroRef : null
+                                                        }
                                                         onClick={() => {
                                                             if (item.name === "Cadastros") setIsCadastrosOpen(true);
                                                             if (item.name === "Configurações") setIsSettingsOpen(true);
                                                             if (item.name === "Vendas") setIsVendasOpen(true);
                                                             if (item.name === "Fiscal") setIsFiscalOpen(true);
+                                                            if (item.name === "Logística") setIsLogisticaOpen(true);
+                                                            if (item.name === "Estoque") setIsEstoqueOpen(true);
+                                                            if (item.name === "Produção (PCP)") setIsProducaoOpen(true);
+                                                            if (item.name === "Compras") setIsComprasOpen(true);
+                                                            if (item.name === "Financeiro") setIsFinanceiroOpen(true);
                                                         }}
                                                         className={cn(
                                                             "flex w-full items-center rounded-2xl transition-all duration-300 mb-0.5 group overflow-hidden whitespace-nowrap text-left",
@@ -251,7 +306,12 @@ export function Sidebar({ collapsed }: SidebarProps) {
                                                             (item.name === "Cadastros" && (isActive('/app/cadastros') || isCadastrosOpen)) ||
                                                                 (item.name === "Configurações" && (isActive('/app/configuracoes') || isSettingsOpen)) ||
                                                                 (item.name === "Vendas" && (isActive('/app/vendas') || isVendasOpen)) ||
-                                                                (item.name === "Fiscal" && (isActive('/app/fiscal') || isFiscalOpen))
+                                                                (item.name === "Compras" && (isActive('/app/compras') || isComprasOpen)) ||
+                                                                (item.name === "Fiscal" && (isActive('/app/fiscal') || isFiscalOpen)) ||
+                                                                (item.name === "Logística" && (isActive('/app/logistica') || isLogisticaOpen)) ||
+                                                                (item.name === "Estoque" && (isActive('/app/estoque') || isEstoqueOpen)) ||
+                                                                (item.name === "Produção (PCP)" && (isActive('/app/producao') || isProducaoOpen)) ||
+                                                                (item.name === "Financeiro" && (isActive('/app/financeiro') || isFinanceiroOpen))
                                                                 ? "bg-brand-50 text-brand-700 font-medium"
                                                                 : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                                                         )}
@@ -369,6 +429,36 @@ export function Sidebar({ collapsed }: SidebarProps) {
                         isOpen={isFiscalOpen}
                         onClose={() => setIsFiscalOpen(false)}
                         anchorRef={fiscalRef as any}
+                    />
+
+                    <LogisticaFlyoutPanel
+                        isOpen={isLogisticaOpen}
+                        onClose={() => setIsLogisticaOpen(false)}
+                        anchorRef={logisticaRef as any}
+                    />
+
+                    <EstoqueFlyoutPanel
+                        isOpen={isEstoqueOpen}
+                        onClose={() => setIsEstoqueOpen(false)}
+                        anchorRef={estoqueRef as any}
+                    />
+
+                    <ProducaoFlyoutPanel
+                        isOpen={isProducaoOpen}
+                        onClose={() => setIsProducaoOpen(false)}
+                        anchorRef={producaoRef as any}
+                    />
+
+                    <ComprasFlyoutPanel
+                        isOpen={isComprasOpen}
+                        onClose={() => setIsComprasOpen(false)}
+                        anchorRef={comprasRef as any}
+                    />
+
+                    <FinanceiroFlyoutPanel
+                        isOpen={isFinanceiroOpen}
+                        onClose={() => setIsFinanceiroOpen(false)}
+                        anchorRef={financeiroRef as any}
                     />
                 </aside>
             </div>

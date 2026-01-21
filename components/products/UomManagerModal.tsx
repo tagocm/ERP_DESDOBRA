@@ -57,20 +57,21 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
     const [deletingId, setDeletingId] = useState<string | null>(null);
 
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && selectedCompany?.id) {
             loadUoms();
-        } else {
+        } else if (!isOpen) {
             // Reset state on close
             setEditingId(null);
             setIsCreating(false);
             setEditForm({ name: "", abbrev: "" });
         }
-    }, [isOpen]);
+    }, [isOpen, selectedCompany]);
 
     const loadUoms = async () => {
+        if (!selectedCompany?.id) return;
         setLoading(true);
         try {
-            const data = await getAllUomsIncludingInactive();
+            const data = await getAllUomsIncludingInactive(selectedCompany.id);
             setUoms(data);
         } catch (error) {
             console.error(error);

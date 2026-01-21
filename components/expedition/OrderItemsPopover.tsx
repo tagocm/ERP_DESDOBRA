@@ -15,40 +15,94 @@ interface OrderItem {
         name: string;
         sku: string;
     };
+    packaging?: {
+        label: string;
+    };
 }
 
 interface OrderItemsPopoverProps {
     orderId: string;
+    preloadedItems?: any[]; // Allow passing preloaded items (with calculated balance)
+    partialPayloadItems?: { orderItemId: string; qtyLoaded: number }[]; // For Partial Loading overrides
     children: React.ReactNode;
+    onOpenChange?: (open: boolean) => void;
 }
 
-export function OrderItemsPopover({ orderId, children }: OrderItemsPopoverProps) {
+export function OrderItemsPopover({ orderId, preloadedItems, partialPayloadItems, children, onOpenChange }: OrderItemsPopoverProps) {
     const [isHovered, setIsHovered] = useState(false);
     const [items, setItems] = useState<OrderItem[]>([]);
     const [loading, setLoading] = useState(false);
     const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+    // Function to apply partial payload overrides
+    const applyOverrides = (itemsToProcess: OrderItem[]) => {
+        if (!partialPayloadItems || partialPayloadItems.length === 0) return itemsToProcess;
+
+        console.log("Applying overrides using:", partialPayloadItems);
+
+        return itemsToProcess.map(item => {
+            const override = partialPayloadItems.find(p => p.orderItemId === item.id);
+            if (override) {
+                return {
+                    ...item,
+                    quantity: override.qtyLoaded,
+                    total_price: (item.total_price && !item.unit_price) ? (item.total_price / item.quantity) * override.qtyLoaded : (item.unit_price * override.qtyLoaded)
+                };
+            }
+            return item;
+        }).filter(item => {
+            // Only show items present in the partial payload
+            return partialPayloadItems.some(p => p.orderItemId === item.id);
+        });
+    };
+
     // Calculate order total
     const orderTotal = items.reduce((sum, item) => sum + ((item.unit_price || 0) * (item.quantity || 1)), 0);
 
     const supabase = createClient();
 
+    // Effect to notify parent of state changes
+    useEffect(() => {
+        onOpenChange?.(isHovered);
+    }, [isHovered, onOpenChange]);
+
     // Fetch items when popover opens
     useEffect(() => {
         if (isHovered && items.length === 0 && !loading) {
-            fetchOrderItems();
+            if (preloadedItems && preloadedItems.length > 0) {
+                // Use preloaded items if available, mapping balance to quantity if present
+                let mappedItems = preloadedItems.map(item => ({
+                    ...item,
+                    // If balance is defined (Logistics view), use it. Otherwise use quantity (Sales view).
+                    quantity: item.balance !== undefined ? item.balance : item.quantity,
+                    // Ensure unit_price exists
+                    unit_price: item.unit_price || 0,
+                    // Recalculate total price
+                    total_price: (item.balance !== undefined ? item.balance : item.quantity) * (item.unit_price || 0)
+                }));
+
+                // Apply overrides
+                mappedItems = applyOverrides(mappedItems);
+
+                setItems(mappedItems);
+            } else {
+                fetchOrderItems();
+            }
         }
-    }, [isHovered]);
+    }, [isHovered, preloadedItems, partialPayloadItems]);
 
     const fetchOrderItems = async () => {
         setLoading(true);
         try {
             console.log('Fetching items for order:', orderId);
+            console.log('Partial Payload Items passed:', partialPayloadItems);
+
             const { data, error } = await supabase
                 .from('sales_document_items')
                 .select(`
                     *,
+                    packaging:item_packaging(label),
                     product:items(id, name, sku)
                 `)
                 .eq('document_id', orderId)
@@ -58,8 +112,15 @@ export function OrderItemsPopover({ orderId, children }: OrderItemsPopoverProps)
                 console.error('Supabase error:', error);
                 throw error;
             }
-            console.log('Fetched items:', data);
-            setItems((data as unknown) as OrderItem[]);
+
+            let loadedItems = (data as unknown) as OrderItem[];
+            console.log('Raw Fetched Items:', loadedItems);
+
+            // Apply overrides
+            loadedItems = applyOverrides(loadedItems);
+
+            console.log('Final Items:', loadedItems);
+            setItems(loadedItems);
         } catch (err) {
             console.error('Error fetching order items:', err);
         } finally {
@@ -160,7 +221,7 @@ export function OrderItemsPopover({ orderId, children }: OrderItemsPopoverProps)
                                             </div>
                                         </div>
                                         <div className="text-sm font-semibold text-green-700 flex-shrink-0">
-                                            {item.quantity} un
+                                            {item.quantity} {item.packaging?.label || 'un'}
                                         </div>
                                     </div>
                                 </div>

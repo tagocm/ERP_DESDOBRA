@@ -1,12 +1,13 @@
 import { createClient } from "@/lib/supabaseBrowser";
 import { Uom } from "@/types/product";
 
-export async function getUoms(search?: string): Promise<Uom[]> {
+export async function getUoms(companyId: string, search?: string): Promise<Uom[]> {
     const supabase = createClient();
 
     let query = supabase
         .from('uoms')
         .select('*')
+        .or(`company_id.eq.${companyId},company_id.is.null`)
         .eq('is_active', true)
         .order('sort_order', { ascending: true })
         .order('name', { ascending: true });
@@ -25,15 +26,16 @@ export async function getUoms(search?: string): Promise<Uom[]> {
     return data as Uom[];
 }
 
-export async function getAllUomsIncludingInactive(): Promise<Uom[]> {
+export async function getAllUomsIncludingInactive(companyId: string): Promise<Uom[]> {
     const supabase = createClient();
 
     const { data, error } = await supabase
         .from('uoms')
         .select(`
             *,
-            items:items(count)
+            items:items!items_uom_id_fkey(count)
         `)
+        .or(`company_id.eq.${companyId},company_id.is.null`)
         .order('name', { ascending: true });
 
     if (error) {

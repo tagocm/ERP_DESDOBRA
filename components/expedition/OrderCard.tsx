@@ -18,7 +18,7 @@ export const OrderCard = memo(function OrderCard({ order, type, routeId, isSelec
     } : undefined;
 
     return (
-        <OrderItemsPopover orderId={order.id}>
+        <OrderItemsPopover orderId={order.id} preloadedItems={order.items}>
             <div
                 ref={setNodeRef}
                 style={style}

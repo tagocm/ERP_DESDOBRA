@@ -1,210 +1,146 @@
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
-import { Button } from "@/components/ui/Button";
-import { Label } from "@/components/ui/Label";
-import { Input } from "@/components/ui/Input";
-import { Switch } from "@/components/ui/Switch";
+"use client";
+
 import { useState, useEffect } from "react";
-import { SystemOccurrenceReasonWithDefaults, SystemOccurrenceReasonDefault } from "@/types/system-preferences";
-import { createClient } from "@/lib/supabaseBrowser";
-import { upsertSystemReason } from "@/lib/data/system-preferences";
 import { useToast } from "@/components/ui/use-toast";
-import { OccurrenceActionsPanel, OperationAction } from "@/components/settings/system/OccurrenceActionsPanel";
+import { createClient } from "@/lib/supabaseBrowser";
+import { Sheet } from "@/components/ui/Sheet";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Label } from "@/components/ui/Label";
+import { Switch } from "@/components/ui/Switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
+import { DeliveryReason, DeliveryReasonGroup, DELIVERY_REASON_GROUPS } from "@/types/reasons";
+import { upsertDeliveryReason } from "@/lib/data/reasons";
 
 interface ReasonModalProps {
     isOpen: boolean;
     onClose: () => void;
-    typeCode: string;
-    typeLabel: string;
-    editingReason?: SystemOccurrenceReasonWithDefaults | null;
-    onSuccess: () => void;
+    reason: DeliveryReason | null;
+    defaultGroup?: DeliveryReasonGroup;
+    companyId: string;
+    onSaved: () => void;
 }
 
-const DEFAULT_VALUES: Partial<SystemOccurrenceReasonDefault> = {
-    require_note: false,
-    allow_override: true,
-    return_to_sandbox_pending: false,
-    register_attempt_note: false,
-    reverse_stock_and_finance: false,
-    create_devolution: false,
-    create_new_order_for_pending: false,
-    create_complement_order: false,
-    write_internal_notes: false,
-};
-
-export function ReasonModal({ isOpen, onClose, typeCode, typeLabel, editingReason, onSuccess }: ReasonModalProps) {
+export function ReasonModal({ isOpen, onClose, reason, defaultGroup, companyId, onSaved }: ReasonModalProps) {
+    const supabase = createClient();
     const { toast } = useToast();
-    const [isLoading, setIsLoading] = useState(false);
-    const [label, setLabel] = useState("");
-    const [active, setActive] = useState(true);
-    const [defaults, setDefaults] = useState<Partial<SystemOccurrenceReasonDefault>>(DEFAULT_VALUES);
+    const [loading, setLoading] = useState(false);
+
+    // Form State
+    const [name, setName] = useState("");
+    const [isActive, setIsActive] = useState(true);
+    const [group, setGroup] = useState<DeliveryReasonGroup>("CARREGAMENTO_PARCIAL");
+    const [requireNote, setRequireNote] = useState(false);
 
     useEffect(() => {
         if (isOpen) {
-            if (editingReason) {
-                setLabel(editingReason.label);
-                setActive(editingReason.active);
-                setDefaults({
-                    ...DEFAULT_VALUES,
-                    ...(editingReason.defaults || {})
-                });
+            if (reason) {
+                setName(reason.name);
+                setIsActive(reason.is_active);
+                setGroup(reason.reason_group);
+                setRequireNote(reason.require_note);
             } else {
-                setLabel("");
-                setActive(true);
-                setDefaults(DEFAULT_VALUES);
+                // Reset defaults
+                setName("");
+                setIsActive(true);
+                if (defaultGroup) {
+                    setGroup(defaultGroup);
+                }
+                setRequireNote(false);
             }
         }
-    }, [isOpen, editingReason]);
+    }, [isOpen, reason, defaultGroup]);
+
+    const toTitleCase = (str: string) => {
+        return str
+            .toLowerCase()
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+    };
 
     const handleSave = async () => {
-        if (!label.trim()) {
-            toast({ title: "Erro", description: "O nome do motivo é obrigatório.", variant: "destructive" });
+        if (!name.trim()) {
+            toast({ title: "Nome obrigatório", description: "Informe o nome do motivo.", variant: "destructive" });
             return;
         }
 
-        setIsLoading(true);
+        const formattedName = toTitleCase(name.trim());
+
+        setLoading(true);
         try {
-            const supabase = createClient();
+            await upsertDeliveryReason(supabase, {
+                id: reason?.id,
+                company_id: companyId,
+                name: formattedName,
+                reason_group: group,
+                is_active: isActive,
+                require_note: requireNote,
+            });
 
-            await upsertSystemReason(
-                supabase,
-                {
-                    id: editingReason?.id,
-                    type_code: typeCode,
-                    label,
-                    active
-                },
-                defaults
-            );
-
-            toast({ title: "Sucesso", description: "Motivo salvo com sucesso!" });
-            onSuccess();
+            toast({ title: "Salvo", description: "Motivo salvo com sucesso." });
+            onSaved();
             onClose();
-        } catch (error: any) {
-            console.error(error);
-            toast({ title: "Erro", description: "Erro ao salvar motivo.", variant: "destructive" });
+
+        } catch (err: any) {
+            console.error(err);
+            toast({ title: "Erro ao salvar", description: err.message, variant: "destructive" });
         } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleToggle = (key: keyof SystemOccurrenceReasonDefault, value: boolean) => {
-        setDefaults(prev => ({ ...prev, [key]: value }));
-    };
-
-    // Determine relevant toggles based on typeCode
-    const isExpeditionNotLoaded = typeCode === 'EXPEDICAO_NAO_CARREGADO';
-    const isExpeditionPartial = typeCode === 'EXPEDICAO_CARREGADO_PARCIAL';
-    const isReturnNotDelivered = typeCode.includes('NAO_ENTREGUE') || typeCode.includes('DEVOLVIDO_TOTAL');
-    const isReturnPartial = typeCode.includes('PARCIAL') && !typeCode.includes('CARREGADO');
-
-    // Get available actions
-    let availableActions: OperationAction[] = [];
-    if (isExpeditionNotLoaded) {
-        availableActions = [OperationAction.RETURN_TO_SANDBOX_PENDING, OperationAction.REGISTER_NOTE_ON_ORDER];
-    } else if (isReturnNotDelivered) {
-        availableActions = [OperationAction.RETURN_TO_SANDBOX_PENDING, OperationAction.GENERATE_RETURN_MOVEMENT];
-    } else if (isExpeditionPartial) {
-        // Map create_complement_order to GENERATE_NEW_ORDER_PENDING for consistency in UI
-        availableActions = [OperationAction.GENERATE_NEW_ORDER_PENDING, OperationAction.REGISTER_NOTE_ON_ORDER];
-    } else if (isReturnPartial) {
-        availableActions = [OperationAction.GENERATE_RETURN_MOVEMENT, OperationAction.GENERATE_NEW_ORDER_PENDING];
-    }
-
-    // Map defaults to currentActions
-    const currentActions: Record<string, boolean> = {};
-    if (isExpeditionNotLoaded) {
-        currentActions[OperationAction.RETURN_TO_SANDBOX_PENDING] = defaults.return_to_sandbox_pending || false;
-        currentActions[OperationAction.REGISTER_NOTE_ON_ORDER] = defaults.register_attempt_note || false;
-    } else if (isReturnNotDelivered) {
-        currentActions[OperationAction.RETURN_TO_SANDBOX_PENDING] = defaults.return_to_sandbox_pending || false;
-        currentActions[OperationAction.GENERATE_RETURN_MOVEMENT] = defaults.create_devolution || false;
-    } else if (isExpeditionPartial) {
-        currentActions[OperationAction.GENERATE_NEW_ORDER_PENDING] = defaults.create_complement_order || false;
-        currentActions[OperationAction.REGISTER_NOTE_ON_ORDER] = defaults.write_internal_notes || false;
-    } else if (isReturnPartial) {
-        currentActions[OperationAction.GENERATE_RETURN_MOVEMENT] = defaults.create_devolution || false;
-        currentActions[OperationAction.GENERATE_NEW_ORDER_PENDING] = defaults.create_new_order_for_pending || false;
-    }
-
-    const handleActionChange = (action: OperationAction, value: boolean) => {
-        // Update specific default keys based on action and context
-        if (isExpeditionNotLoaded) {
-            if (action === OperationAction.RETURN_TO_SANDBOX_PENDING) handleToggle('return_to_sandbox_pending', value);
-            if (action === OperationAction.REGISTER_NOTE_ON_ORDER) handleToggle('register_attempt_note', value);
-        } else if (isReturnNotDelivered) {
-            if (action === OperationAction.RETURN_TO_SANDBOX_PENDING) handleToggle('return_to_sandbox_pending', value);
-            if (action === OperationAction.GENERATE_RETURN_MOVEMENT) handleToggle('create_devolution', value);
-        } else if (isExpeditionPartial) {
-            if (action === OperationAction.GENERATE_NEW_ORDER_PENDING) handleToggle('create_complement_order', value);
-            if (action === OperationAction.REGISTER_NOTE_ON_ORDER) handleToggle('write_internal_notes', value);
-        } else if (isReturnPartial) {
-            if (action === OperationAction.GENERATE_RETURN_MOVEMENT) handleToggle('create_devolution', value);
-            if (action === OperationAction.GENERATE_NEW_ORDER_PENDING) handleToggle('create_new_order_for_pending', value);
+            setLoading(false);
         }
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[600px] max-h-[85vh] overflow-y-auto">
-                <DialogHeader>
-                    <DialogTitle>{editingReason ? 'Editar Motivo' : 'Novo Motivo'} - {typeLabel}</DialogTitle>
-                </DialogHeader>
+        <Sheet isOpen={isOpen} onClose={onClose} title={reason ? "Editar Motivo" : "Novo Motivo"}>
+            <div className="space-y-6 pb-10">
+                <p className="text-sm text-gray-500">
+                    Cadastre motivos para justificar ocorrências logísticas.
+                </p>
 
-                <div className="space-y-6 py-4">
-                    {/* Basic Info */}
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between gap-4">
-                            <div className="flex-1 space-y-1.5">
-                                <Label>Nome do Motivo</Label>
-                                <Input
-                                    value={label}
-                                    onChange={(e) => setLabel(e.target.value)}
-                                    placeholder="Ex: Cliente ausente, Avaria, etc."
-                                />
-                            </div>
-                            <div className="space-y-1.5">
-                                <Label>Ativo</Label>
-                                <div className="flex items-center h-10">
-                                    <Switch checked={active} onCheckedChange={setActive} />
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
-                            <div className="space-y-0.5">
-                                <Label className="text-base">Exigir observação</Label>
-                                <p className="text-sm text-gray-500">Obrigatório escrever nota ao selecionar este motivo</p>
-                            </div>
-                            <Switch
-                                checked={defaults.require_note}
-                                onCheckedChange={(v) => handleToggle('require_note', v)}
-                            />
-                        </div>
+                {/* Basics */}
+                <div className="space-y-4">
+                    <div className="space-y-1.5">
+                        <Label>Nome do Motivo</Label>
+                        <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Avaria no produto" />
                     </div>
 
-                    {availableActions.length > 0 && (
-                        <div className="border-t pt-4">
-                            <OccurrenceActionsPanel
-                                mode="defaults"
-                                availableActions={availableActions}
-                                currentActions={currentActions}
-                                onChange={handleActionChange}
-                                // Custom label for Partial Load to match context
-                                customLabels={isExpeditionPartial ? {
-                                    [OperationAction.GENERATE_NEW_ORDER_PENDING]: "Gerar Pedido Complementar"
-                                } : undefined}
-                            />
-                        </div>
-                    )}
+                    <div className="space-y-1.5">
+                        <Label>Grupo</Label>
+                        <Select value={group} onValueChange={(val) => setGroup(val as DeliveryReasonGroup)}>
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {DELIVERY_REASON_GROUPS.map(g => (
+                                    <SelectItem key={g.code} value={g.code}>
+                                        {g.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <Label>Ativo</Label>
+                        <Switch checked={isActive} onCheckedChange={setIsActive} />
+                    </div>
+
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                        <Label>Exigir Observação</Label>
+                        <Switch checked={requireNote} onCheckedChange={setRequireNote} />
+                    </div>
                 </div>
 
-                <DialogFooter>
-                    <Button variant="outline" onClick={onClose} disabled={isLoading}>Cancelar</Button>
-                    <Button onClick={handleSave} disabled={isLoading}>
-                        {isLoading ? 'Salvando...' : 'Salvar Motivo'}
+                <div className="flex gap-2 justify-end mt-8 pt-4 border-t border-gray-100">
+                    <Button variant="outline" onClick={onClose} disabled={loading}>
+                        Cancelar
                     </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                    <Button onClick={handleSave} disabled={loading}>
+                        {loading ? "Salvando..." : "Salvar"}
+                    </Button>
+                </div>
+
+            </div>
+        </Sheet>
     );
 }

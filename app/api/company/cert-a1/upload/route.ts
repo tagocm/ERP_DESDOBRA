@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabaseServer';
+import { createClient } from '@/utils/supabase/server';
 import { validateCertFile, generateFilePath } from '@/lib/upload-helpers';
 
 export async function POST(request: NextRequest) {
     try {
         // Get authenticated user
+        const supabaseUser = await createClient();
+        const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
+
+        // Admin client for privileged operations
         const supabase = createAdminClient();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
 
         if (authError || !user) {
             return NextResponse.json(

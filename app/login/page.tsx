@@ -1,7 +1,6 @@
-
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabaseBrowser"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/Button"
@@ -23,8 +22,8 @@ export default function LoginPage() {
         setFormData({ ...formData, [e.target.name]: e.target.value })
     }
 
-    const handleLogin = async (e: React.FormEvent) => {
-        e.preventDefault()
+    const handleLogin = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault()
         setLoading(true)
         setError(null)
         const supabase = createClient()
@@ -46,6 +45,48 @@ export default function LoginPage() {
             setLoading(false)
         }
     }
+
+    // Auto-login for development
+    useEffect(() => {
+        if (process.env.NODE_ENV === 'development') {
+            const autoLogin = async () => {
+                const supabase = createClient();
+                const { data } = await supabase.auth.getUser();
+                if (!data.user) {
+                    console.log("Dev environment detected: Auto-logging in...");
+                    const credentials = {
+                        email: 'tiago.martini@me.com',
+                        password: 'Mjm280202'
+                    };
+
+                    // Try to sign in
+                    const { error: signInError } = await supabase.auth.signInWithPassword(credentials);
+
+                    if (signInError) {
+                        console.log("Auto-login failed. Attempting auto-signup...");
+                        // If sign in fails, try to sign up (create the user)
+                        const { error: signUpError } = await supabase.auth.signUp(credentials);
+
+                        if (signUpError) {
+                            console.error("Auto-signup failed:", signUpError.message);
+                        } else {
+                            console.log("Auto-signup successful. Redirecting...");
+                            router.push("/app");
+                            router.refresh();
+                        }
+                    } else {
+                        console.log("Auto-login successful. Redirecting...");
+                        router.push("/app");
+                        router.refresh();
+                    }
+                } else {
+                    console.log("Already logged in. Redirecting...");
+                    router.push("/app");
+                }
+            };
+            autoLogin();
+        }
+    }, [router]);
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">

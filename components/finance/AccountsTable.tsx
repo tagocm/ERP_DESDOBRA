@@ -8,10 +8,14 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/Badge";
-import { Search, ChevronDown, Layers, ArrowUpCircle, ArrowDownCircle, ExternalLink, List, Package } from "lucide-react";
+import { Search, ChevronDown, Layers, ArrowUpCircle, ArrowDownCircle, ExternalLink, List, Package, X, Loader2, Download, CheckCircle } from "lucide-react";
 import { formatCurrency, toTitleCase, cn } from "@/lib/utils";
 import { AccountsInstallmentRowExpanded } from "./AccountsInstallmentRowExpanded";
 import { AccountsGroupRow, GroupedOrder } from "./AccountsGroupRow";
+import { BulkSettleModal } from "./BulkSettleModal";
+import { startOfMonth, endOfMonth } from "date-fns";
+import { DateRange } from "react-day-picker";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import {
     Select,
     SelectContent,
@@ -21,11 +25,15 @@ import {
 } from "@/components/ui/Select";
 import Link from "next/link";
 import { Label } from "@/components/ui/Label";
+import { Checkbox } from "@/components/ui/Checkbox";
+import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/ui/use-toast";
 
 type Direction = 'IN' | 'OUT' | 'ALL';
 type ViewMode = 'INSTALLMENT' | 'ORDER';
 
-export function AccountsTable() {
+export function AccountsTable({ companyId }: { companyId: string }) {
+    const { toast } = useToast();
     const [direction, setDirection] = useState<Direction>('IN');
     const [installments, setInstallments] = useState<ArInstallment[]>([]);
     const [loading, setLoading] = useState(false);
@@ -35,13 +43,24 @@ export function AccountsTable() {
     // View Mode
     const [viewMode, setViewMode] = useState<ViewMode>('INSTALLMENT');
 
+    // Selection State
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+    // Bulk Settle State
+    const [showBulkSettleModal, setShowBulkSettleModal] = useState(false);
+    const [isBulkSettling, setIsBulkSettling] = useState(false);
+
     // Filters
-    const [statusFilter, setStatusFilter] = useState('OPEN'); // Default Open
-    const [dateFilter, setDateFilter] = useState('this_month'); // Default This Month
+    const [statusFilter, setStatusFilter] = useState('OPEN');
+    // New: Date Type Filter
+    const [dateTypeFilter, setDateTypeFilter] = useState<'DUE' | 'ISSUE'>('DUE');
+    const [dateRange, setDateRange] = useState<DateRange | undefined>({
+        from: startOfMonth(new Date()),
+        to: endOfMonth(new Date())
+    });
 
     const supabase = createClient();
 
-    // Load View Mode Preference
     useEffect(() => {
         const savedMode = localStorage.getItem('finance_accounts_view_mode') as ViewMode;
         if (savedMode) setViewMode(savedMode);
@@ -60,11 +79,13 @@ export function AccountsTable() {
 
         setLoading(true);
 
+        // We filter ar_installments by ar_title.company_id = companyId
+        // This requires !inner join on ar_title to enforce the filter.
         let query = supabase
             .from('ar_installments')
             .select(`
                 *,
-                ar_title:ar_titles(
+                ar_title:ar_titles!inner(
                     id, 
                     document_number, 
                     status,
@@ -73,6 +94,7 @@ export function AccountsTable() {
                     amount_open,
                     date_issued,
                     attention_status,
+                    company_id,
                     sales_document:sales_documents(id, document_number),
                     organization:organizations!customer_id(id, trade_name, legal_name)
                 ),
@@ -81,37 +103,39 @@ export function AccountsTable() {
                     ar_payments(*)
                 )
             `)
-            .not('ar_title', 'is', null);
+            .eq('ar_title.company_id', companyId);
 
-        // Apply filters
-        // NOTE: For 'ORDER' mode, we might want different filtering logic, but adhering to the constraint of reusing the query:
-        // We filter the installments. If View Mode is Order, we group the resulting installments.
         if (statusFilter !== 'ALL') {
             if (statusFilter === 'OPEN') query = query.in('status', ['OPEN', 'PARTIAL']);
             else query = query.eq('status', statusFilter);
         }
 
-        // Date Filter Logic
-        const now = new Date();
-        if (dateFilter === 'this_month') {
-            const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-            const end = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString();
-            query = query.gte('due_date', start).lte('due_date', end);
-        } else if (dateFilter === 'last_month') {
-            const start = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
-            const end = new Date(now.getFullYear(), now.getMonth(), 0).toISOString();
-            query = query.gte('due_date', start).lte('due_date', end);
-        }
+        if (dateRange?.from) {
+            const from = new Date(dateRange.from);
+            from.setHours(0, 0, 0, 0);
 
-        // Order by due date
-        query = query.order('due_date', { ascending: true });
+            const to = dateRange.to ? new Date(dateRange.to) : new Date(dateRange.from);
+            to.setHours(23, 59, 59, 999);
+
+            if (dateTypeFilter === 'DUE') {
+                query = query.gte('due_date', from.toISOString()).lte('due_date', to.toISOString());
+                query = query.order('due_date', { ascending: true });
+            } else {
+                // Filter by ar_title.date_issued
+                // Since we use !inner on ar_title, we can filter by its columns
+                query = query.filter('ar_title.date_issued', 'gte', from.toISOString())
+                    .filter('ar_title.date_issued', 'lte', to.toISOString());
+
+                query = query.order('due_date', { ascending: true });
+            }
+        } else {
+            query = query.order('due_date', { ascending: true });
+        }
 
         const { data, error } = await query;
 
         if (!error && data) {
             let filtered = data as unknown as ArInstallment[];
-
-            // Filter out Pending Approval
             filtered = filtered.filter(i => i.ar_title?.status !== 'PENDING_APPROVAL');
 
             if (searchQuery) {
@@ -129,8 +153,9 @@ export function AccountsTable() {
     };
 
     useEffect(() => {
+        setSelectedIds(new Set());
         fetchInstallments();
-    }, [direction, statusFilter, dateFilter]);
+    }, [direction, statusFilter, dateRange, dateTypeFilter]);
 
     // Grouping Logic
     const groupedOrders = useMemo(() => {
@@ -143,15 +168,10 @@ export function AccountsTable() {
             const titleId = inst.ar_title.id;
 
             if (!groups.has(titleId)) {
-                // Initialize Group with Title Stats (Reliable)
-                // We use ar_title stats for the header to be accurate regardless of filter
-                // Derive Group Status from Title Status or calculate?
-                // User Requirement: "PAGO = todas parcelas pagas".
-                // Title status is usually reliable.
                 let groupStatus: 'OPEN' | 'PARTIAL' | 'PAID' = 'OPEN';
                 if (inst.ar_title.status === 'PAID') groupStatus = 'PAID';
                 else if (inst.ar_title.status === 'PARTIAL') groupStatus = 'PARTIAL';
-                else groupStatus = 'OPEN'; // Default for Open/Pending
+                else groupStatus = 'OPEN';
 
                 groups.set(titleId, {
                     id: titleId,
@@ -163,7 +183,7 @@ export function AccountsTable() {
                     amount_open: inst.ar_title.amount_open,
                     status: groupStatus,
                     installments: [],
-                    next_due_date: undefined // Will calc
+                    next_due_date: undefined
                 });
             }
 
@@ -171,20 +191,13 @@ export function AccountsTable() {
             group.installments.push(inst);
         });
 
-        // Post-process to find next_due_date from OPEN installments (even if filtered out? No, only visible ones)
         const result = Array.from(groups.values()).map(group => {
-            // Sort installments by due date
             group.installments.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
-
-            // Next Due Date: Earliest due date of an OPEN installment
             const openInst = group.installments.find(i => i.status === 'OPEN' || i.status === 'PARTIAL' || i.status === 'OVERDUE');
             group.next_due_date = openInst ? openInst.due_date : undefined;
-
             return group;
         });
 
-        // Sort groups by next due date or issue date?
-        // Usually by next due date is best for "Accounts Payable/Receivable".
         result.sort((a, b) => {
             const dateA = a.next_due_date || a.issue_date || '';
             const dateB = b.next_due_date || b.issue_date || '';
@@ -204,6 +217,85 @@ export function AccountsTable() {
         setExpandedIds(newSet);
     };
 
+    // --- Selection Handlers ---
+
+    const handleSelectAll = (checked: boolean) => {
+        if (checked) {
+            const allIds = installments.map(i => i.id);
+            setSelectedIds(new Set(allIds));
+        } else {
+            setSelectedIds(new Set());
+        }
+    };
+
+    const handleSelect = (id: string, checked: boolean) => {
+        const newSet = new Set(selectedIds);
+        if (checked) newSet.add(id);
+        else newSet.delete(id);
+        setSelectedIds(newSet);
+    };
+
+    const handleToggleGroup = (ids: string[], checked: boolean) => {
+        const newSet = new Set(selectedIds);
+        ids.forEach(id => {
+            if (checked) newSet.add(id);
+            else newSet.delete(id);
+        });
+        setSelectedIds(newSet);
+    };
+
+    const clearSelection = () => setSelectedIds(new Set());
+
+    const isAllSelected = installments.length > 0 && selectedIds.size === installments.length;
+    const isIndeterminate = selectedIds.size > 0 && selectedIds.size < installments.length;
+
+    // --- Bulk Settle Handler ---
+    const handleConfirmBulkSettle = async (date: string, accountId: string, validIds: string[]) => {
+        setIsBulkSettling(true);
+        try {
+            const response = await fetch('/api/finance/bulk-settle', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    installmentIds: validIds,
+                    date,
+                    accountId
+                })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Erro ao realizar baixa');
+            }
+
+            toast({
+                title: "Baixa em Lote Concluída",
+                description: result.message,
+                variant: "default"
+            });
+
+            if (result.errors && result.errors.length > 0) {
+                // Optionally show detailed errors in a toast or modal
+                console.warn("Errors during bulk settle:", result.errors);
+            }
+
+            setShowBulkSettleModal(false);
+            setSelectedIds(new Set()); // Clear selection
+            fetchInstallments(); // Refresh
+
+        } catch (error: any) {
+            toast({
+                title: "Erro na Baixa",
+                description: error.message,
+                variant: 'destructive'
+            });
+        } finally {
+            setIsBulkSettling(false);
+        }
+    };
+
+
     const getStatusBadge = (status: string) => {
         switch (status) {
             case 'OPEN': return <Badge variant="outline" className="text-blue-600 bg-blue-50 border-blue-200">Aberta</Badge>;
@@ -216,42 +308,93 @@ export function AccountsTable() {
 
     return (
         <div className="space-y-6">
-            {/* 3-Button Segmented Control */}
-            <div className="flex justify-center">
-                <div className="bg-gray-100 p-1 rounded-xl inline-flex gap-1 shadow-inner">
-                    <button
-                        onClick={() => setDirection('IN')}
-                        className={cn(
-                            "px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
-                            direction === 'IN'
-                                ? "bg-green-100 text-green-700 shadow-sm"
-                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-200/50"
-                        )}
-                    >
-                        <ArrowDownCircle className="w-4 h-4" /> A RECEBER
-                    </button>
-                    <button
-                        onClick={() => setDirection('OUT')}
-                        className={cn(
-                            "px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
-                            direction === 'OUT'
-                                ? "bg-red-100 text-red-700 shadow-sm"
-                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-200/50"
-                        )}
-                    >
-                        <ArrowUpCircle className="w-4 h-4" /> A PAGAR
-                    </button>
-                    <button
-                        onClick={() => setDirection('ALL')}
-                        className={cn(
-                            "px-6 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2",
-                            direction === 'ALL'
-                                ? "bg-blue-100 text-blue-700 shadow-sm"
-                                : "text-gray-500 hover:text-gray-900 hover:bg-gray-200/50"
-                        )}
-                    >
-                        <Layers className="w-4 h-4" /> TODOS
-                    </button>
+            <BulkSettleModal
+                open={showBulkSettleModal}
+                onOpenChange={setShowBulkSettleModal}
+                selectedIds={selectedIds}
+                installments={installments}
+                onConfirm={handleConfirmBulkSettle}
+                isProcessing={isBulkSettling}
+            />
+
+            {/* Top Controls: Type + Status */}
+            <div className="flex flex-col items-center gap-4">
+                <div className="flex items-center gap-8 bg-gray-100/50 p-1.5 rounded-2xl border border-gray-100 shadow-sm">
+                    {/* Direction Buttons */}
+                    <div className="flex gap-1">
+                        <button
+                            onClick={() => setDirection('IN')}
+                            className={cn(
+                                "px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                                direction === 'IN'
+                                    ? "bg-white text-emerald-700 shadow-sm ring-1 ring-black/5"
+                                    : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
+                            )}
+                        >
+                            <ArrowDownCircle className="w-4 h-4" /> A RECEBER
+                        </button>
+                        <button
+                            onClick={() => setDirection('OUT')}
+                            className={cn(
+                                "px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                                direction === 'OUT'
+                                    ? "bg-white text-rose-700 shadow-sm ring-1 ring-black/5"
+                                    : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
+                            )}
+                        >
+                            <ArrowUpCircle className="w-4 h-4" /> A PAGAR
+                        </button>
+                        <button
+                            onClick={() => setDirection('ALL')}
+                            className={cn(
+                                "px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                                direction === 'ALL'
+                                    ? "bg-white text-blue-700 shadow-sm ring-1 ring-black/5"
+                                    : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
+                            )}
+                        >
+                            <Layers className="w-4 h-4" /> TODOS
+                        </button>
+                    </div>
+
+                    <div className="h-6 w-px bg-gray-300"></div>
+
+                    {/* Status Buttons (New) */}
+                    <div className="flex gap-1">
+                        <button
+                            onClick={() => setStatusFilter('OPEN')}
+                            className={cn(
+                                "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                                statusFilter === 'OPEN'
+                                    ? "bg-blue-100 text-blue-700 shadow-inner"
+                                    : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
+                            )}
+                        >
+                            EM ABERTO
+                        </button>
+                        <button
+                            onClick={() => setStatusFilter('PAID')}
+                            className={cn(
+                                "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                                statusFilter === 'PAID'
+                                    ? "bg-green-100 text-green-700 shadow-inner"
+                                    : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
+                            )}
+                        >
+                            PAGAS
+                        </button>
+                        <button
+                            onClick={() => setStatusFilter('ALL')}
+                            className={cn(
+                                "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                                statusFilter === 'ALL'
+                                    ? "bg-gray-200 text-gray-700 shadow-inner"
+                                    : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
+                            )}
+                        >
+                            TODAS
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -300,29 +443,55 @@ export function AccountsTable() {
                         <div className="w-px h-8 bg-gray-200 hidden sm:block"></div>
 
                         <div className="flex gap-2">
-                            <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                <SelectTrigger className="w-[130px] bg-white">
+                            {/* Date Type Selector (Replaces Status Selector) */}
+                            <Select value={dateTypeFilter} onValueChange={(v: any) => setDateTypeFilter(v)}>
+                                <SelectTrigger className="w-[140px] bg-white">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="OPEN">Em Aberto</SelectItem>
-                                    <SelectItem value="PAID">Pagas</SelectItem>
-                                    <SelectItem value="ALL">Todas</SelectItem>
+                                    <SelectItem value="DUE">Vencimento</SelectItem>
+                                    <SelectItem value="ISSUE">Lançamento</SelectItem>
                                 </SelectContent>
                             </Select>
-                            <Select value={dateFilter} onValueChange={setDateFilter}>
-                                <SelectTrigger className="w-[130px] bg-white">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="this_month">Este Mês</SelectItem>
-                                    <SelectItem value="last_month">Mês Passado</SelectItem>
-                                    <SelectItem value="all_time">Todo Período</SelectItem>
-                                </SelectContent>
-                            </Select>
+
+                            <DateRangeFilter
+                                date={dateRange}
+                                onDateChange={setDateRange}
+                            />
                         </div>
                     </div>
                 </div>
+
+                {/* Selection Bar */}
+                {selectedIds.size > 0 && (
+                    <div className="mx-4 mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-md text-xs font-semibold">
+                                {selectedIds.size} {selectedIds.size === 1 ? 'lançamento selecionado' : 'lançamentos selecionados'}
+                            </div>
+
+                            <div className="h-4 w-px bg-blue-200 mx-1"></div>
+
+                            <Button
+                                size="sm"
+                                onClick={() => setShowBulkSettleModal(true)}
+                                className="bg-green-600 hover:bg-green-700 text-white shadow-sm h-8 font-bold gap-2 text-xs rounded-full px-4"
+                            >
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                BAIXAR SELECIONADOS
+                            </Button>
+                        </div>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={clearSelection}
+                            className="text-blue-700 hover:text-blue-800 hover:bg-blue-100 h-8 text-xs"
+                        >
+                            <X className="w-3.5 h-3.5 mr-2" />
+                            Limpar seleção
+                        </Button>
+                    </div>
+                )}
 
                 {/* Empty State for OUT */}
                 {direction === 'OUT' && (
@@ -344,6 +513,12 @@ export function AccountsTable() {
                                 {viewMode === 'INSTALLMENT' ? (
                                     <TableRow className="bg-gray-50/40 hover:bg-gray-50/40">
                                         <TableHead className="w-[50px]"></TableHead>
+                                        <TableHead className="w-[50px]">
+                                            <Checkbox
+                                                checked={isAllSelected ? true : isIndeterminate ? "indeterminate" : false}
+                                                onCheckedChange={handleSelectAll}
+                                            />
+                                        </TableHead>
                                         <TableHead>Parcela</TableHead>
                                         <TableHead>Pessoa</TableHead>
                                         <TableHead>Vencimento</TableHead>
@@ -357,6 +532,12 @@ export function AccountsTable() {
                                 ) : (
                                     <TableRow className="bg-gray-50/40 hover:bg-gray-50/40">
                                         <TableHead className="w-[50px]"></TableHead>
+                                        <TableHead className="w-[50px]">
+                                            <Checkbox
+                                                checked={isAllSelected ? true : isIndeterminate ? "indeterminate" : false}
+                                                onCheckedChange={handleSelectAll}
+                                            />
+                                        </TableHead>
                                         <TableHead>Pedido</TableHead>
                                         <TableHead>Pessoa</TableHead>
                                         <TableHead>Emissão</TableHead>
@@ -371,23 +552,33 @@ export function AccountsTable() {
 
                             <TableBody>
                                 {loading ? (
-                                    <TableRow><TableCell colSpan={10} className="h-32 text-center text-gray-500">Carregando...</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={11} className="h-32 text-center text-gray-500">Carregando...</TableCell></TableRow>
                                 ) : installments.length === 0 ? (
-                                    <TableRow><TableCell colSpan={10} className="h-32 text-center text-gray-500">Nenhum registro encontrado.</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={11} className="h-32 text-center text-gray-500">Nenhum registro encontrado.</TableCell></TableRow>
                                 ) : (
                                     <>
                                         {viewMode === 'INSTALLMENT' ? (
                                             /* INSTALLMENT VIEW */
                                             installments.map(inst => {
                                                 const isExpanded = expandedIds.has(inst.id);
+                                                const isSelected = selectedIds.has(inst.id);
                                                 return (
                                                     <React.Fragment key={inst.id}>
                                                         <TableRow
-                                                            className={cn("cursor-pointer", isExpanded ? "bg-blue-50/30" : "hover:bg-gray-50")}
+                                                            className={cn("cursor-pointer transition-colors",
+                                                                isExpanded ? "bg-blue-50/30" : "hover:bg-gray-50",
+                                                                isSelected && !isExpanded ? "bg-blue-50/20" : ""
+                                                            )}
                                                             onClick={(e) => toggleExpand(inst.id, e)}
                                                         >
                                                             <TableCell>
                                                                 <ChevronDown className={cn("w-4 h-4 transition-transform", isExpanded && "rotate-180")} />
+                                                            </TableCell>
+                                                            <TableCell onClick={e => e.stopPropagation()}>
+                                                                <Checkbox
+                                                                    checked={isSelected}
+                                                                    onCheckedChange={(checked) => handleSelect(inst.id, checked as boolean)}
+                                                                />
                                                             </TableCell>
                                                             <TableCell className="font-medium text-gray-900">
                                                                 #{inst.ar_title?.document_number || 'ND'}-{inst.installment_number}
@@ -427,7 +618,7 @@ export function AccountsTable() {
                                                         </TableRow>
                                                         {isExpanded && (
                                                             <TableRow>
-                                                                <TableCell colSpan={10} className="p-0 border-none bg-blue-50/10">
+                                                                <TableCell colSpan={11} className="p-0 border-none bg-blue-50/10">
                                                                     <div className="px-10 py-4">
                                                                         <AccountsInstallmentRowExpanded installment={inst} onRefresh={fetchInstallments} />
                                                                     </div>
@@ -440,7 +631,14 @@ export function AccountsTable() {
                                         ) : (
                                             /* ORDER VIEW (GROUPED) */
                                             groupedOrders.map(group => (
-                                                <AccountsGroupRow key={group.id} group={group} onRefresh={fetchInstallments} />
+                                                <AccountsGroupRow
+                                                    key={group.id}
+                                                    group={group}
+                                                    onRefresh={fetchInstallments}
+                                                    selectedIds={selectedIds}
+                                                    onToggleGroup={handleToggleGroup}
+                                                    onToggleInstallment={handleSelect}
+                                                />
                                             ))
                                         )}
                                     </>

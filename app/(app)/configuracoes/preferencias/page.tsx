@@ -76,7 +76,7 @@ export default function SystemPreferencesPage() {
 
     // Filter Logic
     const logisticsTypes = useMemo(() => {
-        return types.filter(t => t.code.startsWith("EXPEDICAO") || t.code.startsWith("RETORNO"))
+        return types.filter(t => t.code.startsWith("RETORNO"))
     }, [types])
 
     // Handlers

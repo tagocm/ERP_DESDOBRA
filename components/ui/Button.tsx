@@ -13,6 +13,8 @@ const buttonVariants = cva(
                 ghost: "hover:bg-gray-100 hover:text-gray-900 text-gray-600",
                 danger: "bg-red-500 text-white hover:bg-red-600 shadow-sm",
                 outline: "border border-input bg-background hover:bg-accent hover:text-accent-foreground",
+                pill: "rounded-full bg-brand-600 text-white hover:bg-brand-700 shadow-md shadow-brand-600/20 px-6",
+                pillOutline: "rounded-full border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 shadow-sm px-6",
             },
             size: {
                 sm: "h-8 px-3 text-xs",

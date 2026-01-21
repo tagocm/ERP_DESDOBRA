@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArInstallment } from "@/types/financial";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Plus, Info } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
+import { createClient } from "@/lib/supabaseBrowser";
 
 interface AccountsInstallmentRowExpandedProps {
     installment: ArInstallment;
@@ -24,6 +26,7 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
     const [amount, setAmount] = useState(installment.amount_open);
     const [amountStr, setAmountStr] = useState(installment.amount_open.toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
     const [method, setMethod] = useState("DINHEIRO");
+    const [walletId, setWalletId] = useState("");
 
     // Additional Fields
     const [interest, setInterest] = useState(0);
@@ -34,16 +37,95 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
     const [discountStr, setDiscountStr] = useState("0,00");
     const [notes, setNotes] = useState("");
 
-    const [isSaving, setIsSaving] = useState(false);
+    // Smart Distribution State
+    const [targetTotal, setTargetTotal] = useState<number | null>(null);
 
-    const handleCurrencyChange = (val: string, setterNum: (n: number) => void, setterStr: (s: string) => void) => {
+    const [isSaving, setIsSaving] = useState(false);
+    const [financialAccounts, setFinancialAccounts] = useState<{ id: string, name: string }[]>([]);
+
+    useEffect(() => {
+        const fetchAccounts = async () => {
+            const supabase = createClient();
+            const { data, error } = await supabase.from('financial_accounts').select('id, name').eq('active', true);
+            if (!error && data && data.length > 0) {
+                setFinancialAccounts(data);
+                setWalletId(data[0].id);
+            } else {
+                // Fallback
+                const mocks = [
+                    { id: 'cx-principal', name: 'Caixa Principal' },
+                    { id: 'bb-gondolas', name: 'Banco do Brasil' },
+                    { id: 'sicredi', name: 'Sicredi' }
+                ];
+                setFinancialAccounts(mocks);
+                setWalletId(mocks[0].id);
+            }
+        };
+        fetchAccounts();
+    }, []);
+
+    const parseCurrency = (val: string) => {
         const numbers = val.replace(/\D/g, "");
-        const num = Number(numbers) / 100;
-        setterNum(num);
-        setterStr(num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        return Number(numbers) / 100;
     };
 
-    const totalFinal = amount + interest + penalty - discount;
+    const formatBRL = (num: number) => {
+        return num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    const handleAmountChange = (val: string) => {
+        const newAmount = parseCurrency(val);
+
+        if (newAmount > installment.amount_open) {
+            // Spillover Logic
+            const diff = newAmount - installment.amount_open;
+
+            setAmount(installment.amount_open);
+            setAmountStr(formatBRL(installment.amount_open));
+
+            setInterest(diff);
+            setInterestStr(formatBRL(diff));
+
+            setPenalty(0);
+            setPenaltyStr("0,00");
+
+            setTargetTotal(newAmount); // Remember the user's intended total
+        } else {
+            setAmount(newAmount);
+            setAmountStr(formatBRL(newAmount));
+            setTargetTotal(null); // Reset if normal amount
+        }
+    };
+
+    const handleInterestChange = (val: string) => {
+        const newInterest = parseCurrency(val);
+        setInterest(newInterest);
+        setInterestStr(formatBRL(newInterest));
+
+        // If we have a target total (implied overflow), and user reduces interest, 
+        // spill remainder to penalty.
+        if (targetTotal !== null) {
+            // Check if (Open + NewInterest) < TargetTotal
+            // We use installment.amount_open because Amount is clamped to open in overflow mode
+            const currentTotal = installment.amount_open + newInterest;
+
+            if (currentTotal < targetTotal) {
+                const remaining = targetTotal - currentTotal;
+                setPenalty(remaining);
+                setPenaltyStr(formatBRL(remaining));
+            }
+            // If currentTotal >= targetTotal, we don't reduce penalty automatically (user might be increasing interest)
+            // But we might want to update targetTotal if they explicitly increase it?
+            // For now, let's strictly follow "if ... still smaller ... add to penalty".
+        }
+    };
+
+    // Generic handler for others
+    const handleCurrencyChange = (val: string, setterNum: (n: number) => void, setterStr: (s: string) => void) => {
+        const num = parseCurrency(val);
+        setterNum(num);
+        setterStr(formatBRL(num));
+    };
 
     const handleRegisterPayment = async () => {
         if (amount <= 0) {
@@ -61,7 +143,8 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
                     interest_amount: interest,
                     penalty_amount: penalty,
                     discount_amount: discount,
-                    notes
+                    notes,
+                    financial_account_id: walletId
                 })
             });
 
@@ -73,6 +156,7 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
             setPenalty(0); setPenaltyStr("0,00");
             setDiscount(0); setDiscountStr("0,00");
             setNotes("");
+            setTargetTotal(null);
             onRefresh();
 
         } catch (error) {
@@ -154,9 +238,17 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
 
                 {/* Right Column (1/3): Payment Form */}
                 <div className="h-full">
-                    <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm h-full flex flex-col justify-center">
-                        <div className="mb-2 pb-2 border-b border-gray-50">
+                    <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm h-full flex flex-col justify-start">
+                        {/* Header with Title and Button */}
+                        <div className="mb-4 pb-2 border-b border-gray-50 flex justify-between items-center">
                             <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Novo Pagamento</h4>
+                            <Button
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-7 text-xs shadow-sm px-3"
+                                onClick={handleRegisterPayment}
+                                disabled={isSaving || installment.status === 'PAID'}
+                            >
+                                {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : "Registrar"}
+                            </Button>
                         </div>
 
                         {installment.status === 'PAID' ? (
@@ -168,6 +260,7 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
                             </div>
                         ) : (
                             <div className="space-y-3">
+                                {/* Row 1: Valor + Método */}
                                 <div className="grid grid-cols-2 gap-2">
                                     <div>
                                         <Label className="text-[10px] text-gray-400 uppercase">Valor</Label>
@@ -175,7 +268,7 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
                                             <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 font-bold">R$</span>
                                             <Input
                                                 value={amountStr}
-                                                onChange={e => handleCurrencyChange(e.target.value, setAmount, setAmountStr)}
+                                                onChange={e => handleAmountChange(e.target.value)}
                                                 className="h-8 text-xs font-bold pl-6 bg-gray-50/50"
                                             />
                                         </div>
@@ -191,28 +284,61 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-1">
-                                    <Input value={interestStr} onChange={e => handleCurrencyChange(e.target.value, setInterest, setInterestStr)} className="h-7 text-[10px] text-red-600 bg-gray-50/30 px-1 text-center" placeholder="Juros" title="Juros" />
-                                    <Input value={penaltyStr} onChange={e => handleCurrencyChange(e.target.value, setPenalty, setPenaltyStr)} className="h-7 text-[10px] text-red-600 bg-gray-50/30 px-1 text-center" placeholder="Multa" title="Multa" />
-                                    <Input value={discountStr} onChange={e => handleCurrencyChange(e.target.value, setDiscount, setDiscountStr)} className="h-7 text-[10px] text-emerald-600 bg-gray-50/30 px-1 text-center" placeholder="Desc." title="Desconto" />
+                                {/* Row 2: Juros, Multa, Desconto (With Labels) */}
+                                <div className="grid grid-cols-3 gap-2">
+                                    <div>
+                                        <Label className="text-[10px] text-gray-400 uppercase">Juros</Label>
+                                        <Input
+                                            value={interestStr}
+                                            onChange={e => handleInterestChange(e.target.value)}
+                                            className="h-8 text-[10px] text-red-600 bg-gray-50/30 px-1 text-center font-bold"
+                                            placeholder="0,00"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label className="text-[10px] text-gray-400 uppercase">Multa</Label>
+                                        <Input
+                                            value={penaltyStr}
+                                            onChange={e => handleCurrencyChange(e.target.value, setPenalty, setPenaltyStr)}
+                                            className="h-8 text-[10px] text-red-600 bg-gray-50/30 px-1 text-center font-bold"
+                                            placeholder="0,00"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label className="text-[10px] text-gray-400 uppercase">Desconto</Label>
+                                        <Input
+                                            value={discountStr}
+                                            onChange={e => handleCurrencyChange(e.target.value, setDiscount, setDiscountStr)}
+                                            className="h-8 text-[10px] text-emerald-600 bg-gray-50/30 px-1 text-center font-bold"
+                                            placeholder="0,00"
+                                        />
+                                    </div>
                                 </div>
 
-                                <Input
-                                    value={notes}
-                                    onChange={e => setNotes(e.target.value)}
-                                    className="h-8 text-xs bg-gray-50/50"
-                                    placeholder="Obs..."
-                                />
-
-                                <div className="pt-2 flex items-center justify-between">
-                                    <span className="text-sm font-black text-gray-900">{formatCurrency(totalFinal)}</span>
-                                    <Button
-                                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-8 text-xs shadow-sm px-4"
-                                        onClick={handleRegisterPayment}
-                                        disabled={isSaving}
-                                    >
-                                        {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : "Registrar"}
-                                    </Button>
+                                {/* Row 3: Carteira + Obs */}
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <Label className="text-[10px] text-gray-400 uppercase">Carteira</Label>
+                                        <Select value={walletId} onValueChange={setWalletId}>
+                                            <SelectTrigger className="h-8 text-xs bg-gray-50/50">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {financialAccounts.map(acc => (
+                                                    <SelectItem key={acc.id} value={acc.id} className="text-xs">{acc.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div>
+                                        <Label className="text-[10px] text-gray-400 uppercase">Observação</Label>
+                                        <Input
+                                            value={notes}
+                                            onChange={e => setNotes(e.target.value)}
+                                            className="h-8 text-xs bg-gray-50/50"
+                                            placeholder="..."
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         )}

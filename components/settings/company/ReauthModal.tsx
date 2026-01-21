@@ -45,7 +45,9 @@ export function ReauthModal({ isOpen, onClose, onConfirm }: ReauthModalProps) {
             await onConfirm();
             onClose();
         } catch (err: any) {
-            setError(err.message || "Erro de autenticação.");
+            console.error("Reauth Process Error:", err);
+            setError(err.message || "Erro ao salvar configurações.");
+            // Do NOT close modal if onConfirm failed
         } finally {
             setLoading(false);
             setPassword(""); // Clear password

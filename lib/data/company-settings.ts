@@ -155,11 +155,11 @@ export async function getBranches(supabase: SupabaseClient, companyId: string) {
     const { data, error } = await supabase
         .from('companies')
         .select(`
-            id, name, slug, is_branch, created_at,
+            id, name, slug, created_at,
             settings:company_settings(trade_name, cnpj, address_city, address_state)
         `)
         .eq('parent_company_id', companyId)
-        .eq('is_branch', true)
+        //.eq('is_branch', true) // Column missing in DB
         .is('deleted_at', null);
 
     if (error) throw error;
@@ -276,7 +276,7 @@ export async function createBranch(supabase: SupabaseClient, parentId: string, n
             name,
             slug,
             parent_company_id: parentId,
-            is_branch: true
+            // is_branch: true // Column missing in DB
         })
         .select()
         .single();

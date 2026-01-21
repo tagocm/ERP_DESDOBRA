@@ -32,8 +32,9 @@ import { ChevronDown, CheckCircle, Loader2, Search, Filter, LayoutGrid, ArrowUp,
 import { useToast } from "@/components/ui/use-toast";
 import { formatCurrency, toTitleCase, cn } from "@/lib/utils";
 import { ApprovalRowExpanded } from "./ApprovalRowExpanded";
+import { getFinancialBadgeStyle } from "@/lib/constants/statusColors";
 
-export function ApprovalTable() {
+export function ApprovalTable({ companyId }: { companyId: string }) {
     const [postings, setPostings] = useState<ArTitle[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -60,10 +61,11 @@ export function ApprovalTable() {
             .from('ar_titles')
             .select(`
                 *,
-                sales_document:sales_documents(id, document_number, status_logistic),
+                sales_document:sales_documents(id, document_number, status_logistic, financial_status),
                 organization:organizations!customer_id(id, trade_name, legal_name),
                 ar_installments(due_date)
             `)
+            .eq('company_id', companyId)
             .order('created_at', { ascending: false });
 
         if (filterStatus && filterStatus !== 'ALL') {
@@ -386,13 +388,14 @@ export function ApprovalTable() {
                                 <SortableHead sortKey="flow" label="Fluxo" className="w-[100px]" />
                                 <SortableHead sortKey="installments_count" label="Parc." className="w-[80px] text-center" />
                                 <SortableHead sortKey="due_date" label="Vencimento" className="w-[120px]" />
-                                <SortableHead sortKey="status" label="Situação" className="w-[150px] text-right" />
+                                <TableHead className="w-[140px] text-center">Status Pedido</TableHead>
+                                <SortableHead sortKey="status" label="Status Pagamento" className="w-[150px] text-right" />
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {loading ? (
                                 <TableRow>
-                                    <TableCell colSpan={11} className="h-64 text-center">
+                                    <TableCell colSpan={12} className="h-64 text-center">
                                         <div className="flex flex-col items-center gap-3">
                                             <Loader2 className="h-8 w-8 animate-spin text-blue-500/30" />
                                             <span className="text-xs font-medium text-gray-400 uppercase tracking-widest">Carregando...</span>
@@ -401,7 +404,7 @@ export function ApprovalTable() {
                                 </TableRow>
                             ) : sortedPostings.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={11} className="h-64 text-center">
+                                    <TableCell colSpan={12} className="h-64 text-center">
                                         <div className="flex flex-col items-center gap-2 opacity-50">
                                             <LayoutGrid className="w-10 h-10 text-gray-300" />
                                             <span className="text-sm font-medium text-gray-500">Nenhum registro encontrado</span>
@@ -483,6 +486,15 @@ export function ApprovalTable() {
                                                 <TableCell className="text-gray-500 font-medium text-xs py-3">
                                                     {instInfo.first}
                                                 </TableCell>
+                                                <TableCell className="text-center py-3">
+                                                    <span className={cn(
+                                                        "inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                                                        getFinancialBadgeStyle(posting.sales_document?.financial_status || 'pendente').bg,
+                                                        getFinancialBadgeStyle(posting.sales_document?.financial_status || 'pendente').text
+                                                    )}>
+                                                        {getFinancialBadgeStyle(posting.sales_document?.financial_status || 'pendente').label}
+                                                    </span>
+                                                </TableCell>
                                                 <TableCell className="text-right py-3 pr-4">
                                                     {getStatusBadge(posting.status)}
                                                 </TableCell>
@@ -490,7 +502,7 @@ export function ApprovalTable() {
 
                                             {isExpanded && (
                                                 <TableRow className="bg-transparent border-none hover:bg-transparent">
-                                                    <TableCell colSpan={11} className="p-0 border-none bg-blue-50/10">
+                                                    <TableCell colSpan={12} className="p-0 border-none bg-blue-50/10">
                                                         <div className="px-4 pb-6 pt-2 animate-in slide-in-from-top-2 duration-300">
                                                             <ApprovalRowExpanded
                                                                 title={posting}

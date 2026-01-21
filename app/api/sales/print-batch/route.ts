@@ -42,13 +42,15 @@ export async function POST(request: Request) {
 
         const supabase = await createClient();
 
-        // 1. Fetch Data
-        // Needs deep nesting: order -> items -> product, order -> client
+        // 1. Fetch Data with Deep Relations (Client Address)
         const { data: orders, error: fetchError } = await supabase
             .from('sales_documents')
             .select(`
                 *,
-                client:organizations!client_id (*),
+                client:organizations!client_id (
+                    *,
+                    addresses (*)
+                ),
                 items:sales_document_items (
                     *,
                     product:items (*)
@@ -61,26 +63,69 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Erro ao buscar dados dos pedidos.' }, { status: 500 });
         }
 
-        // Get tenant company info (assuming single tenant context or pulling from first order's owner logic)
-        // For now, simpler approach: fetch the company of the logged user or the first found organizational unit
-        // Or fetch "My Company" details.
-        // Let's optimize: fetch current user's org.
-        const { data: { user } } = await supabase.auth.getUser();
-
-        // Fallback company data if "my company" fetch is complex here. 
-        // Ideally we fetch from 'organizations' where is_owner = true or similar.
-        // Let's try fetching the organization related to the order (emitter).
-        // If order has no emitter field, we assume a default.
-        // Let's use a Dummy Company Object if we can't easily find the "Sender/Emitente" without more DB queries.
-        // Or better: the `sales_documents` likely belongs to the tenant.
-
-        const companyData = {
+        // 1.5 Fetch Actual Company Data & Process Logo
+        const companyId = orders[0]?.company_id;
+        let companyData = {
             trade_name: "MARTIGRAN - MÁRMORES E GRANITOS",
             legal_name: "MARTIGRAN LTDA",
             document: "00.000.000/0001-00",
-            address: "Rua Exemplo, 123 - Cidade/UF"
-            // In real app, fetch from 'companies' table or 'settings'
+            address: "Dados da Empresa não encontrados",
+            logo_url: null as string | null
         };
+
+        if (companyId) {
+            const { data: settings } = await supabase
+                .from('company_settings')
+                .select('*')
+                .eq('company_id', companyId)
+                .single();
+
+            if (settings) {
+                // Address Construction
+                const parts = [
+                    settings.address_street,
+                    settings.address_number,
+                    settings.address_complement,
+                    settings.address_neighborhood,
+                    settings.address_city,
+                    settings.address_state
+                ].filter(Boolean);
+                const address = parts.join(', ');
+
+                // Logo Processing: Download and convert to Base64 to ensure it renders in PDF
+                let logoDataUri = null;
+                if (settings.logo_path) {
+                    try {
+                        const { data: blob, error: downloadError } = await supabase.storage
+                            .from('company-assets')
+                            .download(settings.logo_path);
+
+                        if (!downloadError && blob) {
+                            const buffer = Buffer.from(await blob.arrayBuffer());
+                            const base64 = buffer.toString('base64');
+                            // Detect mime type simple (assume png/jpg based on logic, or default to png)
+                            const mime = settings.logo_path.endsWith('.jpg') || settings.logo_path.endsWith('.jpeg') ? 'image/jpeg' : 'image/png';
+                            logoDataUri = `data:${mime};base64,${base64}`;
+                        } else {
+                            // Fallback to public URL (risky for PDF generator if network blocked)
+                            const { data } = supabase.storage.from('company-assets').getPublicUrl(settings.logo_path);
+                            // But we prefer null if download failed to avoid broken image icon usually
+                            // logoDataUri = data.publicUrl;
+                        }
+                    } catch (e) {
+                        console.error("Failed to process logo for PDF:", e);
+                    }
+                }
+
+                companyData = {
+                    trade_name: (settings.trade_name || settings.legal_name || "").toUpperCase(),
+                    legal_name: (settings.legal_name || "").toUpperCase(),
+                    document: settings.cnpj || "",
+                    address: address,
+                    logo_url: logoDataUri
+                };
+            }
+        }
 
         console.log(`Generating files for ${orders.length} orders. Mode: ${mode}`);
 
@@ -89,9 +134,20 @@ export async function POST(request: Request) {
             const pdfFiles: { filename: string, buffer: Buffer }[] = [];
 
             for (const order of orders) {
+                // Resolved Client Address
+                let clientAddr = "";
+                const deliveryAddr = order.delivery_address_json; // If saved snapshot exists
+                if (deliveryAddr && typeof deliveryAddr === 'object') {
+                    clientAddr = `${deliveryAddr.street || ''}, ${deliveryAddr.number || ''} - ${deliveryAddr.neighborhood || ''} - ${deliveryAddr.city || ''}/${deliveryAddr.state || ''}`;
+                } else if (order.client?.addresses && order.client.addresses.length > 0) {
+                    // Pick first address or specific type
+                    const addr = order.client.addresses[0];
+                    clientAddr = `${addr.street || ''}, ${addr.number || ''} - ${addr.neighborhood || ''} - ${addr.city || ''}/${addr.state || ''}`;
+                }
+
                 const html = renderOrderA4Html({
                     company: companyData,
-                    order,
+                    order: { ...order, client_address_resolved: clientAddr },
                     items: order.items || []
                 });
 

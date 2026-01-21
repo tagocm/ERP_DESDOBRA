@@ -37,7 +37,7 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                         <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider">Embalagem</TableHead>
                         <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Conteúdo</TableHead>
                         <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider">GTIN/EAN</TableHead>
-                        <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 tracking-wider">PESOS (g)</TableHead>
+                        <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 tracking-wider">PESOS (KG)</TableHead>
                         <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Padrão</TableHead>
                         <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Status</TableHead>
                         <TableHead className="px-6 h-11 text-xs font-bold text-gray-500 uppercase tracking-wider text-right pr-6">Ações</TableHead>
@@ -69,8 +69,8 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                                 </TableCell>
                                 <TableCell className="px-6 py-4">
                                     <div className="flex flex-col gap-0.5">
-                                        <span className="text-[10px] font-bold text-gray-400 uppercase leading-none">Líq: <span className="text-gray-600 font-bold ml-1">{pkg.net_weight_g ?? '-'}</span></span>
-                                        <span className="text-[10px] font-bold text-gray-400 uppercase leading-none">Brut: <span className="text-gray-900 font-bold ml-1">{pkg.gross_weight_g ?? '-'}</span></span>
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase leading-none">Líq: <span className="text-gray-600 font-bold ml-1">{pkg.net_weight_kg ?? '-'}</span></span>
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase leading-none">Brut: <span className="text-gray-900 font-bold ml-1">{pkg.gross_weight_kg ?? '-'}</span></span>
                                     </div>
                                 </TableCell>
                                 <TableCell className="px-6 py-4 text-center">

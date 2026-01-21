@@ -25,6 +25,7 @@ interface Product {
     brand: string | null;
     type: string;
     avg_cost: number | null; // Added for reference
+    category?: { name: string };
 }
 
 interface PriceTableFormProps {
@@ -91,7 +92,8 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
 
         // 3. Group
         filtered.forEach(p => {
-            const groupName = p.line || "Outros";
+            // Prioritize Category Name, then Line, then fallback.
+            const groupName = p.category?.name || p.line || "Outros";
             if (!groups[groupName]) groups[groupName] = [];
             groups[groupName].push(p);
         });

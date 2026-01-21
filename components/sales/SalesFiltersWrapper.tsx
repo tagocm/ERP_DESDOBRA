@@ -12,7 +12,7 @@ export function SalesFiltersWrapper({ initialFilters }: { initialFilters: Filter
     const searchParams = useSearchParams();
 
     const handleFilterChange = useCallback((newFilters: FilterType) => {
-        const params = new URLSearchParams(searchParams.toString());
+        const params = new URLSearchParams(searchParams?.toString() || '');
 
         if (newFilters.search) params.set('search', newFilters.search);
         else params.delete('search');
@@ -31,6 +31,9 @@ export function SalesFiltersWrapper({ initialFilters }: { initialFilters: Filter
 
         if (newFilters.statusLogistic) params.set('statusLogistic', newFilters.statusLogistic);
         else params.delete('statusLogistic');
+
+        if (newFilters.showCancelled) params.set('showCancelled', 'true');
+        else params.delete('showCancelled');
 
         // Reset page on filter change
         params.set('page', '1');

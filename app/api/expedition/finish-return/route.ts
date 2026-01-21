@@ -1,6 +1,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { setDeliveryStatus, updateDeliveryItemQuantities } from '@/lib/services/deliveries';
 
 export async function POST(request: NextRequest) {
     const supabase = await createClient();
@@ -53,14 +54,29 @@ export async function POST(request: NextRequest) {
             const order = ro.sales_order as any;
             if (!order) continue;
 
-            // Log to order_occurrence_logs
-            // Find reason ID if possible? The payload only stores reason text usually.
-            // The prompt says order_occurrence_logs has reason_id FK. 
-            // Since we stored reason text (string) in payload, we might not have the UUID.
-            // We'll store the text in `reason_label_snapshot` and leave `reason_id` null if we don't have it.
-            // (Unless we update frontend to store reasonId in payload, which I did: `selectedReasonId` in Modal state, 
-            // but `onConfirm` passed `reason` as string/label. 
-            // I should have passed ID. It's fine, I'll use snapshot.)
+            const createReturnMovement = async (item: any, qty: number, reasonText: string) => {
+                // Calculate proportional weight if qty_base exists
+                let finalQtyBase = qty;
+                if (item.qty_base && item.quantity > 0) {
+                    const unitWeight = item.qty_base / item.quantity;
+                    finalQtyBase = unitWeight * qty;
+                }
+
+                await supabase.from('inventory_movements').insert({
+                    company_id: order.company_id,
+                    item_id: item.item_id,
+                    movement_type: 'ENTRADA',
+                    qty_base: finalQtyBase,
+                    reference_type: 'pedido',
+                    reference_id: order.id,
+                    source_ref: `#${order.document_number} (Retorno)`,
+                    notes: `Retorno de Rota: ${reasonText}`,
+                    created_by: user.id,
+                    reason: 'return_in',
+                    qty_in: qty,
+                    qty_out: 0
+                });
+            };
 
             await supabase.from('order_occurrence_logs').insert({
                 order_id: order.id,
@@ -72,13 +88,205 @@ export async function POST(request: NextRequest) {
                 created_by_user_id: user.id
             });
 
+            // --- DELIVERIES MODEL UPDATE START ---
+            // Attempt to find associated delivery to update it
+            const { data: existingDeliveries } = await supabase
+                .from('deliveries')
+                .select('id, status')
+                .eq('sales_document_id', order.id)
+                .eq('route_id', routeId)
+                .neq('status', 'cancelled')
+                .limit(1);
+
+            if (existingDeliveries && existingDeliveries.length > 0) {
+                const deliveryId = existingDeliveries[0].id;
+                const { data: deliveryItems } = await supabase
+                    .from('delivery_items')
+                    .select('id, sales_document_item_id, qty_loaded')
+                    .eq('delivery_id', deliveryId);
+
+                if (outcome === 'delivered') {
+                    // All items delivered
+                    await setDeliveryStatus(supabase, deliveryId, 'delivered');
+                    if (deliveryItems) {
+                        const updates = deliveryItems.map(di => ({
+                            itemId: di.id,
+                            qtyDelivered: Number(di.qty_loaded || 0),
+                            qtyReturned: 0
+                        }));
+                        await updateDeliveryItemQuantities(supabase, deliveryId, updates);
+                    }
+                } else if (outcome === 'not_delivered') {
+                    // All items returned
+                    await setDeliveryStatus(supabase, deliveryId, 'returned_total');
+                    if (deliveryItems) {
+                        const updates = deliveryItems.map(di => ({
+                            itemId: di.id,
+                            qtyDelivered: 0,
+                            qtyReturned: Number(di.qty_loaded || 0)
+                        }));
+                        await updateDeliveryItemQuantities(supabase, deliveryId, updates);
+
+                        // CREATE INVENTORY MOVEMENT (SAÍDA REVERSAL aka ENTRADA)
+                        // Use originalItems to lookup item_id
+                        const { data: originalItems } = await supabase
+                            .from('sales_document_items')
+                            .select('id, item_id, quantity, qty_base')
+                            .eq('document_id', order.id);
+
+                        const itemMap = new Map(originalItems?.map(i => [i.id, i]) || []);
+
+                        for (const di of deliveryItems) {
+                            const qtyReturned = Number(di.qty_loaded || 0);
+                            if (qtyReturned > 0) {
+                                const originalItem = itemMap.get(di.sales_document_item_id);
+                                if (originalItem) {
+                                    await createReturnMovement(originalItem, qtyReturned, payload.reason || 'Devolução Total');
+                                }
+                            }
+                        }
+                    }
+                } else if (outcome === 'partial') {
+                    console.log('[DEBUG] Processing PARTIAL return for order:', order.id);
+                    console.log('[DEBUG] Payload:', JSON.stringify(payload, null, 2));
+
+                    await setDeliveryStatus(supabase, deliveryId, 'returned_partial');
+
+                    const deliveredMap = new Map();
+                    if (payload.deliveredItems && Array.isArray(payload.deliveredItems)) {
+                        payload.deliveredItems.forEach((i: any) => deliveredMap.set(i.itemId, i.deliveredQty));
+                    }
+
+                    // Pre-fetch original items for item_id lookup
+                    const { data: originalItems } = await supabase
+                        .from('sales_document_items')
+                        .select('id, item_id, quantity, qty_base')
+                        .eq('document_id', order.id);
+
+                    const itemMap = new Map(originalItems?.map(i => [i.id, i]) || []);
+
+                    if (deliveryItems) {
+                        const updates = [];
+                        for (const di of deliveryItems) {
+                            const deliveredQty = deliveredMap.has(di.sales_document_item_id)
+                                ? Number(deliveredMap.get(di.sales_document_item_id))
+                                : 0;
+
+                            const loaded = Number(di.qty_loaded || 0);
+                            const returned = Math.max(0, loaded - deliveredQty);
+
+                            console.log(`[DEBUG] Item ${di.sales_document_item_id}: delivered=${deliveredQty}, loaded=${loaded}, returned=${returned}`);
+
+                            updates.push({
+                                itemId: di.id,
+                                qtyDelivered: deliveredQty,
+                                qtyReturned: returned
+                            });
+
+                            // CREATE INVENTORY MOVEMENT (SAÍDA REVERSAL aka ENTRADA)
+                            if (returned > 0) {
+                                const originalItem = itemMap.get(di.sales_document_item_id);
+                                if (originalItem) {
+                                    // Assuming anything not delivered from the LOADED amount is returned
+                                    await createReturnMovement(originalItem, returned, payload.reason || 'Devolução Parcial');
+                                }
+                            }
+                        }
+                        console.log('[DEBUG] Calling updateDeliveryItemQuantities with:', JSON.stringify(updates, null, 2));
+                        await updateDeliveryItemQuantities(supabase, deliveryId, updates);
+                    }
+                }
+            }
+            // --- DELIVERIES MODEL UPDATE END ---
+
+
             // === A) ENTREGUE (delivered) ===
             if (outcome === 'delivered') {
-                const note = `[${baseDate}] ENTREGUE na rota ${routeName}. ${payload.reason ? 'Motivo: ' + payload.reason + '.' : ''} ${payload.notes ? 'Obs: ' + payload.notes + '.' : ''}`;
+                // ... (Logic for converting status to delivered) ...
+                // Re-fetch logic simplified for status update
+                const { data: orderDeliveries } = await supabase
+                    .from('deliveries')
+                    .select('id')
+                    .eq('sales_document_id', order.id);
+                const deliveryIds = orderDeliveries?.map(d => d.id) || [];
+                const { data: allDeliveryItems } = await supabase
+                    .from('delivery_items')
+                    .select('sales_document_item_id, qty_delivered')
+                    .in('delivery_id', deliveryIds);
+                const totalDeliveredMap = new Map();
+                if (allDeliveryItems) {
+                    allDeliveryItems.forEach((di: any) => {
+                        const current = totalDeliveredMap.get(di.sales_document_item_id) || 0;
+                        totalDeliveredMap.set(di.sales_document_item_id, current + (di.qty_delivered || 0));
+                    });
+                }
+                const { data: originalItems } = await supabase.from('sales_document_items').select('*').eq('document_id', order.id);
+
+                let isFullyDelivered = true;
+                if (originalItems) {
+                    for (const item of originalItems) {
+                        const totalDelivered = totalDeliveredMap.get(item.id) || 0;
+                        const pendingQty = Math.max(0, Number(item.quantity) - totalDelivered);
+                        if (pendingQty > 0) isFullyDelivered = false;
+                    }
+                }
+
+                const finalStatus = isFullyDelivered ? 'entregue' : 'parcial';
+                const note = `[${baseDate}] ${isFullyDelivered ? 'ENTREGUE' : 'ENTREGA PARCIAL'} na rota ${routeName}.`;
 
                 await supabase.from('sales_documents')
                     .update({
-                        status_logistic: 'entregue',
+                        status_logistic: finalStatus,
+                        internal_notes: (order.internal_notes || '') + '\n' + note,
+                        updated_at: nowIso,
+                        loading_checked: finalStatus === 'parcial' ? false : order.loading_checked
+                    })
+                    .eq('id', order.id);
+
+                // History log...
+                await supabase.from('sales_document_history').insert({
+                    document_id: order.id,
+                    event_type: isFullyDelivered ? 'logistic_update' : 'logistic_partial',
+                    description: 'Entrega processada (Resultado: Entregue)',
+                    metadata: { routeId, outcome, user: user.id },
+                    created_at: nowIso
+                });
+
+            }
+            // === B) PARCIAL (partial) ===
+            else if (outcome === 'partial') {
+                // Update status only. DO NOT CREATE INVENTORY MOVEMENTS HERE AGAIN.
+                // We already created them in the deliveryItems loop above.
+
+                // Re-calculate status
+                const { data: orderDeliveries } = await supabase.from('deliveries').select('id').eq('sales_document_id', order.id);
+                const deliveryIds = orderDeliveries?.map(d => d.id) || [];
+                const { data: allDeliveries } = await supabase.from('delivery_items').select('sales_document_item_id, qty_delivered').in('delivery_id', deliveryIds);
+
+                const totalDeliveredMap = new Map();
+                if (allDeliveries) {
+                    allDeliveries.forEach((di: any) => {
+                        const current = totalDeliveredMap.get(di.sales_document_item_id) || 0;
+                        totalDeliveredMap.set(di.sales_document_item_id, current + (di.qty_delivered || 0));
+                    });
+                }
+                const { data: originalItems } = await supabase.from('sales_document_items').select('*').eq('document_id', order.id);
+
+                let hasAnyPending = false;
+                if (originalItems) {
+                    for (const item of originalItems) {
+                        const totalDelivered = totalDeliveredMap.get(item.id) || 0;
+                        const pendingQty = Math.max(0, Number(item.quantity) - totalDelivered);
+                        if (pendingQty > 0) hasAnyPending = true;
+                    }
+                }
+
+                const newStatusLogistic = hasAnyPending ? 'parcial' : 'entregue';
+                const note = `[${baseDate}] ENTREGA PARCIAL (Retorno da Rota) - Status: ${newStatusLogistic}`;
+
+                await supabase.from('sales_documents')
+                    .update({
+                        status_logistic: newStatusLogistic,
                         internal_notes: (order.internal_notes || '') + '\n' + note,
                         updated_at: nowIso
                     })
@@ -86,94 +294,17 @@ export async function POST(request: NextRequest) {
 
                 await supabase.from('sales_document_history').insert({
                     document_id: order.id,
-                    event_type: 'logistic_update',
-                    description: 'Entrega confirmada no retorno.',
+                    event_type: 'logistic_partial',
+                    description: 'Retorno parcial processado',
                     metadata: { routeId, outcome, user: user.id },
                     created_at: nowIso
                 });
             }
-            // === B) PARCIAL (partial) ===
-            else if (outcome === 'partial') {
-                const note = `[${baseDate}] ENTREGA PARCIAL na rota ${routeName}. Motivo: ${payload.reason}. Obs: ${payload.notes || ''}.`;
-                let complementNote = '';
-
-                // Create (Complementary) Order for Pending items
-                // Default to true if not specified, or respect flag
-                const shouldCreateComplement = payload.createComplement !== undefined ? payload.createComplement :
-                    (actionFlags.create_new_order_for_pending !== undefined ? actionFlags.create_new_order_for_pending : true);
-
-                if (shouldCreateComplement) {
-                    const { data: originalItems } = await supabase.from('sales_document_items').select('*').eq('document_id', order.id);
-
-                    const deliveredMap = new Map();
-                    if (payload.deliveredItems && Array.isArray(payload.deliveredItems)) {
-                        payload.deliveredItems.forEach((i: any) => deliveredMap.set(i.itemId, i.deliveredQty));
-                    }
-
-                    const balanceItems = [];
-                    let balanceTotal = 0;
-
-                    if (originalItems) {
-                        for (const item of originalItems) {
-                            const deliveredQty = deliveredMap.has(item.id) ? Number(deliveredMap.get(item.id)) : Number(item.quantity);
-                            const balance = Number(item.quantity) - deliveredQty;
-                            if (balance > 0) {
-                                balanceItems.push({
-                                    ...item,
-                                    quantity: balance,
-                                    total_amount: balance * Number(item.unit_price),
-                                    id: undefined, document_id: undefined, created_at: undefined, updated_at: undefined
-                                });
-                                balanceTotal += (balance * Number(item.unit_price));
-                            }
-                        }
-                    }
-
-                    if (balanceItems.length > 0) {
-                        const {
-                            id, created_at, updated_at, document_number,
-                            status_logistic, status_commercial,
-                            total_amount, subtotal_amount,
-                            loading_checked, loading_checked_at, loading_checked_by,
-                            items, history, payments, nfes, adjustments,
-                            ...cleanOrder
-                        } = order;
-
-                        const { data: newOrder } = await supabase.from('sales_documents').insert({
-                            ...cleanOrder,
-                            status_logistic: 'pending',
-                            status_commercial: status_commercial,
-                            total_amount: balanceTotal,
-                            subtotal_amount: balanceTotal,
-                            internal_notes: (order.internal_notes || '') + `\n[${baseDate}] PEDIDO COMPLEMENTAR do #${order.document_number} gerado no RETORNO da rota ${routeName}. Motivo: ${payload.reason}.`,
-                        }).select().single();
-
-                        if (newOrder) {
-                            const itemsToInsert = balanceItems.map(i => ({ ...i, document_id: newOrder.id }));
-                            await supabase.from('sales_document_items').insert(itemsToInsert);
-                            complementNote = ` Complementar: #${newOrder.document_number}`;
-
-                            await supabase.from('sales_document_history').insert({
-                                document_id: newOrder.id,
-                                event_type: 'created',
-                                description: `Pedido complementar gerado auto (Retorno Parcial).`,
-                                metadata: { originalId: order.id, routeId },
-                                created_at: nowIso
-                            });
-                        }
-                    }
-                }
-
-                await supabase.from('sales_documents')
-                    .update({
-                        status_logistic: 'entregue',
-                        internal_notes: (order.internal_notes || '') + '\n' + note + complementNote,
-                        updated_at: nowIso
-                    })
-                    .eq('id', order.id);
-            }
             // === C) NÃO ENTREGUE (not_delivered) ===
             else if (outcome === 'not_delivered') {
+                // Removed redundant loop that was double-returning inventory. 
+                // We rely on the delivery_items loop above to return exactly what was loaded.
+
                 const noteContent = `[${baseDate}] TENTATIVA DE ENTREGA na rota ${routeName}: NÃO ENTREGUE. Motivo: ${payload.reason}. Obs: ${payload.notes || ''}.`;
 
                 // Flag: register_attempt_note
@@ -185,10 +316,6 @@ export async function POST(request: NextRequest) {
                 // Flag: return_to_sandbox_pending
                 const shouldReturnToSandbox = actionFlags.return_to_sandbox_pending !== false; // Default true (safe)
 
-                // Flag: reverse_stock_and_finance (Not fully implemented but triggers status change)
-                // If reverse stock is OFF, maybe we shouldn't send to pending? 
-                // Currently assuming PENDING = Back in stock.
-
                 let newStatusLogistic = order.status_logistic;
                 let newLoadingChecked = order.loading_checked;
 
@@ -196,14 +323,6 @@ export async function POST(request: NextRequest) {
                     newStatusLogistic = 'pending';
                     newLoadingChecked = false; // Reset checking so it must be checked again
                 } else {
-                    // If NOT returning to sandbox, what?
-                    // Maybe 'cancelled'? Or keep 'em_rota' (bad idea)?
-                    // For safety in this ERP logic, if confirmed Not Delivered, it usually goes back.
-                    // If the user disabled this, they might want to handle it manually.
-                    // I will default to 'pending' anyway but add a note if flag was off?
-                    // No, I'll respect it. If false, I'll set it to 'cancelado' (if that's a valid flow)
-                    // or just leave it 'pending' because 'cancelado' is drastic.
-                    // I'll stick to 'pending' and respect 'register_attempt_note'.
                     newStatusLogistic = 'pending';
                     newLoadingChecked = false;
                 }

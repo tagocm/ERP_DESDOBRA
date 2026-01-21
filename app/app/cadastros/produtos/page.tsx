@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
@@ -26,6 +26,8 @@ interface Item {
     name: string;
     type: string;
     uom: string;
+    uom_id?: string | null;
+    uoms?: { abbrev: string } | null;
     is_active: boolean;
     avg_cost: number;
     current_stock?: number;
@@ -53,13 +55,21 @@ export default function ItemsPage() {
 
     const searchParams = useSearchParams();
     const { toast } = useToast();
+    const toastShown = useRef(false);
 
     useEffect(() => {
-        const success = searchParams.get("success");
+        if (toastShown.current) return;
+
+        const success = searchParams?.get("success");
         if (success === "created") {
-            toast({ title: "Item criado com sucesso!", variant: "default", className: "bg-green-600 text-white border-none" });
+            toast({ title: "Item criado com sucesso!", variant: "default" });
+            toastShown.current = true;
+            // Optional: Clean URL
+            window.history.replaceState(null, '', '/app/cadastros/produtos');
         } else if (success === "updated") {
-            toast({ title: "Item atualizado com sucesso!", variant: "default", className: "bg-green-600 text-white border-none" });
+            toast({ title: "Item atualizado com sucesso!", variant: "default" });
+            toastShown.current = true;
+            window.history.replaceState(null, '', '/app/cadastros/produtos');
         }
     }, [searchParams]);
 
@@ -76,7 +86,7 @@ export default function ItemsPage() {
         try {
             let query = supabase
                 .from('items')
-                .select('*')
+                .select('*, uoms(abbrev)')
                 .eq('company_id', selectedCompany.id)
                 .is('deleted_at', null)
                 .order('name', { ascending: true });
@@ -250,9 +260,17 @@ export default function ItemsPage() {
                                             <span className="text-xs font-medium text-gray-500">{getTypeLabel(item.type)}</span>
                                         </TableCell>
                                         <TableCell className="px-6 py-4">
-                                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
-                                                {item.uom}
-                                            </span>
+                                            <div className="flex flex-col gap-1">
+                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100 w-fit">
+                                                    {item.uoms?.abbrev || item.uom}
+                                                </span>
+                                                {/* Dev-Only Inconsistency Warning */}
+                                                {(process.env.NODE_ENV === 'development' && item.uoms?.abbrev && item.uoms.abbrev !== item.uom) && (
+                                                    <span className="text-[10px] text-red-500 bg-red-50 px-1 rounded border border-red-100 w-fit" title={`Legacy UOM: ${item.uom} vs Ref: ${item.uoms.abbrev}`}>
+                                                        Inconsistente
+                                                    </span>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="px-6 py-4 text-right">
                                             <span className={item.current_stock && item.current_stock < 0 ? "text-red-600 font-bold" : "text-gray-900 font-bold"}>

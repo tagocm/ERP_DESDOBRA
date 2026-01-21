@@ -1,21 +1,22 @@
 "use client";
 
 import { FiscalOperationForm } from "@/components/fiscal/FiscalOperationForm";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseBrowser";
 
-export default function EditFiscalOperationPage({ params }: { params: { id: string } }) {
+export default function EditFiscalOperationPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params);
     const [data, setData] = useState<any>(null);
     const supabase = createClient();
 
     useEffect(() => {
-        if (params.id) {
-            supabase.from('fiscal_operations').select('*').eq('id', params.id).single()
+        if (id) {
+            supabase.from('fiscal_operations').select('*').eq('id', id).single()
                 .then(({ data }) => {
                     if (data) setData(data);
                 });
         }
-    }, [params.id]);
+    }, [id]);
 
     if (!data) return <div className="p-8">Carregando...</div>;
 

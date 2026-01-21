@@ -1348,6 +1348,8 @@ export type Database = {
           started_at: string | null
           status: string
           updated_at: string
+          scheduled_date: string | null
+          route_id: string | null
         }
         Insert: {
           bom_id?: string | null
@@ -1363,6 +1365,8 @@ export type Database = {
           started_at?: string | null
           status?: string
           updated_at?: string
+          scheduled_date?: string | null
+          route_id?: string | null
         }
         Update: {
           bom_id?: string | null
@@ -1378,6 +1382,8 @@ export type Database = {
           started_at?: string | null
           status?: string
           updated_at?: string
+          scheduled_date?: string | null
+          route_id?: string | null
         }
         Relationships: [
           {
@@ -1399,6 +1405,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_route_id_fkey"
+            columns: ["route_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_routes"
             referencedColumns: ["id"]
           },
         ]

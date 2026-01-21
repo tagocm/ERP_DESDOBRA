@@ -1,0 +1,100 @@
+{
+    "ide": {
+        "cUF": "35",
+        "natOp": "Venda de Mercadoria",
+        "mod": "55",
+        "serie": "1",
+        "nNF": "1001",
+        "dhEmi": "2023-10-27T10:00:00Z",
+        "tpNF": "1",
+        "idDest": "1",
+        "cMunFG": "3550308",
+        "tpImp": "1",
+        "tpEmis": "1",
+        "tpAmb": "2",
+        "finNFe": "1",
+        "indFinal": "1",
+        "indPres": "1",
+        "procEmi": "0",
+        "verProc": "Desdobra 1.0"
+    },
+    "emit": {
+        "cnpj": "12345678000199",
+        "xNome": "Empresa Emitente Ltda",
+        "xFant": "Fantasia",
+        "ie": "123456789",
+        "crt": "3",
+        "enderEmit": {
+            "xLgr": "Rua Exemplo",
+            "nro": "100",
+            "xBairro": "Centro",
+            "cMun": "3550308",
+            "xMun": "Sao Paulo",
+            "uf": "SP",
+            "cep": "01001000"
+        }
+    },
+    "dest": {
+        "cpfOuCnpj": "98765432100",
+        "xNome": "Cliente Teste",
+        "indIEDest": "9",
+        "enderDest": {
+            "xLgr": "Av Destino",
+            "nro": "200",
+            "xBairro": "Bairro Dest",
+            "cMun": "3550308",
+            "xMun": "Sao Paulo",
+            "uf": "SP",
+            "cep": "01002000"
+        }
+    },
+    "itens": [
+        {
+            "nItem": 1,
+            "prod": {
+                "cProd": "PROD001",
+                "xProd": "Produto Teste 1",
+                "ncm": "12345678",
+                "cfop": "5102",
+                "uCom": "UN",
+                "qCom": 10,
+                "vUnCom": 50.00,
+                "vProd": 500.00,
+                "uTrib": "UN",
+                "qTrib": 10,
+                "vUnTrib": 50.00
+            },
+            "imposto": {
+                "icms": {
+                    "orig": "0",
+                    "cst": "00",
+                    "modBC": "3",
+                    "vBC": 500.00,
+                    "pICMS": 18.00,
+                    "vICMS": 90.00
+                },
+                "pis": {
+                    "cst": "01",
+                    "vBC": 500.00,
+                    "pPIS": 1.65,
+                    "vPIS": 8.25
+                },
+                "cofins": {
+                    "cst": "01",
+                    "vBC": 500.00,
+                    "pCOFINS": 7.60,
+                    "vCOFINS": 38.00
+                },
+                "vTotTrib": 136.25
+            }
+        }
+    ],
+    "pag": {
+        "detPag": [
+            {
+                "tPag": "01",
+                "vPag": 500.00
+            }
+        ]
+    }
+}

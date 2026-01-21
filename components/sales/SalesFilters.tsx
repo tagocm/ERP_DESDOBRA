@@ -25,6 +25,11 @@ export function SalesFilters({ filters, onChange }: SalesFiltersProps) {
     const [isOpen, setIsOpen] = useState(true);
     const [quickDateFilter, setQuickDateFilter] = useState<string>('custom');
 
+    // Sync props to state (handling back/forward navigation)
+    useEffect(() => {
+        setLocalFilters(filters);
+    }, [filters]);
+
     // Detect manual date change and switch to "Personalizado"
     useEffect(() => {
         // Skip if filters are being set programmatically
@@ -35,6 +40,8 @@ export function SalesFilters({ filters, onChange }: SalesFiltersProps) {
             return () => clearTimeout(timer);
         }
     }, [localFilters.dateFrom, localFilters.dateTo]);
+
+
 
     const handleApply = () => {
         onChange(localFilters);
@@ -139,7 +146,12 @@ export function SalesFilters({ filters, onChange }: SalesFiltersProps) {
                                 className="pl-9"
                                 value={localFilters.search || ''}
                                 onChange={e => setLocalFilters({ ...localFilters, search: e.target.value })}
-                                onKeyDown={e => e.key === 'Enter' && handleApply()}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleApply();
+                                    }
+                                }}
                             />
                         </div>
                     </div>
@@ -150,7 +162,12 @@ export function SalesFilters({ filters, onChange }: SalesFiltersProps) {
                             placeholder="Filtrar por cidade..."
                             value={localFilters.clientSearch || ''}
                             onChange={e => setLocalFilters({ ...localFilters, clientSearch: e.target.value })}
-                            onKeyDown={e => e.key === 'Enter' && handleApply()}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleApply();
+                                }
+                            }}
                         />
                     </div>
 
@@ -256,7 +273,6 @@ export function SalesFilters({ filters, onChange }: SalesFiltersProps) {
                             <SelectContent>
                                 <SelectItem value="all">Todos</SelectItem>
                                 <SelectItem value="pending">Pendente</SelectItem>
-                                <SelectItem value="billed">Faturado</SelectItem>
                                 <SelectItem value="partial">Parcialmente Pago</SelectItem>
                                 <SelectItem value="paid">Pago</SelectItem>
                                 <SelectItem value="overdue">Em Atraso</SelectItem>
@@ -291,6 +307,24 @@ export function SalesFilters({ filters, onChange }: SalesFiltersProps) {
                                 />
                             </PopoverContent>
                         </Popover>
+                    </div>
+
+                    <div className="space-y-1 flex items-end pb-2">
+                        <div className="flex items-center space-x-2">
+                            <input
+                                type="checkbox"
+                                id="showCancelled"
+                                className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-600"
+                                checked={localFilters.showCancelled || false}
+                                onChange={(e) => setLocalFilters({ ...localFilters, showCancelled: e.target.checked })}
+                            />
+                            <label
+                                htmlFor="showCancelled"
+                                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-gray-700"
+                            >
+                                Mostrar Cancelados
+                            </label>
+                        </div>
                     </div>
                 </div>
 

@@ -1,76 +1,123 @@
 import { useState, useEffect } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { Check, MapPin, FileText } from 'lucide-react';
+import { Check, MapPin, FileText, Printer, AlertTriangle, X, PackageMinus } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from 'next/navigation';
+import { updateOrderVolumes } from "@/lib/data/expedition";
+import { generateVolumeLabelZPL, downloadZpl } from "@/lib/zpl-generator";
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { PartialLoadingModal } from '@/components/logistics/PartialLoadingModal';
+import { useCompany } from '@/contexts/CompanyContext';
 
 interface LoadingChecklistProps {
     route: any;
+    printer?: any;
 }
 
-export function LoadingChecklist({ route }: LoadingChecklistProps) {
+export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
     const { toast } = useToast();
     const router = useRouter();
+    const { selectedCompany } = useCompany();
 
-    // Local state for optimistic updates
-    const [checkedState, setCheckedState] = useState<Record<string, boolean>>({});
     const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({});
+    const [partialModalOpen, setPartialModalOpen] = useState(false);
+    const [selectedOrderForPartial, setSelectedOrderForPartial] = useState<any>(null);
 
-    // Initialize state from props
-    useEffect(() => {
-        if (route.orders) {
-            const initial: Record<string, boolean> = {};
-            route.orders.forEach((o: any) => {
-                if (o.sales_order) {
-                    initial[o.sales_order.id] = o.sales_order.loading_checked || false;
-                }
-            });
-            setCheckedState(initial);
-        }
-    }, [route.orders]);
+    const orders = route.orders || [];
+    const supabase = createClient();
 
-    const handleToggleLoading = async (orderId: string, currentState: boolean) => {
-        // Optimistic update
-        const newState = !currentState;
-        setCheckedState(prev => ({ ...prev, [orderId]: newState }));
-        setLoadingStates(prev => ({ ...prev, [orderId]: true }));
-
+    const handleVolumeChange = async (routeId: string, routeOrder: any, newVolume: number) => {
+        if (newVolume < 1) return;
+        routeOrder.volumes = newVolume; // Optimistic
         try {
-            const supabase = createClient();
-            const { data: { session } } = await supabase.auth.getSession();
+            await updateOrderVolumes(supabase, routeId, routeOrder.sales_document_id, newVolume);
+            toast({ title: "Volumes atualizados" });
+        } catch (e) {
+            console.error(e);
+            toast({ title: "Erro ao atualizar volumes", variant: "destructive" });
+        }
+    };
 
-            const response = await fetch('/api/expedition/loading-check', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    orderId,
-                    checked: newState,
-                    userId: session?.user?.id
-                })
-            });
+    const handlePrintOrder = async (route: any, ro: any) => {
+        let zpl = '';
+        const vols = ro.volumes || 1;
+        const order = ro.sales_order!;
+        for (let i = 1; i <= vols; i++) {
+            zpl += generateVolumeLabelZPL(order, route, i, vols);
+        }
 
-            if (!response.ok) {
-                // Revert on error
-                setCheckedState(prev => ({ ...prev, [orderId]: currentState }));
-                throw new Error('Erro ao atualizar checklist');
+        if (printer) {
+            await printer.print(zpl);
+        } else {
+            downloadZpl(zpl, `etiquetas-pedido-${order.document_number}.zpl`);
+        }
+    };
+
+    const updateStatus = async (orderId: string, status: string, payload: any = null) => {
+        const routeOrder = route.orders?.find((ro: any) => ro.sales_order?.id === orderId);
+        if (!routeOrder) return;
+
+        setLoadingStates(prev => ({ ...prev, [orderId]: true }));
+        try {
+            const updateData: any = { loading_status: status };
+            if (status === 'loaded' || status === 'not_loaded' || status === 'pending') {
+                updateData.partial_payload = null;
+            }
+            if (payload !== null) {
+                updateData.partial_payload = payload;
             }
 
-            toast({
-                title: newState ? "Marcado como carregado" : "Marcação removida",
-                description: newState ? "Pedido conferido com sucesso." : "O pedido voltou para pendente."
-            });
+            const { error: routeOrderError } = await supabase
+                .from('delivery_route_orders')
+                .update(updateData)
+                .eq('id', routeOrder.id);
 
-            // Soft refresh to sync server state in background
+            if (routeOrderError) throw routeOrderError;
+
+            toast({ title: "Status atualizado", description: "Alteração salva no romaneio." });
             router.refresh();
-        } catch (err) {
-            console.error(err);
-            toast({ title: "Erro", description: 'Erro ao atualizar checklist', variant: "destructive" });
+        } catch (err: any) {
+            console.error('Update Status Error:', err);
+            toast({ title: "Erro", description: err.message || 'Erro ao atualizar status', variant: "destructive" });
         } finally {
             setLoadingStates(prev => ({ ...prev, [orderId]: false }));
         }
     };
 
-    const orders = route.orders || [];
+    const handleSetLoaded = (orderId: string, currentStatus: string) => {
+        if (currentStatus === 'loaded') {
+            updateStatus(orderId, 'pending', null);
+        } else {
+            updateStatus(orderId, 'loaded', null);
+        }
+    };
+
+    const handleSetNotLoaded = (orderId: string, currentStatus: string) => {
+        if (currentStatus === 'not_loaded') {
+            updateStatus(orderId, 'pending', null);
+        } else {
+            updateStatus(orderId, 'not_loaded', { reason: 'Não Carregado', reasonId: 'MANUAL_NOT_LOADED' });
+        }
+    };
+
+    const handleSetPartial = (orderId: string, currentStatus: string) => {
+        const routeOrder = route.orders?.find((ro: any) => ro.sales_order?.id === orderId);
+        if (routeOrder?.sales_order) {
+            handleOpenPartial(routeOrder.sales_order);
+        }
+    };
+
+    const handleOpenPartial = (order: any) => {
+        setSelectedOrderForPartial(order);
+        setPartialModalOpen(true);
+    };
+
+    const handlePartialSuccess = (payload: any) => {
+        if (selectedOrderForPartial) {
+            updateStatus(selectedOrderForPartial.id, 'partial', payload);
+        }
+    };
 
     if (orders.length === 0) {
         return (
@@ -82,79 +129,167 @@ export function LoadingChecklist({ route }: LoadingChecklistProps) {
     }
 
     return (
-        <div className="divide-y divide-gray-100">
-            {orders.map((routeOrder: any) => {
-                const order = routeOrder.sales_order;
-                if (!order) return null;
+        <>
+            <div className="divide-y divide-gray-100">
+                {orders.map((routeOrder: any) => {
+                    const order = routeOrder.sales_order;
+                    if (!order) return null;
 
-                // Use local state if available, fallback to props
-                const isChecked = checkedState[order.id] ?? order.loading_checked ?? false;
-                const isLoading = loadingStates[order.id];
+                    let status = routeOrder.loading_status;
+                    const occurrences = order.occurrences || [];
 
-                return (
-                    <div key={order.id} className="p-4 hover:bg-gray-50 transition-colors">
-                        <div className="flex items-start gap-4">
-                            {/* Checkbox */}
-                            <button
-                                onClick={() => handleToggleLoading(order.id, isChecked)}
-                                disabled={isLoading}
-                                className={`flex-shrink-0 w-6 h-6 rounded flex items-center justify-center border-2 transition-all duration-200 ${isChecked
-                                    ? 'bg-green-500 border-green-500 shadow-sm scale-105'
-                                    : 'bg-white border-gray-300 hover:border-green-500'
-                                    } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                            >
-                                {isChecked && <Check className="w-4 h-4 text-white animate-in zoom-in duration-200" />}
-                            </button>
+                    if (occurrences.some((o: any) => o.occurrence_type === 'NOT_LOADED_TOTAL')) {
+                        status = 'not_loaded';
+                    } else if (status === 'loaded') {
+                        // Keep explicit status
+                    }
 
-                            {/* Order Info */}
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className={`font-semibold transition-colors ${isChecked ? 'text-green-900' : 'text-gray-900'}`}>
-                                        {order.client?.trade_name || 'Cliente Desconhecido'}
-                                    </span>
-                                    <span className="text-xs text-gray-500">
-                                        #{order.document_number}
-                                    </span>
+                    if (!['pending', 'pendente', 'loaded', 'not_loaded', 'partial'].includes(status)) status = 'pendente';
+
+                    const isLoading = loadingStates[order.id];
+
+                    return (
+                        <div key={routeOrder.id} className={`p-4 hover:bg-gray-50 transition-colors ${status === 'not_loaded' ? 'bg-red-50/40' :
+                            status === 'partial' ? 'bg-orange-50/40' : ''
+                            }`}>
+                            <div className="flex items-start gap-4">
+                                <div className="flex flex-col gap-2 pt-1">
+                                    {/* Green: Loaded */}
+                                    <button
+                                        onClick={() => handleSetLoaded(order.id, status)}
+                                        disabled={isLoading}
+                                        title="Carregado (Completo)"
+                                        className={`w-6 h-6 rounded flex items-center justify-center border transition-all duration-200 ${status === 'loaded'
+                                            ? 'bg-green-500 border-green-500 shadow-sm'
+                                            : 'bg-white border-green-200 hover:border-green-400'
+                                            }`}
+                                    >
+                                        {status === 'loaded' && <Check className="w-4 h-4 text-white" />}
+                                    </button>
+
+                                    {/* Yellow: Partial (New) */}
+                                    <button
+                                        onClick={() => handleSetPartial(order.id, status)}
+                                        disabled={isLoading}
+                                        title="Carregamento Parcial"
+                                        className={`w-6 h-6 rounded flex items-center justify-center border transition-all duration-200 ${status === 'partial'
+                                            ? 'bg-amber-400 border-amber-400 shadow-sm' // Using amber/yellow
+                                            : 'bg-white border-amber-200 hover:border-amber-400'
+                                            }`}
+                                    >
+                                        {status === 'partial' && <PackageMinus className="w-4 h-4 text-white" />}
+                                    </button>
+
+                                    {/* Red: Not Loaded */}
+                                    <button
+                                        onClick={() => handleSetNotLoaded(order.id, status)}
+                                        disabled={isLoading}
+                                        title="Não Carregado"
+                                        className={`w-6 h-6 rounded flex items-center justify-center border transition-all duration-200 ${status === 'not_loaded'
+                                            ? 'bg-red-500 border-red-500 shadow-sm'
+                                            : 'bg-white border-red-200 hover:border-red-400'
+                                            }`}
+                                    >
+                                        {status === 'not_loaded' && <X className="w-4 h-4 text-white" />}
+                                    </button>
                                 </div>
 
-                                {order.client?.addresses?.[0]?.city && (
-                                    <div className="flex items-center gap-1 text-sm text-gray-600 mb-2">
-                                        <MapPin className="w-3 h-3" />
-                                        {order.client.addresses[0].city}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <span className={`font-semibold transition-colors ${status === 'loaded' ? 'text-green-900' :
+                                            status === 'not_loaded' ? 'text-red-800 line-through decoration-red-400' :
+                                                status === 'partial' ? 'text-orange-900' :
+                                                    'text-gray-900'
+                                            }`}>
+                                            {order.client?.trade_name || 'Cliente Desconhecido'}
+                                        </span>
+                                        <span className="text-xs text-gray-500">#{order.document_number}</span>
+                                        <span className="text-gray-300">|</span>
+                                        <span className="text-xs font-medium text-gray-600">
+                                            {new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(order.total_weight_kg || 0)} kg
+                                        </span>
                                     </div>
-                                )}
 
-                                {/* Items */}
-                                <div className="text-sm text-gray-600">
-                                    {order.items && order.items.length > 0 ? (
-                                        <ul className="space-y-1">
-                                            {order.items.map((item: any) => (
-                                                <li key={item.id} className="flex justify-between">
-                                                    <span>{item.product?.name || 'Produto'}</span>
-                                                    <span className="font-medium">{item.quantity} un</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    ) : (
-                                        <span className="text-gray-400">Sem itens</span>
+                                    {order.client?.addresses?.[0]?.city && (
+                                        <div className="flex items-center gap-1 text-sm text-gray-600 mb-2">
+                                            <MapPin className="w-3 h-3" />
+                                            {order.client.addresses[0].city}
+                                        </div>
                                     )}
-                                </div>
-                            </div>
 
-                            {/* Status */}
-                            <div className="flex-shrink-0">
-                                <div className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-all duration-300 ${isChecked
-                                    ? 'bg-green-100 text-green-700 shadow-sm'
-                                    : 'bg-gray-100 text-gray-600'
-                                    }`}>
-                                    {isChecked && <Check className="w-3 h-3" />}
-                                    {isChecked ? 'Carregado' : 'Pendente'}
+                                    {status === 'not_loaded' && (
+                                        <div className="flex items-center gap-1.5 mb-2 px-2 py-1 bg-red-100/50 rounded text-xs text-red-800 border border-red-100 w-fit">
+                                            <X className="w-3 h-3" />
+                                            <span>Não Carregado</span>
+                                        </div>
+                                    )}
+
+                                    {status === 'partial' && (
+                                        <div className="flex items-center gap-1.5 mb-2 px-2 py-1 bg-orange-100/50 rounded text-xs text-orange-800 border border-orange-100 w-fit">
+                                            <PackageMinus className="w-3 h-3" />
+                                            <span>Carregamento Parcial</span>
+                                        </div>
+                                    )}
+
+                                    <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                        <div className="flex items-center gap-1">
+                                            <label className="text-[10px] text-gray-500 uppercase font-bold">Vol:</label>
+                                            <Input
+                                                type="number"
+                                                min={1}
+                                                defaultValue={routeOrder.volumes || 1}
+                                                className="w-16 h-7 text-xs px-1 text-center"
+                                                onBlur={(e) => handleVolumeChange(route.id, routeOrder, parseInt(e.target.value))}
+                                                onClick={(e) => e.stopPropagation()}
+                                            />
+                                        </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 px-2 text-xs gap-1 text-gray-500"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handlePrintOrder(route, routeOrder);
+                                            }}
+                                            title="Imprimir etiquetas"
+                                        >
+                                            <Printer className="w-3 h-3" />
+                                            Etiquetas
+                                        </Button>
+                                    </div>
+
+                                    <div className="text-sm text-gray-600">
+                                        {order.items && order.items.length > 0 ? (
+                                            <ul className="space-y-1">
+                                                {order.items.map((item: any) => (
+                                                    <li key={item.id} className="flex justify-between">
+                                                        <span>{item.product?.name || 'Produto'}</span>
+                                                        <span className="font-medium">
+                                                            {item.balance !== undefined ? item.balance : item.quantity} {item.packaging?.label || 'un'}
+                                                        </span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <span className="text-gray-400">Sem itens</span>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                );
-            })}
-        </div>
+                    );
+                })}
+            </div>
+
+            {selectedCompany && (
+                <PartialLoadingModal
+                    isOpen={partialModalOpen}
+                    onClose={() => setPartialModalOpen(false)}
+                    order={selectedOrderForPartial}
+                    companyId={selectedCompany.id}
+                    onSuccess={handlePartialSuccess}
+                />
+            )}
+        </>
     );
 }

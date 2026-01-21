@@ -5,13 +5,14 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Plus, Loader2, CheckCircle, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 interface WorkOrder {
     id: string;
+    document_number: number;
     item_id: string;
     planned_qty: number;
     produced_qty: number;
@@ -155,12 +156,16 @@ export default function OrdensPage() {
             <div className="mb-6">
                 <Select
                     value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-64"
+                    onValueChange={setStatusFilter}
                 >
-                    {STATUS_OPTIONS.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
+                    <SelectTrigger className="w-64">
+                        <SelectValue placeholder="Filtrar por status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {STATUS_OPTIONS.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                    </SelectContent>
                 </Select>
             </div>
 
@@ -168,6 +173,9 @@ export default function OrdensPage() {
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Nº ID
+                            </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Produto
                             </th>
@@ -191,13 +199,13 @@ export default function OrdensPage() {
                     <tbody className="bg-white divide-y divide-gray-200">
                         {isLoading ? (
                             <tr>
-                                <td colSpan={6} className="px-6 py-12 text-center">
+                                <td colSpan={7} className="px-6 py-12 text-center">
                                     <Loader2 className="w-8 h-8 animate-spin text-brand-600 mx-auto" />
                                 </td>
                             </tr>
                         ) : workOrders.length === 0 ? (
                             <tr>
-                                <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                                <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                                     <div className="flex flex-col items-center gap-3">
                                         <div className="text-4xl">🏭</div>
                                         <p className="text-lg font-medium">Nenhuma ordem de produção</p>
@@ -205,43 +213,52 @@ export default function OrdensPage() {
                                 </td>
                             </tr>
                         ) : (
-                            workOrders.map((wo) => (
-                                <tr key={wo.id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-medium text-gray-900">
-                                            {wo.item?.name}
-                                        </div>
-                                        {wo.item?.sku && (
-                                            <div className="text-xs text-gray-500 font-mono">
-                                                {wo.item.sku}
+                            workOrders.map((wo) => {
+                                const idDisplay = wo.document_number
+                                    ? `#${wo.document_number.toString().padStart(4, '0')}`
+                                    : `#${wo.id.substring(0, 8)}`; // Fallback
+
+                                return (
+                                    <tr key={wo.id} className="hover:bg-gray-50">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-500">
+                                            {idDisplay}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="text-sm font-medium text-gray-900">
+                                                {wo.item?.name}
                                             </div>
-                                        )}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                                        {wo.planned_qty} {wo.item?.uom}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
-                                        {wo.produced_qty} {wo.item?.uom}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-center">
-                                        {getStatusBadge(wo.status)}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                        {new Date(wo.created_at).toLocaleDateString('pt-BR')}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                        {(wo.status === 'planned' || wo.status === 'in_progress') && (
-                                            <Button
-                                                size="sm"
-                                                onClick={() => handleFinish(wo)}
-                                            >
-                                                <CheckCircle className="w-4 h-4 mr-1" />
-                                                Finalizar
-                                            </Button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))
+                                            {wo.item?.sku && (
+                                                <div className="text-xs text-gray-500 font-mono">
+                                                    {wo.item.sku}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                                            {wo.planned_qty} {wo.item?.uom}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
+                                            {wo.produced_qty} {wo.item?.uom}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                            {getStatusBadge(wo.status)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                            {new Date(wo.created_at).toLocaleDateString('pt-BR')}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
+                                            {(wo.status === 'planned' || wo.status === 'in_progress') && (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => handleFinish(wo)}
+                                                >
+                                                    <CheckCircle className="w-4 h-4 mr-1" />
+                                                    Finalizar
+                                                </Button>
+                                            )}
+                                        </td>
+                                    </tr>
+                                )
+                            })
                         )}
                     </tbody>
                 </table>

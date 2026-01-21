@@ -42,14 +42,12 @@ export async function POST(request: Request) {
         const skippedCount = ids.length - validIds.length;
 
         if (validIds.length > 0) {
-            // 2. Soft Delete
+            // 2. Soft Delete (only deleted_at exists in the table)
             const { error: deleteError } = await supabase
                 .from('sales_documents')
                 .update({
                     deleted_at: new Date().toISOString(),
-                    deleted_by: user.id,
-                    delete_reason: 'Exclusão em Lote',
-                    status_commercial: 'cancelled' // Optionally mark as cancelled
+                    status_commercial: 'cancelled' // Mark as cancelled
                 })
                 .in('id', validIds);
 
@@ -58,16 +56,18 @@ export async function POST(request: Request) {
                 return NextResponse.json({ error: 'Erro ao excluir pedidos.' }, { status: 500 });
             }
 
-            // Log history
-            const logEntries = validDocs.map(doc => ({
-                document_id: doc.id,
-                user_id: user.id,
-                event_type: 'archived',
-                description: `Pedido excluído em lote.`,
-                metadata: { reason: 'batch_delete' }
-            }));
 
-            await supabase.from('sales_document_history').insert(logEntries);
+            // Log history
+            // TODO: Restore when sales_document_history table is created via migration
+            // const logEntries = validDocs.map(doc => ({
+            //     document_id: doc.id,
+            //     user_id: user.id,
+            //     event_type: 'archived',
+            //     description: `Pedido excluído em lote.`,
+            //     metadata: { reason: 'batch_delete' }
+            // }));
+
+            // await supabase.from('sales_document_history').insert(logEntries);
         }
 
         return NextResponse.json({ deleted: validIds.length, skipped: skippedCount });

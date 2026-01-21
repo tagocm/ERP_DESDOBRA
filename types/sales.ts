@@ -1,8 +1,8 @@
 
 export type SalesStatus = 'draft' | 'sent' | 'approved' | 'confirmed' | 'cancelled' | 'lost';
-export type LogisticStatus = 'pending' | 'roteirizado' | 'agendado' | 'em_rota' | 'entregue' | 'nao_entregue';
+export type LogisticStatus = 'pendente' | 'roteirizado' | 'agendado' | 'em_rota' | 'entregue' | 'devolvido' | 'parcial';
 export type FiscalStatus = 'none' | 'authorized' | 'cancelled' | 'error';
-export type FinancialStatus = 'pending' | 'partial' | 'paid' | 'refunded';
+export type FinancialStatus = 'pendente' | 'pre_lancado' | 'aprovado' | 'em_revisao' | 'cancelado';
 export type DocType = 'proposal' | 'order';
 
 export interface SalesOrder {
@@ -25,6 +25,12 @@ export interface SalesOrder {
     status_logistic: LogisticStatus;
     status_fiscal: FiscalStatus;
     financial_status: FinancialStatus;
+
+    // Operational Block
+    dispatch_blocked?: boolean;
+    dispatch_blocked_reason?: string | null;
+    dispatch_blocked_at?: string | null;
+    dispatch_blocked_by?: string | null;
 
 
     is_antecipada: boolean;
@@ -132,13 +138,21 @@ export interface SalesOrderItem {
     unit_weight_kg?: number | null;
     gross_weight_kg_snapshot?: number | null;
 
+    // NFe Description Snapshots (for historical integrity)
+    sales_uom_abbrev_snapshot?: string | null; // e.g., "CX", "FD"
+    base_uom_abbrev_snapshot?: string | null;   // e.g., "PC", "KG"
+    conversion_factor_snapshot?: number | null;  // e.g., 12 (qty_in_base)
+    sales_unit_label_snapshot?: string | null;   // e.g., "CX 12xPC"
+
     product?: {
         id: string;
         name: string;
         sku?: string;
         un?: string; // unit name
         base_weight_kg?: number; // Legacy
+        net_weight_kg_base?: number | null;
         net_weight_g_base?: number | null;
+        gross_weight_kg_base?: number | null;
         gross_weight_g_base?: number | null;
         packagings?: ItemPackaging[]; // Available packagings
     };
@@ -153,8 +167,8 @@ export interface ItemPackaging {
     label: string;
     qty_in_base: number;
     gtin_ean?: string;
-    net_weight_g?: number;
-    gross_weight_g?: number;
+    net_weight_kg?: number;
+    gross_weight_kg?: number;
     is_default_sales_unit: boolean;
     is_active: boolean;
 }

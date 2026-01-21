@@ -18,8 +18,7 @@ export async function getPaymentModes(companyId: string) {
             id, 
             name, 
             is_active,
-            company_id,
-            organizations:organizations(count)
+            company_id
         `)
         .eq('company_id', companyId)
         .order('name');
@@ -28,7 +27,7 @@ export async function getPaymentModes(companyId: string) {
 
     return data.map((d: any) => ({
         ...d,
-        usage_count: d.organizations?.[0]?.count || 0
+        usage_count: 0
     })) as PaymentMode[];
 }
 
