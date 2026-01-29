@@ -89,6 +89,16 @@ export interface SalesOrder {
     nfes?: SalesOrderNfe[];
     history?: SalesOrderHistory[];
     adjustments?: SalesOrderAdjustment[];
+
+    // For Close Balance Logic
+    deliveries?: {
+        id: string;
+        status: string;
+        items: {
+            sales_document_item_id: string;
+            qty_delivered: number;
+        }[];
+    }[];
 }
 
 export interface SalesOrderItem {
