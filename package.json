@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "lint:strict": "eslint . --max-warnings 0",
     "ui:check": "node scripts/ui-check.mjs warn",
     "ui:check:strict": "node scripts/ui-check.mjs strict",
     "supabase:login": "npx supabase login",
