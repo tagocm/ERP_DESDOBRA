@@ -452,8 +452,13 @@ export default function WorkOrdersPage() {
 function StatusChangeModal({ isOpen, onClose, onConfirm, requireReason, newStatus }: any) {
     const [reason, setReason] = useState("");
 
-    // Reset when opening
-    useEffect(() => { if (isOpen) setReason(""); }, [isOpen]);
+    const handleOpenChange = (open: boolean) => {
+        if (!open) {
+            onClose();
+            // Reset reason when closing
+            setReason("");
+        }
+    };
 
     const handleSubmit = () => {
         if (requireReason && !reason.trim()) {
@@ -469,7 +474,7 @@ function StatusChangeModal({ isOpen, onClose, onConfirm, requireReason, newStatu
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>{getTitle()}</DialogTitle>
@@ -506,15 +511,21 @@ function StatusChangeModal({ isOpen, onClose, onConfirm, requireReason, newStatu
 function NegativeStockModal({ isOpen, onClose, items, onConfirm }: any) {
     const [reason, setReason] = useState("");
 
-    useEffect(() => { if (isOpen) setReason(""); }, [isOpen]);
+    const handleOpenChange = (open: boolean) => {
+        if (!open) {
+            onClose();
+            // Reset reason when closing
+            setReason("");
+        }
+    };
 
     const handleSubmit = () => {
         if (!reason.trim()) return;
         onConfirm(reason);
-    }
+    };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
             <DialogContent className="max-w-lg">
                 <DialogHeader>
                     <DialogTitle className="text-amber-600 flex items-center gap-2">
