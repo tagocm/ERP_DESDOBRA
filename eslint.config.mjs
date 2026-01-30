@@ -3,7 +3,7 @@ import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
 
 const eslintConfig = defineConfig([
-  { ignores: [".gemini/**", "types/**"] },
+  { ignores: [".gemini/**", "types/**", "scripts/**"] },
   {
     files: ["types/**/*.{ts,tsx}", "**/*.d.ts"],
     rules: {
