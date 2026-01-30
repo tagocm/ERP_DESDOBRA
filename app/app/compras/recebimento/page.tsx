@@ -29,42 +29,50 @@ export default function Page() {
     const [isLoading, setIsLoading] = useState(true);
 
     const fetchOrders = async () => {
-        if (!selectedCompany) return;
+        if (!selectedCompany) {
+            setIsLoading(false);
+            return;
+        }
+
         setIsLoading(true);
-        // Load incoming entries (Status: sent) - Waiting for receipt
-        const { data: sent } = await supabase
-            .from('purchase_orders')
-            .select(`
-                *,
-                supplier:organizations!supplier_id(id, name:trade_name),
-                payment_term:payment_terms!payment_terms_id(name),
-                payment_mode:payment_modes!payment_mode_id(name),
-                items:purchase_order_items(id),
-                receiving_blocked, receiving_blocked_reason
-            `)
-            .eq('company_id', selectedCompany.id)
-            .eq('status', 'sent')
-            .order('ordered_at', { ascending: false });
 
-        if (sent) setIncomingOrders(sent);
+        try {
+            // Load incoming entries (Status: sent) - Waiting for receipt
+            const { data: sent } = await supabase
+                .from('purchase_orders')
+                .select(`
+                    *,
+                    supplier:organizations!supplier_id(id, name:trade_name),
+                    payment_term:payment_terms!payment_terms_id(name),
+                    payment_mode:payment_modes!payment_mode_id(name),
+                    items:purchase_order_items(id),
+                    receiving_blocked, receiving_blocked_reason
+                `)
+                .eq('company_id', selectedCompany.id)
+                .eq('status', 'sent')
+                .order('ordered_at', { ascending: false });
 
-        // Load recent receipts (Status: received) - History
-        const { data: received } = await supabase
-            .from('purchase_orders')
-            .select(`
-                *,
-                supplier:organizations!supplier_id(id, name:trade_name),
-                payment_term:payment_terms!payment_terms_id(name),
-                payment_mode:payment_modes!payment_mode_id(name),
-                items:purchase_order_items(id)
-            `)
-            .eq('company_id', selectedCompany.id)
-            .eq('status', 'received')
-            .order('updated_at', { ascending: false })
-            .limit(10);
+            if (sent) setIncomingOrders(sent);
 
-        if (received) setRecentReceipts(received);
-        setIsLoading(false);
+            // Load recent receipts (Status: received) - History
+            const { data: received } = await supabase
+                .from('purchase_orders')
+                .select(`
+                    *,
+                    supplier:organizations!supplier_id(id, name:trade_name),
+                    payment_term:payment_terms!payment_terms_id(name),
+                    payment_mode:payment_modes!payment_mode_id(name),
+                    items:purchase_order_items(id)
+                `)
+                .eq('company_id', selectedCompany.id)
+                .eq('status', 'received')
+                .order('updated_at', { ascending: false })
+                .limit(10);
+
+            if (received) setRecentReceipts(received);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     useEffect(() => {
