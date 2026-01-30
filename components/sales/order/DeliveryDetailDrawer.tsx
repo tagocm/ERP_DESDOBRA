@@ -56,21 +56,21 @@ export function DeliveryDetailDrawer({ deliveryId, open, onClose }: DeliveryDeta
     useEffect(() => {
         if (open && deliveryId) {
             console.log('[DeliveryDetailDrawer] Opening with deliveryId:', deliveryId);
-            setLoading(true);
-            fetch(`/api/deliveries/${deliveryId}`)
-                .then(res => {
+            // Start async work immediately, setState only in async callbacks
+            (async () => {
+                setLoading(true);
+                try {
+                    const res = await fetch(`/api/deliveries/${deliveryId}`);
                     console.log('[DeliveryDetailDrawer] Response status:', res.status);
-                    return res.json();
-                })
-                .then(data => {
-                    console.log('[DeliveryDetailDrawer] Received data:', data);
-                    setData(data);
-                    setLoading(false);
-                })
-                .catch(err => {
+                    const json = await res.json();
+                    console.log('[DeliveryDetailDrawer] Received data:', json);
+                    setData(json);
+                } catch (err) {
                     console.error('[DeliveryDetailDrawer] Error:', err);
+                } finally {
                     setLoading(false);
-                });
+                }
+            })();
         } else if (!open) {
             setData(null);
         }
