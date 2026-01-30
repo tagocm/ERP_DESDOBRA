@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { X, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
@@ -37,109 +37,84 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
     const [types, setTypes] = useState<{ value: string, label: string }[]>(DEFAULT_TYPES);
     const [manageTypesOpen, setManageTypesOpen] = useState(false);
 
-    const [formData, setFormData] = useState<Partial<ItemPackaging>>({
-        type: 'BOX',
-        label: '',
-        qty_in_base: 1,
-        gtin_ean: '',
-        net_weight_kg: 0,
-        gross_weight_kg: 0,
-        height_cm: 0,
-        width_cm: 0,
-        length_cm: 0,
-        is_active: true,
-        is_default_sales_unit: false
+    // Initialize formData from initialData or defaults
+    const [formData, setFormData] = useState<Partial<ItemPackaging>>(() => {
+        if (initialData) {
+            return {
+                ...initialData,
+                net_weight_kg: initialData.net_weight_kg || 0,
+                gross_weight_kg: initialData.gross_weight_kg || 0,
+                height_cm: initialData.height_cm || 0,
+                width_cm: initialData.width_cm || 0,
+                length_cm: initialData.length_cm || 0
+            };
+        }
+        return {
+            type: 'BOX',
+            label: '',
+            qty_in_base: 1,
+            gtin_ean: '',
+            net_weight_kg: 0,
+            gross_weight_kg: 0,
+            height_cm: 0,
+            width_cm: 0,
+            length_cm: 0,
+            is_active: true,
+            is_default_sales_unit: false
+        };
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
+    // If editing existing packaging, weights/labels are considered manual
+    const [manualWeightOverride, setManualWeightOverride] = useState(!!initialData);
+    const [manualLabelOverride, setManualLabelOverride] = useState(!!initialData);
 
+    // Load types when modal opens
     useEffect(() => {
         if (isOpen && selectedCompany?.id) {
-            // Load types
             getPackagingTypes(selectedCompany.id).then(data => {
                 if (data && data.length > 0) {
                     setTypes(data.map(t => ({ value: t.code, label: t.name })));
                 }
             }).catch(console.error);
-
-            if (initialData) {
-                setFormData({
-                    ...initialData,
-                    net_weight_kg: initialData.net_weight_kg || 0,
-                    gross_weight_kg: initialData.gross_weight_kg || 0,
-                    height_cm: initialData.height_cm || 0,
-                    width_cm: initialData.width_cm || 0,
-                    length_cm: initialData.length_cm || 0
-                });
-            } else {
-                setFormData({
-                    type: types[0]?.value || 'BOX',
-                    label: '',
-                    qty_in_base: 1,
-                    gtin_ean: '',
-                    net_weight_kg: 0,
-                    gross_weight_kg: 0,
-                    height_cm: 0,
-                    width_cm: 0,
-                    length_cm: 0,
-                    is_active: true,
-                    is_default_sales_unit: false
-                });
-            }
-            setErrors({});
         }
-    }, [isOpen, initialData, selectedCompany, manageTypesOpen]); // Reload when management modal closes
+    }, [isOpen, selectedCompany, manageTypesOpen]);
 
-    // Auto-calculate weights when Qty changes (only if it matches base unit * qty roughly)
-    useEffect(() => {
-        if (isOpen && formData.qty_in_base) {
-            // Only calc if we are CREATING or if user specifically changed qty (hard to track "user changed qty" in simple effect, but we can check if it deviates)
-            // Ideally: If I change Qty, Recalc.
-            // But if I load an existing item, don't overwrite unless I change qty.
-            // We can just rely on the user seeing the update.
-            // Simple approach: When qty changes, update weights.
+    // Derive calculated weights
+    const calculatedWeights = useMemo(() => {
+        const qty = formData.qty_in_base || 0;
+        return {
+            net: (baseNetWeight || 0) * qty,
+            gross: (baseGrossWeight || 0) * qty
+        };
+    }, [formData.qty_in_base, baseNetWeight, baseGrossWeight]);
 
-            // However, we must avoid overwriting manual edits if qty didn't change (initial load).
-            // Initial load sets formData.
+    // Derive suggested label  
+    const suggestedLabel = useMemo(() => {
+        if (!formData.type || !formData.qty_in_base || !baseUom) return '';
+        const typeLabel = types.find(t => t.value === formData.type)?.label;
+        return typeLabel ? `${typeLabel} ${formData.qty_in_base}x${baseUom}` : '';
+    }, [formData.type, formData.qty_in_base, baseUom, types]);
 
-            // Use a ref to track previous qty? Or just let it be reactive.
-            // Reactivity: Qty changes -> we update weights.
-            // Problem: On initial load (editing), Qty is set. We shouldn't overwrite saved weights.
-            // Solution: only run this effect if `initialData` didn't already provide weights OR if user changes Qty diff from initial.
+    // Use effective values: manual override takes precedence, otherwise use calculated
+    const effectiveWeights = {
+        net: manualWeightOverride ? (formData.net_weight_kg ?? 0) : calculatedWeights.net,
+        gross: manualWeightOverride ? (formData.gross_weight_kg ?? 0) : calculatedWeights.gross
+    };
 
-            // Better: We track if qty matches initial. If so, do nothing. If not, calc.
-
-            const isInitialQty = initialData && initialData.qty_in_base === formData.qty_in_base;
-
-            if (!isInitialQty) {
-                const calculatedNet = (baseNetWeight || 0) * (formData.qty_in_base || 0);
-                const calculatedGross = (baseGrossWeight || 0) * (formData.qty_in_base || 0);
-
-                setFormData(prev => ({
-                    ...prev,
-                    net_weight_kg: calculatedNet,
-                    gross_weight_kg: calculatedGross
-                }));
-            }
-        }
-    }, [formData.qty_in_base, baseNetWeight, baseGrossWeight, isOpen]); // removed initialData from dep to avoid loops, handled in logic
-
-
-    // Auto-suggest label
-    useEffect(() => {
-        if (!initialData && formData.type && formData.qty_in_base && baseUom) {
-            const typeLabel = types.find(t => t.value === formData.type)?.label;
-            if (typeLabel && (!formData.label || formData.label.includes(typeLabel))) {
-                setFormData(prev => ({
-                    ...prev,
-                    label: `${typeLabel} ${formData.qty_in_base}x${baseUom}`
-                }));
-            }
-        }
-    }, [formData.type, formData.qty_in_base, baseUom, initialData]);
+    const effectiveLabel = manualLabelOverride || initialData ? (formData.label || '') : (suggestedLabel || formData.label || '');
 
     const handleChange = (field: keyof ItemPackaging, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+
+        // Mark as manually overridden if user edits weights or label
+        if (field === 'net_weight_kg' || field === 'gross_weight_kg') {
+            setManualWeightOverride(true);
+        }
+        if (field === 'label') {
+            setManualLabelOverride(true);
+        }
+
         if (errors[field]) {
             setErrors(prev => {
                 const newErrors = { ...prev };
@@ -247,7 +222,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                         <div className="col-span-12 space-y-1">
                             <Label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Rótulo / Descrição *</Label>
                             <Input
-                                value={formData.label}
+                                value={effectiveLabel}
                                 onChange={(e) => handleChange('label', e.target.value)}
                                 placeholder="Ex: Caixa 12x1kg"
                                 className={cn(
@@ -348,7 +323,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                         <div className="col-span-6 space-y-1">
                             <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">P. Líquido (KG)</Label>
                             <DecimalInput
-                                value={formData.net_weight_kg}
+                                value={effectiveWeights.net}
                                 onChange={(val) => handleChange('net_weight_kg', val)}
                                 precision={2}
                                 minPrecision={0}
@@ -361,7 +336,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                         <div className="col-span-6 space-y-1">
                             <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">P. Bruto (KG)</Label>
                             <DecimalInput
-                                value={formData.gross_weight_kg}
+                                value={effectiveWeights.gross}
                                 onChange={(val) => handleChange('gross_weight_kg', val)}
                                 precision={2}
                                 minPrecision={0}
