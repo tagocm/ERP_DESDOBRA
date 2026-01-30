@@ -151,7 +151,7 @@ ${cleanProtocol}
             console.error('[DANFE API] XML snippet:', xml.substring(0, 500));
 
             // Try to parse and show structure for debugging
-            let debugInfo: any = { message: pdfError.message };
+            const debugInfo: any = { message: pdfError.message };
             try {
                 const { XMLParser } = await import('fast-xml-parser');
                 const parser = new XMLParser({ ignoreAttributes: false, parseTagValue: false });

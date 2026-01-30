@@ -25,7 +25,7 @@ export function PlanningCalendar({ startDate, onDateChange, data, alerts = [], o
 
         // Initialize days
         const daysKeys: string[] = []
-        let curr = new Date(startDate)
+        const curr = new Date(startDate)
         for (let i = 0; i < 7; i++) {
             const d = curr.toISOString().split('T')[0]
             daysKeys.push(d)

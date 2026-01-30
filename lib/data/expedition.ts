@@ -338,7 +338,7 @@ export async function updateRouteSchedule(
 }
 
 export async function getScheduledRoutes(supabase: SupabaseClient, companyId: string, weekStart: string, weekEnd: string) {
-    let query = supabase
+    const query = supabase
         .from('delivery_routes')
         .select(`
             *,
