@@ -54,7 +54,7 @@ export async function POST(request: Request) {
             if (loadingStatus === 'not_loaded' || loadingStatus === 'pending') {
                 if (loadingStatus === 'not_loaded') {
                     const { reason, text_other } = ro.partial_payload || {};
-                    let note = `\n${noteTimestamp} NÃO CARREGADO na rota ${routeName}. Motivo: ${reason || 'Não informado'}. ${text_other || ''}. Pedido mantido no BACKLOG.`;
+                    const note = `\n${noteTimestamp} NÃO CARREGADO na rota ${routeName}. Motivo: ${reason || 'Não informado'}. ${text_other || ''}. Pedido mantido no BACKLOG.`;
 
                     await supabase.from('sales_documents')
                         .update({

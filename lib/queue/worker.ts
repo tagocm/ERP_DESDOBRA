@@ -108,7 +108,7 @@ export class JobWorker {
             const nextStatus = job.attempts >= job.max_attempts ? 'failed' : 'pending';
 
             // Calculate backoff if retrying (Exponential: 1m, 2m, 4m...)
-            let nextSchedule = new Date();
+            const nextSchedule = new Date();
             if (nextStatus === 'pending') {
                 const backoffMinutes = Math.pow(2, job.attempts); // 2^1=2, 2^2=4...
                 nextSchedule.setMinutes(nextSchedule.getMinutes() + backoffMinutes);

@@ -84,8 +84,8 @@ export async function emitOffline(orderId: string, companyId: string, transmit: 
 
         // 2. Prepare Key Params & Draft
 
-        let serie = nfeRecord.nfe_series || company.settings?.nfe_series || "1";
-        let nNF = nfeRecord.nfe_number || company.settings?.nfe_next_number;
+        const serie = nfeRecord.nfe_series || company.settings?.nfe_series || "1";
+        const nNF = nfeRecord.nfe_number || company.settings?.nfe_next_number;
 
         if (!nNF) {
             throw new Error('Próximo número de NF-e não configurado nas configurações da empresa.');

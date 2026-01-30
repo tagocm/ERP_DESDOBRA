@@ -293,7 +293,7 @@ export const planningService = {
         }
 
         // 4. Get Supply (Work Orders)
-        let supplyMap = new Map<string, Map<string, { net: number, gross: number }>>()
+        const supplyMap = new Map<string, Map<string, { net: number, gross: number }>>()
 
         if (options.includePlannedOps) {
             const { data: supplies, error: supplyError } = await supabaseServer
@@ -336,7 +336,7 @@ export const planningService = {
         const alerts: PlanningAlert[] = []
 
         const dates: string[] = []
-        let curr = new Date(startDate)
+        const curr = new Date(startDate)
         const end = new Date(endDate)
         while (curr <= end) {
             dates.push(curr.toISOString().split('T')[0])
@@ -472,7 +472,7 @@ export const planningService = {
             const batches = Math.ceil(item.qty / batchSize)
             const finalQty = batches * batchSize
 
-            let query = supabaseServer
+            const query = supabaseServer
                 .from('work_orders')
                 .select('*')
                 .eq('company_id', companyId)
@@ -768,7 +768,7 @@ export const planningService = {
         let logAction = newStatus === 'done' ? 'close_work_order' :
             newStatus === 'cancelled' ? 'cancel_work_order' :
                 'change_work_order_status'
-        let details: any = { from: currentStatus, to: newStatus }
+        const details: any = { from: currentStatus, to: newStatus }
 
         if (newStatus === 'in_progress') {
             if (currentStatus !== 'planned' && currentStatus !== 'planejada') throw new Error("Apenas ordens planejadas podem ser iniciadas.")

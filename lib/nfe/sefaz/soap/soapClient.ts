@@ -125,7 +125,7 @@ export async function soapRequest(
 
         // Debug Setup
         let requestId: string = "";
-        let debugDir = options.debugDir || "/tmp/desdobra-sefaz";
+        const debugDir = options.debugDir || "/tmp/desdobra-sefaz";
 
 
 

@@ -168,7 +168,7 @@ export function NFeEmissionForm({ data, orderId }: Props) {
             const newItems = [...prev.items];
             const oldItem = newItems[index];
 
-            let newItem = { ...oldItem, [field]: value };
+            const newItem = { ...oldItem, [field]: value };
 
             // Recalculate totals if needed
             if (field === 'quantity' || field === 'unit_price' || field === 'discount') {
