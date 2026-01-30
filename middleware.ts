@@ -18,7 +18,7 @@ export async function middleware(request: NextRequest) {
                     return request.cookies.getAll();
                 },
                 setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value, options }) =>
+                    cookiesToSet.forEach(({ name, value }) =>
                         request.cookies.set(name, value)
                     );
                     response = NextResponse.next({
@@ -40,7 +40,7 @@ export async function middleware(request: NextRequest) {
         if (request.nextUrl.pathname.startsWith("/app") && !user) {
             return NextResponse.redirect(new URL("/login", request.url));
         }
-    } catch (e: any) {
+    } catch (_e) {
         // Error handling can be added here if needed, but logs are removed as per instruction.
     }
 
