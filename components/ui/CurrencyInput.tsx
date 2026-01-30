@@ -19,8 +19,13 @@ interface CurrencyInputProps extends Omit<React.InputHTMLAttributes<HTMLInputEle
 
 export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
     ({ value, onChange, className, ...props }, ref) => {
-        // Store value as cents (integer) for easier manipulation
-        const [cents, setCents] = useState(0);
+        // Convert prop value to cents (integer) for initialization
+        const numberToCents = (num: number): number => {
+            return Math.round(num * 100);
+        };
+
+        // Initialize from prop value once
+        const [cents, setCents] = useState(() => numberToCents(value || 0));
         const [isFullySelected, setIsFullySelected] = useState(false);
 
         // Format cents to Brazilian currency display
@@ -37,20 +42,10 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
             return `${reaisFormatted},${centavosFormatted}`;
         };
 
-        // Convert number (decimal) to cents (integer)
-        const numberToCents = (num: number): number => {
-            return Math.round(num * 100);
-        };
-
         // Convert cents (integer) to number (decimal)
         const centsToNumber = (centsValue: number): number => {
             return centsValue / 100;
         };
-
-        // Initialize from prop value
-        useEffect(() => {
-            setCents(numberToCents(value || 0));
-        }, [value]);
 
         const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
             const input = e.currentTarget;
