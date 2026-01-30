@@ -24,16 +24,16 @@ export function PrinterConfigDialog({ open, onOpenChange, printerHook }: Printer
     const [selected, setSelected] = useState<string>(printerName || "");
     const [connecting, setConnecting] = useState(false);
 
-    useEffect(() => {
-        if (printerName) setSelected(printerName);
-    }, [printerName]);
+    // Use effective selection: prefer user's selection, fallback to printerHook's printerName
+    const effectiveSelected = selected || printerName || "";
 
-    useEffect(() => {
-        if (open && !isQZConnected && !connecting) {
+    const handleOpenChange = (newOpen: boolean) => {
+        if (newOpen && !isQZConnected && !connecting) {
             setConnecting(true);
             connectQZ().finally(() => setConnecting(false));
         }
-    }, [open, isQZConnected, connectQZ, connecting]);
+        onOpenChange(newOpen);
+    };
 
     const handleSave = async () => {
         if (!selected) return;
@@ -42,7 +42,7 @@ export function PrinterConfigDialog({ open, onOpenChange, printerHook }: Printer
     };
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
+        <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
@@ -71,7 +71,7 @@ export function PrinterConfigDialog({ open, onOpenChange, printerHook }: Printer
                     ) : (
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-gray-700">Impressora Selecionada</label>
-                            <Select value={selected} onValueChange={setSelected}>
+                            <Select value={effectiveSelected} onValueChange={setSelected}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Selecione uma impressora..." />
                                 </SelectTrigger>
