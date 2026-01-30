@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import type { Database } from '../types/supabase';
 import * as dotenv from 'dotenv';
 
 dotenv.config({ path: '.env.local' });
@@ -6,7 +7,7 @@ dotenv.config({ path: '.env.local' });
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 
 async function checkHistoryTable() {
     console.log('🔍 Checking sales_document_history table...\n');

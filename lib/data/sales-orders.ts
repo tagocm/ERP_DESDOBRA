@@ -208,6 +208,10 @@ export async function upsertSalesDocument(supabase: SupabaseClient, doc: Partial
     if (cleanDoc.payment_terms_id === '') cleanDoc.payment_terms_id = null;
     if (cleanDoc.price_table_id === '') cleanDoc.price_table_id = null;
 
+    // Ensure Defaults (Backend Safety)
+    if (!cleanDoc.financial_status) cleanDoc.financial_status = 'pendente';
+
+
     // VALIDATION: Block Edit if locked statuses are met (Fiscal Authorized or Logistic In Route/Finalized)
     if (cleanDoc.id) {
         const { data: current } = await supabase

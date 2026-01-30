@@ -120,9 +120,9 @@ export async function getNFeEmissionData(orderId: string): Promise<EmissionData>
         .select(`
             *,
             client:organizations!client_id(*, addresses(*)),
-            items:sales_document_items(*, packaging:item_packaging(*), product:items(*, fiscal:item_fiscal_profiles(*))),
+            items:sales_document_items!sales_document_items_document_id_fkey(*, packaging:item_packaging(*), product:items!sales_document_items_item_id_fkey(*, fiscal:item_fiscal_profiles(*))),
             payments:sales_document_payments(*),
-            payment_term:payment_terms(*),
+            payment_term:payment_terms!fk_sales_doc_payment_terms(*),
             carrier:organizations!carrier_id(*, addresses(*))
         `)
         .eq('id', orderId)
@@ -226,7 +226,8 @@ export async function saveNFeDraft(orderId: string, draftData: NFeDraftData) {
 }
 
 export async function emitNFe(orderId: string, draftData: NFeDraftData) {
-    const supabase = await createClient();
+    const supabase = await createClient(); // Auth client (checks sender)
+    const adminSupabase = await import('@/lib/supabaseServer').then(m => m.createAdminClient()); // Admin client (for queue insertion)
 
     // 0. Concurrency Check (Guardrail)
     const { data: existingProcessing } = await supabase
@@ -243,46 +244,56 @@ export async function emitNFe(orderId: string, draftData: NFeDraftData) {
     // 1. Save final state
     await saveNFeDraft(orderId, draftData);
 
-    // 2. Call Emission Logic (SEFAZ integration would go here)
-    // PATCH: Call emitOffline to Generate & Sign XML (without transmission)
-
-    // Get company_id from the order instead of draftData (more reliable)
+    // Get company_id (needed for worker to know who is emitting)
     const { data: order } = await supabase
         .from('sales_documents')
         .select('company_id')
         .eq('id', orderId)
         .single();
 
-    const companyId = order?.company_id;
-    if (!companyId) {
-        throw new Error("Pedido não encontrado ou sem empresa vinculada.");
+    if (!order?.company_id) throw new Error("Pedido sem empresa vinculada.");
+
+    // 2. ENQUEUE JOB
+    console.log(`[emitNFe] Enqueueing NFE_EMIT for Order ${orderId}`);
+
+    const { data: job, error: jobError } = await adminSupabase
+        .from('jobs_queue')
+        .insert({
+            job_type: 'NFE_EMIT',
+            payload: { orderId, companyId: order.company_id },
+            status: 'pending'
+        })
+        .select('id')
+        .single();
+
+    if (jobError || !job) {
+        console.error('[emitNFe] Job Enqueue Error:', jobError);
+        throw new Error("Falha ao enfileirar processamento.");
     }
 
-    // We also need to ensure the record exists in 'processing' state or let emitOffline handle it?
-    // emitOffline expects an existing record? 
-    // Checking emitOffline implementation:
-    // It fetches "nfeRecord" by document_id.
-    // If we just inserted it as 'draft' above (saveNFeDraft), emitOffline might fail if it looks for 'processing'?
-    // emitOffline checks: .eq('document_id', orderId).order(...).limit(1).single()
-    // and expects "nfeRecord".
-    // So if we have a draft, emitOffline will pick it up.
+    // Return 202-like response with Job ID
+    return {
+        success: true,
+        jobId: job.id,
+        message: 'Solicitação enfileirada com sucesso. Aguarde o processamento.'
+    };
+}
 
-    // HOWEVER, emitOffline updates status to 'processing'.
-    // So we don't need to manually update status here before calling it, 
-    // UNLESS emitOffline expects 'processing' to be set by caller?
-    // emitOffline line 67: "Get NFe record (created by emitNFe in 'processing' state or 'draft')"
-    // So it finds 'draft' too.
+// NEW: Polling Action (Called by UI)
+export async function pollNFeJobStatus(jobId: string) {
+    const adminSupabase = await import('@/lib/supabaseServer').then(m => m.createAdminClient());
 
-    // Import emitOffline dynamically or at top? Top is better.
-    // Assuming import { emitOffline } from '@/lib/fiscal/nfe/offline/emitOffline'; added.
+    const { data: job, error } = await adminSupabase
+        .from('jobs_queue')
+        .select('status, last_error, updated_at')
+        .eq('id', jobId)
+        .single();
 
-    // Call emitOffline (now supports transmit=true)
-    const result = await emitOffline(orderId, companyId, true);
+    if (error || !job) return { status: 'unknown' };
 
-    if (!result.success) {
-        throw new Error(result.message || "Falha na emissão.");
-    }
-
-    revalidatePath('/app/fiscal/nfe');
-    return { success: true, message: result.message || 'NF-e enviada com sucesso.' };
+    return {
+        status: job.status,
+        last_error: job.last_error,
+        updated_at: job.updated_at
+    };
 }
