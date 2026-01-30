@@ -58,7 +58,7 @@ export async function listPendingTitlesAction() {
     }
 }
 
-export async function approveTitleAction(id: string, type: 'AP' | 'AR', installments: any[]) {
+export async function approveTitleAction(id: string, type: 'AP' | 'AR', installments: unknown[]) {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Unauthorized' }
@@ -122,7 +122,7 @@ export async function rejectTitleAction(id: string, type: 'AP' | 'AR') {
     }
 }
 
-export async function updateTitleAction(id: string, type: 'AP' | 'AR', updates: any) {
+export async function updateTitleAction(id: string, type: 'AP' | 'AR', updates: unknown) {
     const supabase = createClient()
     try {
         const payload = {

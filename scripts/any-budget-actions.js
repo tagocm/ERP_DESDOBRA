@@ -15,8 +15,8 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// Baseline from 2026-01-30 audit
-const BASELINE = 34;
+// Baseline from 2026-01-30 audit (updated PR2)
+const BASELINE = 13; // Reduced from 34
 const TARGET_DIR = 'app/actions';
 
 console.log('🔍 Type Safety Budget Check for app/actions\n');
