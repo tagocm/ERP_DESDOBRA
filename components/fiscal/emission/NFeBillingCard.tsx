@@ -19,15 +19,11 @@ interface Props {
 export function NFeBillingCard({ billing, totalAmount, paymentTerm: initialTerm, availableTerms = [], onChange }: Props) {
     const [selectedTermId, setSelectedTermId] = useState<string>(initialTerm?.id || '');
 
-    // Sync local state if initialTerm changes (and not yet set)
-    useEffect(() => {
-        if (initialTerm?.id && !selectedTermId) {
-            setSelectedTermId(initialTerm.id);
-        }
-    }, [initialTerm, selectedTermId]);
+    // Derived effective term ID: prefer selected, fallback to initial
+    const effectiveTermId = selectedTermId || initialTerm?.id || '';
 
     // Derived active term
-    const activeTerm = availableTerms.find(t => t.id === selectedTermId) || initialTerm;
+    const activeTerm = availableTerms.find(t => t.id === effectiveTermId) || initialTerm;
 
     // ... (handleInstChange, handleAddInstallment, handleDeleteInstallment keep same) ...
     // Note: I will need to use text matching for ReplaceFileContent, so I will be careful.
@@ -140,7 +136,7 @@ export function NFeBillingCard({ billing, totalAmount, paymentTerm: initialTerm,
         <div className="flex items-center gap-4">
             <div className="w-[240px]">
                 <Select
-                    value={selectedTermId}
+                    value={effectiveTermId}
                     onValueChange={(val) => {
                         setSelectedTermId(val);
                         // Optional: Auto-generate on change? Or wait for click?
