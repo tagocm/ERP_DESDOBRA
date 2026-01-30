@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { printZPL, getPrinters, qzConnect, setupQZSecurity } from '@/lib/qz-printer';
@@ -12,7 +12,7 @@ export function useQZPrinter() {
     const [loading, setLoading] = useState(false);
     const [configOpen, setConfigOpen] = useState(false);
     const { toast } = useToast();
-    const supabase = createClient();
+    const supabase = useMemo(() => createClient(), []);
 
     // Init security context
     useEffect(() => {
