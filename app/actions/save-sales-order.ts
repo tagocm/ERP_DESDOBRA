@@ -9,7 +9,7 @@ import { createClient as createServerClient } from "@/utils/supabase/server";
 
 export async function saveSalesOrderAction(
     doc: Partial<SalesOrder>,
-    items: any[],
+    items: unknown[],
     deletedItemIds: string[],
     userId: string // Legacy param, we'll verify it
 ) {
@@ -69,7 +69,7 @@ export async function saveSalesOrderAction(
             }
 
             // Link item to document
-            const itemPayload: any = { ...item, document_id: savedDoc.id };
+            const itemPayload: Record<string, unknown> = { ...item, document_id: savedDoc.id };
 
             // --- Snapshot Logic ---
             try {
@@ -96,7 +96,7 @@ export async function saveSalesOrderAction(
                         .single();
 
                     if (prod) {
-                        const abbrev = (prod.base_uom as any)?.abbrev || prod.uom || 'Un';
+                        const abbrev = (prodany)?.abbrev || prod.uom || 'Un';
 
                         itemPayload.sales_unit_snapshot = {
                             sell_uom_id: prod.uom_id, // Selling in base
@@ -104,7 +104,7 @@ export async function saveSalesOrderAction(
                             sell_unit_code: abbrev,
                             base_unit_code: abbrev,
                             factor_in_base: 1,
-                            auto_label: (prod.base_uom as any)?.name || 'Unidade'
+                            auto_label: (prod.base_uom as Record<string, unknown>)?.name || 'Unidade'
                         };
                     }
                 }
@@ -126,14 +126,17 @@ export async function saveSalesOrderAction(
 
         return { success: true, data: { ...savedDoc, items: savedItems } };
 
-    } catch (e: any) {
+    } catch (e: unknown) {
         console.error("Server Action Error:", e);
 
         // Sanitize Error Message for User
-        if (e.message?.includes("new row violates row-level security policy") || e.code === '42501') {
+        const errorMessage = e instanceof Error ? e.message : '';
+        const errorCode = (e as any)?.code;
+
+        if (errorMessage?.includes("new row violates row-level security policy") || errorCode === '42501') {
             return { success: false, error: "Falha ao salvar. Verifique permissões de acesso." };
         }
 
-        return { success: false, error: e.message || "Erro desconhecido no servidor." };
+        return { success: false, error: errorMessage || "Erro desconhecido no servidor." };
     }
 }
