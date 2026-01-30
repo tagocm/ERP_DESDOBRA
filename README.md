@@ -50,8 +50,62 @@ ERP system for managing marble/granite production, sales, and logistics.
 | `npm run start` | Starts the production server. |
 | `npm run lint` | Runs ESLint to check for code quality issues. |
 | `npm run ui:check` | Checks UI component integrity (custom script). |
-| `npm run test` | Runs tests using Vitest. |
+| `npm run test` | Runs unit tests using Vitest. |
+| `npm run test:e2e` | Runs E2E tests using Playwright (headless). |
+| `npm run test:e2e:ui` | Runs E2E tests with interactive UI. |
+| `npm run test:e2e:headed` | Runs E2E tests in headed mode (see browser). |
+| `npm run test:e2e:debug` | Runs E2E tests in debug mode. |
 | `npx supabase db reset` | Resets the local database (seeds, schema). |
+
+## 🧪 Testing
+
+### Unit Tests
+
+This project uses Vitest for unit testing:
+
+```bash
+# Run tests
+npm run test
+
+# Run tests with UI
+npm run test:ui
+
+# Run tests with coverage
+npm run test:coverage
+```
+
+### E2E Tests
+
+End-to-end tests use Playwright to validate critical user flows and React Hooks fixes:
+
+```bash
+# Run all E2E tests (headless)
+npm run test:e2e
+
+# Run with interactive UI mode
+npm run test:e2e:ui
+
+# Run in headed mode (see browser)
+npm run test:e2e:headed
+
+# Debug mode (step through tests)
+npm run test:e2e:debug
+```
+
+**Test Coverage:**
+
+E2E tests validate that React Hooks lint fixes don't introduce regressions:
+- **Race conditions:** Rapid state changes (company switching)
+- **Unmount scenarios:** setState after unmount prevention
+- **Prop synchronization:** CurrencyInput value updates
+- **State isolation:** PackagingModal state between opens
+
+See [`tests/e2e/`](./tests/e2e/) for test specifications.
+
+**CI Integration:**
+
+E2E tests run automatically in CI (GitHub Actions) on every push/PR. Test reports are uploaded as artifacts.
+
 
 ## 🏗 Quick Architecture
 
