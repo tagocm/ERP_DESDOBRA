@@ -75,3 +75,4 @@ create_dummy_data.sql
 !certs/sefaz-ca-bundle.pem
 *.tsbuildinfo
 
+reports/
