@@ -4,6 +4,13 @@ import nextTs from "eslint-config-next/typescript";
 
 const eslintConfig = defineConfig([
   { ignores: [".gemini/**"] },
+  {
+    files: ["types/**/*.{ts,tsx}", "**/*.d.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+    },
+  },
   ...nextVitals,
   ...nextTs,
   // Override default ignores of eslint-config-next.
