@@ -73,3 +73,5 @@ create_dummy_data.sql
 !supabase/migrations/*.sql
 !scripts/*.sql
 !certs/sefaz-ca-bundle.pem
+*.tsbuildinfo
+
