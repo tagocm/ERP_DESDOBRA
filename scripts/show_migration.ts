@@ -1,7 +1,7 @@
 
-const { createClient } = require('@supabase/supabase-js');
-const fs = require('fs');
-const path = require('path');
+import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
+import path from 'path';
 
 // NOTE: This script assumes environment variables are loaded or hardcoded for this one-off execution.
 // In a real environment, use dotenv.

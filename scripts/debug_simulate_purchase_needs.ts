@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { getPurchaseNeeds } from './lib/purchases/needs-service';
+import { getPurchaseNeeds } from '../lib/purchases/needs-service';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;

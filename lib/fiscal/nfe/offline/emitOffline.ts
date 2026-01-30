@@ -33,7 +33,7 @@ export async function emitOffline(orderId: string, companyId: string, transmit: 
             .select(`
                 *,
                 client:organizations!client_id(*, addresses(*)),
-                items:sales_document_items(*, product:items(*, fiscal:item_fiscal_profiles(*)), packaging:item_packaging(*)),
+                items:sales_document_items!sales_document_items_document_id_fkey(*, product:items!sales_document_items_item_id_fkey(*, fiscal:item_fiscal_profiles(*)), packaging:item_packaging(*)),
                 payments:sales_document_payments(*),
                 carrier:organizations!carrier_id(*, addresses(*))
             `)

@@ -1572,6 +1572,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                 status_commercial: 'draft' as const,
                 status_logistic: 'pendente' as const,
                 status_fiscal: 'none' as const,
+                financial_status: 'pendente' as const,
                 date_issued: new Date().toISOString().split('T')[0],
                 price_table_id: formData.price_table_id,
                 payment_terms_id: formData.payment_terms_id,

@@ -1,9 +1,10 @@
 
-const { createClient } = require('@supabase/supabase-js');
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '../types/supabase';
 
 const supabaseUrl = 'https://qyqupzlkouoqrvmxckar.supabase.co';
 const supabaseKey = 'sb_secret_WV3jfMrpGWK7CMSL5Bmn6A_LgBatB-V';
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient<Database>(supabaseUrl, supabaseKey);
 
 async function checkArTable() {
     console.log("Checking if ar_titles table exists...");
