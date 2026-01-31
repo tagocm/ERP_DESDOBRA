@@ -12,7 +12,7 @@ import { Checkbox } from '@/components/ui/Checkbox';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Label } from '@/components/ui/Label';
-import { Separator } from '@/components/ui/Separator';
+import { Separator } from '@/components/ui/separator';
 
 import { PurchaseNeedItem } from '@/lib/purchases/needs-service';
 import { fetchPurchaseNeedsAction } from './actions';
