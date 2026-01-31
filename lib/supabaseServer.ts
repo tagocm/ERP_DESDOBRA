@@ -16,3 +16,6 @@ export const createAdminClient = () => {
         },
     })
 }
+
+// Alias for backward compatibility
+export const createClient = createAdminClient
