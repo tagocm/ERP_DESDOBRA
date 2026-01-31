@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 import { getPriceTables, deletePriceTable, duplicatePriceTable, PriceTable } from "@/lib/price-tables";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import {
     Table,
     TableBody,
@@ -182,14 +182,14 @@ export default function PriceTablesPage() {
                                             <div className="text-sm font-bold text-gray-900 leading-tight">{table.name}</div>
                                             <div className="text-xs text-gray-500 flex items-center mt-1 font-medium">
                                                 <Calendar className="w-3 h-3 mr-1" />
-                                                Efetiva: {table.effective_date ? format(new Date(table.effective_date), "dd/MM/yyyy") : "-"}
+                                                Efetiva: {table.effective_date ? format(parseISO(table.effective_date), "dd/MM/yyyy") : "-"}
                                             </div>
                                         </TableCell>
                                         <TableCell className="px-6 py-4">
                                             {table.valid_from || table.valid_to ? (
                                                 <div className="flex flex-col text-xs font-medium text-gray-600">
-                                                    <span>De: {table.valid_from ? format(new Date(table.valid_from), "dd/MM/yyyy") : "Início"}</span>
-                                                    <span>Até: {table.valid_to ? format(new Date(table.valid_to), "dd/MM/yyyy") : "Indefinido"}</span>
+                                                    <span>De: {table.valid_from ? format(parseISO(table.valid_from), "dd/MM/yyyy") : "Início"}</span>
+                                                    <span>Até: {table.valid_to ? format(parseISO(table.valid_to), "dd/MM/yyyy") : "Indefinido"}</span>
                                                 </div>
                                             ) : (
                                                 <span className="text-gray-400 italic text-xs">Sem validade</span>
