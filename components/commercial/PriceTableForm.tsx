@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
@@ -9,7 +10,6 @@ import { Input } from "@/components/ui/Input";
 import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Alert } from "@/components/ui/Alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/Dialog";
 import { Loader2, ChevronDown, ChevronRight, Save, Copy, Search, X, Tag, DollarSign, AlertTriangle } from "lucide-react";
 import { PriceTable, PriceTableItem, getSellableItems, upsertPriceTable, upsertPriceTableItems, getPriceTableItems, duplicatePriceTable } from "@/lib/price-tables";
@@ -37,6 +37,7 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
     const router = useRouter();
     const { selectedCompany } = useCompany();
     const supabase = createClient();
+    const { toast } = useToast();
 
     // -- State --
     const [isLoading, setIsLoading] = useState(true);
@@ -64,7 +65,6 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
     const [filterType, setFilterType] = useState<'all' | 'with_price' | 'missing_price'>('all');
 
     // Validation / Modal
-    const [error, setError] = useState<string | null>(null);
     const [missingPriceModalOpen, setMissingPriceModalOpen] = useState(false);
     const [pendingSaveAction, setPendingSaveAction] = useState<(() => void) | null>(null);
 
@@ -141,7 +141,7 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
 
             } catch (err: any) {
                 console.error(err);
-                setError("Erro ao carregar dados.");
+                toast({ title: "Erro ao carregar dados", description: err.message, variant: "destructive" });
             } finally {
                 setIsLoading(false);
             }
@@ -167,11 +167,9 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
     };
 
     const handleSaveRequest = (saveAndNew = false) => {
-        setError(null);
-
         // Validation
         if (!formData.name || formData.name.trim().length < 3) {
-            setError("Nome da tabela é obrigatório e deve ter 3+ caracteres.");
+            toast({ title: "Validação falhou", description: "Nome da tabela é obrigatório e deve ter 3+ caracteres.", variant: "destructive" });
             return;
         }
 
@@ -195,17 +193,38 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
     const executeSave = async (saveAndNew: boolean) => {
         setIsSaving(true);
         try {
-            // 1. Upsert Table
-            // Explicitly set removed fields to null to clean up DB if needed, or just ignore them
-            // We'll set them to null or empty arrays to "clear" them in the backend logic if they exist
+            // Validate company selection (CRITICAL FOR RLS)
+            if (!selectedCompany) {
+                throw new Error("Nenhuma empresa selecionada. Selecione uma empresa no menu superior.");
+            }
+
+            // 1. Upsert Table - Build payload explicitly (no spread to avoid company_id bug)
             const tablePayload: Partial<PriceTable> = {
-                ...formData,
+                company_id: selectedCompany.id,
+                name: formData.name!,
+                effective_date: formData.effective_date!,
+                commission_pct: formData.commission_pct,
+                freight_included: formData.freight_included!,
+                min_order_value: formData.min_order_value,
+                is_active: formData.is_active!,
+                internal_notes: formData.internal_notes,
                 valid_from: null,
                 valid_to: null,
                 states: [],
                 customer_profiles: [],
-                company_id: selectedCompany!.id
             };
+
+            // Include ID only if editing
+            if (isEdit && initialData?.id) {
+                tablePayload.id = initialData.id;
+            }
+
+            console.log('[PriceTableForm] Payload BEFORE upsert:', {
+                payload: tablePayload,
+                hasCompanyId: !!tablePayload.company_id,
+                companyIdValue: tablePayload.company_id,
+                payloadKeys: Object.keys(tablePayload)
+            });
 
             const savedTable = await upsertPriceTable(supabase, tablePayload);
 
@@ -226,7 +245,7 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
 
         } catch (err: any) {
             console.error(err);
-            setError("Erro ao salvar: " + err.message);
+            toast({ title: "Erro ao salvar tabela de preços", description: err.message, variant: "destructive" });
             setIsSaving(false);
         }
     };
@@ -240,7 +259,7 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
             router.push(`/app/cadastros/tabelas-de-preco/${newTable.id}`);
         } catch (err: any) {
             console.error(err);
-            setError("Erro ao duplicar: " + err.message);
+            toast({ title: "Erro ao duplicar tabela", description: err.message, variant: "destructive" });
             setIsLoading(false);
         }
     };
@@ -275,12 +294,6 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
                     </div>
                 }
             />
-
-            {error && (
-                <div className="max-w-[1200px] mx-auto px-6 mb-6">
-                    <Alert variant="destructive">{error}</Alert>
-                </div>
-            )}
 
             <div className="container mx-auto max-w-[1600px] px-6 pb-8 space-y-6">
 
