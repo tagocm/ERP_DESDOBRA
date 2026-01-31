@@ -13,7 +13,10 @@ const eslintConfig = defineConfig([
       "**/build/**",
       "**/out/**",
       "**/dist/**",
-      "node_modules_DELETE_ME/**"
+      "node_modules_DELETE_ME/**",
+      "playwright-report/**",
+      "test-results/**",
+      "playwright/.auth/**"
     ]
   },
 

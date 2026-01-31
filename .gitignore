@@ -73,7 +73,9 @@ create_dummy_data.sql
 !supabase/migrations/*.sql
 !scripts/*.sql
 !certs/sefaz-ca-bundle.pem
-*.tsbuildinfo
+tsconfig.tsbuildinfo
+lint_output.txt
+lint_report.txt
 
 reports/
 

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabaseBrowser";
 import { Uom } from "@/types/product";
+export type { Uom };
 
 export async function getUoms(companyId: string, search?: string): Promise<Uom[]> {
     const supabase = createClient();

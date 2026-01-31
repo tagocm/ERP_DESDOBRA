@@ -2,16 +2,17 @@
 
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
-import { useState, useEffect } from "react";
+import { Database } from "@/types/supabase";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
-import { Search, Eye, FileText, CheckCircle2, Package, Calculator } from "lucide-react";
+import { Search, Eye, FileText, CheckCircle2, Package, Calculator, Database as DatabaseIcon } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/use-toast";
 import { Sheet } from "@/components/ui/Sheet";
 import { Badge } from "@/components/ui/Badge";
-import { Separator } from "@/components/ui/separator";
+import { Separator } from "@/components/ui/Separator";
 
 // Types
 interface BomHeader {
@@ -174,9 +175,9 @@ export default function BomListPage() {
 
             <Card>
                 <CardHeaderStandard
-                    icon={<FileText className="w-5 h-5 text-brand-600" />}
-                    title="Fichas Técnicas"
-                    subtitle="Consulte as receitas de produção cadastradas."
+                    icon={<DatabaseIcon className="w-5 h-5 text-brand-600" />}
+                    title="Estrutura de Materiais (BOM)"
+                    description="Defina os componentes e subprodutos para este item."
                 >
                     <div className="mt-4 pb-2 border-b border-gray-100/50">
                         <div className="w-64 relative">

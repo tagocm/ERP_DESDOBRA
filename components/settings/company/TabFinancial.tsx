@@ -436,7 +436,7 @@ function NewBankAccountDialog({ onSave }: { onSave: (acc: Partial<BankAccount>) 
                                 <Input
                                     value={acc.agency}
                                     onChange={e => setAcc({ ...acc, agency: e.target.value })}
-                                    className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                    className="h-9 rounded-lg border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
                                 />
                             </div>
                             <div className="space-y-1.5">
@@ -455,7 +455,7 @@ function NewBankAccountDialog({ onSave }: { onSave: (acc: Partial<BankAccount>) 
                                         }
                                         setAcc({ ...acc, account_number: formatted });
                                     }}
-                                    className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                    className="h-9 rounded-lg border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
                                     maxLength={20}
                                 />
                             </div>
@@ -467,11 +467,11 @@ function NewBankAccountDialog({ onSave }: { onSave: (acc: Partial<BankAccount>) 
                                 value={acc.pix_key}
                                 onChange={e => setAcc({ ...acc, pix_key: e.target.value })}
                                 placeholder="CPF, CNPJ, Email, Celular ou Aleatória"
-                                className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                className="h-9 rounded-lg border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
                             />
                         </div>
 
-                        <div className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl shadow-sm">
+                        <div className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-lg shadow-sm">
                             <input
                                 type="checkbox"
                                 checked={acc.is_default}
@@ -491,14 +491,14 @@ function NewBankAccountDialog({ onSave }: { onSave: (acc: Partial<BankAccount>) 
                     <Button
                         variant="ghost"
                         onClick={() => setOpen(false)}
-                        className="flex-1 h-10 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
+                        className="flex-1 h-10 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
                     >
                         Cancelar
                     </Button>
                     <Button
                         onClick={handleSave}
                         disabled={loading || !acc.bank_name || !acc.agency || !acc.account_number}
-                        className="flex-[2] h-10 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-lg shadow-brand-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                        className="flex-[2] h-10 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-lg shadow-brand-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                     >
                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                         Salvar Conta

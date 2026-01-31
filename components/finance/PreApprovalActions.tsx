@@ -182,7 +182,7 @@ export function PreApprovalActions({ isOpen, onClose, title, onSuccess }: PreApp
                 </div>
 
                 <DialogFooter className="gap-2">
-                    <Button variant="destructive" onClick={handleReject} disabled={loading}>
+                    <Button variant="danger" onClick={handleReject} disabled={loading}>
                         Rejeitar
                     </Button>
                     <div className="flex-1" />

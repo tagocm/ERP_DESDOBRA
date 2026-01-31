@@ -4,7 +4,9 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/Select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
+import { Label } from "@/components/ui/Label";
+import { Separator } from "@/components/ui/Separator";
 import { Globe, Clock, DollarSign, Calendar, Loader2 } from "lucide-react";
 
 interface Preferences {
@@ -61,8 +63,8 @@ export default function PreferencesSheet() {
         <div className="space-y-6">
             {message && (
                 <div className={`p-4 rounded-lg ${message.type === 'success'
-                        ? 'bg-green-50 text-green-700 border border-green-200'
-                        : 'bg-red-50 text-red-700 border border-red-200'
+                    ? 'bg-green-50 text-green-700 border border-green-200'
+                    : 'bg-red-50 text-red-700 border border-red-200'
                     }`}>
                     {message.text}
                 </div>
@@ -79,33 +81,36 @@ export default function PreferencesSheet() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         <div className="space-y-2">
-                            <label className="text-sm font-medium">Idioma</label>
+                            <Label className="text-sm font-medium">Idioma</Label>
                             <Select
                                 value={preferences.language}
-                                onChange={(e) => handleChange("language", e.target.value)}
+                                onValueChange={(val) => handleChange("language", val)}
                             >
-                                <option value="pt-BR">Português (Brasil)</option>
-                                <option value="en-US" disabled>English (US) - Em breve</option>
-                                <option value="es-ES" disabled>Español - Em breve</option>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione o idioma" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
+                                    <SelectItem value="en-US">English (US)</SelectItem>
+                                    <SelectItem value="es-ES">Español</SelectItem>
+                                </SelectContent>
                             </Select>
-                            <p className="text-xs text-gray-500">
-                                Outros idiomas serão adicionados em breve
-                            </p>
                         </div>
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium flex items-center gap-2">
-                                <Clock className="w-4 h-4 text-gray-400" />
-                                Fuso Horário
-                            </label>
+                        <div className="grid gap-2">
+                            <Label>Fuso Horário</Label>
                             <Select
                                 value={preferences.timezone}
-                                onChange={(e) => handleChange("timezone", e.target.value)}
+                                onValueChange={(val) => handleChange("timezone", val)}
                             >
-                                <option value="America/Sao_Paulo">América/São Paulo (BRT)</option>
-                                <option value="America/Manaus">América/Manaus (AMT)</option>
-                                <option value="America/Recife">América/Recife (BRT)</option>
-                                <option value="America/Fortaleza">América/Fortaleza (BRT)</option>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecione o fuso horário" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="America/Sao_Paulo">Brasília (GMT-3)</SelectItem>
+                                    <SelectItem value="UTC">UTC</SelectItem>
+                                    <SelectItem value="America/New_York">New York (EST)</SelectItem>
+                                </SelectContent>
                             </Select>
                         </div>
                     </CardContent>
@@ -113,38 +118,44 @@ export default function PreferencesSheet() {
 
                 {/* Format Settings */}
                 <Card>
-                    <CardHeader>
-                        <CardTitle className="text-lg">Formatos</CardTitle>
-                    </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium flex items-center gap-2">
-                                <DollarSign className="w-4 h-4 text-gray-400" />
-                                Moeda
-                            </label>
-                            <Select
-                                value={preferences.currency}
-                                onChange={(e) => handleChange("currency", e.target.value)}
-                            >
-                                <option value="BRL">Real Brasileiro (R$)</option>
-                                <option value="USD">Dólar Americano (US$)</option>
-                                <option value="EUR">Euro (€)</option>
-                            </Select>
-                        </div>
+                        <Separator />
 
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-gray-400" />
-                                Formato de Data
-                            </label>
-                            <Select
-                                value={preferences.dateFormat}
-                                onChange={(e) => handleChange("dateFormat", e.target.value)}
-                            >
-                                <option value="DD/MM/YYYY">DD/MM/YYYY (31/12/2025)</option>
-                                <option value="MM/DD/YYYY">MM/DD/YYYY (12/31/2025)</option>
-                                <option value="YYYY-MM-DD">YYYY-MM-DD (2025-12-31)</option>
-                            </Select>
+                        <div className="space-y-4">
+                            <h4 className="text-sm font-medium leading-none">Formatos</h4>
+                            <div className="grid gap-2">
+                                <Label>Moeda</Label>
+                                <Select
+                                    value={preferences.currency}
+                                    onValueChange={(val) => handleChange("currency", val)}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecione a moeda" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="BRL">Real (BRL)</SelectItem>
+                                        <SelectItem value="USD">Dólar (USD)</SelectItem>
+                                        <SelectItem value="EUR">Euro (EUR)</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="grid gap-2">
+                                <Label>Formato de Data</Label>
+                                <Select
+                                    value={preferences.dateFormat}
+                                    onValueChange={(val) => handleChange("dateFormat", val)}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecione o formato" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="dd/MM/yyyy">dd/mm/aaaa</SelectItem>
+                                        <SelectItem value="MM/dd/yyyy">mm/dd/aaaa</SelectItem>
+                                        <SelectItem value="yyyy-MM-dd">aaaa-mm-dd</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>

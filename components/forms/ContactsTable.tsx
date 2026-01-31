@@ -115,7 +115,7 @@ export function ContactsTable({ contacts, onAdd, onEdit, onRemove }: ContactsTab
 
             {/* Contacts Table (True Gold Standard) */}
             {contacts.length > 0 && !showForm && (
-                <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white shadow-sm">
+                <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white shadow-card">
                     <Table>
                         <TableHeader className="bg-gray-50/50">
                             <TableRow className="hover:bg-transparent border-gray-100">

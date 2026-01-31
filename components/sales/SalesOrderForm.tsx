@@ -214,7 +214,7 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
                         <Button variant="outline" onClick={() => router.back()}>
                             Cancelar
                         </Button>
-                        <Button onClick={handleSave} disabled={saving || isLocked}>
+                        <Button onClick={handleSave} disabled={saving || isLocked} data-testid="order-save-button">
                             {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                             <Save className="w-4 h-4 mr-2" /> Salvar
                         </Button>

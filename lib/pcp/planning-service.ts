@@ -131,7 +131,7 @@ export const planningService = {
                 .eq('status_commercial', 'confirmed')
                 .is('deleted_at', null)
                 // Include orders that are NOT fully delivered (confirmado, parcial)
-                .in('status_logistic', ['confirmado', 'parcial'])
+                .in('status_logistic', ['confirmado', 'parcial'] as any[])
 
             if (orderError) throw orderError
 

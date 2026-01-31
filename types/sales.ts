@@ -1,6 +1,6 @@
 
 export type SalesStatus = 'draft' | 'sent' | 'approved' | 'confirmed' | 'cancelled' | 'lost';
-export type LogisticStatus = 'pendente' | 'roteirizado' | 'agendado' | 'em_rota' | 'entregue' | 'devolvido' | 'parcial';
+export type LogisticStatus = 'pendente' | 'roteirizado' | 'agendado' | 'em_rota' | 'entregue' | 'devolvido' | 'parcial' | 'confirmado' | 'sandbox';
 export type FiscalStatus = 'none' | 'authorized' | 'cancelled' | 'error';
 export type FinancialStatus = 'pendente' | 'pre_lancado' | 'aprovado' | 'em_revisao' | 'cancelado';
 export type DocType = 'proposal' | 'order';
@@ -84,7 +84,7 @@ export interface SalesOrder {
     carrier?: {
         trade_name: string;
     };
-    items?: SalesOrderItem[];
+    items?: SalesItem[];
     payments?: SalesOrderPayment[];
     nfes?: SalesOrderNfe[];
     history?: SalesOrderHistory[];
@@ -169,6 +169,9 @@ export interface SalesOrderItem {
     packaging_id?: string | null;
     packaging?: ItemPackaging; // Selected packaging details
 }
+
+export type SalesItem = SalesOrderItem;
+
 
 export interface ItemPackaging {
     id: string;

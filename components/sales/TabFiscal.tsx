@@ -66,7 +66,7 @@ export function TabFiscal({ order }: TabFiscalProps) {
                         <div className="space-y-4 py-4">
                             <div className="space-y-2">
                                 <Label>Tipo de Emissão</Label>
-                                <Select value={emitReason} onChange={(e) => setEmitReason(e.target.value)}>
+                                <Select value={emitReason} onValueChange={(val) => setEmitReason(val)}>
                                     <option value="normal">Normal (Saída de Mercadoria)</option>
                                     <option value="antecipada">Faturamento Antecipado</option>
                                     <option value="duplicata">Desconto de Duplicata</option>
@@ -111,8 +111,8 @@ export function TabFiscal({ order }: TabFiscalProps) {
                             </div>
                             <div className="col-span-2">
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${nfe.status === 'authorized' ? 'bg-green-100 text-green-700' :
-                                        nfe.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                                            'bg-gray-100 text-gray-700'
+                                    nfe.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                                        'bg-gray-100 text-gray-700'
                                     }`}>
                                     {nfe.status === 'authorized' ? 'Autorizada' : nfe.status}
                                 </span>

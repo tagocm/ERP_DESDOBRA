@@ -12,9 +12,11 @@ interface OrganizationSelectorProps {
     onChange: (org: any) => void;
     type?: 'customer' | 'supplier' | 'carrier' | 'all';
     disabled?: boolean;
+    "data-testid"?: string;
 }
 
-export function OrganizationSelector({ value, onChange, type = 'all', disabled }: OrganizationSelectorProps) {
+export function OrganizationSelector({ value, onChange, type = 'all', disabled, "data-testid": dataTestId }: OrganizationSelectorProps) {
+    // ... existing hooks ... 
     const { selectedCompany } = useCompany();
     const supabase = createClient();
 
@@ -150,6 +152,7 @@ export function OrganizationSelector({ value, onChange, type = 'all', disabled }
             <div className="relative">
                 <input
                     ref={inputRef}
+                    data-testid={dataTestId}
                     type="text"
                     className={cn(
                         "flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:cursor-not-allowed disabled:opacity-50",
@@ -176,7 +179,10 @@ export function OrganizationSelector({ value, onChange, type = 'all', disabled }
             </div>
 
             {open && (search.length >= 2 || options.length > 0) && (
-                <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-gray-100 bg-white py-1 text-base shadow-xl focus:outline-none sm:text-sm">
+                <div
+                    role="listbox"
+                    className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-gray-100 bg-white py-1 text-base shadow-xl focus:outline-none sm:text-sm"
+                >
                     {loading && (
                         <div className="p-3 text-center text-xs text-gray-400">
                             Buscando...
@@ -192,6 +198,8 @@ export function OrganizationSelector({ value, onChange, type = 'all', disabled }
                     {!loading && options.map((option) => (
                         <div
                             key={option.id}
+                            role="option"
+                            aria-selected={selectedOrg?.id === option.id}
                             className={cn(
                                 "relative cursor-pointer select-none py-2.5 pl-3 pr-9 hover:bg-gray-50 transition-colors",
                                 selectedOrg?.id === option.id ? "bg-brand-50 font-medium text-brand-700" : "text-gray-900"

@@ -13,12 +13,15 @@ import { useToast } from "@/components/ui/use-toast";
 interface Props {
     installment: ArInstallment;
     onUpdate: () => void;
-    onClose: () => void;
+    onClose?: () => void;
+    trigger?: React.ReactNode;
 }
 
 const formatDate = (date: string) => new Date(date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: '2-digit', minute: '2-digit' });
 
-export function InstallmentPaymentManager({ installment, onUpdate, onClose }: Props) {
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+export function InstallmentPaymentManager({ installment, onUpdate, onClose, trigger }: Props) {
     const [payments, setPayments] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -133,7 +136,7 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose }: Pr
         }
     };
 
-    return (
+    const content = (
         <div className="w-[400px] flex flex-col bg-white rounded-xl overflow-hidden border border-gray-100 shadow-2xl">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
                 <h4 className="font-bold text-sm text-gray-700">Gerenciar Pagamentos</h4>
@@ -141,8 +144,9 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose }: Pr
                     <X className="w-4 h-4 text-gray-400" />
                 </Button>
             </div>
-
+            {/* ... rest of the content ... */}
             <div className="max-h-[300px] overflow-y-auto">
+                {/* ... existing table code ... */}
                 {loading ? (
                     <div className="p-4 text-center"><Loader2 className="animate-spin w-4 h-4 mx-auto" /></div>
                 ) : payments.length === 0 ? (
@@ -213,7 +217,6 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose }: Pr
                     </div>
                 </div>
 
-                {/* Advanced Fields Row */}
                 <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
                         <Label className="text-[10px] text-gray-500">Juros (+)</Label>
@@ -265,4 +268,19 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose }: Pr
             </div>
         </div>
     );
+
+    if (trigger) {
+        return (
+            <Popover>
+                <PopoverTrigger asChild>
+                    {trigger}
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                    {content}
+                </PopoverContent>
+            </Popover>
+        )
+    }
+
+    return content;
 }
