@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/use-toast";
 import { Sheet } from "@/components/ui/Sheet";
 import { Badge } from "@/components/ui/Badge";
-import { Separator } from "@/components/ui/Separator";
+import { Separator } from "@/components/ui/separator";
 
 // Types
 interface BomHeader {
