@@ -1449,7 +1449,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                 onGroupUpdated={() => {
                                                     if (selectedCompany) getTaxGroups(createClient(), selectedCompany.id).then(setTaxGroups);
                                                 }}
-                                                className={cn("mt-1", errors.tax_group_id && "border-red-500 rounded-2xl")}
+                                                className={cn("mt-1", errors.tax_group_id && "border-red-500 rounded-lg")}
                                             />
                                             <p className="text-[10px] text-gray-500 mt-1">Define as regras de tributação (ICMS, IPI, PIS, COFINS).</p>
                                             {errors.tax_group_id && <p className="text-xs text-red-500 mt-1">{errors.tax_group_id}</p>}

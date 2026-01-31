@@ -71,7 +71,7 @@ export default function PaymentTermsPage() {
         if (!confirm("Tem certeza que deseja excluir este prazo?")) return;
         try {
             await deletePaymentTerm(supabase, id);
-            toast({ title: "Prazo excluído", variant: "success" });
+            toast({ title: "Prazo excluído" });
             loadTerms();
         } catch (error) {
             console.error(error);

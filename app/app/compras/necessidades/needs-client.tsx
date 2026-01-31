@@ -119,12 +119,10 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
                 notes: `Origem: PCP (Projeção)`
             }));
 
-            const { data: newPO, error } = await createPurchaseOrderAction({
+            const { data: newPO } = await createPurchaseOrderAction({
                 items: poItems,
                 notes: `Gerado automaticamente via Necessidades PCP em ${format(new Date(), 'dd/MM/yyyy HH:mm')}`
             });
-
-            if (error) throw error;
 
             // @ts-ignore
             if (newPO?.id) {
@@ -184,7 +182,7 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
                                     date={dateRange}
                                     onDateChange={setDateRange}
                                     placeholder="Selecione o período"
-                                    className="w-full h-11 border-gray-200 focus:ring-brand-500 focus:border-brand-500 rounded-xl shadow-sm"
+                                    className="w-full h-11 border-gray-200 focus:ring-brand-500 focus:border-brand-500 rounded-lg shadow-sm"
                                 />
                             </div>
 
@@ -193,7 +191,7 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
                                     <span className="w-1.5 h-1.5 rounded-full bg-brand-500"></span>
                                     Tipos de Item
                                 </Label>
-                                <div className="flex items-center gap-2 h-11 px-4 rounded-xl border border-gray-200 bg-gray-50/30 hover:bg-gray-50/80 transition-colors shadow-sm">
+                                <div className="flex items-center gap-2 h-11 px-4 rounded-lg border border-gray-200 bg-gray-50/30 hover:bg-gray-50/80 transition-colors shadow-sm">
                                     <div className="flex items-center gap-2">
                                         <Checkbox
                                             id="chk-raw"

@@ -24,6 +24,7 @@ export interface NfeEmissionRecord {
     uf?: string;
     attempts?: number;
     error_message?: string;
+    last_attempt_at?: string;
 }
 
 /**

@@ -19,8 +19,7 @@ export async function GET(
             .select(`
                 *,
                 items:delivery_items(
-                    *,
-                    sales_item:sales_document_items(unit_price)
+                    *
                 ),
                 route:delivery_routes(name, route_date)
             `)

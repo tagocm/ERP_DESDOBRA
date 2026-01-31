@@ -69,7 +69,7 @@ export interface ProductCategory {
 export interface FullProduct extends Omit<Item, 'uom'> {
     uom?: Uom | null; // Join - replaces string uom
     // Keep original uom field available if needed for migration logic as 'legacy_uom' or just access via Item if casting
-    uom_id?: string | null; // From item
+    uom_id: string | null; // From item
     inventory?: ItemInventoryProfile | null;
     purchase?: ItemPurchaseProfile | null;
     sales?: ItemSalesProfile | null;

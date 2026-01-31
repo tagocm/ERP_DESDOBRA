@@ -67,7 +67,7 @@ export async function POST(request: Request) {
                     company_id: companyId,
                     code: 'TEST-DEL-001',
                     name: 'Produto Teste Delivery',
-                    uom_id: uom.id,
+                    uom_id: uom!.id,
                     type: 'product'
                 })
                 .select()
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
             .from('sales_documents')
             .insert({
                 company_id: companyId,
-                client_id: client.id,
+                client_id: client!.id,
                 doc_type: 'order',
                 status_commercial: 'approved',
                 status_logistic: 'pendente',
@@ -100,7 +100,7 @@ export async function POST(request: Request) {
             .insert({
                 company_id: companyId,
                 document_id: order.id,
-                item_id: item.id,
+                item_id: (item as any).id,
                 quantity: 10,
                 unit_price: 10.00,
                 total_amount: 100.00

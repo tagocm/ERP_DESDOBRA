@@ -305,14 +305,14 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
         <div className="space-y-6 animate-in fade-in duration-700">
             {/* Top Stats Row */}
             <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-1 relative overflow-hidden group hover:border-blue-200 transition-all">
+                <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 shadow-card flex flex-col gap-1 relative overflow-hidden group hover:border-blue-200 transition-all">
                     <span className="text-[10px] uppercase font-black text-gray-400 tracking-widest pl-1">Total Pendente</span>
                     <div className="text-2xl font-black text-gray-900 tabular-nums">
                         {formatCurrency(totalPending)}
                     </div>
                     <div className="absolute -right-6 -top-6 bg-blue-50 w-24 h-24 rounded-full opacity-50 group-hover:scale-110 transition-transform" />
                 </div>
-                <div className="flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-1 relative overflow-hidden group hover:border-blue-200 transition-all">
+                <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 shadow-card flex flex-col gap-1 relative overflow-hidden group hover:border-blue-200 transition-all">
                     <span className="text-[10px] uppercase font-black text-gray-400 tracking-widest pl-1">Seleção Ativa</span>
                     <div className={`text-2xl font-black tabular-nums ${selectedIds.size > 0 ? 'text-blue-600' : 'text-gray-300'}`}>
                         {formatCurrency(totalSelected)}

@@ -96,13 +96,13 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
                     abbrev: editForm.abbrev.trim(),
                     is_active: true,
                 });
-                toast({ title: "Unidade criada com sucesso!", className: "bg-green-600 text-white" });
+                toast({ title: "Unidade criada com sucesso!" });
             } else if (editingId) {
                 await updateUom(editingId, {
                     name: editForm.name.trim(),
                     abbrev: editForm.abbrev.trim(),
                 });
-                toast({ title: "Unidade atualizada!", className: "bg-green-600 text-white" });
+                toast({ title: "Unidade atualizada!" });
             }
 
             setEditingId(null);
@@ -126,7 +126,7 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
         if (!deletingId) return;
         try {
             await deleteUom(deletingId);
-            toast({ title: "Unidade excluída.", className: "bg-green-600 text-white" });
+            toast({ title: "Unidade excluída." });
             loadUoms();
         } catch (error: any) {
             console.error(error);
