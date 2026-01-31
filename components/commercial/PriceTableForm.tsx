@@ -219,13 +219,6 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
                 tablePayload.id = initialData.id;
             }
 
-            console.log('[PriceTableForm] Payload BEFORE upsert:', {
-                payload: tablePayload,
-                hasCompanyId: !!tablePayload.company_id,
-                companyIdValue: tablePayload.company_id,
-                payloadKeys: Object.keys(tablePayload)
-            });
-
             const savedTable = await upsertPriceTable(supabase, tablePayload);
 
             // 2. Upsert Items
