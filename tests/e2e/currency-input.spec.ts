@@ -16,6 +16,15 @@ test.describe('CurrencyInput - Prop Sync', () => {
                 path: '/',
             },
         ]);
+
+        // Intercept Supabase calls to avoid DNS errors with dummy URL in CI
+        await page.route(url => url.hostname.includes('supabase.co'), (route) => {
+            return route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ data: null, error: null }),
+            });
+        });
     });
 
     test('should update when navigating between records with different values', async ({ page }) => {

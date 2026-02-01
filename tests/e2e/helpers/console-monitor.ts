@@ -43,7 +43,10 @@ export class ConsoleMonitor {
         const knownPatterns = [
             'React DevTools',
             'Download the React DevTools',
-            // Add other known non-critical patterns here
+            'getaddrinfo',           // DNS/Network errors in CI
+            'ENOTFOUND',             // DNS/Network errors in CI
+            'node:dns',              // Server-side DNS errors logged to client
+            'net::ERR_NAME_NOT_RESOLVED' // Browser DNS errors
         ];
 
         return knownPatterns.some(pattern => text.includes(pattern));
