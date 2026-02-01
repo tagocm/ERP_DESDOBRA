@@ -130,8 +130,8 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
 
         let uCom = 'UN';
         let uTrib = 'UN';
-        let qCom = Number(item.quantity);
-        let vUnCom = Number(item.unit_price);
+        const qCom = Number(item.quantity);
+        const vUnCom = Number(item.unit_price);
 
         // 1. Snapshot Strategy (Gold Standard)
         if (snapshot && snapshot.sell_unit_code) {

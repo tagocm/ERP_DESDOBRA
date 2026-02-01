@@ -53,7 +53,7 @@ export async function POST(request: Request) {
                 ),
                 items:sales_document_items (
                     *,
-                    product:items (*)
+                    product:items!fk_sales_item_product (*)
                 )
             `)
             .in('id', ids);

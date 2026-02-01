@@ -58,7 +58,7 @@ export const DecimalInput = React.forwardRef<HTMLInputElement, DecimalInputProps
         }, [value, precision, minPrecision]);
 
         const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-            if (props.disableDecimalShift) {
+            if (disableDecimalShift) {
                 // Allow digits and comma only
                 let raw = e.target.value.replace(/[^0-9,]/g, "");
 

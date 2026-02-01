@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/utils/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { printZPL, getPrinters, qzConnect, setupQZSecurity } from '@/lib/qz-printer';
@@ -12,45 +12,45 @@ export function useQZPrinter() {
     const [loading, setLoading] = useState(false);
     const [configOpen, setConfigOpen] = useState(false);
     const { toast } = useToast();
-    const supabase = createClient();
+    const supabase = useMemo(() => createClient(), []);
 
     // Init security context
     useEffect(() => {
         setupQZSecurity();
     }, []);
 
-    // Load saved printer from DB
-    const loadSavedPrinter = useCallback(async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
+    // Load saved printer from DB on mount
+    useEffect(() => {
+        const loadPrinter = async () => {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session) return;
 
-        // 1. Get Company ID
-        const { data: member } = await supabase
-            .from('company_members')
-            .select('company_id')
-            .eq('auth_user_id', session.user.id)
-            .limit(1)
-            .maybeSingle();
-
-        if (member?.company_id) {
-            setCompanyId(member.company_id);
-
-            // 2. Get Settings
-            const { data, error } = await supabase
-                .from('company_printer_settings')
-                .select('zebra_printer_name')
-                .eq('company_id', member.company_id)
+            // 1. Get Company ID
+            const { data: member } = await supabase
+                .from('company_members')
+                .select('company_id')
+                .eq('auth_user_id', session.user.id)
+                .limit(1)
                 .maybeSingle();
 
-            if (data?.zebra_printer_name) {
-                setPrinterName(data.zebra_printer_name);
-            }
-        }
-    }, [supabase]);
+            if (member?.company_id) {
+                setCompanyId(member.company_id);
 
-    useEffect(() => {
-        loadSavedPrinter();
-    }, [loadSavedPrinter]);
+                // 2. Get Settings
+                const { data, error } = await supabase
+                    .from('company_printer_settings')
+                    .select('zebra_printer_name')
+                    .eq('company_id', member.company_id)
+                    .maybeSingle();
+
+                if (data?.zebra_printer_name) {
+                    setPrinterName(data.zebra_printer_name);
+                }
+            }
+        };
+
+        loadPrinter();
+    }, [supabase]);
 
     // Connect to QZ
     const connectQZ = useCallback(async () => {

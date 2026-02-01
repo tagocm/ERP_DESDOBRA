@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabaseBrowser";
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
-import { ClipboardList, Plus, Search, Calendar, User, Package } from "lucide-react";
+import { Search, Plus, FileText, ClipboardList, Package, Archive, RefreshCw, X, Calendar } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { NewProductionEntryModal } from "@/components/production/NewProductionEntryModal";
@@ -76,9 +76,9 @@ export default function NotesPage() {
 
             <Card>
                 <CardHeaderStandard
-                    icon={<ClipboardList className="w-5 h-5 text-brand-600" />}
+                    icon={<FileText className="w-5 h-5 text-brand-600" />}
                     title="Apontamentos de Produção"
-                    subtitle="Histórico de produção e entradas de estoque."
+                    description="Histórico de produção e entradas de estoque."
                     actions={
                         <Button onClick={() => setIsModalOpen(true)}>
                             <Plus className="w-4 h-4 mr-2" />

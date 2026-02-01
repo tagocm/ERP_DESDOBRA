@@ -1,4 +1,13 @@
 import { createClient } from '@/utils/supabase/server'
+import { Database, Json } from '@/types/supabase'
+
+type PurchaseOrderRow = Database['public']['Tables']['purchase_orders']['Row']
+type PurchaseOrderItemRow = Database['public']['Tables']['purchase_order_items']['Row']
+
+type PurchaseOrderWithItems = PurchaseOrderRow & {
+    items: PurchaseOrderItemRow[]
+    supplier: { name: string } | null
+}
 
 export interface PurchaseOrder {
     id: string
@@ -25,7 +34,7 @@ export interface PurchaseOrder {
     total_amount?: number
     total_weight_kg?: number
     total_gross_weight_kg?: number
-    delivery_address_json?: any
+    delivery_address_json?: Json
     created_by: string | null
     created_at: string
     updated_at: string
@@ -159,7 +168,7 @@ export const purchasesRepository = {
             return { data: null, error }
         }
 
-        return { data, error: null }
+        return { data: data as PurchaseOrderWithItems, error: null }
     },
 
     /**
@@ -386,8 +395,7 @@ export const purchasesRepository = {
             }
         }
 
-        // @ts-ignore
-        const items = po.items as any[]
+        const items = po.items as unknown as PurchaseOrderItemRow[]
 
         // 2. Create inventory movements for each item
         for (const item of items) {
@@ -401,7 +409,6 @@ export const purchasesRepository = {
                 reference_type: 'PURCHASE_ORDER',
                 reference_id: purchaseOrderId,
                 occurred_at: receiptData?.received_at || new Date().toISOString(),
-                // @ts-ignore
                 notes: `NF ${receiptData?.supplier_invoice_number || 'S/N'} - ${po.supplier?.name || 'Compra'}`,
                 created_by: userId
             })
@@ -539,7 +546,7 @@ export const purchasesRepository = {
     /**
      * Cancel purchase order
      */
-    async cancelPurchaseOrder(companyId: string, purchaseOrderId: string, reason?: string) {
+    async cancelPurchaseOrder(companyId: string, purchaseOrderId: string) {
         const supabase = await createClient()
 
         // 1. Validate status

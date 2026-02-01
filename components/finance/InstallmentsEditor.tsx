@@ -60,6 +60,7 @@ export function InstallmentsEditor({
             payment_condition: null,
             payment_method: null,
             suggested_account_id: null,
+            financial_account_id: null,
             category_id: null,
             cost_center_id: null,
             notes: null,

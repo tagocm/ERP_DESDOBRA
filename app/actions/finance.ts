@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/action'
+import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import {
     listPendingAPTitles,
@@ -15,7 +15,7 @@ import {
 // Assuming we can list AR titles with similar query.
 
 async function getActiveCompanyId() {
-    const supabase = createClient()
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) throw new Error('Unauthorized')
 
@@ -29,7 +29,7 @@ async function getActiveCompanyId() {
 // --- Unified Actions ---
 
 export async function listPendingTitlesAction() {
-    const supabase = createClient()
+    const supabase = await createClient()
     const companyId = await getActiveCompanyId()
     if (!companyId) return { error: 'Company not found' }
 
@@ -49,17 +49,25 @@ export async function listPendingTitlesAction() {
         if (arError) throw arError
 
         // Process and Unify
-        const ap = apTitles.map(t => ({ ...t, type: 'AP', entity_name: t.supplier?.trade_name || 'Desconhecido' }))
-        const ar = (arTitlesData || []).map(t => ({ ...t, type: 'AR', entity_name: t.customer?.trade_name || 'Desconhecido' }))
+        const ap = apTitles.map(t => ({ ...t, type: 'AP' as const, entity_name: t.supplier?.trade_name || 'Desconhecido' }))
+        const ar = (arTitlesData || []).map(t => ({ ...t, type: 'AR' as const, entity_name: t.customer?.trade_name || 'Desconhecido' }))
 
         return { data: [...ap, ...ar] }
-    } catch (error: any) {
-        return { error: error.message }
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return { error: message }
     }
 }
 
-export async function approveTitleAction(id: string, type: 'AP' | 'AR', installments: any[]) {
-    const supabase = createClient()
+interface InstallmentInput {
+    amount_original: number;
+    due_date: string;
+    // Add other known fields if needed
+    [key: string]: unknown;
+}
+
+export async function approveTitleAction(id: string, type: 'AP' | 'AR', installments: InstallmentInput[]) {
+    const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Unauthorized' }
 
@@ -102,13 +110,14 @@ export async function approveTitleAction(id: string, type: 'AP' | 'AR', installm
 
         revalidatePath('/app/financeiro/pre-aprovacao')
         return { success: true }
-    } catch (error: any) {
-        return { error: error.message }
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return { error: message }
     }
 }
 
 export async function rejectTitleAction(id: string, type: 'AP' | 'AR') {
-    const supabase = createClient()
+    const supabase = await createClient()
     try {
         if (type === 'AP') {
             await rejectAPTitle(supabase, id)
@@ -117,13 +126,20 @@ export async function rejectTitleAction(id: string, type: 'AP' | 'AR') {
         }
         revalidatePath('/app/financeiro/pre-aprovacao')
         return { success: true }
-    } catch (error: any) {
-        return { error: error.message }
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return { error: message }
     }
 }
 
-export async function updateTitleAction(id: string, type: 'AP' | 'AR', updates: any) {
-    const supabase = createClient()
+export async function updateTitleAction(id: string, type: 'AP' | 'AR', updates: {
+    amount_total: number;
+    payment_terms_snapshot?: any;
+    payment_method_snapshot?: any;
+    due_date?: string;
+    [key: string]: unknown;
+}): Promise<{ success: boolean } | { error: string }> {
+    const supabase = await createClient()
     try {
         const payload = {
             amount_total: updates.amount_total,
@@ -137,14 +153,15 @@ export async function updateTitleAction(id: string, type: 'AP' | 'AR', updates: 
         }
 
         if (type === 'AP') {
-            await updateAPTitle(supabase, id, payload)
+            await updateAPTitle(supabase, id, payload as any)
         } else {
             const { error } = await supabase.from('ar_titles').update(payload).eq('id', id)
             if (error) throw error
         }
         revalidatePath('/app/financeiro/pre-aprovacao')
         return { success: true }
-    } catch (error: any) {
-        return { error: error.message }
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        return { error: message }
     }
 }

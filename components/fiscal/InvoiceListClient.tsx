@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { fetchPendingInvoices, fetchIssuedInvoices, PendingInvoice } from '@/lib/fiscal/nfe-actions';
 import { InvoiceFilters } from '@/components/fiscal/InvoiceFilters';
 import { PendingInvoicesTable } from '@/components/fiscal/PendingInvoicesTable';
@@ -25,11 +25,7 @@ export function InvoiceListClient({ companyId, initialView = 'pending', initialF
     const [isLoading, setIsLoading] = useState(true);
     const [filters, setFilters] = useState(initialFilters || {});
 
-    useEffect(() => {
-        loadData();
-    }, [view, filters]);
-
-    async function loadData() {
+    const loadData = useCallback(async () => {
         setIsLoading(true);
         try {
             if (view === 'pending') {
@@ -50,7 +46,11 @@ export function InvoiceListClient({ companyId, initialView = 'pending', initialF
         } finally {
             setIsLoading(false);
         }
-    }
+    }, [view, filters, companyId]);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     return (
         <div className="space-y-6">

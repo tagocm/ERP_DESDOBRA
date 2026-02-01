@@ -131,7 +131,7 @@ export async function retrievePassword(encryptedOrSecretId: string): Promise<str
 /**
  * Delete password securely
  */
-export async function deletePassword(encryptedOrSecretId: string): Promise<void> {
+export async function deletePassword(_encryptedOrSecretId: string): Promise<void> {
     if (isVaultAvailable()) {
         // TODO: Implement Vault deletion when available
         // await supabase.vault.deleteSecret(encryptedOrSecretId);

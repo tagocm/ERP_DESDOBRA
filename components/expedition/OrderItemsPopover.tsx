@@ -103,7 +103,7 @@ export function OrderItemsPopover({ orderId, preloadedItems, partialPayloadItems
                 .select(`
                     *,
                     packaging:item_packaging(label),
-                    product:items(id, name, sku)
+                    product:items!fk_sales_item_product(id, name, sku)
                 `)
                 .eq('document_id', orderId)
                 .order('created_at', { ascending: true });

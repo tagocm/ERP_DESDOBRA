@@ -143,7 +143,7 @@ export async function getSalesDocumentById(supabase: SupabaseClient, id: string)
             *,
             client:organizations!client_id(trade_name, document_number, sales_channel, payment_terms_id),
             sales_rep:users!sales_rep_id(full_name),
-            items:sales_document_items(*, packaging:item_packaging(label), product:items(name, gtin_ean_base, id, sku, un:uom, net_weight_kg_base, gross_weight_kg_base)),
+            items:sales_document_items(*, packaging:item_packaging(label), product:items!fk_sales_item_product(name, gtin_ean_base, id, sku, un:uom, net_weight_kg_base, gross_weight_kg_base)),
             payments:sales_document_payments(*),
             adjustments:sales_document_adjustments(*),
             route_info:delivery_route_orders(
@@ -558,7 +558,7 @@ export async function getLastOrderForClient(supabase: SupabaseClient, clientId: 
         .from('sales_document_items')
         .select(`
             *,
-            product:items(id, name, un:uom, sku)
+            product:items!fk_sales_item_product(id, name, un:uom, sku)
         `)
         .eq('document_id', order.id);
 
@@ -591,7 +591,7 @@ export async function recalculateFiscalForOrder(
         .select(`
             *,
             packaging:item_packaging(gross_weight_kg, net_weight_kg),
-            product:items!inner(
+            product:items!fk_sales_item_product!inner(
                 id,
                 name,
                 net_weight_kg_base,

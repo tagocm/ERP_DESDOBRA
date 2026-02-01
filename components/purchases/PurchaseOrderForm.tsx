@@ -390,7 +390,7 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
 
     const handleUpdateItem = (index: number, field: string, value: any) => {
         const newItems = [...formData.items];
-        let updatedItem = { ...newItems[index], [field]: value };
+        const updatedItem = { ...newItems[index], [field]: value };
 
         // Handle Packaging Change to update Factor & Label
         if (field === 'packaging_id') {

@@ -101,10 +101,10 @@ export function EventDetailDrawer({ eventId, onClose, onSuccess }: EventDetailDr
             const res = await approveEventAction(event.id);
             if (res.success) {
                 toast({
-                    title: "Evento Aprovado!",
-                    description: `Título ${res.data?.direction} ${res.data?.titleId} gerado com sucesso.`,
+                    title: "Evento Aprovado",
+                    description: `Título ${res.data?.direction} gerado com sucesso.`,
                     action: <Button variant="outline" size="sm" onClick={() => window.open(`/app/financeiro/${res.data?.direction === 'AR' ? 'recebimentos' : 'pagamentos'}`, '_blank')}>Ver Título</Button>
-                });
+                } as any);
                 onSuccess();
                 onClose();
             } else {
@@ -338,7 +338,7 @@ export function EventDetailDrawer({ eventId, onClose, onSuccess }: EventDetailDr
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setRejectDialog(false)}>Cancelar</Button>
                         <Button
-                            variant="destructive"
+                            variant="danger"
                             onClick={handleReject}
                             disabled={rejectReason.length < 10 || saving}
                         >

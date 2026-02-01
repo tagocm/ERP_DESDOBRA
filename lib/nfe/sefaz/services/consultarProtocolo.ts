@@ -50,7 +50,7 @@ export async function consultarProtocolo(
     const parsed = parseSefazResponse(body, "consultarProtocolo");
 
     // Check retConsSitNFe
-    const ret = parsed.retConsSitNFe || parsed;
+    const ret = parsed;
 
     // Extract protNFe XML directly from raw response body to ensure signature integrity
     let protNFeXml: string | undefined;

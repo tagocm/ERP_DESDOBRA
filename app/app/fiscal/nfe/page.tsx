@@ -69,7 +69,7 @@ export default async function NFePage({
             <div className="px-6">
                 <InvoiceListClient
                     companyId={companyId!}
-                    initialView={view}
+                    initialView={view as 'pending' | 'issued'}
                     initialFilters={{
                         dateFrom,
                         dateTo,

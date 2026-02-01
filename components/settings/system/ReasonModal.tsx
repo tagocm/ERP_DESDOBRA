@@ -29,7 +29,7 @@ export function ReasonModal({ isOpen, onClose, reason, defaultGroup, companyId, 
     // Form State
     const [name, setName] = useState("");
     const [isActive, setIsActive] = useState(true);
-    const [group, setGroup] = useState<DeliveryReasonGroup>("CARREGAMENTO_PARCIAL");
+    const [group, setGroup] = useState<DeliveryReasonGroup>("EXPEDICAO_CARREGADO_PARCIAL");
     const [requireNote, setRequireNote] = useState(false);
 
     useEffect(() => {

@@ -166,13 +166,13 @@ export function parseNfe(xml: string): DanfeData {
     });
 
     // Deal with potentially enveloped XML (nfeProc, enviNFe, or raw NFe)
-    let parsed = parser.parse(xml);
+    const parsed = parser.parse(xml);
 
     console.log('[parseNfe] Parsed root keys:', Object.keys(parsed).join(', '));
 
     // Normalize Root - be extremely flexible to handle various structures
     let NFe = null;
-    let nfeProc = parsed.nfeProc;
+    const nfeProc = parsed.nfeProc;
 
     // Try different paths to find the NFe node
     if (nfeProc?.NFe) {
