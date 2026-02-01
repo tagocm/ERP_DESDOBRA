@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { PartialLoadingModal } from '@/components/logistics/PartialLoadingModal';
 import { useCompany } from '@/contexts/CompanyContext';
+import { normalizeLoadingStatus } from '@/lib/constants/status';
 
 interface LoadingChecklistProps {
     route: any;
@@ -135,7 +136,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                     const order = routeOrder.sales_order;
                     if (!order) return null;
 
-                    let status = routeOrder.loading_status;
+                    let status = normalizeLoadingStatus(routeOrder.loading_status) || 'pending';
                     const occurrences = order.occurrences || [];
 
                     if (occurrences.some((o: any) => o.occurrence_type === 'NOT_LOADED_TOTAL')) {
@@ -144,7 +145,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                         // Keep explicit status
                     }
 
-                    if (!['pending', 'pendente', 'loaded', 'not_loaded', 'partial'].includes(status)) status = 'pendente';
+                    if (!['pending', 'loaded', 'not_loaded', 'partial'].includes(status)) status = 'pending';
 
                     const isLoading = loadingStates[order.id];
 

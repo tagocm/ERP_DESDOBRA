@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabaseBrowser';
 import { resetAndUnscheduleRoute } from '@/lib/data/expedition';
+import { normalizeLoadingStatus, normalizeLogisticsStatus, normalizeRouteStatus } from '@/lib/constants/status';
 
 interface ExpedicaoClientProps {
     initialRoutes: any[];
@@ -32,7 +33,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
         if (selectedRoute) {
             const updated = (initialRoutes || []).find(r => r.id === selectedRoute.id);
             if (updated) {
-                if (updated.status === 'cancelada') {
+                if ((normalizeRouteStatus(updated.status) || updated.status) === 'cancelled') {
                     setSelectedRoute(null);
                 } else {
                     setSelectedRoute(updated);
@@ -52,9 +53,9 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
             return;
         }
 
-        const countFull = selectedRoute.orders?.filter((o: any) => o.loading_status === 'loaded').length || 0;
-        const countPartial = selectedRoute.orders?.filter((o: any) => o.loading_status === 'partial' || o.sales_order?.occurrences?.some((occ: any) => occ.occurrence_type === 'PARTIAL_LOADED')).length || 0;
-        const countNotLoaded = selectedRoute.orders?.filter((o: any) => o.loading_status === 'not_loaded' || o.sales_order?.occurrences?.some((occ: any) => occ.occurrence_type === 'NOT_LOADED_TOTAL')).length || 0;
+        const countFull = selectedRoute.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'loaded').length || 0;
+        const countPartial = selectedRoute.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'partial' || o.sales_order?.occurrences?.some((occ: any) => occ.occurrence_type === 'PARTIAL_LOADED')).length || 0;
+        const countNotLoaded = selectedRoute.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'not_loaded' || o.sales_order?.occurrences?.some((occ: any) => occ.occurrence_type === 'NOT_LOADED_TOTAL')).length || 0;
         const totalCount = selectedRoute.orders?.length || 0;
 
         // Ensure we don't double count if statuses overlap with occurrences
@@ -62,7 +63,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
         // But for "countProcessed" we just need to know if "decision made".
 
         const countProcessed = selectedRoute.orders?.filter((o: any) => {
-            const hasStatus = ['loaded', 'partial', 'not_loaded'].includes(o.loading_status);
+            const hasStatus = ['loaded', 'partial', 'not_loaded'].includes(normalizeLoadingStatus(o.loading_status) || o.loading_status);
             const hasOccurrence = o.sales_order?.occurrences?.length > 0;
             return hasStatus || hasOccurrence;
         }).length || 0;
@@ -128,11 +129,11 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
         }
     };
 
-    const hasInRouteOrders = selectedRoute?.orders?.some((o: any) => o.sales_order?.status_logistic === 'em_rota');
+    const hasInRouteOrders = selectedRoute?.orders?.some((o: any) => (normalizeLogisticsStatus(o.sales_order?.status_logistic) || o.sales_order?.status_logistic) === 'in_route');
 
     // Check if ALL orders are marked as Not Loaded
     const allOrdersNotLoaded = selectedRoute?.orders?.length > 0 &&
-        selectedRoute.orders.every((o: any) => o.loading_status === 'not_loaded');
+        selectedRoute.orders.every((o: any) => normalizeLoadingStatus(o.loading_status) === 'not_loaded');
 
     // Filter logic
     const filteredRoutes = routes.filter(route => {
@@ -151,9 +152,9 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
             // Check if same week
             const start = format(new Date(), 'ww-yyyy');
             const target = format(routeDate, 'ww-yyyy');
-            return start === target && route.status !== 'cancelada';
+            return start === target && (normalizeRouteStatus(route.status) || route.status) !== 'cancelled';
         }
-        return route.status !== 'cancelada';
+        return (normalizeRouteStatus(route.status) || route.status) !== 'cancelled';
     });
 
     return (
@@ -274,7 +275,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
 
                                         // Calculate statuses for dots and completion
                                         const processedOrders = orders.map((o: any) => {
-                                            let status = o.loading_status || 'pending';
+                                            let status = normalizeLoadingStatus(o.loading_status) || 'pending';
                                             if (!['pending', 'loaded', 'partial', 'not_loaded'].includes(status)) status = 'pending';
                                             return { ...o, effectiveStatus: status };
                                         });

@@ -5,6 +5,7 @@ import { Eye, FileText } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { DeliveryRoute } from "@/types/sales";
+import { normalizeLogisticsStatus } from "@/lib/constants/status";
 
 interface RouteHistoryTableProps {
     data: any[]; // Extended DeliveryRoute with joined orders/sales_order
@@ -51,9 +52,9 @@ export function RouteHistoryTable({ data, isLoading }: RouteHistoryTableProps) {
                             let notDelivered = 0;
 
                             route.orders?.forEach((o: any) => {
-                                const st = o.sales_order?.status_logistic;
-                                if (st === 'entregue') delivered++;
-                                else if (st === 'nao_entregue') notDelivered++;
+                                const st = normalizeLogisticsStatus(o.sales_order?.status_logistic) || o.sales_order?.status_logistic;
+                                if (st === 'delivered') delivered++;
+                                else if (st === 'not_delivered') notDelivered++;
                             });
 
                             return (

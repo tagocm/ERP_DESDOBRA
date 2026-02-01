@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { PreApprovalActions } from './PreApprovalActions'
 import { FinancialEvent } from '@/lib/finance/events-db'
+import { normalizeFinancialEventStatus } from '@/lib/constants/status'
 
 interface Title {
     id: string
@@ -33,7 +34,7 @@ function mapTitleToEvent(t: Title): FinancialEvent {
         total_amount: t.amount_total,
         issue_date: t.date_issued,
         attention_reason: t.attention_reason || null,
-        status: (t.attention_status as any) || 'pendente',
+        status: normalizeFinancialEventStatus(t.attention_status) || 'pending',
         // Defaults for required fields not in Title view
         company_id: '',
         origin_type: 'MANUAL',

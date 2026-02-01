@@ -1,79 +1,71 @@
--- ========================================================================
--- Fix Re-confirmation Flow for Rejected Sales Orders
--- ========================================================================
--- This migration addresses critical gaps in the financial event lifecycle:
--- 1. Prevents hard deletion of financial records
--- 2. Ensures unique installments (no duplicates)
--- 3. Fixes trigger to reset rejected events to pending on re-confirmation
--- 4. Makes installment creation idempotent
--- ========================================================================
+-- Standardize financial_events.status to EN
 
--- ========================================================================
--- SECTION 1: Prevent Hard Deletion of Financial Records
--- ========================================================================
+BEGIN;
 
--- Function to prevent deletion of financial events
-CREATE OR REPLACE FUNCTION prevent_financial_events_delete()
-RETURNS TRIGGER AS $$
+-- 0) Drop partial index that compares status to PT literals
+DROP INDEX IF EXISTS public.idx_financial_events_status;
+
+-- Drop legacy CHECK constraint on status (enum will enforce values)
+ALTER TABLE public.financial_events
+    DROP CONSTRAINT IF EXISTS financial_events_status_check;
+
+-- Drop any existing partial indexes on financial_events that filter by status
+DO $$
+DECLARE
+    r RECORD;
 BEGIN
-    RAISE EXCEPTION 'Registros de eventos financeiros não podem ser excluídos. Use status/cancelamento para inativar.';
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
+    FOR r IN
+        SELECT schemaname, indexname
+        FROM pg_indexes
+        WHERE schemaname = 'public'
+          AND tablename = 'financial_events'
+          AND indexdef ILIKE '%where%'
+          AND indexdef ILIKE '%status%'
+    LOOP
+        EXECUTE format('DROP INDEX IF EXISTS %I.%I', r.schemaname, r.indexname);
+    END LOOP;
+END $$;
 
--- Trigger to prevent deletion of financial_events
-DROP TRIGGER IF EXISTS trg_prevent_financial_events_delete ON financial_events;
-CREATE TRIGGER trg_prevent_financial_events_delete
-    BEFORE DELETE ON financial_events
-    FOR EACH ROW
-    EXECUTE FUNCTION prevent_financial_events_delete();
-
--- Function to prevent deletion of financial event installments
-CREATE OR REPLACE FUNCTION prevent_financial_event_installments_delete()
-RETURNS TRIGGER AS $$
-BEGIN
-    RAISE EXCEPTION 'Registros de parcelas financeiras não podem ser excluídos. Use status/cancelamento para inativar.';
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql;
-
--- Trigger to prevent deletion of financial_event_installments
-DROP TRIGGER IF EXISTS trg_prevent_financial_event_installments_delete ON financial_event_installments;
-CREATE TRIGGER trg_prevent_financial_event_installments_delete
-    BEFORE DELETE ON financial_event_installments
-    FOR EACH ROW
-    EXECUTE FUNCTION prevent_financial_event_installments_delete();
-
-COMMENT ON FUNCTION prevent_financial_events_delete() IS 'Prevents hard deletion of financial events - use status changes instead';
-COMMENT ON FUNCTION prevent_financial_event_installments_delete() IS 'Prevents hard deletion of financial event installments - use status changes instead';
-
--- ========================================================================
--- SECTION 2: Ensure Unique Installments (Prevent Duplicates)
--- ========================================================================
-
--- Add unique constraint to prevent duplicate installment numbers for same event
--- Using DO block to make it idempotent (won't fail if constraint already exists)
+-- 1) Create EN enum for financial_events status
 DO $$
 BEGIN
-    -- Check if constraint already exists
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'unique_event_installment_number'
-    ) THEN
-        ALTER TABLE financial_event_installments
-        ADD CONSTRAINT unique_event_installment_number 
-        UNIQUE (event_id, installment_number);
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'financial_event_status_en') THEN
+        CREATE TYPE public.financial_event_status_en AS ENUM (
+            'pending', 'attention', 'approving', 'approved', 'rejected'
+        );
     END IF;
 END $$;
 
-COMMENT ON CONSTRAINT unique_event_installment_number ON financial_event_installments IS 
-'Ensures each installment number is unique per event, preventing duplicates during re-confirmation';
+-- 2) Convert column to EN enum
+ALTER TABLE public.financial_events
+    ALTER COLUMN status DROP DEFAULT;
 
--- ========================================================================
--- SECTION 3: Fix Trigger to Reset Rejected Events on Re-confirmation
--- ========================================================================
+ALTER TABLE public.financial_events
+    ALTER COLUMN status TYPE text
+    USING status::text;
 
--- Replace the existing trigger function with fixed logic
+ALTER TABLE public.financial_events
+    ALTER COLUMN status TYPE public.financial_event_status_en
+    USING (
+        CASE (status::text)
+            WHEN 'pending' THEN 'pending'
+            WHEN 'attention' THEN 'attention'
+            WHEN 'approving' THEN 'approving'
+            WHEN 'approved' THEN 'approved'
+            WHEN 'rejected' THEN 'rejected'
+            WHEN 'pending' THEN 'pending'
+            WHEN 'attention' THEN 'attention'
+            WHEN 'approving' THEN 'approving'
+            WHEN 'approved' THEN 'approved'
+            WHEN 'rejected' THEN 'rejected'
+            ELSE 'pending'
+        END
+    )::public.financial_event_status_en;
+
+ALTER TABLE public.financial_events
+    ALTER COLUMN status SET DEFAULT 'pending';
+
+-- 3) Update trigger functions to EN status values
 CREATE OR REPLACE FUNCTION public.handle_sales_event_trigger()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -82,12 +74,11 @@ DECLARE
 BEGIN
     -- Determine Operational Status (use Logistic Status if Commercial is Confirmed, else Commercial)
     v_op_status := CASE 
-        WHEN NEW.status_commercial = 'confirmed' THEN NEW.status_logistic 
-        ELSE NEW.status_commercial 
+        WHEN NEW.status_commercial = 'confirmed' THEN NEW.status_logistic::text 
+        ELSE NEW.status_commercial::text 
     END;
 
     -- TRIGGER 1: CREATE EVENT ON CONFIRMATION
-    -- If status_commercial becomes 'confirmed' (and wasn't before)
     IF NEW.status_commercial = 'confirmed' AND (OLD.status_commercial IS DISTINCT FROM 'confirmed') THEN
         
         -- Get partner name
@@ -124,7 +115,6 @@ BEGIN
         )
         ON CONFLICT (company_id, origin_type, origin_id) 
         DO UPDATE SET 
-            -- Always update these fields
             total_amount = EXCLUDED.total_amount,
             operational_status = EXCLUDED.operational_status,
             updated_at = NOW(),
@@ -132,8 +122,8 @@ BEGIN
             -- SMART STATUS RESET: Reset rejected events to pending, preserve approved
             status = CASE
                 WHEN financial_events.status = 'rejected' THEN 'pending'
-                WHEN financial_events.status = 'approved' THEN 'approved'  -- Never reset approved
-                ELSE financial_events.status  -- Keep current status for other cases
+                WHEN financial_events.status = 'approved' THEN 'approved'
+                ELSE financial_events.status
             END,
             
             -- Clear rejection fields when resetting rejected events
@@ -165,7 +155,6 @@ BEGIN
             END;
         
         -- Create default installments only if new event (checked via existence)
-        -- Use IDEMPOTENT logic with ON CONFLICT
         IF NOT EXISTS (
             SELECT 1 FROM financial_event_installments fei
             JOIN financial_events fe ON fe.id = fei.event_id
@@ -178,25 +167,20 @@ BEGIN
                 v_payment_mode_name TEXT;
                 v_has_sales_installments BOOLEAN;
              BEGIN
-                -- Fetch Defaults
                 SELECT id INTO v_default_account FROM gl_accounts WHERE company_id = NEW.company_id AND code = '3.01.01' LIMIT 1;
                 SELECT id INTO v_default_cc FROM cost_centers WHERE company_id = NEW.company_id AND code = '001' LIMIT 1;
                 
-                -- Fetch Payment Term Name
                 IF NEW.payment_terms_id IS NOT NULL THEN
                     SELECT name INTO v_payment_term_name FROM payment_terms WHERE id = NEW.payment_terms_id;
                 END IF;
 
-                -- Fetch Payment Mode Name
                 IF NEW.payment_mode_id IS NOT NULL THEN
                     SELECT name INTO v_payment_mode_name FROM payment_modes WHERE id = NEW.payment_mode_id;
                 END IF;
 
-                -- Check if Sales Order has explicit installments defined
                 SELECT EXISTS(SELECT 1 FROM sales_document_payments WHERE document_id = NEW.id) INTO v_has_sales_installments;
 
                 IF v_has_sales_installments THEN
-                    -- Copy from Sales Document Payments with IDEMPOTENT upsert
                     INSERT INTO financial_event_installments (
                         event_id,
                         installment_number,
@@ -222,7 +206,6 @@ BEGIN
                         payment_method = EXCLUDED.payment_method,
                         updated_at = NOW();
                 ELSE
-                    -- Default fallback: 1 installment, 30 days with IDEMPOTENT upsert
                     INSERT INTO financial_event_installments (
                         event_id,
                         installment_number,
@@ -252,7 +235,6 @@ BEGIN
         END IF;
 
     -- TRIGGER 2: SYNC OPERATIONAL STATUS & TOTAL
-    -- If Event exists, update it
     ELSIF (NEW.status_logistic IS DISTINCT FROM OLD.status_logistic) OR (NEW.total_amount IS DISTINCT FROM OLD.total_amount) THEN
         
         UPDATE financial_events
@@ -270,20 +252,99 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-COMMENT ON FUNCTION handle_sales_event_trigger() IS 
-'Manages financial event lifecycle for sales orders with smart reset logic for rejected events';
+CREATE OR REPLACE FUNCTION public.handle_purchase_event_trigger()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_partner_name TEXT;
+    v_def_account UUID;
+    v_def_cc UUID;
+BEGIN
+    -- TRIGGER 1: CREATE EVENT ON SENT
+    IF NEW.status = 'sent' AND (OLD.status IS DISTINCT FROM 'sent') THEN
+        
+        SELECT trade_name, default_account_id, default_cost_center_id 
+        INTO v_partner_name, v_def_account, v_def_cc
+        FROM organizations 
+        WHERE id = NEW.supplier_id;
+        
+        INSERT INTO financial_events (
+            company_id,
+            origin_type,
+            origin_id,
+            origin_reference,
+            partner_id,
+            partner_name,
+            direction,
+            issue_date,
+            total_amount,
+            status,
+            operational_status
+        )
+        VALUES (
+            NEW.company_id,
+            'PURCHASE',
+            NEW.id,
+            'Pedido de Compra', 
+            NEW.supplier_id,
+            COALESCE(v_partner_name, 'Fornecedor não identificado'),
+            'AP',
+            COALESCE(NEW.ordered_at::DATE, CURRENT_DATE),
+            0, 
+            'pending',
+            NEW.status
+        )
+        ON CONFLICT (company_id, origin_type, origin_id) 
+        DO UPDATE SET 
+            operational_status = EXCLUDED.operational_status,
+            updated_at = NOW()
+        WHERE financial_events.status NOT IN ('approved', 'rejected');
+        
+        IF NOT EXISTS (
+            SELECT 1 FROM financial_event_installments fei
+            JOIN financial_events fe ON fe.id = fei.event_id
+            WHERE fe.origin_type = 'PURCHASE' AND fe.origin_id = NEW.id
+        ) THEN
+             INSERT INTO financial_event_installments (
+                event_id,
+                installment_number,
+                due_date,
+                amount,
+                payment_condition,
+                suggested_account_id,
+                cost_center_id
+            )
+            SELECT 
+                id,
+                1,
+                CURRENT_DATE + INTERVAL '30 days',
+                0,
+                'A definir',
+                v_def_account,
+                v_def_cc
+            FROM financial_events
+            WHERE origin_type = 'PURCHASE' AND origin_id = NEW.id;
+        END IF;
 
--- ========================================================================
--- VERIFICATION QUERIES (Run these after migration to validate)
--- ========================================================================
+    -- TRIGGER 2: SYNC OPERATIONAL STATUS
+    ELSIF (NEW.status IS DISTINCT FROM OLD.status) THEN
+        
+        UPDATE financial_events
+        SET 
+            operational_status = NEW.status,
+            updated_at = NOW()
+        WHERE origin_type = 'PURCHASE' 
+          AND origin_id = NEW.id
+          AND status NOT IN ('approved', 'rejected');
+          
+    END IF;
 
--- Check triggers are in place
--- SELECT tgname, tgrelid::regclass FROM pg_trigger WHERE tgname LIKE '%prevent_financial%';
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Check unique constraint exists
--- SELECT conname, conrelid::regclass FROM pg_constraint WHERE conname = 'unique_event_installment_number';
+-- 4) Recreate partial index with EN values
+CREATE INDEX IF NOT EXISTS idx_financial_events_status 
+  ON financial_events(status) 
+  WHERE status IN ('pending', 'attention');
 
--- Test data integrity
--- SELECT COUNT(*) as total_events, COUNT(DISTINCT (company_id, origin_type, origin_id)) as unique_origins 
--- FROM financial_events;
--- (total_events should equal unique_origins)
+COMMIT;

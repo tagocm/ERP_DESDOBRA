@@ -6,14 +6,14 @@ BEGIN;
 -- 1. Migrate Existing Data
 -- Map old values to new standardized values (snake_case)
 -- Old known values: 'pending', 'billed', 'partial', 'paid', 'overdue'
--- New values: 'pendente', 'pre_lancado', 'aprovado', 'em_revisao', 'cancelado'
+-- New values: 'pending', 'pre_lancado', 'approved', 'em_revisao', 'cancelado'
 
 UPDATE sales_documents
 SET financial_status = CASE
-    WHEN financial_status = 'pending' THEN 'pendente'
-    WHEN financial_status IN ('billed', 'paid', 'partial', 'overdue', 'refunded') THEN 'aprovado' -- Assume processed if it has financial activity
-    WHEN financial_status IS NULL THEN 'pendente'
-    ELSE 'pendente' -- Fallback
+    WHEN financial_status = 'pending' THEN 'pending'
+    WHEN financial_status IN ('billed', 'paid', 'partial', 'overdue', 'refunded') THEN 'approved' -- Assume processed if it has financial activity
+    WHEN financial_status IS NULL THEN 'pending'
+    ELSE 'pending' -- Fallback
 END;
 
 -- 2. Update Constraint
@@ -23,11 +23,11 @@ ALTER TABLE sales_documents
 
 ALTER TABLE sales_documents
     ADD CONSTRAINT sales_documents_financial_status_check 
-    CHECK (financial_status IN ('pendente', 'pre_lancado', 'aprovado', 'em_revisao', 'cancelado'));
+    CHECK (financial_status IN ('pending', 'pre_lancado', 'approved', 'em_revisao', 'cancelado'));
 
 -- Set default
 ALTER TABLE sales_documents
-    ALTER COLUMN financial_status SET DEFAULT 'pendente';
+    ALTER COLUMN financial_status SET DEFAULT 'pending';
 
 -- 3. Update Trigger Function: handle_sales_order_logistic_change_ar
 -- Goal: Set financial_status to 'pre_lancado' when entering 'em_rota'
@@ -52,10 +52,10 @@ BEGIN
     IF NEW.status_logistic = 'em_rota' AND (OLD.status_logistic IS DISTINCT FROM 'em_rota') THEN
         
         -- 1. Update Order Status to PRE_LANCADO (Processing)
-        -- Only if it's currently 'pendente'. If it's already 'aprovado', don't revert it.
+        -- Only if it's currently 'pending'. If it's already 'approved', don't revert it.
         UPDATE sales_documents 
         SET financial_status = 'pre_lancado' 
-        WHERE id = NEW.id AND financial_status = 'pendente';
+        WHERE id = NEW.id AND financial_status = 'pending';
 
         -- 2. Generate AR Title (Pre-Launch) if needed
         -- ... Rest of logic remains the same ...
@@ -155,7 +155,7 @@ BEGIN
         IF NEW.status_logistic = 'nao_entregue' THEN
              UPDATE sales_documents 
              SET financial_status = 'em_revisao'
-             WHERE id = NEW.id AND financial_status IN ('aprovado', 'pre_lancado');
+             WHERE id = NEW.id AND financial_status IN ('approved', 'pre_lancado');
         END IF;
     END IF;
 

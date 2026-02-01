@@ -212,7 +212,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
         else setExpandedInstallmentId(id);
     };
 
-    const canEdit = event.status !== 'aprovado' && event.status !== 'reprovado';
+    const canEdit = event.status !== 'approved' && event.status !== 'rejected';
 
     return (
         <div className="bg-white border rounded-lg overflow-hidden shadow-sm animate-in fade-in zoom-in-95 duration-200">

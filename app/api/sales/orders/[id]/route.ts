@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
+import { normalizeLogisticsStatus, translateLogisticsStatusPt } from '@/lib/constants/status';
 
 export async function DELETE(
     request: Request,
@@ -48,15 +49,12 @@ export async function DELETE(
         }
 
         // 2. Validate business rules - cannot delete if in certain states
-        const blockedStatuses = ['em_rota', 'entregue', 'nao_entregue'];
-        if (blockedStatuses.includes(order.status_logistic)) {
-            const statusLabels: Record<string, string> = {
-                'em_rota': 'EM ROTA',
-                'entregue': 'ENTREGUE',
-                'nao_entregue': 'NÃO ENTREGUE'
-            };
+        const blockedStatuses = ['in_route', 'delivered', 'not_delivered'];
+        const normalizedStatus = normalizeLogisticsStatus(order.status_logistic) || order.status_logistic;
+        if (blockedStatuses.includes(normalizedStatus)) {
+            const statusLabel = translateLogisticsStatusPt(order.status_logistic).toUpperCase();
             return NextResponse.json({
-                error: `Pedido não pode ser excluído porque já está ${statusLabels[order.status_logistic]}.`
+                error: `Pedido não pode ser excluído porque já está ${statusLabel}.`
             }, { status: 400 });
         }
 

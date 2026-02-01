@@ -12,7 +12,7 @@ DROP TRIGGER IF EXISTS route_status_sync_trigger ON delivery_routes; -- Just in 
 
 -- 2. Create New Enum
 CREATE TYPE logistics_status_new AS ENUM (
-    'pendente',
+    'pending',
     'roteirizado', 
     'agendado',
     'em_rota',
@@ -30,7 +30,7 @@ ALTER TABLE sales_documents ALTER COLUMN status_logistic TYPE text;
 DO $$ BEGIN
     EXECUTE 'UPDATE sales_documents
     SET status_logistic = CASE status_logistic
-        WHEN ''pending'' THEN ''pendente''
+        WHEN ''pending'' THEN ''pending''
         WHEN ''separation'' THEN ''roteirizado''
         WHEN ''nao_entregue'' THEN ''devolvido''
         WHEN ''delivered'' THEN ''entregue'' 
@@ -45,7 +45,7 @@ ALTER TABLE sales_documents
     USING status_logistic::logistics_status_new;
 
 ALTER TABLE sales_documents 
-    ALTER COLUMN status_logistic SET DEFAULT 'pendente'::logistics_status_new;
+    ALTER COLUMN status_logistic SET DEFAULT 'pending'::logistics_status_new;
 
 -- 6. Handle Delivery Routes
 ALTER TABLE delivery_routes ALTER COLUMN logistics_status DROP DEFAULT;
@@ -89,7 +89,7 @@ BEGIN
         IF (NEW.status_logistic IS DISTINCT FROM OLD.status_logistic) THEN
             IF NEW.status_logistic::text = 'em_rota' AND NEW.financial_status = 'pre_lancado' THEN
                 v_reason := 'Entrou em rota';
-            ELSIF NEW.status_logistic::text IN ('devolvido', 'pendente') AND NEW.financial_status = 'em_revisao' THEN
+            ELSIF NEW.status_logistic::text IN ('devolvido', 'pending') AND NEW.financial_status = 'em_revisao' THEN
                 IF NEW.status_logistic::text = 'devolvido' THEN
                      v_reason := 'Ocorrência logística: devolvido';
                 ELSE
@@ -98,7 +98,7 @@ BEGIN
             END IF;
         END IF;
 
-        IF NEW.financial_status = 'aprovado' THEN v_reason := 'Aprovado pelo financeiro'; END IF;
+        IF NEW.financial_status = 'approved' THEN v_reason := 'Aprovado pelo financeiro'; END IF;
         IF NEW.financial_status = 'cancelado' THEN v_reason := 'Pedido Cancelado'; END IF;
 
         INSERT INTO public.sales_document_finance_events (
@@ -134,7 +134,7 @@ DECLARE
 BEGIN
     -- 1. Entering Route: Pendente -> Pre-lancado
     IF NEW.status_logistic::text = 'em_rota' AND (OLD.status_logistic IS DISTINCT FROM 'em_rota') THEN
-        IF OLD.financial_status = 'pendente' THEN
+        IF OLD.financial_status = 'pending' THEN
              UPDATE sales_documents SET financial_status = 'pre_lancado' WHERE id = NEW.id;
         END IF;
 
@@ -180,8 +180,8 @@ BEGIN
     END IF;
 
     -- 2. Return Logic
-    IF OLD.status_logistic::text = 'em_rota' AND NEW.status_logistic::text IN ('pendente', 'devolvido') THEN
-        IF OLD.financial_status = 'aprovado' THEN
+    IF OLD.status_logistic::text = 'em_rota' AND NEW.status_logistic::text IN ('pending', 'devolvido') THEN
+        IF OLD.financial_status = 'approved' THEN
              UPDATE sales_documents SET financial_status = 'em_revisao' WHERE id = NEW.id;
         END IF;
     END IF;

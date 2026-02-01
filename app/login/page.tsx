@@ -48,8 +48,9 @@ export default function LoginPage() {
 
     // Auto-login for development
     useEffect(() => {
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && !window.localStorage.getItem('disable-auto-login')) {
             const autoLogin = async () => {
+
                 const supabase = createClient();
                 const { data } = await supabase.auth.getUser();
                 if (!data.user) {

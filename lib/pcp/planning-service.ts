@@ -152,7 +152,7 @@ export const planningService = {
                 .lte('scheduled_delivery_date', endDate)
                 .eq('status_commercial', 'confirmed')
                 .is('deleted_at', null)
-                .in('status_logistic', ['confirmado', 'parcial'] as any)
+                .in('status_logistic', ['pending', 'partial'] as any)
 
             if (orderError) throw orderError
 
@@ -209,8 +209,8 @@ export const planningService = {
                 .eq('route.company_id', companyId)
                 .gte('route.scheduled_date', startDate)
                 .lte('route.scheduled_date', endDate)
-                .neq('route.status', 'cancelada')
-                .neq('route.status', 'concluida')
+                .neq('route.status', 'cancelled')
+                .neq('route.status', 'completed')
 
             if (routeError) throw routeError
 
@@ -237,8 +237,8 @@ export const planningService = {
                 // Calculate Fulfilled from Deliveries
                 const fulfilledMap = new Map<string, number>()
                 deliveries.forEach(del => {
-                    // Include Delivered, Returned Partial/Total, and 'entregue'
-                    if (['delivered', 'returned_partial', 'returned_total', 'entregue', 'partial'].includes(del.status || '')) {
+                    // Include Delivered, Returned Partial/Total, and 'delivered'
+                    if (['delivered', 'returned_partial', 'returned_total', 'partial'].includes(del.status || '')) {
                         del.items?.forEach((di) => {
                             const current = fulfilledMap.get(di.sales_document_item_id) || 0
                             fulfilledMap.set(di.sales_document_item_id, current + (di.qty_delivered || 0))
@@ -640,8 +640,8 @@ export const planningService = {
         if (error || !wo) throw new Error("Ordem de produção não encontrada.")
 
         const isInProgress = wo.status === 'in_progress' || wo.status === 'em_producao'
-        const isDone = wo.status === 'done' || wo.status === 'concluida'
-        const isCancelled = wo.status === 'cancelled' || wo.status === 'cancelada'
+        const isDone = wo.status === 'done' || wo.status === 'completed'
+        const isCancelled = wo.status === 'cancelled'
 
         const qtyChanged = payload.planned_qty !== undefined && payload.planned_qty !== wo.planned_qty
         const dateChanged = payload.scheduled_date !== undefined && payload.scheduled_date !== wo.scheduled_date

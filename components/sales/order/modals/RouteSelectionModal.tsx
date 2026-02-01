@@ -13,6 +13,7 @@ import { DeliveryRoute } from "@/types/sales";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { normalizeRouteStatus } from "@/lib/constants/status";
 
 interface RouteSelectionModalProps {
     open: boolean;
@@ -131,7 +132,7 @@ export function RouteSelectionModal({ open, onOpenChange, companyId, onConfirm }
                                             <Label htmlFor={route.id} className="flex-1 cursor-pointer font-medium">
                                                 {route.name}
                                                 <span className="block text-xs text-muted-foreground font-normal">
-                                                    {route.orders?.length || 0} pedidos • {route.status === 'em_rota' ? 'Em Saída' : 'Planejada'}
+                                                    {route.orders?.length || 0} pedidos • {(normalizeRouteStatus(route.status) || route.status) === 'in_route' ? 'Em Saída' : 'Planejada'}
                                                 </span>
                                             </Label>
                                         </div>

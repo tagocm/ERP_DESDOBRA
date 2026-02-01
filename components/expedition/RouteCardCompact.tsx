@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { OrderItemsPopover } from "./OrderItemsPopover";
 import { getRouteStatusColor, getOrderStatusIndicator } from "@/lib/route-status-helpers";
 import { StatusDots } from "./StatusDots";
+import { normalizeRouteStatus } from "@/lib/constants/status";
 
 interface RouteCardCompactProps {
     route: DeliveryRoute;
@@ -41,8 +42,8 @@ export const RouteCardCompact = memo(function RouteCardCompact({ route, onClick,
 
     // Check if route is locked (em_rota or concluida - cannot be modified)
     const isRouteLocked = useMemo(() => {
-        const status = route?.status;
-        return status === 'em_rota' || status === 'in_progress' || status === 'concluida' || status === 'cancelada';
+        const status = normalizeRouteStatus(route?.status) || route?.status;
+        return status === 'in_route' || status === 'in_progress' || status === 'completed' || status === 'cancelled';
     }, [route]);
 
     // Order status dots
@@ -276,4 +277,3 @@ export const RouteCardCompact = memo(function RouteCardCompact({ route, onClick,
         </Popover>
     );
 });
-

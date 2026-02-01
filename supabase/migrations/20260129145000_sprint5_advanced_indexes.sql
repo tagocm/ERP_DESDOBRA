@@ -19,7 +19,7 @@ WHERE status = 'OPEN';
 -- Speeds up: "Show the unified approval queue for finance team"
 CREATE INDEX IF NOT EXISTS idx_financial_events_approval_queue
 ON public.financial_events(company_id, status, created_at DESC)
-WHERE status IN ('pendente', 'em_atencao');
+WHERE status IN ('pending', 'attention');
 
 -- 4. Composite index for Sales Order History lookup (SAFE CHECK)
 -- Speeds up: Audit trails and recent activity feeds
@@ -38,6 +38,6 @@ END $$;
 -- Speeds up: The logistics dashboard where orders wait for fulfillment
 CREATE INDEX IF NOT EXISTS idx_sales_docs_logistic_pending
 ON public.sales_documents(company_id, created_at DESC)
-WHERE status_logistic_new = 'pendente' AND deleted_at IS NULL;
+WHERE status_logistic_new = 'pending' AND deleted_at IS NULL;
 
 COMMIT;

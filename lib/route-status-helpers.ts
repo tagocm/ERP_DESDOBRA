@@ -1,3 +1,5 @@
+import { normalizeLoadingStatus, normalizeRouteStatus } from "@/lib/constants/status";
+
 /**
  * Get order status for display in route scheduling view
  * Returns color indicator based on loading/return status
@@ -20,7 +22,8 @@ export function getOrderStatusIndicator(order: any, routeOrder: any): OrderStatu
 
     // Priority 2: Check loading status (from expedition)
     if (routeOrder?.loading_status) {
-        switch (routeOrder.loading_status) {
+        const normalizedLoading = normalizeLoadingStatus(routeOrder.loading_status) || routeOrder.loading_status;
+        switch (normalizedLoading) {
             case 'loaded':
                 return 'green';
             case 'partial':
@@ -47,22 +50,17 @@ export function getOrderStatusIndicator(order: any, routeOrder: any): OrderStatu
 export type RouteStatusColor = 'neutral' | 'yellow' | 'green' | 'red';
 
 export function getRouteStatusColor(route: any): RouteStatusColor {
-    const status = route?.status_logistico || route?.status;
+    const status = normalizeRouteStatus(route?.status_logistico || route?.status) || route?.status_logistico || route?.status;
 
     switch (status) {
-        case 'cancelada':
+        case 'cancelled':
             return 'red';
-        case 'EM_ROTA':
-        case 'em_rota':
+        case 'in_route':
         case 'in_progress':
             return 'yellow';
-        case 'CONCLUIDA':
-        case 'FINALIZADA':
-        case 'concluida':
-        case 'finalizada':
+        case 'completed':
             return 'green';
-        case 'AGENDADO':
-        case 'agendado':
+        case 'scheduled':
         default:
             return 'neutral';
     }

@@ -66,7 +66,7 @@ BEGIN
         AND udt_name = 'sales_logistic_status'
     ) THEN
         RAISE NOTICE 'Setting default for status_logistic';
-        EXECUTE 'ALTER TABLE public.sales_documents ALTER COLUMN status_logistic SET DEFAULT ''pendente''';
+        EXECUTE 'ALTER TABLE public.sales_documents ALTER COLUMN status_logistic SET DEFAULT ''pending''';
     END IF;
     
     IF EXISTS (
@@ -75,7 +75,7 @@ BEGIN
         AND udt_name = 'financial_status_enum'
     ) THEN
         RAISE NOTICE 'Setting default for financial_status';
-        EXECUTE 'ALTER TABLE public.sales_documents ALTER COLUMN financial_status SET DEFAULT ''pendente''';
+        EXECUTE 'ALTER TABLE public.sales_documents ALTER COLUMN financial_status SET DEFAULT ''pending''';
     END IF;
 END $$;
 
