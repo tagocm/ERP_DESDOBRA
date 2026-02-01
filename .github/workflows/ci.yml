@@ -14,6 +14,12 @@ jobs:
       matrix:
         node-version: [20.x]
 
+    env:
+      # Inject secrets at the job level so they are available in env context
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
     steps:
     - uses: actions/checkout@v4
 
@@ -25,6 +31,10 @@ jobs:
 
     - name: Install dependencies
       run: npm ci
+
+    - name: Debug env presence
+      run: |
+        node -e "console.log('SUPABASE_URL?', !!process.env.NEXT_PUBLIC_SUPABASE_URL); console.log('SUPABASE_ANON?', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY); console.log('SUPABASE_SERVICE?', !!process.env.SUPABASE_SERVICE_ROLE_KEY)"
 
     - name: Lint
       # Continue on error if you want to see all failures, or fail fast. 
@@ -39,11 +49,6 @@ jobs:
       run: npm run typecheck
 
     - name: Test
-      # If no tests exist yet, this might fail unless configured otherwise.
-      # using "|| true" temporarily if you are sure tests don't exist, 
-      # but better to have at least one dummy test. 
-      # With vitest, if no tests are found, it might exit with error.
-      # We'll rely on the user having valid tests or Vitest default behavior.
       # If vitest fails when no tests are found, we can address it.
       run: npm run test:run
       env:
@@ -57,20 +62,13 @@ jobs:
       env:
         CI: true
         NEXT_TELEMETRY_DISABLED: 1
-        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
     - name: Run E2E Tests
-      if: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
-      run: |
-        node -e "console.log('SUPA_URL?', !!process.env.NEXT_PUBLIC_SUPABASE_URL); console.log('SUPA_ANON?', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY); console.log('SUPA_SVC?', !!process.env.SUPABASE_SERVICE_ROLE_KEY)"
-        npm run test:e2e
+      # Safe check using env.* instead of secrets.*
+      if: ${{ env.NEXT_PUBLIC_SUPABASE_URL != '' && env.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+      run: npm run test:e2e
       env:
         CI: true
-        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-        SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
     - name: Upload E2E Test Results
       if: always()
@@ -79,5 +77,3 @@ jobs:
         name: playwright-report
         path: playwright-report/
         retention-days: 30
-
-
