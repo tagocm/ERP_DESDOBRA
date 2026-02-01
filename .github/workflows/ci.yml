@@ -62,8 +62,9 @@ jobs:
         SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
     - name: Run E2E Tests
+      if: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL != '' && secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
       run: |
-        node -e "console.log('SUPABASE_URL?', !!process.env.NEXT_PUBLIC_SUPABASE_URL); console.log('SUPABASE_ANON?', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)"
+        node -e "console.log('SUPA_URL?', !!process.env.NEXT_PUBLIC_SUPABASE_URL); console.log('SUPA_ANON?', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY); console.log('SUPA_SVC?', !!process.env.SUPABASE_SERVICE_ROLE_KEY)"
         npm run test:e2e
       env:
         CI: true

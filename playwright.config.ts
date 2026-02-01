@@ -6,10 +6,15 @@ import { defineConfig, devices } from '@playwright/test';
 
 const isE2E = process.env.CI === 'true' || process.env.E2E === 'true';
 
-function requireEnv(name: string): string {
-    const v = process.env[name];
-    if (!v) throw new Error(`[e2e] Missing required env: ${name}`);
-    return v;
+// Provide defaults to avoid Typecheck errors (Record<string, string> requirement)
+const SUPA_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const SUPA_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+
+if (isE2E && (!SUPA_URL || !SUPA_ANON)) {
+    // We only throw if we are intentionally running E2E and vars are missing
+    console.error('\n❌ [E2E] Error: Supabase environment variables are missing.');
+    console.error('Please ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set.\n');
+    process.exit(1);
 }
 
 const webServer = isE2E ? {
@@ -19,8 +24,8 @@ const webServer = isE2E ? {
     reuseExistingServer: !process.env.CI,
     env: {
         E2E: 'true',
-        NEXT_PUBLIC_SUPABASE_URL: requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+        NEXT_PUBLIC_SUPABASE_URL: SUPA_URL,
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: SUPA_ANON,
     },
 } : undefined;
 
