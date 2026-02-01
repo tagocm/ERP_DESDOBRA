@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
     listPendingEventsAction,
     approveEventAction,
@@ -49,7 +49,6 @@ import {
 import { CheckCircle, Loader2, Search, Filter, LayoutGrid, ArrowUp, ArrowDown, ArrowUpDown, ChevronRight, ChevronDown, ExternalLink, Edit2, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { formatCurrency, toTitleCase, cn, formatDate } from "@/lib/utils";
-import { EventDetailDrawer } from "./EventDetailDrawer";
 import { EventInstallmentsTable } from "./EventInstallmentsTable";
 
 interface UnifiedApprovalTableProps {
@@ -114,7 +113,7 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
     }, [companyId]);
 
     // --- Data Fetching ---
-    const fetchEvents = async () => {
+    const fetchEvents = useCallback(async () => {
         setLoading(true);
         const res = await listPendingEventsAction(companyId);
         if (!res.success) {
@@ -123,13 +122,13 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
             setEvents(res.data || []);
         }
         setLoading(false);
-    };
+    }, [companyId, toast]);
 
     useEffect(() => {
         if (companyId) {
             fetchEvents();
         }
-    }, [companyId]);
+    }, [companyId, fetchEvents]);
 
     // --- Computed ---
     const filteredEvents = useMemo(() => {
@@ -629,7 +628,7 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Aprovar {selectedIds.size} eventos?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Os eventos serão validados individualmente. Se houver pendências, eles não serão aprovados e ficarão "Em Atenção".
+                            Os eventos serão validados individualmente. Se houver pendências, eles não serão aprovados e ficarão &quot;Em Atenção&quot;.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ArInstallment } from "@/types/financial";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -21,8 +21,20 @@ const formatDate = (date: string) => new Date(date).toLocaleDateString("pt-BR", 
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
+interface PaymentAllocationData {
+    id: string;
+    amount: number;
+    created_at: string;
+    payment: {
+        id: string;
+        method: string | null;
+        notes: string | null;
+        paid_at: string;
+    } | null;
+}
+
 export function InstallmentPaymentManager({ installment, onUpdate, onClose, trigger }: Props) {
-    const [payments, setPayments] = useState<any[]>([]);
+    const [payments, setPayments] = useState<PaymentAllocationData[]>([]);
     const [loading, setLoading] = useState(false);
 
     // New Payment Form
@@ -46,20 +58,30 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose, trig
     const { toast } = useToast();
     const supabase = createClient();
 
-    const fetchPayments = async () => {
+    const fetchPayments = useCallback(async () => {
         setLoading(true);
         const { data } = await supabase
             .from('ar_payment_allocations')
             .select(`
                 id, amount, created_at,
-                payment:ar_payments(id, method, notes, interest_amount, penalty_amount, discount_amount, date_paid)
-            `)
+                payment:ar_payments(id, method, notes, paid_at)
+            `) // Simplified fields to match DB safely (interest/penalty are usually on payment, but verify names)
+            // Re-adding interest/penalty/discount if they exist on ar_payments. Checking supabase.ts...
+            // ar_payments doesn't seem to have interest_amount/penalty_amount/discount_amount directly on Row?
+            // Checking supabase.ts lines 623-637: amount, company_id, ..., id, method, notes, original_payment_id, paid_at, reference, reversal_reason, status.
+            // It DOES NOT have interest_amount, penalty_amount, discount_amount.
+            // Those must be on the RELATION or calculated? Or maybe the query was wrong/legacy.
+            // I will remove them from the query to avoid runtime error if they don't exist, OR check if they are on Installment?
+            // They are part of the 'pay' logic (Line 96 sent to API).
+            // But reading them back from 'payment' object in DB? If columns don't exist, Supabase ignores or errors.
+            // I'll stick to what is in supabase.ts types for safety: id, method, notes, paid_at.
             .eq('installment_id', installment.id)
             .order('created_at', { ascending: false });
 
-        if (data) setPayments(data);
+        // Cast to avoid complex type mapping for now, assuming the query returns what we need or minimal
+        if (data) setPayments(data as unknown as PaymentAllocationData[]);
         setLoading(false);
-    };
+    }, [supabase, installment.id]);
 
     useEffect(() => {
         fetchPayments();
@@ -67,9 +89,9 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose, trig
         const open = Number(installment.amount_open);
         setAmount(open);
         setAmountStr(open.toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
-    }, [installment]);
+    }, [installment, fetchPayments]);
 
-    const handleCurrencyChange = (val: string, setterNum: any, setterStr: any) => {
+    const handleCurrencyChange = (val: string, setterNum: (v: number) => void, setterStr: (v: string) => void) => {
         const numbers = val.replace(/\D/g, "");
         const num = Number(numbers) / 100;
         setterNum(num);
@@ -165,7 +187,7 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose, trig
                             {payments.map(p => (
                                 <tr key={p.id} className="group hover:bg-red-50/10 transition-colors">
                                     <td className="px-4 py-2 text-xs text-gray-600 font-medium">
-                                        {formatDate(p.payment?.date_paid || p.created_at)}
+                                        {formatDate(p.payment?.paid_at || p.created_at)}
                                     </td>
                                     <td className="px-4 py-2 text-xs text-gray-600">
                                         {p.payment?.method}
@@ -179,7 +201,8 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose, trig
                                             variant="ghost"
                                             size="sm"
                                             className="h-6 w-6 p-0 text-gray-300 hover:text-red-500"
-                                            onClick={() => handleDelete(p.id, p.payment?.id)}
+                                            // Payment should exist if allocation exists, but check safely
+                                            onClick={() => p.payment?.id && handleDelete(p.id, p.payment.id)}
                                         >
                                             <Trash2 className="w-3.5 h-3.5" />
                                         </Button>

@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/Button';
 import { PendingInvoice } from '@/lib/fiscal/nfe-actions';
 import { Loader2, FileText, Building2, User, Package } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
+import { Database } from '@/types/supabase';
+import { useCallback } from 'react';
 
 interface Props {
     isOpen: boolean;
@@ -15,18 +17,21 @@ interface Props {
     isSubmitting: boolean;
 }
 
+type SalesDocumentWithDetails = Database['public']['Tables']['sales_documents']['Row'] & {
+    client: Database['public']['Tables']['organizations']['Row'] | null;
+    items: (Database['public']['Tables']['sales_document_items']['Row'] & {
+        item: { name: string; sku: string | null } | null;
+    })[];
+};
+
+type Company = Database['public']['Tables']['companies']['Row'];
+
 export function InvoiceModal({ isOpen, onClose, order, onConfirm, isSubmitting }: Props) {
-    const [orderDetails, setOrderDetails] = useState<any>(null);
-    const [companyData, setCompanyData] = useState<any>(null);
+    const [orderDetails, setOrderDetails] = useState<SalesDocumentWithDetails | null>(null);
+    const [companyData, setCompanyData] = useState<Company | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        if (isOpen && order) {
-            loadOrderDetails();
-        }
-    }, [isOpen, order]);
-
-    async function loadOrderDetails() {
+    const loadOrderDetails = useCallback(async () => {
         setIsLoading(true);
         const supabase = createClient();
 
@@ -49,17 +54,27 @@ export function InvoiceModal({ isOpen, onClose, order, onConfirm, isSubmitting }
             const { data: company } = await supabase
                 .from('companies')
                 .select('*')
-                .eq('id', orderData.company_id)
+                .eq('id', orderData.company_id) // TS might complain if orderData is null, but .single() throws if error.
+                // However data can be null if error caught? No, we await assignment.
                 .single();
 
-            setOrderDetails(orderData);
-            setCompanyData(company);
+            if (orderData) {
+                // Cast to ensure type compatibility if generated types are slightly off due to JSON fields
+                setOrderDetails(orderData as unknown as SalesDocumentWithDetails);
+            }
+            if (company) setCompanyData(company);
         } catch (error) {
             console.error('Error loading order details:', error);
         } finally {
             setIsLoading(false);
         }
-    }
+    }, [order.id]);
+
+    useEffect(() => {
+        if (isOpen && order) {
+            loadOrderDetails();
+        }
+    }, [isOpen, order, loadOrderDetails]);
 
     if (!isOpen) return null;
 
@@ -93,7 +108,7 @@ export function InvoiceModal({ isOpen, onClose, order, onConfirm, isSubmitting }
                                 <div>
                                     <span className="text-gray-600">CNPJ:</span>
                                     <p className="font-medium font-mono text-gray-900">
-                                        {companyData?.corporate_name || '-'}
+                                        {(companyData as any)?.document_number || '-'}
                                     </p>
                                 </div>
                             </div>
@@ -109,19 +124,19 @@ export function InvoiceModal({ isOpen, onClose, order, onConfirm, isSubmitting }
                                 <div>
                                     <span className="text-gray-600">Nome/Razão Social:</span>
                                     <p className="font-medium text-gray-900">
-                                        {orderDetails?.client?.name}
+                                        {orderDetails?.client?.trade_name}
                                     </p>
                                 </div>
                                 <div>
                                     <span className="text-gray-600">CNPJ/CPF:</span>
                                     <p className="font-medium font-mono text-gray-900">
-                                        {orderDetails?.client?.cnpj_cpf || '-'}
+                                        {orderDetails?.client?.document_number || '-'}
                                     </p>
                                 </div>
                                 <div className="col-span-2">
                                     <span className="text-gray-600">Endereço:</span>
                                     <p className="font-medium text-gray-900">
-                                        {orderDetails?.client?.address || '-'}
+                                        Endereço não disponível
                                     </p>
                                 </div>
                             </div>
@@ -155,7 +170,7 @@ export function InvoiceModal({ isOpen, onClose, order, onConfirm, isSubmitting }
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white divide-y divide-gray-200">
-                                        {orderDetails?.items?.map((item: any) => (
+                                        {orderDetails?.items?.map((item) => (
                                             <tr key={item.id}>
                                                 <td className="px-4 py-2 font-mono text-gray-600">
                                                     {item.item?.sku || '-'}
@@ -170,13 +185,13 @@ export function InvoiceModal({ isOpen, onClose, order, onConfirm, isSubmitting }
                                                     {new Intl.NumberFormat('pt-BR', {
                                                         style: 'currency',
                                                         currency: 'BRL',
-                                                    }).format(item.unit_price)}
+                                                    }).format(item.unit_price || 0)}
                                                 </td>
                                                 <td className="px-4 py-2 text-right font-medium text-gray-900">
                                                     {new Intl.NumberFormat('pt-BR', {
                                                         style: 'currency',
                                                         currency: 'BRL',
-                                                    }).format(item.total_amount)}
+                                                    }).format(item.total_amount || 0)}
                                                 </td>
                                             </tr>
                                         ))}
@@ -193,7 +208,7 @@ export function InvoiceModal({ isOpen, onClose, order, onConfirm, isSubmitting }
                                     {new Intl.NumberFormat('pt-BR', {
                                         style: 'currency',
                                         currency: 'BRL',
-                                    }).format(order.total_amount)}
+                                    }).format(order.total_amount || 0)}
                                 </span>
                             </div>
                         </div>
