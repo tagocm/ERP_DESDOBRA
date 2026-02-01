@@ -11,7 +11,7 @@ export async function getSandboxOrders(supabase: SupabaseClient, companyId: stri
         .select(`
             id, document_number, total_amount, date_issued, status_commercial, status_logistic, total_weight_kg,
             client:organizations!client_id(trade_name),
-            items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items(id, name, sku, net_weight_g_base)),
+            items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items!fk_sales_item_product(id, name, sku, net_weight_g_base)),
             deliveries:deliveries(
                 id, status,
                 items:delivery_items(sales_document_item_id, qty_delivered)
@@ -480,7 +480,7 @@ export async function getExpeditionRoutes(
                     items:sales_document_items(
                         id, quantity, unit_price, unit_weight_kg,
                         packaging:item_packaging(id, label, qty_in_base),
-                        product:items(id, name, sku, uom, net_weight_g_base)
+                        product:items!fk_sales_item_product(id, name, sku, uom, net_weight_g_base)
                     ),
                     deliveries:deliveries(
                         id, status,
@@ -546,7 +546,7 @@ export async function getRetornoRoutes(
                     items:sales_document_items(
                         id, quantity, unit_price, unit_weight_kg,
                         packaging:item_packaging(id, label, qty_in_base),
-                        product:items(id, name, sku, uom, net_weight_g_base)
+                        product:items!fk_sales_item_product(id, name, sku, uom, net_weight_g_base)
                     ),
                     deliveries:deliveries(
                         id, status,

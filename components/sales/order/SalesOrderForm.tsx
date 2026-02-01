@@ -1443,7 +1443,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                 .select(`
                     *,
                     packaging:item_packaging(id, label, gross_weight_kg, net_weight_kg),
-                    product:items!item_id(
+                    product:items!fk_sales_item_product(
                         id, name, sku, un:uom,
                         net_weight_kg_base, gross_weight_kg_base,
                         net_weight_g_base, gross_weight_g_base,
@@ -1514,7 +1514,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
             .from('sales_documents')
             .select(`
                 *,
-                items:sales_document_items(*, product:items!item_id(*, packagings:item_packaging(*))),
+                items:sales_document_items(*, product:items!fk_sales_item_product(*, packagings:item_packaging(*))),
                 adjustments:sales_document_adjustments(*)
             `)
             .eq('id', id)
