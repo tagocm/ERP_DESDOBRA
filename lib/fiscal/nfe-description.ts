@@ -184,6 +184,7 @@ function truncate(str: string, maxLength: number): string {
  * Formats number for display, removing unnecessary decimals
  */
 function formatNumber(num: number): string {
-    // Remove trailing zeros and unnecessary decimal point
-    return num.toString().replace(/\.?0+$/, '');
+    // Native toString() already handles removing trailing decimal zeros for numbers
+    // e.g. 10.50 -> "10.5", 10.0 -> "10", 100 -> "100"
+    return num.toString();
 }

@@ -104,7 +104,8 @@ describe("buildNfeXml", () => {
         const draft = JSON.parse(JSON.stringify(basicDraft));
         draft.ide.dhEmi = "2023-10-27T10:00:00Z";
         const result = buildNfeXml(draft, { tzOffset: "-03:00" });
-        expect(result.xml).toContain("<dhEmi>2023-10-27T10:00:00-03:00</dhEmi>");
+        // 10:00 UTC is 07:00 in -03:00
+        expect(result.xml).toContain("<dhEmi>2023-10-27T07:00:00-03:00</dhEmi>");
         expect(result.xml).not.toContain("Z</dhEmi>");
     });
 
