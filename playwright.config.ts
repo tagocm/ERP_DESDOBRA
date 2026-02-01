@@ -3,6 +3,27 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * See https://playwright.dev/docs/test-configuration.
  */
+
+const isE2E = process.env.CI === 'true' || process.env.E2E === 'true';
+
+function requireEnv(name: string): string {
+    const v = process.env[name];
+    if (!v) throw new Error(`[e2e] Missing required env: ${name}`);
+    return v;
+}
+
+const webServer = isE2E ? {
+    command: 'npm run dev -- --port 3000',
+    url: 'http://127.0.0.1:3000',
+    timeout: 120_000,
+    reuseExistingServer: !process.env.CI,
+    env: {
+        E2E: 'true',
+        NEXT_PUBLIC_SUPABASE_URL: requireEnv('NEXT_PUBLIC_SUPABASE_URL'),
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: requireEnv('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+    },
+} : undefined;
+
 export default defineConfig({
     testDir: './tests/e2e',
 
@@ -27,7 +48,7 @@ export default defineConfig({
     /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
     use: {
         /* Base URL to use in actions like `await page.goto('/')`. */
-        baseURL: 'http://localhost:3000',
+        baseURL: 'http://127.0.0.1:3000',
 
         /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
         trace: 'on-first-retry',
@@ -48,15 +69,5 @@ export default defineConfig({
     ],
 
     /* Run your local dev server before starting the tests */
-    webServer: {
-        command: 'npm run dev',
-        url: 'http://localhost:3000',
-        timeout: 120 * 1000,
-        reuseExistingServer: !process.env.CI,
-        env: {
-            E2E: 'true',
-            NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-            NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-        },
-    },
+    webServer: webServer,
 });
