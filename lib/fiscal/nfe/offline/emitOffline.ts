@@ -1,6 +1,6 @@
 
 import { createAdminClient } from '@/lib/supabaseServer';
-import { NfeDraft } from '@/lib/nfe/domain/types';
+// NfeDraft removed (unused)
 import { buildNfeXml } from '@/lib/nfe/xml/buildNfeXml';
 import { signNfeXml } from '@/lib/nfe/sign/signNfeXml';
 import { uploadNfeArtifact, downloadPfx } from './storage';
@@ -96,9 +96,9 @@ export async function emitOffline(orderId: string, companyId: string, transmit: 
         // Address Selection: Prioritize (Main & SP) -> SP -> Main -> First
         // This ensures we pick the correct Fiscal Address even if there is garbage data (e.g. Test addresses in GO)
         const addresses = company.addresses || [];
-        const selectedAddress = addresses.find((a: any) => a.is_main && (a.state === 'SP' || a.state === 'Sao Paulo'))
-            || addresses.find((a: any) => a.state === 'SP' || a.state === 'Sao Paulo')
-            || addresses.find((a: any) => a.is_main)
+        const selectedAddress = addresses.find((a: { is_main: boolean; state: string }) => a.is_main && (a.state === 'SP' || a.state === 'Sao Paulo'))
+            || addresses.find((a: { state: string }) => a.state === 'SP' || a.state === 'Sao Paulo')
+            || addresses.find((a: { is_main: boolean }) => a.is_main)
             || addresses[0];
 
         const ufState = selectedAddress?.state || 'SP';
@@ -153,15 +153,14 @@ export async function emitOffline(orderId: string, companyId: string, transmit: 
 
         // 4. Generate XML (Transmissible Mode)
         // 4. Generate & Sign (Online or Offline)
-        let xml: string;
+        console.log(`[OfflineEmit] Building XML for Key ${chNFe}`);
+        const buildRes = buildNfeXml(draft, { mode: 'transmissible', tzOffset: '-03:00' });
+        const xml = buildRes.xml;
+
         let signedXml: string;
         let protocol: string | undefined;
         let cStat: string | undefined;
         let xMotivo: string | undefined;
-
-        console.log(`[OfflineEmit] Building XML for Key ${chNFe}`);
-        const buildRes = buildNfeXml(draft, { mode: 'transmissible', tzOffset: '-03:00' });
-        xml = buildRes.xml;
 
         if (transmit) {
             console.log(`[OnlineEmit] Transmitting to SEFAZ...`);
@@ -275,8 +274,8 @@ ${cleanProtocol}
         };
 
         // Clear previous error messages
-        delete (newDetails as any).message;
-        delete (newDetails as any).code;
+        delete (newDetails as Record<string, unknown>).message;
+        delete (newDetails as Record<string, unknown>).code;
 
         console.log(`[OfflineEmit] Updating database to ${finalStatus}...`);
         const { error: updateError } = await adminSupabase
@@ -315,8 +314,10 @@ ${cleanProtocol}
             xMotivo
         };
 
-    } catch (error: any) {
-        console.error(`[OfflineEmit] Error:`, error);
+    } catch (error: unknown) {
+        // Narrow error type safely
+        const err = error instanceof Error ? error : new Error(String(error));
+        console.error(`[OfflineEmit] Error:`, err);
 
         // Try to update DB with error
         try {
@@ -326,9 +327,9 @@ ${cleanProtocol}
                     status: 'error',
                     details: {
                         stage: 'OFFLINE_EMISSION',
-                        code: error.code || 'UNKNOWN',
-                        message: error.message,
-                        stack: error.stack
+                        code: (err as any).code || 'UNKNOWN',
+                        message: err.message,
+                        stack: err.stack
                     },
                     updated_at: new Date().toISOString()
                 })
@@ -342,7 +343,7 @@ ${cleanProtocol}
             success: false,
             nfeId: '',
             status: 'error',
-            message: error.message
+            message: err.message
         };
     }
 }
