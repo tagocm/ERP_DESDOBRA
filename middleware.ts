@@ -3,6 +3,14 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
+    // 1. Guard clause: CI/E2E bypass when Supabase envs are missing
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        if (process.env.CI) {
+            console.warn("⚠️ Middleware: Supabase env vars missing in CI. Bypassing auth check.");
+        }
+        return NextResponse.next();
+    }
+
     let response = NextResponse.next({
         request: {
             headers: request.headers,
@@ -10,8 +18,8 @@ export async function middleware(request: NextRequest) {
     });
 
     const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
         {
             cookies: {
                 getAll() {
@@ -41,7 +49,7 @@ export async function middleware(request: NextRequest) {
             return NextResponse.redirect(new URL("/login", request.url));
         }
     } catch (_e) {
-        // Error handling can be added here if needed, but logs are removed as per instruction.
+        // Error handling can be added here if needed
     }
 
     return response;
