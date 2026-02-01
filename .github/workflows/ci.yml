@@ -52,8 +52,18 @@ jobs:
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps chromium
 
+    - name: Build
+      run: npm run build
+      env:
+        CI: true
+        NEXT_TELEMETRY_DISABLED: 1
+        NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
     - name: Run E2E Tests
-      run: npm run test:e2e
+      run: |
+        node -e "console.log('SUPABASE_URL?', !!process.env.NEXT_PUBLIC_SUPABASE_URL); console.log('SUPABASE_ANON?', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)"
+        npm run test:e2e
       env:
         CI: true
         NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -68,13 +78,4 @@ jobs:
         path: playwright-report/
         retention-days: 30
 
-    - name: Build
-      run: npm run build
-      env:
-        # Avoids Next.js telemetry prompts
-        NEXT_TELEMETRY_DISABLED: 1
-        # If build requires env vars, we might need dummies or secrets.
-        # Often build matches types/lints but doesn't need full DB connection unless static gen relies on it.
-        # We'll use a dummy value for the public key to prevent build crashing on missing env var if referenced.
-        NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co"
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: "dummy-key"
+
