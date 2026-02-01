@@ -2,6 +2,29 @@ import { supabaseServer } from '@/lib/supabase/server'
 import { itemsRepo } from '@/lib/data/items'
 import { bomsRepo } from '@/lib/data/boms'
 import { inventoryRepo } from '@/lib/data/inventory'
+import { Database } from '@/types/supabase'
+
+type BomLineWithItem = Database['public']['Tables']['bom_lines']['Row'] & {
+    items: { name: string; uom: string } | null
+}
+
+type SalesDocumentWithItems = Database['public']['Tables']['sales_documents']['Row'] & {
+    items: Database['public']['Tables']['sales_document_items']['Row'][]
+}
+
+type OrderWithDetails = Database['public']['Tables']['sales_documents']['Row'] & {
+    items: (Database['public']['Tables']['sales_document_items']['Row'] & {
+        packaging: Database['public']['Tables']['item_packaging']['Row'] | null
+    })[]
+    deliveries: (Database['public']['Tables']['deliveries']['Row'] & {
+        items: Database['public']['Tables']['delivery_items']['Row'][]
+    })[]
+}
+
+type RouteOrderWithDetails = Database['public']['Tables']['delivery_route_orders']['Row'] & {
+    route: Database['public']['Tables']['delivery_routes']['Row']
+    order: OrderWithDetails | null
+}
 
 export interface PlanningOptions {
     includePlannedOps?: boolean
@@ -115,7 +138,6 @@ export const planningService = {
         // 3. Fetch Demand (Scheduled Routes OR Confirmed Orders)
         if (options.demandSource === 'confirmed_orders') {
             // Confirmed Orders: Calculate remaining balance for undelivered/partially delivered orders
-            // @ts-ignore
             const { data: orders, error: orderError } = await supabaseServer
                 .from('sales_documents')
                 .select(`
@@ -130,12 +152,11 @@ export const planningService = {
                 .lte('scheduled_delivery_date', endDate)
                 .eq('status_commercial', 'confirmed')
                 .is('deleted_at', null)
-                // Include orders that are NOT fully delivered (confirmado, parcial)
-                .in('status_logistic', ['confirmado', 'parcial'] as any[])
+                .in('status_logistic', ['confirmado', 'parcial'] as any)
 
             if (orderError) throw orderError
 
-            const anyOrders = orders as any[] || []
+            const anyOrders = (orders as unknown as SalesDocumentWithItems[]) || []
 
             anyOrders.forEach(o => {
                 const date = o.scheduled_delivery_date?.split('T')[0]
@@ -148,7 +169,7 @@ export const planningService = {
                 if (!demandMap.has(date)) demandMap.set(date, new Map())
                 const dayMap = demandMap.get(date)!
 
-                const items = o.items as any[]
+                const items = o.items
                 items?.forEach(item => {
                     const current = dayMap.get(item.item_id) || 0
 
@@ -164,7 +185,6 @@ export const planningService = {
             })
         } else {
             // Default: Scheduled Routes
-            // @ts-ignore
             const { data: routeDemands, error: routeError } = await supabaseServer
                 .from('delivery_route_orders')
                 .select(`
@@ -197,7 +217,7 @@ export const planningService = {
             const dayroutes = new Map<string, Set<string>>()
             const dayorders = new Map<string, Set<string>>()
 
-            const anyDemands = routeDemands as any[] || []
+            const anyDemands = (routeDemands as unknown as RouteOrderWithDetails[]) || []
 
             anyDemands.forEach(d => {
                 const date = d.route?.scheduled_date?.split('T')[0]
@@ -211,15 +231,15 @@ export const planningService = {
                 if (!demandMap.has(date)) demandMap.set(date, new Map())
                 const dayMap = demandMap.get(date)!
 
-                const orderItems = d.order?.items as any[] || []
-                const deliveries = d.order?.deliveries as any[] || []
+                const orderItems = d.order?.items || []
+                const deliveries = d.order?.deliveries || []
 
                 // Calculate Fulfilled from Deliveries
                 const fulfilledMap = new Map<string, number>()
                 deliveries.forEach(del => {
                     // Include Delivered, Returned Partial/Total, and 'entregue'
-                    if (['delivered', 'returned_partial', 'returned_total', 'entregue', 'partial'].includes(del.status)) {
-                        del.items?.forEach((di: any) => {
+                    if (['delivered', 'returned_partial', 'returned_total', 'entregue', 'partial'].includes(del.status || '')) {
+                        del.items?.forEach((di) => {
                             const current = fulfilledMap.get(di.sales_document_item_id) || 0
                             fulfilledMap.set(di.sales_document_item_id, current + (di.qty_delivered || 0))
                         })
@@ -227,7 +247,8 @@ export const planningService = {
                 })
 
                 // Check if this specific route has a partial partial_payload
-                const partialItems = d.partial_payload?.items || []
+                const partialPayload = d.partial_payload as { items?: { orderItemId: string, qtyLoaded: number }[] } | null
+                const partialItems = partialPayload?.items || []
 
                 orderItems.forEach(item => {
                     const current = dayMap.get(item.item_id) || 0
@@ -235,7 +256,6 @@ export const planningService = {
                     let qty = 0;
 
                     // Helper: Get Packaging Factor
-                    // @ts-ignore
                     const pkgFactor = item.packaging?.qty_in_base || 1
 
                     // Robustness: Determine Effective Factor
@@ -252,7 +272,7 @@ export const planningService = {
 
                     // 1. Try to find explicit override in partial_payload
                     // We need to match by orderItemId (sales_document_item_id)
-                    const override = partialItems.find((p: any) => p.orderItemId === item.id)
+                    const override = partialItems.find((p) => p.orderItemId === item.id)
 
                     if (override) {
                         // Use the planned partial load
@@ -367,7 +387,6 @@ export const planningService = {
                 const supplyData = supplyMap.get(date)?.get(item.id) || { net: 0, gross: 0 }
 
                 const productionNet = supplyData.net
-                const productionGross = supplyData.gross
 
                 accumulatedNetProduction += productionNet
 
@@ -513,7 +532,7 @@ export const planningService = {
                 if (error) throw error
                 results.push({ op: updated, action: 'updated' })
 
-                // @ts-ignore
+                // @ts-expect-error: Details json complexity
                 const { error: auditErr } = await supabaseServer.from('audit_logs').insert({
                     company_id: companyId,
                     user_id: userId,
@@ -526,7 +545,6 @@ export const planningService = {
 
             } else {
                 // Create new
-                // @ts-ignore
                 const { data: created, error } = await supabaseServer
                     .from('work_orders')
                     .insert({
@@ -544,7 +562,7 @@ export const planningService = {
                 if (error) throw error
                 results.push({ op: created, action: 'created' })
 
-                // @ts-ignore
+                // @ts-expect-error: Details json complexity
                 const { error: auditErr } = await supabaseServer.from('audit_logs').insert({
                     company_id: companyId,
                     user_id: userId,
@@ -588,14 +606,13 @@ export const planningService = {
 
         const { error: deleteErr } = await supabaseServer
             .from('work_orders')
-            // @ts-ignore
             .update({ deleted_at: new Date().toISOString() })
             .eq('company_id', companyId)
             .eq('id', workOrderId)
 
         if (deleteErr) throw deleteErr
 
-        // @ts-ignore
+        // @ts-expect-error: Details json complexity
         await supabaseServer.from('audit_logs').insert({
             company_id: companyId,
             user_id: userId,
@@ -660,7 +677,7 @@ export const planningService = {
 
         if (updateErr) throw updateErr
 
-        // @ts-ignore
+        // @ts-expect-error: Details json complexity
         await supabaseServer.from('audit_logs').insert({
             company_id: companyId,
             user_id: userId,
@@ -712,7 +729,6 @@ export const planningService = {
 
         // Get current stock for all ingredients
         const itemIds = bomLines.map(l => l.component_item_id)
-        // @ts-ignore
         const { data: balances } = await supabaseServer
             .from('inventory_balances')
             .select('item_id, on_hand')
@@ -729,10 +745,10 @@ export const planningService = {
             const balanceAfter = currentStock - consumedQty
 
             if (balanceAfter < 0) {
-                // @ts-ignore
-                const itemName = line.items?.name || 'Item Desconhecido'
-                // @ts-ignore
-                const uom = line.items?.uom || 'UN'
+                // Cast to custom type to access joined fields
+                const lineWithItem = line as unknown as BomLineWithItem
+                const itemName = lineWithItem.items?.name || 'Item Desconhecido'
+                const uom = lineWithItem.items?.uom || 'UN'
                 negativeItems.push({
                     item_id: line.component_item_id,
                     item_name: itemName,
@@ -783,7 +799,7 @@ export const planningService = {
 
             if (negativeCheck.hasNegative && !negativeStockConfirmed) {
                 // Return error with special payload for UI to show confirmation modal
-                const error: any = new Error("NEGATIVE_STOCK_DETECTED")
+                const error = new Error("NEGATIVE_STOCK_DETECTED") as Error & { negativeItems: any[] }
                 error.negativeItems = negativeCheck.negativeItems
                 throw error
             }
@@ -830,7 +846,7 @@ export const planningService = {
 
         if (updateErr) throw updateErr
 
-        // @ts-ignore
+        // @ts-expect-error: Details json complexity
         await supabaseServer.from('audit_logs').insert({
             company_id: companyId,
             user_id: userId,
