@@ -6,6 +6,7 @@ import { FileText, ArrowUpRight, ArrowDownLeft, AlertTriangle } from 'lucide-rea
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { PreApprovalActions } from './PreApprovalActions'
+import { FinancialEvent } from '@/lib/finance/events-db'
 
 interface Title {
     id: string
@@ -22,6 +23,36 @@ interface PreApprovalListProps {
     data: Title[]
     isLoading: boolean
     onRefresh: () => void
+}
+
+function mapTitleToEvent(t: Title): FinancialEvent {
+    return {
+        id: t.id,
+        direction: t.type,
+        partner_name: t.entity_name,
+        total_amount: t.amount_total,
+        issue_date: t.date_issued,
+        attention_reason: t.attention_reason || null,
+        status: (t.attention_status as any) || 'pendente',
+        // Defaults for required fields not in Title view
+        company_id: '',
+        origin_type: 'MANUAL',
+        origin_id: null,
+        origin_reference: null,
+        partner_id: null,
+        notes: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        approved_by: null,
+        approved_at: null,
+        approval_snapshot: null,
+        rejected_by: null,
+        rejected_at: null,
+        rejection_reason: null,
+        attention_marked_by: null,
+        attention_marked_at: null,
+        installments: []
+    }
 }
 
 export function PreApprovalList({ data, isLoading, onRefresh }: PreApprovalListProps) {
@@ -105,7 +136,7 @@ export function PreApprovalList({ data, isLoading, onRefresh }: PreApprovalListP
             <PreApprovalActions
                 isOpen={!!selectedTitle}
                 onClose={() => setSelectedTitle(null)}
-                title={selectedTitle}
+                title={selectedTitle ? mapTitleToEvent(selectedTitle) : null}
                 onSuccess={onRefresh}
             />
         </div>
