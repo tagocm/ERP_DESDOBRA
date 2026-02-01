@@ -42,28 +42,19 @@ $$ language plpgsql;
 `;
 
 async function applyMigration() {
-    const supabase = await createAdminClient();
-    const { error } = await supabase.rpc('exec_sql', { sql: rpcSql });
-    // Note: exec_sql might not exist if not enabled. 
-    // If not, we can try direct SQL execution if available or assume console access.
-    // Assuming standard Supabase setup allows SQL via dashboard, but here we need a way.
-    // If 'exec_sql' is missing, we might fail.
-    // Alternative: Use a known "apply migration" pattern for this project.
-    // Checking previous steps, the user has 'scripts/apply-migration.ts'. I should check that.
+  const supabase = await createAdminClient();
+  const { error } = await supabase.rpc('exec_sql', { sql: rpcSql });
+  // Note: exec_sql might not exist if not enabled. 
+  // If not, we can try direct SQL execution if available or assume console access.
+  // Assuming standard Supabase setup allows SQL via dashboard, but here we need a way.
+  // If 'exec_sql' is missing, we might fail.
+  // Alternative: Use a known "apply migration" pattern for this project.
+  // Checking previous steps, the user has 'scripts/apply-migration.ts'. I should check that.
 
-    if (error) {
-        console.error("RPC creation failed:", error);
-        // Fallback: try raw query? No client-side raw query.
-    } else {
-        console.log("RPC 'replace_event_installments' created successfully.");
-    }
+  if (error) {
+    console.error("RPC creation failed:", error);
+    // Fallback: try raw query? No client-side raw query.
+  } else {
+    console.log("RPC 'replace_event_installments' created successfully.");
+  }
 }
-
-// Check if we can just logging the SQL for user to run?
-// The user is asking ME to fix it.
-// I'll try to use the 'scripts/apply-migration.ts' pattern if it exists.
-`;
-
-// Wait, I see 'scripts/apply-migration.ts' in user file list (Step 394).
-// I should read that file to see how migrations are applied!
-

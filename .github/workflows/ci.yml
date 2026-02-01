@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20.x]
+
+    env:
+      # Inject secrets at the job level so they are available in env context
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Debug env presence
+      run: |
+        node -e "console.log('SUPABASE_URL?', !!process.env.NEXT_PUBLIC_SUPABASE_URL); console.log('SUPABASE_ANON?', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY); console.log('SUPABASE_SERVICE?', !!process.env.SUPABASE_SERVICE_ROLE_KEY)"
+
+    - name: Lint
+      # Continue on error if you want to see all failures, or fail fast. 
+      # Since this is CI, we usually want to block if lint fails.
+      run: npm run lint
+
+    - name: Type Safety Budget Check
+      # Enforce baseline - prevent 'any' regression in CORE business logic
+      run: node scripts/any-budget-actions.js
+
+    - name: Typecheck
+      run: npm run typecheck
+
+    - name: Test
+      # If vitest fails when no tests are found, we can address it.
+      run: npm run test:run
+      env:
+        TZ: America/Sao_Paulo
+
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps chromium
+
+    - name: Build
+      run: npm run build
+      env:
+        CI: true
+        NEXT_TELEMETRY_DISABLED: 1
+
+    - name: Run E2E Tests
+      # Safe check using env.* instead of secrets.*
+      if: ${{ env.NEXT_PUBLIC_SUPABASE_URL != '' && env.NEXT_PUBLIC_SUPABASE_ANON_KEY != '' }}
+      run: npm run test:e2e
+      env:
+        CI: true
+
+    - name: Upload E2E Test Results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-report
+        path: playwright-report/
+        retention-days: 30

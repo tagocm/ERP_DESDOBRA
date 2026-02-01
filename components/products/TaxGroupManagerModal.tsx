@@ -95,7 +95,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
         try {
             await createTaxGroup(supabase, {
                 company_id: selectedCompany.id,
-                name: toTitleCase(formName),
+                name: toTitleCase(formName) || "",
                 // Deprecated: ncm, cest, origin_default removed from payload
                 is_active: formIsActive,
                 observation: formObservation || null
@@ -116,7 +116,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
         setIsUpdating(true);
         try {
             await updateTaxGroup(supabase, id, {
-                name: toTitleCase(formName),
+                name: toTitleCase(formName) || "",
                 // Deprecated: ncm, cest, origin_default removed from payload
                 is_active: formIsActive,
                 observation: formObservation || null
@@ -205,7 +205,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                                 <Input
                                     value={formName}
                                     onChange={(e) => setFormName(e.target.value)}
-                                    onBlur={() => setFormName(toTitleCase(formName))}
+                                    onBlur={() => setFormName(toTitleCase(formName) || "")}
                                     placeholder="Ex: Revenda 18%, Produção Própria..."
                                     className="h-9 text-sm rounded-lg"
                                     autoFocus

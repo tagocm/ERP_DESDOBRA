@@ -60,7 +60,7 @@ export async function upsertDeliveryReason(
     };
 
     let reasonId = reason.id;
-    let errorOp = null;
+    const errorOp = null;
 
     if (!reasonId) {
         // Insert

@@ -139,7 +139,7 @@ export function NFeEmissionForm({ data, orderId }: Props) {
                 others: 0,
                 total: Number(data.order.total_amount || 0)
             },
-            additional_info: data.draft?.additional_info || {
+            additional_info: (data.draft as any)?.additional_info || {
                 fisco: '',
                 // Cast to any to bypass strict type check if NFeDraftData definition is partial or missing 'notes' in type but present in data
                 taxpayer: (data.draft as any)?.notes || (data.order.internal_notes ? `Ped. ${data.order.document_number} - ${data.order.internal_notes}` : `Referente pedido #${data.order.document_number}`)
@@ -168,7 +168,7 @@ export function NFeEmissionForm({ data, orderId }: Props) {
             const newItems = [...prev.items];
             const oldItem = newItems[index];
 
-            let newItem = { ...oldItem, [field]: value };
+            const newItem = { ...oldItem, [field]: value };
 
             // Recalculate totals if needed
             if (field === 'quantity' || field === 'unit_price' || field === 'discount') {

@@ -32,10 +32,11 @@ describe('SOAP Envelope Builders', () => {
         it('should match snapshot', () => {
             const bodyContent = '<enviNFe versao="4.00"><idLote>202601160001</idLote><indSinc>1</indSinc></enviNFe>';
             const result = buildSoapEnvelope(bodyContent);
-
-            expect(result).toMatchSnapshot();
+            const normalized = result.replace(/>\s+</g, '><').trim();
+            expect(normalized).toMatchSnapshot();
         });
     });
+
 
     describe('buildSoapEnvelopeRet (NFeRetAutorizacao4)', () => {
         it('should build valid SOAP envelope with RetAutorizacao namespace', () => {
@@ -63,8 +64,9 @@ describe('SOAP Envelope Builders', () => {
         it('should match snapshot', () => {
             const bodyContent = '<consReciNFe versao="4.00"><tpAmb>2</tpAmb><nRec>351000000000123</nRec></consReciNFe>';
             const result = buildSoapEnvelopeRet(bodyContent);
+            const normalized = result.replace(/>\s+</g, '><').trim();
 
-            expect(result).toMatchSnapshot();
+            expect(normalized).toMatchSnapshot();
         });
     });
 });

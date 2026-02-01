@@ -75,7 +75,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
 
     // Generate dates EXACTLY like PlanningCalendar (store Date objects)
     const days: Date[] = []
-    let curr = new Date(startDate)
+    const curr = new Date(startDate)
     for (let i = 0; i < 7; i++) {
         days.push(new Date(curr))
         curr.setDate(curr.getDate() + 1)

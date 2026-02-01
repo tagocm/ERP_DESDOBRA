@@ -400,7 +400,14 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                 status: "active",
             });
 
-            // ... (Roles logic same)
+            // 2. Set Organization Roles
+            const selectedRoles = Object.entries(roles)
+                .filter(([_, isSelected]) => isSelected)
+                .map(([role]) => role);
+
+            if (selectedRoles.length > 0) {
+                await setOrganizationRoles(supabase, selectedCompany.id, newOrg.id, selectedRoles);
+            }
 
             // 3. Create Address (Include IBGE)
             if (sanitizedAddress.zip || sanitizedAddress.city) {
@@ -414,7 +421,19 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                 });
             }
 
-            // ... (Contacts logic same)
+            // 4. Create Contacts
+            for (const contact of sanitizedContacts) {
+                await upsertPerson(supabase, {
+                    company_id: selectedCompany.id,
+                    organization_id: newOrg.id,
+                    full_name: contact.full_name,
+                    email: contact.email || null,
+                    phone: contact.phone || null,
+                    departments: contact.departments || null,
+                    notes: contact.notes || null,
+                    is_primary: contact.is_primary || false
+                });
+            }
 
             if (saveAndNew) {
                 resetForm();

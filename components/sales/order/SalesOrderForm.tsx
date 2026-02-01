@@ -1443,7 +1443,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                 .select(`
                     *,
                     packaging:item_packaging(id, label, gross_weight_kg, net_weight_kg),
-                    product:items!item_id(
+                    product:items!fk_sales_item_product(
                         id, name, sku, un:uom,
                         net_weight_kg_base, gross_weight_kg_base,
                         net_weight_g_base, gross_weight_g_base,
@@ -1514,7 +1514,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
             .from('sales_documents')
             .select(`
                 *,
-                items:sales_document_items(*, product:items!item_id(*, packagings:item_packaging(*))),
+                items:sales_document_items(*, product:items!fk_sales_item_product(*, packagings:item_packaging(*))),
                 adjustments:sales_document_adjustments(*)
             `)
             .eq('id', id)
@@ -1714,6 +1714,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                     onClick={handleSaveDraft}
                                     disabled={isSaving || !formData.client_id || isLocked}
                                     className="rounded-r-none border-r-0 z-10 focus:z-20 font-medium pr-2"
+                                    data-testid="order-save-button"
                                 >
                                     <Save className="w-4 h-4 mr-2" /> Salvar Orçamento
                                 </Button>
@@ -1752,6 +1753,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                     onClick={() => handleConfirmTrigger()}
                                     disabled={isSaving || isLoading || !formData.client_id || !formData.items?.length}
                                     className="bg-green-600 hover:bg-green-700 text-white rounded-r-none border-r-0 z-10 focus:z-20 font-medium pr-2"
+                                    data-testid="order-confirm-button"
                                 >
                                     <CheckCircle className="w-4 h-4 mr-2" /> Confirmar Pedido
                                 </Button>
@@ -1899,6 +1901,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                                             onChange={handleCustomerSelect}
                                                             type="customer"
                                                             disabled={isLocked}
+                                                            data-testid="order-client-input"
                                                         />
                                                     </div>
                                                     <Button
@@ -1915,11 +1918,9 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                             </div>
                                             {/* Read-only Summary - Always visible */}
                                             <div className="flex-[2] bg-gray-50/80 rounded-2xl border border-gray-100 p-4 grid grid-cols-1 md:grid-cols-[auto_1fr] gap-10">
-                                                <div className="min-w-[60px]">
+                                                <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm min-w-[100px] text-center">
                                                     <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Número</span>
-                                                    <span className="font-medium text-gray-700 text-sm truncate block">
-                                                        {mode === 'create' ? '-' : initialData?.document_number?.toString().padStart(4, '0')}
-                                                    </span>
+                                                    <span className="block text-xl font-bold text-gray-800 font-mono" data-testid="order-number">{formData.id ? formData.id.slice(0, 8).toUpperCase() : '-'}</span>
                                                 </div>
                                                 <div>
                                                     <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Localização / Tabela / Prazo / Forma</span>
@@ -2110,6 +2111,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                                 value={quickItem.product?.id}
                                                 onChange={handleQuickItemSelect}
                                                 disabled={isLocked}
+                                                data-testid="order-product-search"
                                             />
                                         </div>
 
@@ -2561,7 +2563,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                             onChange={(e) => setFormData({ ...formData, internal_notes: e.target.value })}
                                         />
                                     </div>
-                                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 space-y-3">
+                                    <div className="bg-white rounded-2xl shadow-card border border-gray-100/70 p-6 space-y-3">
                                         <Label className="text-gray-900 font-medium flex items-center gap-2">
                                             <Printer className="w-3 h-3 text-gray-400" /> Observações para o Cliente
                                         </Label>

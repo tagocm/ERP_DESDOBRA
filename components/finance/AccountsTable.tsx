@@ -175,7 +175,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
 
                 groups.set(titleId, {
                     id: titleId,
-                    document_number: inst.ar_title.document_number || 0,
+                    document_number: Number(inst.ar_title.document_number || 0),
                     organization_name: inst.ar_title.organization?.trade_name || inst.ar_title.organization?.legal_name || 'Desconhecido',
                     issue_date: inst.ar_title.date_issued,
                     amount_total: inst.ar_title.amount_total,

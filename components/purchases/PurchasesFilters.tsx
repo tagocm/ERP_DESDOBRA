@@ -20,6 +20,7 @@ export interface PurchasesFiltersType {
     dateTo?: string;
     supplierId?: string;
     showCancelled?: boolean;
+    showArchived?: boolean;
 }
 
 interface PurchasesFiltersProps {

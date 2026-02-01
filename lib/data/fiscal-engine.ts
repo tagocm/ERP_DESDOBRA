@@ -105,7 +105,7 @@ export async function resolveFiscalRule(
 
                 if (opCustomerType === inputCustomerType) {
                     score += 30;
-                } else if (opCustomerType === 'all' || !opCustomerType) {
+                } else if ((opCustomerType as string) === 'all' || !opCustomerType) {
                     score += 5;
                 } else {
                     return null; // Doesn't match

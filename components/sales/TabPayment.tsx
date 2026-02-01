@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
 import { Trash2, Plus } from "lucide-react";
+import { useRef } from "react";
 
 interface TabProps {
     data: Partial<SalesOrder>;
@@ -15,13 +16,14 @@ interface TabProps {
 
 export function TabPayment({ data, onChange, disabled }: TabProps) {
     const payments = data.payments || [];
+    const tempIdCounter = useRef(1);
 
     const handleAddPayment = () => {
         const totalPayments = payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
         const remaining = (data.total_amount || 0) - totalPayments;
 
         const newPayment: SalesOrderPayment = {
-            id: `temp-${Date.now()}`,
+            id: `temp-${tempIdCounter.current++}`,
             document_id: data.id || '',
             installment_number: payments.length + 1,
             due_date: new Date().toISOString().split('T')[0],

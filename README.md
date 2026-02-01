@@ -1,48 +1,143 @@
+# ERP_DESDOBRA
 
-## Data Layer & API
+ERP system for managing marble/granite production, sales, and logistics.
 
-This project uses a structured data layer to interact with Supabase, ensuring type safety and multi-tenancy security.
+## 🚀 Getting Started
 
-### 1. Database Types
-We automatically generate Typescript definitions from the database schema.
-- **Location**: `types/supabase.ts`
-- **Usage**: Import `Database`, `Organization`, `Person`, etc. for type safety.
+### Prerequisites
 
-### 2. Supabase Clients
-- **Browser Client**: `lib/supabase/browser.ts`
-  - Safe for client-side components.
-  - Uses `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-  - **Restriction**: Cannot perform admin/service-role operations.
-  
-- **Server Client**: `lib/supabase/server.ts`
-  - **Server-Only**: Can only be imported in Server Components, Route Handlers, or Server Actions.
-  - Uses `SUPABASE_SERVICE_ROLE_KEY`.
-  - Bypass RLS if needed (but currently queries respect `companyId`).
+- Node.js (v20+ recommended)
+- npm or yarn
 
-### 3. Data Repositories (`lib/data/`)
-Encapsulate Supabase queries to ensure consistent filtering (e.g. `company_id`, `deleted_at`).
-- `organizations.ts`
-- `people.ts`
-- `addresses.ts`
-- `tags.ts`
+### Installation
 
-**Example Usage:**
-```typescript
-import { organizationsRepo } from '@/lib/data/organizations'
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/tagocm/ERP_DESDOBRA.git
+    cd ERP_DESDOBRA
+    ```
 
-// Server-side only
-const orgs = await organizationsRepo.list('company-uuid-123')
+2.  **Install dependencies:**
+    ```bash
+    npm install
+    ```
+
+3.  **Environment Setup:**
+    Copy `.env.example` to `.env.local` and configure the required variables.
+    ```bash
+    cp .env.example .env.local
+    ```
+
+    **Key Environment Variables:**
+    - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase Project URL.
+    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Public API Key.
+    - `SUPABASE_SERVICE_ROLE_KEY`: Service Role Key (for server-side admin tasks).
+    - `NFE_ENVIRONMENT`: `homologacao` or `producao` (for fiscal/NFe).
+    - `SEFAZ_CA_BUNDLE_PATH`: Path to CA bundle (default: `certs/sefaz-ca-bundle.pem`).
+
+4.  **Run Development Server:**
+    ```bash
+    npm run dev
+    ```
+    Access the app at `http://localhost:3000`.
+
+## 🛠 Commands
+
+| Command | Description |
+| :--- | :--- |
+| `npm run dev` | Starts the development server. |
+| `npm run build` | Builds the application for production. |
+| `npm run start` | Starts the production server. |
+| `npm run lint` | Runs ESLint to check for code quality issues. |
+| `npm run ui:check` | Checks UI component integrity (custom script). |
+| `npm run test` | Runs unit tests using Vitest. |
+| `npm run test:e2e` | Runs E2E tests using Playwright (headless). |
+| `npm run test:e2e:ui` | Runs E2E tests with interactive UI. |
+| `npm run test:e2e:headed` | Runs E2E tests in headed mode (see browser). |
+| `npm run test:e2e:debug` | Runs E2E tests in debug mode. |
+| `npx supabase db reset` | Resets the local database (seeds, schema). |
+
+## 🧪 Testing
+
+### Unit Tests
+
+This project uses Vitest for unit testing:
+
+```bash
+# Run tests
+npm run test
+
+# Run tests with UI
+npm run test:ui
+
+# Run tests with coverage
+npm run test:coverage
 ```
 
-### 4. API Routes
-We provide REST endpoints for organizations as an example of secure server-side operations.
+### E2E Tests
 
-**Endpoints:**
-- `GET /api/orgs?companyId=...` - List organizations
-- `POST /api/orgs` - Create organization (Body: `companyId`, `trade_name`, etc.)
-- `GET /api/orgs/[id]?companyId=...` - Get details
-- `PATCH /api/orgs/[id]` - Update (Body: `companyId`, fields to update)
-- `DELETE /api/orgs/[id]?companyId=...` - Soft delete
+End-to-end tests use Playwright to validate critical user flows and React Hooks fixes:
 
-**Security Note:**
-All API routes validate inputs using Zod and require `companyId` to prevent cross-tenant data access.
+```bash
+# Run all E2E tests (headless)
+npm run test:e2e
+
+# Run with interactive UI mode
+npm run test:e2e:ui
+
+# Run in headed mode (see browser)
+npm run test:e2e:headed
+
+# Debug mode (step through tests)
+npm run test:e2e:debug
+```
+
+**Test Coverage:**
+
+E2E tests validate that React Hooks lint fixes don't introduce regressions:
+- **Race conditions:** Rapid state changes (company switching)
+- **Unmount scenarios:** setState after unmount prevention
+- **Prop synchronization:** CurrencyInput value updates
+- **State isolation:** PackagingModal state between opens
+
+See [`tests/e2e/`](./tests/e2e/) for test specifications.
+
+**CI Integration:**
+
+E2E tests run automatically in CI (GitHub Actions) on every push/PR. Test reports are uploaded as artifacts.
+
+
+## 🏗 Quick Architecture
+
+### Core Concepts
+
+-   **Multi-tenancy:** All data is scoped by `company_id`. Row Level Security (RLS) policies enforce this at the database level. Always include `company_id` in your queries.
+-   **Soft Delete:** Most tables implement soft delete via a `deleted_at` timestamp column. Data is not physically removed; queries should filter `deleted_at is null` (handled by repository layer).
+-   **Validation:** Input validation is strictly enforced using `zod` schemas for both API routes and Server Actions.
+
+### Directory Structure
+
+-   `app/`: Next.js App Router (pages, layouts, API routes).
+-   `components/`: Reusable React components (UI library, feature-specific).
+-   `lib/`:
+    -   `data/`: Data access layer (repositories) wrapping Supabase queries.
+    -   `actions/`: Server Actions for mutations.
+    -   `fiscal/`: Logic for NFe emission and SEFAZ integration.
+    -   `supabase/`: Supabase client initialization (browser/server).
+-   `supabase/`: DB migrations, seeds, and config.
+-   `types/`: TypeScript definitions (generated from DB schema).
+-   `scripts/`: Utility scripts for maintenance, diagnostics, and testing.
+
+## 🔒 Security
+
+-   **RLS:** Row Level Security is the primary defense. Ensure policies are correct for every new table.
+-   **Service Role:** Only use `SUPABASE_SERVICE_ROLE_KEY` in secure server contexts (e.g., background jobs, admin actions).
+-   **Secrets:** Never commit `.pfx` certificates or `.env` files. Use `.gitignore`.
+
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

@@ -330,7 +330,7 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onDeleteTitle
                                                 ) : (
                                                     <span className="text-xs text-gray-600 font-medium">{inst.payment_method}</span>
                                                 )}
-                                                {isOverride && <Link2Off className="w-3 h-3 text-orange-400" title="Manual" />}
+                                                {isOverride && <span title="Manual"><Link2Off className="w-3 h-3 text-orange-400" /></span>}
                                             </div>
                                         </td>
                                         <td className="px-6 py-3">

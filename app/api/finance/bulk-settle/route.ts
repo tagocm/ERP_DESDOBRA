@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     }
 
     let successCount = 0;
-    let errors = [];
+    const errors = [];
 
     // Process each installment
     // Note: Ideally this should be a stored procedure for atomicity

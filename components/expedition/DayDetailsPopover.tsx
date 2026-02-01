@@ -138,7 +138,7 @@ export function DayDetailsPopover({
                                 <div className="divide-y divide-gray-100">
                                     {route.orders && route.orders.length > 0 ? (
                                         route.orders.map((ro) => {
-                                            // eslint-disable-next-line
+                                             
                                             const order = ro.sales_order;
                                             if (!order) return null;
 

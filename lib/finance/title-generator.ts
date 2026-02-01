@@ -123,7 +123,7 @@ export async function generateAPTitle(event: FinancialEvent): Promise<string> {
 /**
  * Generate title based on event direction (AR or AP)
  */
-export async function generateTitleFromEvent(event: FinancialEvent): Promise<{ titleId: string; direction: string }> {
+export async function generateTitleFromEvent(event: FinancialEvent): Promise<{ titleId: string; direction: 'AR' | 'AP' }> {
     if (event.direction === 'AR') {
         const titleId = await generateARTitle(event);
         return { titleId, direction: 'AR' };
