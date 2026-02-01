@@ -115,13 +115,10 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
         if (initialData) {
             const data = { ...initialData };
             if (isDuplicate) {
-                // @ts-ignore
+                // @ts-expect-error: Removing readonly id for duplication
                 delete data.id;
-                // @ts-ignore
                 delete data.created_at;
-                // @ts-ignore
                 delete data.updated_at;
-                // @ts-ignore
                 delete data.deleted_at;
             } else {
                 // If editing, use the saved origin state if available (though it should match company currently, 
