@@ -62,7 +62,7 @@ export async function POST(request: Request) {
                 .delete()
                 .in('origin_id', validIds)
                 .eq('origin_type', 'SALE')
-                .eq('status', 'pendente');
+                .eq('status', 'pending');
 
             if (cleanupError) {
                 console.error('Error cleaning up pending events:', cleanupError);
@@ -73,13 +73,13 @@ export async function POST(request: Request) {
                 .from('sales_documents')
                 .update({
                     status_commercial: 'confirmed',
-                    status_logistic: 'pendente', // Sandbox
+                    status_logistic: 'pending', // Sandbox
                     doc_type: 'order', // Promote to order
                     dispatch_blocked: false,
                     dispatch_blocked_reason: null,
                     dispatch_blocked_at: null,
                     dispatch_blocked_by: null,
-                    financial_status: 'pendente',
+                    financial_status: 'pending',
                     updated_at: new Date().toISOString()
                 })
                 .in('id', validIds);
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
                     direction: 'AR',
                     total_amount: order.total_amount,
                     issue_date: order.date_issued || new Date().toISOString(),
-                    status: 'pendente',
+                    status: 'pending',
                     operational_status: order.status_logistic
                 }));
 

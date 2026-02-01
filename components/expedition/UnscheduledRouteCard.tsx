@@ -15,6 +15,7 @@ import { removeOrderFromRoute } from "@/lib/data/expedition";
 import { OrderItemsPopover } from "./OrderItemsPopover";
 import { deleteRoute } from "@/lib/data/expedition";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
+import { normalizeRouteStatus } from "@/lib/constants/status";
 
 interface UnscheduledRouteCardProps {
     route: DeliveryRoute;
@@ -50,7 +51,8 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
     const [showDeleteAlert, setShowDeleteAlert] = useState(false);
 
     // Check if route is locked (em_rota or concluida - cannot be modified)
-    const isRouteLocked = route.status === 'em_rota' || route.status === 'in_progress' || route.status === 'concluida';
+    const normalizedStatus = normalizeRouteStatus(route.status) || route.status;
+    const isRouteLocked = normalizedStatus === 'in_route' || normalizedStatus === 'in_progress' || normalizedStatus === 'completed';
 
     const handleDeleteClick = (e: React.MouseEvent) => {
         e.stopPropagation();

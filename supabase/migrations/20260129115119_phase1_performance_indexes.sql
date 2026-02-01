@@ -10,7 +10,7 @@
 -- Frequently filtered by status in approval screens
 CREATE INDEX IF NOT EXISTS idx_financial_events_status 
   ON financial_events(status) 
-  WHERE status IN ('pendente', 'em_atencao');
+  WHERE status IN ('pending', 'attention');
 
 -- Filtering by direction (AR vs AP) with company scoping
 CREATE INDEX IF NOT EXISTS idx_financial_events_direction 
@@ -74,7 +74,7 @@ CREATE INDEX IF NOT EXISTS idx_ap_installments_company_due
 --
 -- EXPLAIN ANALYZE 
 -- SELECT * FROM financial_events 
--- WHERE status = 'pendente' AND company_id = 'xxx';
+-- WHERE status = 'pending' AND company_id = 'xxx';
 --
 -- EXPLAIN ANALYZE 
 -- SELECT * FROM sales_documents 

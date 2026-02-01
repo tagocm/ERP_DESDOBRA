@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS financial_events (
     -- aprovando: transitional state during approval (atomic lock)
     -- aprovado: approved and title created (removed from queue)
     -- reprovado: rejected (audit only)
-    status TEXT NOT NULL DEFAULT 'pendente' CHECK (status IN ('pendente', 'em_atencao', 'aprovando', 'aprovado', 'reprovado')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'attention', 'approving', 'approved', 'rejected')),
     
     -- Approval/Rejection
     approved_by UUID REFERENCES auth.users(id),
@@ -253,11 +253,11 @@ BEGIN
             COALESCE(sd.date_issued, fp.created_at::DATE) as issue_date,
             fp.amount_total,
             CASE 
-                WHEN fp.status = 'PENDING_APPROVAL' THEN 'pendente'
-                WHEN fp.status = 'APPROVED' THEN 'aprovado'
-                WHEN fp.status = 'REJECTED' THEN 'reprovado'
-                WHEN fp.status = 'EM_ATENCAO' THEN 'em_atencao'
-                ELSE 'pendente'
+                WHEN fp.status = 'PENDING_APPROVAL' THEN 'pending'
+                WHEN fp.status = 'APPROVED' THEN 'approved'
+                WHEN fp.status = 'REJECTED' THEN 'rejected'
+                WHEN fp.status = 'EM_ATENCAO' THEN 'attention'
+                ELSE 'pending'
             END as status,
             fp.approved_by,
             fp.approved_at,
@@ -339,7 +339,7 @@ BEGIN
             'AR',
             COALESCE(NEW.date_issued, CURRENT_DATE),
             COALESCE(NEW.total_amount, 0),
-            'pendente'
+            'pending'
         )
         ON CONFLICT (company_id, origin_type, origin_id) DO NOTHING;
         

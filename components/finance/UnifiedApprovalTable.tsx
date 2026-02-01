@@ -19,6 +19,7 @@ import {
 import { rejectSalesFinancial } from "@/app/actions/financial/reject-sales";
 import { rejectPurchaseFinancial } from "@/app/actions/financial/reject-purchase";
 import { type FinancialEvent } from '@/lib/finance/events-db';
+import { translateFinancialEventStatusPt } from "@/lib/constants/status";
 
 import { Card } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
@@ -384,6 +385,7 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
             'delivered': 'Entregue',
             'not_loaded': 'Não Carregado',
             'loaded': 'Carregado',
+            'attention': 'Em atenção',
             // Purchase
             'draft': 'Rascunho',
             'sent': 'Enviado',
@@ -409,6 +411,8 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
             case 'pending':
             case 'draft':
                 return "bg-gray-100 text-gray-600 border-gray-200";
+            case 'attention':
+                return "bg-amber-100 text-amber-700 border-amber-200";
             case 'not_loaded':
             case 'cancelled':
                 return "bg-red-50 text-red-700 border-red-200";
@@ -563,12 +567,14 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
                                                 {formatCurrency(event.total_amount)}
                                             </TableCell>
                                             <TableCell>
-                                                {event.status === 'em_atencao' ? (
+                                                {event.status === 'attention' ? (
                                                     <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100">
-                                                        Em Atenção
+                                                        {translateFinancialEventStatusPt(event.status)}
                                                     </Badge>
                                                 ) : (
-                                                    <Badge variant="secondary" className="text-gray-500 bg-gray-100">Pendente</Badge>
+                                                    <Badge variant="secondary" className="text-gray-500 bg-gray-100">
+                                                        {translateFinancialEventStatusPt(event.status)}
+                                                    </Badge>
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-right">

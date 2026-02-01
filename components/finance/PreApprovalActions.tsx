@@ -140,7 +140,7 @@ export function PreApprovalActions({ isOpen, onClose, title, onSuccess }: PreApp
                                 />
                             </div>
                         </div>
-                        {title.status === 'em_atencao' && (
+                        {title.status === 'attention' && (
                             <div className="bg-amber-50 text-amber-900 p-3 rounded-md text-sm flex gap-2 items-start">
                                 <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-600" />
                                 <div>

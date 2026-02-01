@@ -84,7 +84,7 @@ export async function POST(request: Request) {
                 client_id: client!.id,
                 doc_type: 'order',
                 status_commercial: 'approved',
-                status_logistic: 'pendente',
+                status_logistic: 'pending',
                 date_issued: new Date().toISOString(),
                 total_amount: 100.00,
                 sales_rep_id: user.id

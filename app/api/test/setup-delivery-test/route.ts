@@ -42,7 +42,7 @@ export async function POST(request: Request) {
                 company_id: companyId,
                 name: 'Rota Teste Deliveries',
                 route_date: new Date().toISOString(),
-                status: 'pendente'
+                status: 'pending'
             })
             .select()
             .single();
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
                 company_id: companyId,
                 route_id: route.id,
                 sales_document_id: orderId,
-                loading_status: 'loading' // Simulate ready to load
+                loading_status: 'pending' // Simulate ready to load
             });
 
         if (linkError) throw linkError;

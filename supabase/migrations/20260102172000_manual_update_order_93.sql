@@ -3,7 +3,7 @@
 
 UPDATE sales_documents
 SET status_commercial = 'confirmed',
-    status_logistic = 'pendente',
+    status_logistic = 'pending',
     doc_type = 'order',
     updated_at = NOW()
 WHERE document_number = 93;

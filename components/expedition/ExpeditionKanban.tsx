@@ -31,6 +31,7 @@ import { DayDetailsPopover } from "./DayDetailsPopover";
 import { OrderItemsPopover } from "./OrderItemsPopover";
 import { cn } from "@/lib/utils";
 import { OrderCard } from "./OrderCard";
+import { normalizeRouteStatus } from "@/lib/constants/status";
 
 type DragItem = {
     id: string; // Order ID or Route ID
@@ -38,6 +39,11 @@ type DragItem = {
     sourceRouteId?: string;
     order?: any;
     route?: DeliveryRoute;
+};
+
+const isLockedRoute = (route?: DeliveryRoute) => {
+    const status = normalizeRouteStatus(route?.status) || route?.status;
+    return ['in_route', 'in_progress', 'completed', 'cancelled'].includes(status);
 };
 
 interface ExpeditionKanbanProps {
@@ -189,7 +195,7 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             // Check if source route is locked
             if (dragData.sourceRouteId) {
                 const sourceRoute = scheduledRoutes.find(r => r.id === dragData.sourceRouteId);
-                if (sourceRoute && (sourceRoute.status === 'em_rota' || sourceRoute.status === 'in_progress' || sourceRoute.status === 'concluida' || sourceRoute.status === 'cancelada')) {
+                if (sourceRoute && isLockedRoute(sourceRoute)) {
                     toast({ title: "Rota bloqueada", description: "Não é possível remover pedidos de rotas em andamento ou concluídas.", variant: "destructive" });
                     return;
                 }
@@ -201,7 +207,7 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
 
             // Check if target route is locked
             const targetRoute = [...scheduledRoutes, ...unscheduledRoutes].find(r => r.id === targetRouteId);
-            if (targetRoute && (targetRoute.status === 'em_rota' || targetRoute.status === 'in_progress' || targetRoute.status === 'concluida' || targetRoute.status === 'cancelada')) {
+            if (targetRoute && isLockedRoute(targetRoute)) {
                 toast({ title: "Rota bloqueada", description: "Não é possível adicionar pedidos a rotas em andamento ou concluídas.", variant: "destructive" });
                 return;
             }
@@ -209,7 +215,7 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             // Check if source route is locked
             if (dragData.sourceRouteId) {
                 const sourceRoute = scheduledRoutes.find(r => r.id === dragData.sourceRouteId);
-                if (sourceRoute && (sourceRoute.status === 'em_rota' || sourceRoute.status === 'in_progress' || sourceRoute.status === 'concluida' || sourceRoute.status === 'cancelada')) {
+                if (sourceRoute && isLockedRoute(sourceRoute)) {
                     toast({ title: "Rota bloqueada", description: "Não é possível mover pedidos de rotas iniciadas.", variant: "destructive" });
                     return;
                 }
@@ -223,14 +229,14 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             setAddToRouteModalOpen(true);
         } else if (dragData.type === 'route' && dropData?.type === 'calendar-day') {
             // Route to Calendar Day (schedule/reschedule)
-            if (dragData.route && (dragData.route.status === 'em_rota' || dragData.route.status === 'in_progress' || dragData.route.status === 'concluida' || dragData.route.status === 'cancelada')) {
+            if (dragData.route && isLockedRoute(dragData.route)) {
                 toast({ title: "Rota bloqueada", description: "Não é possível reagendar rotas em andamento ou concluídas.", variant: "destructive" });
                 return;
             }
             await handleScheduleRoute(dragData.route!.id, dropData.date);
         } else if (dragData.type === 'route' && dropData?.type === 'unscheduled-column') {
             // Scheduled Route back to Unscheduled
-            if (dragData.route && (dragData.route.status === 'em_rota' || dragData.route.status === 'in_progress' || dragData.route.status === 'concluida' || dragData.route.status === 'cancelada')) {
+            if (dragData.route && isLockedRoute(dragData.route)) {
                 toast({ title: "Rota bloqueada", description: "Não é possível reagendar rotas em andamento ou concluídas.", variant: "destructive" });
                 return;
             }
@@ -431,9 +437,9 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
         if (!addToRouteDate) return [];
         return scheduledRoutes.filter(r =>
             r.scheduled_date === addToRouteDate &&
-            r.status !== 'em_rota' &&
-            r.status !== 'in_progress' &&
-            r.status !== 'concluida'
+            (normalizeRouteStatus(r.status) || r.status) !== 'in_route' &&
+            (normalizeRouteStatus(r.status) || r.status) !== 'in_progress' &&
+            (normalizeRouteStatus(r.status) || r.status) !== 'completed'
         );
     }, [addToRouteDate, scheduledRoutes]);
 
@@ -653,6 +659,3 @@ const UnscheduledRoutesColumn = memo(function UnscheduledRoutesColumn({ routes, 
         </div>
     );
 });
-
-
-

@@ -10,6 +10,7 @@ import {
     getLogisticsBadgeStyle,
     getFinancialBadgeStyle
 } from "@/lib/constants/statusColors";
+import { normalizeLogisticsStatus, translateLogisticsStatusPt } from "@/lib/constants/status";
 import { useState, useEffect } from "react";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { useToast } from "@/components/ui/use-toast";
@@ -78,20 +79,17 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
     const isIndeterminate = selectedIds.size > 0 && selectedIds.size < data.length;
 
     const canDelete = (order: SalesOrder) => {
-        const blockedStatuses = ['em_rota', 'entregue', 'nao_entregue'];
-        return !blockedStatuses.includes(order.status_logistic);
+        const blockedStatuses = ['in_route', 'delivered', 'not_delivered'];
+        const status = normalizeLogisticsStatus(order.status_logistic) || order.status_logistic;
+        return !blockedStatuses.includes(status);
     };
 
     const handleDeleteClick = (order: SalesOrder) => {
         if (!canDelete(order)) {
-            const statusLabels: Record<string, string> = {
-                'em_rota': 'EM ROTA',
-                'entregue': 'ENTREGUE',
-                'nao_entregue': 'NÃO ENTREGUE'
-            };
+            const statusLabel = translateLogisticsStatusPt(order.status_logistic).toUpperCase();
             toast({
                 title: "Exclusão não permitida",
-                description: `Pedido não pode ser excluído porque já está ${statusLabels[order.status_logistic]}.`,
+                description: `Pedido não pode ser excluído porque já está ${statusLabel}.`,
                 variant: "destructive"
             });
             return;

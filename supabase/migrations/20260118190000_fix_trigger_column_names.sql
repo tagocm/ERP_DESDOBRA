@@ -51,7 +51,7 @@ BEGIN
             'AR',
             COALESCE(NEW.date_issued, CURRENT_DATE),
             COALESCE(NEW.total_amount, 0),
-            'pendente',
+            'pending',
             v_op_status
         )
         ON CONFLICT (company_id, origin_type, origin_id) 
@@ -59,7 +59,7 @@ BEGIN
             total_amount = EXCLUDED.total_amount,
             operational_status = EXCLUDED.operational_status,
             updated_at = NOW()
-        WHERE financial_events.status NOT IN ('aprovado', 'reprovado'); -- Only update if not finalized
+        WHERE financial_events.status NOT IN ('approved', 'rejected'); -- Only update if not finalized
         
         -- Create default installments only if new event (checked via existence)
         IF NOT EXISTS (
@@ -152,7 +152,7 @@ BEGIN
             updated_at = NOW()
         WHERE origin_type = 'SALE' 
           AND origin_id = NEW.id
-          AND status NOT IN ('aprovado', 'reprovado');
+          AND status NOT IN ('approved', 'rejected');
           
     END IF;
 
@@ -202,14 +202,14 @@ BEGIN
             'AP',
             COALESCE(NEW.ordered_at::DATE, CURRENT_DATE),
             0, 
-            'pendente',
+            'pending',
             NEW.status
         )
         ON CONFLICT (company_id, origin_type, origin_id) 
         DO UPDATE SET 
             operational_status = EXCLUDED.operational_status,
             updated_at = NOW()
-        WHERE financial_events.status NOT IN ('aprovado', 'reprovado');
+        WHERE financial_events.status NOT IN ('approved', 'rejected');
         
         -- Initial Installment (Placeholder)
          IF NOT EXISTS (
@@ -247,7 +247,7 @@ BEGIN
             updated_at = NOW()
         WHERE origin_type = 'PURCHASE' 
           AND origin_id = NEW.id
-          AND status NOT IN ('aprovado', 'reprovado');
+          AND status NOT IN ('approved', 'rejected');
           
     END IF;
 

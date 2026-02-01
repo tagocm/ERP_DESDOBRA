@@ -148,7 +148,7 @@ export async function listPaymentTermsAction(companyId: string): Promise<ActionR
 }
 
 /**
- * List pending events for approval (pendente or em_atencao only)
+ * List pending events for approval (pending or attention only)
  */
 export async function listPendingEventsAction(companyId: string): Promise<ActionResult<FinancialEvent[]>> {
     try {
@@ -212,7 +212,7 @@ export async function updateInstallmentsAction(
         if (event) {
             const pendencies = validateFinancialEvent(event);
 
-            // If there are errors, mark as em_atencao
+            // If there are errors, mark as attention
             if (pendencies.some(p => p.severity === 'error')) {
                 const supabase = await createClient();
                 const { data: { user } } = await supabase.auth.getUser();
@@ -336,7 +336,7 @@ export async function approveEventAction(eventId: string): Promise<ActionResult<
             validation_passed: true
         };
 
-        // 4. Atomic approval (lock with 'aprovando' status)
+        // 4. Atomic approval (lock with 'approving' status)
         const locked = await approveEventAtomic(eventId, user.id, snapshot);
 
         if (!locked) {
@@ -350,7 +350,7 @@ export async function approveEventAction(eventId: string): Promise<ActionResult<
             // 5. Generate AR/AP title
             const { titleId, direction } = await generateTitleFromEvent(event);
 
-            // 6. Finalize approval (status → 'aprovado')
+            // 6. Finalize approval (status → 'approved')
             await finalizeApproval(eventId);
 
             // 7. Clear financial blocks and send to sandbox (for SALE events)
@@ -363,7 +363,7 @@ export async function approveEventAction(eventId: string): Promise<ActionResult<
                         .eq('id', event.origin_id)
                         .single();
 
-                    if (salesDoc && (salesDoc.dispatch_blocked || salesDoc.financial_status === 'em_revisao')) {
+                    if (salesDoc && (salesDoc.dispatch_blocked || salesDoc.financial_status === 'in_review')) {
                         const wasBlocked = salesDoc.dispatch_blocked;
 
                         // Clear blocks and send to sandbox

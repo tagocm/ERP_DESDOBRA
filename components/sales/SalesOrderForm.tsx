@@ -21,6 +21,7 @@ import { TabFiscal } from "./TabFiscal";
 import { TabHistory } from "./order/TabHistory";
 import { Loader2, Save, Ban } from "lucide-react";
 import { getFinancialBadgeStyle } from "@/lib/constants/statusColors";
+import { normalizeFinancialStatus, normalizeLogisticsStatus, translateLogisticsStatusPt } from "@/lib/constants/status";
 
 interface SalesOrderFormProps {
     id: string; // 'novo' or uuid
@@ -29,7 +30,7 @@ interface SalesOrderFormProps {
 const emptyDoc: Partial<SalesOrder> = {
     doc_type: 'proposal',
     status_commercial: 'draft',
-    status_logistic: 'pendente',
+    status_logistic: 'pending',
     status_fiscal: 'none',
     date_issued: new Date().toISOString().split('T')[0],
     items: [],
@@ -52,7 +53,7 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
     const [data, setData] = useState<Partial<SalesOrder>>(emptyDoc);
     const [deletedItemIds, setDeletedItemIds] = useState<string[]>([]);
     const [activeTab, setActiveTab] = useState("general");
-    const isLocked = !isNew && (data.status_logistic === 'em_rota' || data.status_logistic === 'entregue' || data.status_logistic === 'devolvido');
+    const isLocked = !isNew && ['in_route', 'delivered', 'returned'].includes(normalizeLogisticsStatus(data.status_logistic) || data.status_logistic);
 
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
@@ -226,13 +227,13 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
                         Comercial: {data.status_commercial?.toUpperCase()}
                     </span>
                     <span className={`${badgeClass} bg-yellow-100 text-yellow-800`}>
-                        Logístico: {data.status_logistic?.toUpperCase()}
+                        Logístico: {translateLogisticsStatusPt(data.status_logistic).toUpperCase()}
                     </span>
                     <span className={`${badgeClass} bg-gray-100 text-gray-800`}>
                         Fiscal: {data.status_fiscal?.toUpperCase()}
                     </span>
-                    <span className={`${badgeClass} ${getFinancialBadgeStyle(data.financial_status || 'pendente').bg} ${getFinancialBadgeStyle(data.financial_status || 'pendente').text}`}>
-                        Fin.: {getFinancialBadgeStyle(data.financial_status || 'pendente').label.toUpperCase()}
+                    <span className={`${badgeClass} ${getFinancialBadgeStyle(normalizeFinancialStatus(data.financial_status) || data.financial_status || 'pending').bg} ${getFinancialBadgeStyle(normalizeFinancialStatus(data.financial_status) || data.financial_status || 'pending').text}`}>
+                        Fin.: {getFinancialBadgeStyle(normalizeFinancialStatus(data.financial_status) || data.financial_status || 'pending').label.toUpperCase()}
                     </span>
                 </div>
             </PageHeader>
@@ -242,7 +243,7 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
                     <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-center gap-3 text-amber-800 mb-6 shadow-sm">
                         <Ban className="w-5 h-5" />
                         <div className="text-sm font-medium">
-                            Este pedido está com status logística <strong>{data.status_logistic?.replace('_', ' ').toUpperCase()}</strong> e não pode mais ser alterado.
+                            Este pedido está com status logístico <strong>{translateLogisticsStatusPt(data.status_logistic).toUpperCase()}</strong> e não pode mais ser alterado.
                         </div>
                     </div>
                 )}

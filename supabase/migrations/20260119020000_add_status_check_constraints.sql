@@ -15,7 +15,7 @@ DROP CONSTRAINT IF EXISTS sales_documents_status_logistic_check;
 ALTER TABLE public.sales_documents 
 ADD CONSTRAINT sales_documents_status_logistic_check
 CHECK (status_logistic IN (
-    'pendente', 'roteirizado', 'agendado', 'em_rota', 
+    'pending', 'roteirizado', 'agendado', 'em_rota', 
     'entregue', 'devolvido', 'parcial'
 ));
 
@@ -36,7 +36,7 @@ DROP CONSTRAINT IF EXISTS sales_documents_financial_status_check;
 ALTER TABLE public.sales_documents 
 ADD CONSTRAINT sales_documents_financial_status_check
 CHECK (financial_status IS NULL OR financial_status IN (
-    'pendente', 'pre_lancado', 'aprovado', 'em_revisao', 'cancelado'
+    'pending', 'pre_lancado', 'approved', 'em_revisao', 'cancelado'
 ));
 
 -- ========================================
@@ -62,7 +62,7 @@ BEGIN
     SELECT COUNT(*) INTO v_count
     FROM public.sales_documents
     WHERE status_logistic NOT IN (
-        'pendente', 'roteirizado', 'agendado', 'em_rota', 
+        'pending', 'roteirizado', 'agendado', 'em_rota', 
         'entregue', 'devolvido', 'parcial'
     );
     
@@ -74,7 +74,7 @@ BEGIN
     FROM public.sales_documents
     WHERE financial_status IS NOT NULL
     AND financial_status NOT IN (
-        'pendente', 'pre_lancado', 'aprovado', 'em_revisao', 'cancelado'
+        'pending', 'pre_lancado', 'approved', 'em_revisao', 'cancelado'
     );
     
     IF v_count > 0 THEN

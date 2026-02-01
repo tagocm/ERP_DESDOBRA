@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
 
             const newOrderPayload = {
                 ...orderData,
-                status_logistic: 'pending', // Back to pending
+                status_logistic: 'pending', // Back to pendente
                 internal_notes: (orderData.internal_notes || '') + `\nPEDIDO COMPLEMENTAR do #${originalOrder.document_number} (saldo não carregado em ${new Date().toLocaleDateString()} na rota ${routeName}). Motivo: ${reason}.`
             };
 

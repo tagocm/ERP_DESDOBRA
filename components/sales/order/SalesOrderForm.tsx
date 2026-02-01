@@ -46,6 +46,7 @@ import {
 import { recalculateFiscalForOrder } from "@/lib/data/sales-orders";
 import { resendSalesForApproval } from "@/app/actions/financial/resend-sales-for-approval";
 import { getPaymentModes, PaymentMode } from "@/lib/clients-db";
+import { normalizeFinancialStatus, normalizeLogisticsStatus, translateLogisticsStatusPt } from "@/lib/constants/status";
 import {
     ArrowLeft,
     Save,
@@ -117,7 +118,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
         company_id: initialData?.company_id || '',
         client_id: initialData?.client_id || '',
         // Use 'pendente' as default if undefined, or map from legacy 'pending'
-        status_logistic: ((initialData?.status_logistic as string) === 'pending' ? 'pendente' : initialData?.status_logistic) || 'pendente',
+        status_logistic: normalizeLogisticsStatus(initialData?.status_logistic) || "pending",
         status_commercial: initialData?.status_commercial || 'draft',
         status_fiscal: initialData?.status_fiscal || 'none',
         date_issued: new Date().toISOString().split('T')[0],
@@ -165,6 +166,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
     const [dispatchMode, setDispatchMode] = useState<'avulsa' | 'existing'>('avulsa');
     const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
     const [availableRoutes, setAvailableRoutes] = useState<DeliveryRoute[]>([]);
+    const [dispatchConfirmOpen, setDispatchConfirmOpen] = useState(false);
 
     // Adjustments
     const [adjustments, setAdjustments] = useState<SalesOrderAdjustment[]>(initialData?.adjustments || []);
@@ -184,7 +186,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
 
     // FASE 1 - Locked logic for Sales Order
     const isLocked = mode === 'edit' && (
-        ['em_rota', 'entregue', 'nao_entregue'].includes(formData.status_logistic as string) ||
+        ['in_route', 'delivered', 'not_delivered'].includes(normalizeLogisticsStatus(formData.status_logistic) || (formData.status_logistic as string)) ||
         formData.status_fiscal === 'authorized'
     );
 
@@ -1095,7 +1097,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
             await addOrderToRoute(supabase, route.id, orderId, 999, selectedCompany.id);
 
             // Force status update to EM_ROTA because addOrderToRoute sets it to 'roteirizado'
-            await supabase.from('sales_documents').update({ status_logistic: 'em_rota' }).eq('id', orderId);
+            await supabase.from('sales_documents').update({ status_logistic: 'in_route' }).eq('id', orderId);
 
             // Removed dummy adjustment creation (caused 403 and unnecessary)
 
@@ -1269,7 +1271,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
             } else if (redirectToSeparation) {
                 toast({ title: "Pedido Confirmado", description: "Redirecionando para separação..." });
                 if (mode === 'edit') {
-                    setFormData(prev => ({ ...prev, status_commercial: 'confirmed', status_logistic: 'pendente' }));
+                    setFormData(prev => ({ ...prev, status_commercial: 'confirmed', status_logistic: 'pending' }));
                     router.replace(`/app/vendas/pedidos/${saved.id}?tab=separation`);
                 } else {
                     router.push(`/app/vendas/pedidos/${saved.id}?tab=separation`);
@@ -1289,17 +1291,21 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
     };
 
 
-    const handleDispatch = async () => {
-        if (!confirm("Confirma o despacho deste pedido?")) return;
+    const handleDispatch = () => {
+        setDispatchConfirmOpen(true);
+    };
+
+    const onConfirmDispatch = async () => {
         setIsLoading(true);
         try {
             await dispatchOrder(supabase, formData.id!, (await supabase.auth.getUser()).data.user!.id);
             toast({ title: "Pedido Despachado", description: "Status atualizado para Expedição." });
-            setFormData(prev => ({ ...prev, status_logistic: 'em_rota' }));
+            setFormData(prev => ({ ...prev, status_logistic: 'in_route' }));
         } catch (e: any) {
             toast({ title: "Erro", description: e.message, variant: "destructive" });
         } finally {
             setIsLoading(false);
+            setDispatchConfirmOpen(false);
         }
     };
 
@@ -1498,15 +1504,10 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
             sent: 'Enviado',
             approved: 'Aprovado',
             cancelled: 'Cancelado',
-            lost: 'Perdido',
-            pendente: 'Pendente',
-            roteirizado: 'Roteirizado',
-            agendado: 'Agendado',
-            em_rota: 'Em Rota',
-            entregue: 'Entregue',
-            devolvido: 'Devolvido'
+            lost: 'Perdido'
         };
-        return map[status] || status;
+        if (map[status]) return map[status];
+        return translateLogisticsStatusPt(status);
     };
 
     const loadOrder = async (id: string) => {
@@ -1570,9 +1571,9 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                 company_id: selectedCompany.id,
                 client_id: effectiveClientId,
                 status_commercial: 'draft' as const,
-                status_logistic: 'pendente' as const,
+                status_logistic: 'pending' as const,
                 status_fiscal: 'none' as const,
-                financial_status: 'pendente' as const,
+                financial_status: 'pending' as const,
                 date_issued: new Date().toISOString().split('T')[0],
                 price_table_id: formData.price_table_id,
                 payment_terms_id: formData.payment_terms_id,
@@ -1783,7 +1784,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                         )}
 
                         {/* --- DISPATCH ACTION (Existing) --- */}
-                        {formData.status_commercial === 'confirmed' && ((formData.status_logistic as string) === 'pending') && (
+                        {formData.status_commercial === 'confirmed' && ['pending'].includes(normalizeLogisticsStatus(formData.status_logistic) || (formData.status_logistic as string)) && (
                             <div className="flex items-center -space-x-px">
                                 <Button onClick={handleDispatch} disabled={isSaving || isLoading} className="bg-blue-600 hover:bg-blue-700 text-white rounded-r-none border-r-0 z-10 focus:z-20 pr-2">
                                     <Truck className="w-4 h-4 mr-2" /> Despachar / Enviar
@@ -1848,7 +1849,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
 
                             {/* Logistic Status */}
                             {(() => {
-                                const style = LOGISTICS_STATUS_COLORS[formData.status_logistic || 'pendente'] || LOGISTICS_STATUS_COLORS['pendente'];
+                                const style = LOGISTICS_STATUS_COLORS[normalizeLogisticsStatus(formData.status_logistic) || formData.status_logistic || 'pending'] || LOGISTICS_STATUS_COLORS['pending'];
                                 return (
                                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${style.bg.replace('bg-', 'border-').replace('100', '200')} ${style.bg} whitespace-nowrap`}>
                                         <span className={`text-xs font-semibold uppercase tracking-tight ${style.text}`}>Logístico</span>
@@ -1859,7 +1860,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
 
                             {/* Financial Status */}
                             {(() => {
-                                const style = getFinancialBadgeStyle(formData.financial_status || 'pendente');
+                                const style = getFinancialBadgeStyle(normalizeFinancialStatus(formData.financial_status) || formData.financial_status || 'pending');
                                 return (
                                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${style.bg.replace('bg-', 'border-').replace('100', '200')} ${style.bg} whitespace-nowrap`}>
                                         <span className={`text-xs font-semibold uppercase tracking-tight ${style.text}`}>Financeiro</span>
@@ -2720,6 +2721,15 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                     </DialogFooter>
                 </DialogContent>
             </Dialog >
+
+            <ConfirmDialogDesdobra
+                open={dispatchConfirmOpen}
+                onOpenChange={setDispatchConfirmOpen}
+                title="Confirmação de Despacho"
+                description="Confirma o despacho deste pedido?"
+                onConfirm={onConfirmDispatch}
+                isLoading={isLoading}
+            />
 
             {/* Route Selection Modal */}
             {selectedCompany && (

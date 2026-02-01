@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { normalizeLogisticsStatus, translateLogisticsStatusPt } from '@/lib/constants/status';
 
 export default async function RouteHistoryDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const supabase = await createClient();
@@ -46,8 +47,9 @@ export default async function RouteHistoryDetailsPage({ params }: { params: Prom
     // Calculate Stats
     const stats = route.orders?.reduce((acc: any, order: any) => {
         acc.total++;
-        if (order.sales_order?.status_logistic === 'entregue') acc.delivered++;
-        else if (order.sales_order?.status_logistic === 'nao_entregue') acc.notDelivered++;
+        const normalized = normalizeLogisticsStatus(order.sales_order?.status_logistic) || order.sales_order?.status_logistic;
+        if (normalized === 'delivered') acc.delivered++;
+        else if (normalized === 'not_delivered') acc.notDelivered++;
 
         acc.weight += order.sales_order?.total_weight_kg || 0;
         return acc;
@@ -96,17 +98,17 @@ export default async function RouteHistoryDetailsPage({ params }: { params: Prom
                         const order = ro.sales_order;
                         if (!order) return null;
 
-                        const status = order.status_logistic;
+                        const status = normalizeLogisticsStatus(order.status_logistic) || order.status_logistic;
 
                         let statusBadge = null;
-                        if (status === 'entregue') {
+                        if (status === 'delivered') {
                             statusBadge = (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-100">
                                     <CheckCircle2 className="w-3.5 h-3.5" />
                                     Entregue
                                 </span>
                             );
-                        } else if (status === 'nao_entregue') {
+                        } else if (status === 'not_delivered') {
                             statusBadge = (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-100">
                                     <XCircle className="w-3.5 h-3.5" />
@@ -116,7 +118,7 @@ export default async function RouteHistoryDetailsPage({ params }: { params: Prom
                         } else {
                             statusBadge = (
                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
-                                    {status}
+                                    {translateLogisticsStatusPt(status)}
                                 </span>
                             );
                         }

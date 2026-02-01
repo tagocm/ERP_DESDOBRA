@@ -33,6 +33,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { formatCurrency, toTitleCase, cn } from "@/lib/utils";
 import { ApprovalRowExpanded } from "./ApprovalRowExpanded";
 import { getFinancialBadgeStyle } from "@/lib/constants/statusColors";
+import { normalizeFinancialStatus } from "@/lib/constants/status";
 
 export function ApprovalTable({ companyId }: { companyId: string }) {
     const [postings, setPostings] = useState<ArTitle[]>([]);
@@ -489,10 +490,10 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                                                 <TableCell className="text-center py-3">
                                                     <span className={cn(
                                                         "inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                                                        getFinancialBadgeStyle(posting.sales_document?.financial_status || 'pendente').bg,
-                                                        getFinancialBadgeStyle(posting.sales_document?.financial_status || 'pendente').text
+                                                        getFinancialBadgeStyle(normalizeFinancialStatus(posting.sales_document?.financial_status) || posting.sales_document?.financial_status || 'pending').bg,
+                                                        getFinancialBadgeStyle(normalizeFinancialStatus(posting.sales_document?.financial_status) || posting.sales_document?.financial_status || 'pending').text
                                                     )}>
-                                                        {getFinancialBadgeStyle(posting.sales_document?.financial_status || 'pendente').label}
+                                                        {getFinancialBadgeStyle(normalizeFinancialStatus(posting.sales_document?.financial_status) || posting.sales_document?.financial_status || 'pending').label}
                                                     </span>
                                                 </TableCell>
                                                 <TableCell className="text-right py-3 pr-4">

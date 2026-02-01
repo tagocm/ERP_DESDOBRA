@@ -218,7 +218,7 @@ BEGIN
     INTO v_count, v_values
     FROM public.sales_documents
     WHERE status_logistic NOT IN (
-        'pendente', 'roteirizado', 'agendado', 'em_rota', 'entregue', 'devolvido', 'parcial',
+        'pending', 'roteirizado', 'agendado', 'em_rota', 'entregue', 'devolvido', 'parcial',
         'pending', 'separation', 'expedition', 'delivered'
     );
     
@@ -251,7 +251,7 @@ BEGIN
     FROM public.sales_documents
     WHERE financial_status IS NOT NULL
     AND financial_status NOT IN (
-        'pendente', 'pre_lancado', 'aprovado', 'em_revisao', 'cancelado',
+        'pending', 'pre_lancado', 'approved', 'em_revisao', 'cancelado',
         'pending'
     );
     

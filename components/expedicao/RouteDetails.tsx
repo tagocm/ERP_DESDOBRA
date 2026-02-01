@@ -12,6 +12,7 @@ import { PrinterConfigDialog } from '@/components/print/PrinterConfigDialog';
 import { generateVolumeLabelZPL, downloadZpl } from '@/lib/zpl-generator';
 import { useToast } from "@/components/ui/use-toast";
 import { DeliveryRoute } from '@/types/sales';
+import { normalizeLoadingStatus, normalizeLogisticsStatus } from '@/lib/constants/status';
 
 interface RouteDetailsProps {
     route: any;
@@ -51,16 +52,16 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
         await printer.print(zpl);
     };
 
-    const countLoaded = route.orders?.filter((o: any) => o.loading_status === 'loaded').length || 0;
-    const countPartial = route.orders?.filter((o: any) => o.loading_status === 'partial').length || 0;
-    const countNotLoaded = route.orders?.filter((o: any) => o.loading_status === 'not_loaded').length || 0;
+    const countLoaded = route.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'loaded').length || 0;
+    const countPartial = route.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'partial').length || 0;
+    const countNotLoaded = route.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'not_loaded').length || 0;
     const totalCount = route.orders?.length || 0;
 
     // Effective pending: real pending ones (no status decision yet)
     // Processed if it has a hard status OR has an occurrence registered
     const countProcessed = route.orders?.filter((o: any) => {
-        const hasStatus = ['loaded', 'partial', 'not_loaded'].includes(o.loading_status) || o.sales_order?.loading_checked;
-        const hasLegacyNotLoaded = (o.loading_status === 'pending' || o.loading_status === 'pendente') && o.partial_payload?.status === 'not_loaded';
+        const hasStatus = ['loaded', 'partial', 'not_loaded'].includes(normalizeLoadingStatus(o.loading_status) || o.loading_status) || o.sales_order?.loading_checked;
+        const hasLegacyNotLoaded = (normalizeLoadingStatus(o.loading_status) === 'pending') && o.partial_payload?.status === 'not_loaded';
         const hasOccurrence = o.sales_order?.occurrences?.length > 0;
         return hasStatus || hasLegacyNotLoaded || hasOccurrence;
     }).length || 0;
@@ -71,7 +72,7 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
     const hasPartials = countPartial > 0;
     const hasNotLoaded = countNotLoaded > 0;
 
-    const hasInRouteOrders = route.orders?.some((o: any) => o.sales_order?.status_logistic === 'em_rota');
+    const hasInRouteOrders = route.orders?.some((o: any) => (normalizeLogisticsStatus(o.sales_order?.status_logistic) || o.sales_order?.status_logistic) === 'in_route');
     const totalWeight = route.orders?.reduce((sum: number, ro: any) => sum + (ro.sales_order?.total_weight_kg || 0), 0) || 0;
 
     return (

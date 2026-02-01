@@ -9,6 +9,13 @@
  * Color scheme uses soft backgrounds with darker text for accessibility.
  */
 
+import {
+    normalizeFinancialStatus,
+    normalizeLogisticsStatus,
+    FINANCIAL_STATUS_LABELS_PT,
+    LOGISTICS_STATUS_LABELS_PT,
+} from "@/lib/constants/status";
+
 export type StatusBadgeStyle = {
     bg: string;
     text: string;
@@ -59,58 +66,63 @@ export const LOGISTICS_STATUS_COLORS: Record<string, StatusBadgeStyle> = {
     pending: {
         bg: "bg-yellow-100",
         text: "text-yellow-700",
-        label: "Pendente"
+        label: LOGISTICS_STATUS_LABELS_PT.pending
     },
-    pendente: {
-        bg: "bg-yellow-100",
-        text: "text-yellow-700",
-        label: "Pendente"
-    },
-    roteirizado: {
+    routed: {
         bg: "bg-gray-100",
         text: "text-gray-700",
-        label: "Roteirizado"
+        label: LOGISTICS_STATUS_LABELS_PT.routed
     },
-    agendado: {
+    scheduled: {
         bg: "bg-blue-100",
         text: "text-blue-700",
-        label: "Agendado"
+        label: LOGISTICS_STATUS_LABELS_PT.scheduled
     },
-    em_rota: {
+    in_route: {
         bg: "bg-purple-100",
         text: "text-purple-700",
-        label: "Em Rota"
+        label: LOGISTICS_STATUS_LABELS_PT.in_route
     },
-    entregue: {
+    delivered: {
         bg: "bg-green-100",
         text: "text-green-700",
-        label: "Entregue"
+        label: LOGISTICS_STATUS_LABELS_PT.delivered
     },
-    nao_entregue: {
+    not_delivered: {
         bg: "bg-red-100",
         text: "text-red-700",
-        label: "Não Entregue"
+        label: LOGISTICS_STATUS_LABELS_PT.not_delivered
     },
-    parcial: {
+    partial: {
         bg: "bg-amber-100",
         text: "text-amber-700",
-        label: "Parcial"
+        label: LOGISTICS_STATUS_LABELS_PT.partial
+    },
+    returned: {
+        bg: "bg-orange-100",
+        text: "text-orange-700",
+        label: LOGISTICS_STATUS_LABELS_PT.returned
+    },
+    cancelled: {
+        bg: "bg-red-100",
+        text: "text-red-700",
+        label: LOGISTICS_STATUS_LABELS_PT.cancelled
+    },
+    sandbox: {
+        bg: "bg-gray-100",
+        text: "text-gray-700",
+        label: LOGISTICS_STATUS_LABELS_PT.sandbox
     },
     // Legacy statuses (mantidos para compatibilidade)
     separation: {
         bg: "bg-orange-100",
         text: "text-orange-700",
-        label: "Em Separação"
+        label: LOGISTICS_STATUS_LABELS_PT.separation
     },
     expedition: {
         bg: "bg-blue-100",
         text: "text-blue-700",
-        label: "Expedição"
-    },
-    delivered: {
-        bg: "bg-green-100",
-        text: "text-green-700",
-        label: "Entregue"
+        label: LOGISTICS_STATUS_LABELS_PT.expedition
     }
 };
 
@@ -118,38 +130,46 @@ export const LOGISTICS_STATUS_COLORS: Record<string, StatusBadgeStyle> = {
 // FINANCIAL STATUS (Status Financeiro)
 // ============================================
 export const FINANCIAL_STATUS_COLORS: Record<string, StatusBadgeStyle> = {
-    pendente: {
+    pending: {
         bg: "bg-gray-100",
         text: "text-gray-600", // #6B7280 matches gray-500/600 range
-        label: "Pendente"
+        label: FINANCIAL_STATUS_LABELS_PT.pending
     },
-    pre_lancado: {
+    pre_posted: {
         bg: "bg-blue-100",
         text: "text-blue-700", // #2563EB matches blue-600/700
-        label: "Pré-lançado"
+        label: FINANCIAL_STATUS_LABELS_PT.pre_posted
     },
-    aprovado: {
+    approved: {
         bg: "bg-green-100",
         text: "text-green-700", // #16A34A matches green-600/700
-        label: "Aprovado"
+        label: FINANCIAL_STATUS_LABELS_PT.approved
     },
-    em_revisao: {
+    in_review: {
         bg: "bg-amber-100",
         text: "text-amber-700", // #F59E0B matches amber-500/600
-        label: "Em Revisão"
+        label: FINANCIAL_STATUS_LABELS_PT.in_review
     },
-    cancelado: {
+    cancelled: {
         bg: "bg-red-100",
         text: "text-red-700", // #DC2626 matches red-600/700
-        label: "Cancelado"
+        label: FINANCIAL_STATUS_LABELS_PT.cancelled
     },
-    // Legacy mapping (to prevent UI crashes if frontend still sees old data temporarily)
-    pending: { bg: "bg-gray-100", text: "text-gray-600", label: "Pendente" },
-
-    paid: { bg: "bg-green-100", text: "text-green-700", label: "Aprovado" },
-    partial: { bg: "bg-green-100", text: "text-green-700", label: "Aprovado" },
-    overdue: { bg: "bg-green-100", text: "text-green-700", label: "Aprovado" },
-    refunded: { bg: "bg-red-100", text: "text-red-700", label: "Cancelado" }
+    paid: {
+        bg: "bg-green-100",
+        text: "text-green-700",
+        label: FINANCIAL_STATUS_LABELS_PT.paid
+    },
+    partial: {
+        bg: "bg-amber-100",
+        text: "text-amber-700",
+        label: FINANCIAL_STATUS_LABELS_PT.partial
+    },
+    overdue: {
+        bg: "bg-red-100",
+        text: "text-red-700",
+        label: FINANCIAL_STATUS_LABELS_PT.overdue
+    }
 };
 
 // ============================================
@@ -171,7 +191,8 @@ export function getCommercialBadgeStyle(status: string): StatusBadgeStyle {
  * Get badge style for a logistics status
  */
 export function getLogisticsBadgeStyle(status: string): StatusBadgeStyle {
-    return LOGISTICS_STATUS_COLORS[status] || {
+    const normalized = normalizeLogisticsStatus(status);
+    return LOGISTICS_STATUS_COLORS[normalized || status] || {
         bg: "bg-gray-100",
         text: "text-gray-600",
         label: status
@@ -182,7 +203,8 @@ export function getLogisticsBadgeStyle(status: string): StatusBadgeStyle {
  * Get badge style for a financial status
  */
 export function getFinancialBadgeStyle(status: string): StatusBadgeStyle {
-    return FINANCIAL_STATUS_COLORS[status] || {
+    const normalized = normalizeFinancialStatus(status);
+    return FINANCIAL_STATUS_COLORS[normalized || status] || {
         bg: "bg-gray-100",
         text: "text-gray-600",
         label: status

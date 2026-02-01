@@ -26,6 +26,7 @@ import {
 import { InstallmentsEditor, BankAccountOption } from "./InstallmentsEditor";
 import { ValidationChecklist } from "./ValidationChecklist";
 import { type FinancialEvent, type ValidationPendency } from "@/lib/finance/events-db";
+import { translateFinancialEventStatusPt } from "@/lib/constants/status";
 import { formatCurrency, formatDate, cn, toTitleCase } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/Dialog";
 import { Label } from "@/components/ui/Label";
@@ -178,6 +179,7 @@ export function EventDetailDrawer({ eventId, onClose, onSuccess }: EventDetailDr
             'delivered': 'Entregue',
             'not_loaded': 'Não Carregado',
             'loaded': 'Carregado',
+            'attention': 'Em atenção',
             'draft': 'Rascunho',
             'sent': 'Enviado',
             'received': 'Recebido',
@@ -200,6 +202,8 @@ export function EventDetailDrawer({ eventId, onClose, onSuccess }: EventDetailDr
             case 'pending':
             case 'draft':
                 return "bg-gray-100 text-gray-600 border-gray-200";
+            case 'attention':
+                return "bg-amber-100 text-amber-700 border-amber-200";
             case 'not_loaded':
             case 'cancelled':
                 return "bg-red-50 text-red-700 border-red-200";
@@ -221,8 +225,8 @@ export function EventDetailDrawer({ eventId, onClose, onSuccess }: EventDetailDr
             >
                 <div className="flex flex-col h-full space-y-6">
                     <div className="flex items-center gap-2 -mt-4 mb-2">
-                        <Badge variant={event?.status === 'em_atencao' ? 'destructive' : 'outline'}>
-                            {event?.status === 'em_atencao' ? 'EM ATENÇÃO' : event?.status?.toUpperCase()}
+                        <Badge variant={event?.status === 'attention' ? 'destructive' : 'outline'}>
+                            {translateFinancialEventStatusPt(event?.status)}
                         </Badge>
                         <span className="text-xs text-gray-500 font-mono">#{eventId.slice(0, 8)}</span>
                     </div>
@@ -267,7 +271,7 @@ export function EventDetailDrawer({ eventId, onClose, onSuccess }: EventDetailDr
                                     accounts={accounts}
                                     onChange={(newInstallments) => setEvent({ ...event, installments: newInstallments })}
                                     onRecalculate={handleRecalculate}
-                                    readonly={event.status === 'aprovado' || event.status === 'reprovado'}
+                                    readonly={event.status === 'approved' || event.status === 'rejected'}
                                 />
 
                                 <div className="flex justify-end mt-4 pt-4 border-t border-gray-100">
@@ -275,7 +279,7 @@ export function EventDetailDrawer({ eventId, onClose, onSuccess }: EventDetailDr
                                         size="sm"
                                         variant="outline"
                                         onClick={handleSaveInstallments}
-                                        disabled={saving || event.status === 'aprovado'}
+                                        disabled={saving || event.status === 'approved'}
                                         className="text-gray-600 border-gray-200 hover:bg-gray-50"
                                     >
                                         <Save className="w-4 h-4 mr-2" />
@@ -301,7 +305,7 @@ export function EventDetailDrawer({ eventId, onClose, onSuccess }: EventDetailDr
                                     variant="ghost"
                                     className="text-red-600 hover:bg-red-50 hover:text-red-700"
                                     onClick={() => setRejectDialog(true)}
-                                    disabled={saving || event.status === 'aprovado'}
+                                    disabled={saving || event.status === 'approved'}
                                 >
                                     Reprovar
                                 </Button>
@@ -309,7 +313,7 @@ export function EventDetailDrawer({ eventId, onClose, onSuccess }: EventDetailDr
                                 <Button
                                     className="bg-green-600 hover:bg-green-700 w-full sm:w-auto font-bold shadow-md shadow-green-200"
                                     onClick={handleApprove}
-                                    disabled={saving || event.status === 'aprovado' || pendencies.some(p => p.severity === 'error')}
+                                    disabled={saving || event.status === 'approved' || pendencies.some(p => p.severity === 'error')}
                                 >
                                     {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
                                     Aprovar

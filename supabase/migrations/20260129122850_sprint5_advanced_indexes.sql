@@ -35,7 +35,7 @@ WHERE status = 'OPEN';
 -- Common pattern: Financial pre-approval screen queries
 CREATE INDEX IF NOT EXISTS idx_financial_events_approval_queue
 ON financial_events(company_id, status, created_at DESC)
-WHERE status IN ('pendente', 'em_atencao');
+WHERE status IN ('pending', 'attention');
 
 -- ========================================
 -- Additional useful indexes

@@ -52,7 +52,7 @@ BEGIN
     END IF;
 
     IF NOT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'sales_documents' AND column_name = 'financial_status') THEN
-        ALTER TABLE public.sales_documents ADD COLUMN financial_status TEXT DEFAULT 'pendente';
+        ALTER TABLE public.sales_documents ADD COLUMN financial_status TEXT DEFAULT 'pending';
     END IF;
 
     -- Delivery info
