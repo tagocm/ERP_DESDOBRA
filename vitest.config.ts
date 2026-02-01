@@ -10,6 +10,9 @@ export default defineConfig({
         setupFiles: [], // Add setup file if needed later
         include: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
         exclude: ['node_modules', 'dist', '.next', '.git', 'tests/e2e'],
+        env: {
+            TZ: 'America/Sao_Paulo',
+        },
     },
     resolve: {
         alias: {
