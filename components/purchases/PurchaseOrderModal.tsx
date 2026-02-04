@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { Textarea } from "@/components/ui/Textarea"
+import { Card } from "@/components/ui/Card"
 import { Plus, Trash2, Search, Package } from "lucide-react"
 import { createPurchaseOrderAction, updatePurchaseOrderAction } from "@/app/actions/purchases"
 import { useToast } from "@/components/ui/use-toast"
@@ -155,7 +156,7 @@ export function PurchaseOrderModal({ isOpen, onClose, onSuccess, order }: Purcha
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col p-0">
+            <DialogContent className="max-w-4xl max-h-screen flex flex-col p-0">
                 <DialogHeader className="p-6 pb-2 border-b">
                     <DialogTitle className="text-xl font-bold flex items-center gap-2">
                         <Package className="w-5 h-5 text-blue-600" />
@@ -170,7 +171,7 @@ export function PurchaseOrderModal({ isOpen, onClose, onSuccess, order }: Purcha
                             <Label>Fornecedor</Label>
                             <div className="relative group">
                                 <select
-                                    className="w-full flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="w-full flex h-10 rounded-2xl border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                     value={supplierId}
                                     onChange={(e) => setSupplierId(e.target.value)}
                                 >
@@ -204,7 +205,7 @@ export function PurchaseOrderModal({ isOpen, onClose, onSuccess, order }: Purcha
                                     onChange={(e) => setSearchItem(e.target.value)}
                                 />
                                 {searchItem && filteredItems.length > 0 && (
-                                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                                    <Card className="absolute z-10 w-full mt-1 shadow-float max-h-48 overflow-y-auto">
                                         {filteredItems.map(item => (
                                             <button
                                                 key={item.id}
@@ -214,13 +215,13 @@ export function PurchaseOrderModal({ isOpen, onClose, onSuccess, order }: Purcha
                                                 {item.name}
                                             </button>
                                         ))}
-                                    </div>
+                                    </Card>
                                 )}
                             </div>
                         </div>
 
                         {items.length === 0 ? (
-                            <div className="text-center py-8 border-2 border-dashed rounded-lg bg-gray-50 text-gray-400 italic">
+                            <div className="text-center py-8 border-2 border-dashed rounded-2xl bg-gray-50 text-gray-400 italic">
                                 Nenhum item adicionado ao pedido.
                             </div>
                         ) : (

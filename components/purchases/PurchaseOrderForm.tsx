@@ -567,7 +567,7 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
 
                         <div className="flex items-center gap-2">
                             {/* Status Badges can go here if needed, copying purely layout for now */}
-                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 border border-blue-100 whitespace-nowrap">
+                            <div className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-blue-50 border border-blue-100 whitespace-nowrap">
                                 <span className="text-xs font-semibold text-blue-700 uppercase tracking-tight">Status</span>
                                 <span className="text-sm font-bold text-blue-900">{statusLabel}</span>
                             </div>
@@ -578,17 +578,19 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
                         <div className="space-y-6 px-6 py-6">
 
                             {isLocked && (
-                                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-amber-800 shadow-sm">
-                                    <CheckCircle className="w-5 h-5 text-amber-600" />
-                                    <div className="text-sm font-medium leading-relaxed">
-                                        Este pedido está com status <strong>{statusLabel.toUpperCase()}</strong> e não pode ser alterado.
-                                    </div>
-                                </div>
+                                <Card className="bg-amber-50 border-amber-200 shadow-card">
+                                    <CardContent className="p-4 flex items-center gap-3 text-amber-800">
+                                        <CheckCircle className="w-5 h-5 text-amber-600" />
+                                        <div className="text-sm font-medium leading-relaxed">
+                                            Este pedido está com status <strong>{statusLabel.toUpperCase()}</strong> e não pode ser alterado.
+                                        </div>
+                                    </CardContent>
+                                </Card>
                             )}
 
                             {/* --- SUPERIOR CARDS --- */}
-                            <div className="bg-white rounded-2xl shadow-card border border-gray-100/70">
-                                <div className="p-6 space-y-5">
+                            <Card className="shadow-card border-gray-100/70">
+                                <CardContent className="p-6 space-y-5">
                                     {/* Selector Row */}
                                     <div className="flex flex-col md:flex-row gap-6">
                                         <div className="flex-1 space-y-2">
@@ -606,7 +608,7 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
                                         </div>
                                         {/* Read-only Summary */}
                                         <div className="flex-[2] bg-gray-50/80 rounded-2xl border border-gray-100 p-4 grid grid-cols-1 md:grid-cols-[auto_1fr] gap-10">
-                                            <div className="min-w-[60px]">
+                                            <div className="min-w-16">
                                                 <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Número</span>
                                                 <span className="font-medium text-gray-700 text-sm truncate block">
                                                     {mode === 'create' ? '-' : initialData?.document_number?.toString().padStart(4, '0')}
@@ -710,12 +712,12 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
                                             </div>
                                         )}
                                     </div>
-                                </div>
-                            </div>
+                                </CardContent>
+                            </Card>
 
                             {/* --- ITEMS TABLE --- */}
 
-                            <div className="bg-white rounded-2xl shadow-card border border-gray-100/70 overflow-hidden">
+                            <Card className="shadow-card border-gray-100/70 overflow-hidden">
                                 <div className="px-6 py-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
                                     <h3 className="font-semibold text-gray-800 flex items-center gap-2">
                                         Itens do Pedido
@@ -804,7 +806,7 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
 
                                 {/* Items Table */}
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-sm text-left table-fixed min-w-[800px]">
+                                    <table className="w-full text-sm text-left table-fixed min-w-full">
                                         <thead className="bg-gray-50/50 text-gray-500 font-medium border-b border-gray-100">
                                             <tr>
                                                 <th className="py-3 px-6 w-16 text-center text-xs uppercase tracking-wider">#</th>
@@ -822,7 +824,7 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
                                                 <tr>
                                                     <td colSpan={8} className="py-12 text-center text-gray-400">
                                                         <div className="flex flex-col items-center gap-2">
-                                                            <div className="p-3 bg-gray-50 rounded-full">
+                                                            <div className="p-3 bg-gray-50 rounded-2xl">
                                                                 <Plus className="w-6 h-6 text-gray-300" />
                                                             </div>
                                                             <p>Nenhum item adicionado.</p>
@@ -841,7 +843,7 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
                                                                 <span className="line-clamp-2">{item.product?.name || item.item?.name}</span>
                                                                 <span className="text-[10px] text-gray-400 font-mono mt-0.5">SKU: {item.product?.sku || item.item?.sku || '-'}</span>
                                                                 {item.notes && (
-                                                                    <span className="text-xs text-amber-600 italic mt-1 bg-amber-50 px-1.5 py-0.5 rounded w-fit">
+                                                                    <span className="text-xs text-amber-600 italic mt-1 bg-amber-50 px-1.5 py-0.5 rounded-2xl w-fit">
                                                                         Obs: {item.notes}
                                                                     </span>
                                                                 )}
@@ -855,7 +857,7 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
                                                                         onValueChange={(val) => handleUpdateItem(idx, 'packaging_id', val)}
                                                                         disabled={isLocked}
                                                                     >
-                                                                        <SelectTrigger className="h-8 text-xs border-0 bg-transparent hover:bg-gray-100 w-auto min-w-[80px]">
+                                                                        <SelectTrigger className="h-8 text-xs border-0 bg-transparent hover:bg-gray-100 w-auto min-w-20">
                                                                             <SelectValue placeholder={item.product?.uom || 'UN'} />
                                                                         </SelectTrigger>
                                                                         <SelectContent>
@@ -929,7 +931,7 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
                                                                     size="icon"
                                                                     variant="ghost"
                                                                     onClick={() => removeItem(idx)}
-                                                                    className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full"
+                                                                    className="h-8 w-8 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-2xl"
                                                                 >
                                                                     <Trash2 className="w-4 h-4" />
                                                                 </Button>
@@ -990,13 +992,13 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
                                     </table>
                                 </div>
 
-                            </div>
+                            </Card>
                         </div>
                     </TabsContent >
 
                     <TabsContent value="financial" className="mt-0">
                         <div className="space-y-6 px-6 py-6">
-                            <Card className="border-0 shadow-sm ring-1 ring-gray-100">
+                            <Card className="border-0 ring-1 ring-gray-100">
                                 <CardContent className="p-8 grid grid-cols-1 md:grid-cols-2 gap-12">
                                     <div className="space-y-6">
                                         <h3 className="font-bold text-gray-900 flex items-center gap-2 text-sm uppercase tracking-wide">

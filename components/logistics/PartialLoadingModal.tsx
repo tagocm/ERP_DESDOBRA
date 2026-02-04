@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Input } from "@/components/ui/Input";
+import { Card, CardContent } from "@/components/ui/Card";
 import { DeliveryReason } from "@/types/reasons";
 import { createClient } from "@/lib/supabaseBrowser";
 import { getDeliveryReasons } from "@/lib/data/reasons";
@@ -147,29 +148,31 @@ export function PartialLoadingModal({ isOpen, onClose, order, companyId, onSucce
 
                     <div className="space-y-3 pt-2">
                         <Label>Itens do Pedido</Label>
-                        <div className="bg-gray-50 border rounded-lg p-3 space-y-3 max-h-[300px] overflow-y-auto">
+                        <div className="bg-gray-50 border rounded-2xl p-3 space-y-3 max-h-72 overflow-y-auto">
                             {itemsState.map(item => (
-                                <div key={item.orderItemId} className="flex items-center justify-between gap-4 bg-white p-2 rounded border">
-                                    <div className="flex-1 min-w-0">
-                                        <p className="text-sm font-medium text-gray-900 truncate" title={item.productName}>
-                                            {item.productName}
-                                        </p>
-                                        <p className="text-xs text-gray-500">
-                                            Saldo Pendente: <span className="font-semibold">{item.qtyOrdered} {item.packagingLabel || 'un'}</span>
-                                        </p>
-                                    </div>
-                                    <div className="w-24">
-                                        <label className="text-[10px] text-gray-500 uppercase font-bold text-center block mb-1">Carregado</label>
-                                        <Input
-                                            type="number"
-                                            value={item.qtyLoaded}
-                                            onChange={e => handleQuantityChange(item.orderItemId, e.target.value)}
-                                            className="h-8 text-center"
-                                            min={0}
-                                            max={item.qtyOrdered}
-                                        />
-                                    </div>
-                                </div>
+                                <Card key={item.orderItemId}>
+                                    <CardContent className="p-2 flex items-center justify-between gap-4">
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-gray-900 truncate" title={item.productName}>
+                                                {item.productName}
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                                Saldo Pendente: <span className="font-semibold">{item.qtyOrdered} {item.packagingLabel || 'un'}</span>
+                                            </p>
+                                        </div>
+                                        <div className="w-24">
+                                            <label className="text-[10px] text-gray-500 uppercase font-bold text-center block mb-1">Carregado</label>
+                                            <Input
+                                                type="number"
+                                                value={item.qtyLoaded}
+                                                onChange={e => handleQuantityChange(item.orderItemId, e.target.value)}
+                                                className="h-8 text-center"
+                                                min={0}
+                                                max={item.qtyOrdered}
+                                            />
+                                        </div>
+                                    </CardContent>
+                                </Card>
                             ))}
                         </div>
                     </div>

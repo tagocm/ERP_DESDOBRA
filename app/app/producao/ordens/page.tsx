@@ -137,7 +137,7 @@ export default function WorkOrdersPage() {
             cancelled: "Cancelada"
         };
         return (
-            <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${styles[status]}`}>
+            <span className={`inline-flex items-center rounded-2xl px-2 py-1 text-xs font-medium ring-1 ring-inset ${styles[status]}`}>
                 {labels[status] || status}
             </span>
         );
@@ -538,7 +538,7 @@ function NegativeStockModal({ isOpen, onClose, items, onConfirm }: any) {
                 </DialogHeader>
 
                 <div className="py-2">
-                    <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4">
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-4">
                         <ul className="space-y-2 text-sm text-amber-900">
                             {items.map((item: any) => (
                                 <li key={item.item_id} className="flex justify-between border-b border-amber-200/50 pb-1 last:border-0 last:pb-0">

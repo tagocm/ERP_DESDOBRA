@@ -163,7 +163,7 @@ export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) 
 
     return (
         <div className="space-y-4">
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border rounded-2xl overflow-hidden">
                 <div className="grid grid-cols-12 gap-4 p-3 bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     <div className="col-span-1">#</div>
                     <div className="col-span-4">Produto</div>
@@ -273,7 +273,7 @@ export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) 
                 </Button>
             )}
 
-            <div className="flex justify-end p-4 bg-gray-50 rounded-lg border">
+            <div className="flex justify-end p-4 bg-gray-50 rounded-2xl border">
                 <div className="w-64 space-y-2">
                     <div className="flex justify-between text-sm text-gray-600 items-center">
                         <span>Subtotal Itens</span>

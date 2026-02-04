@@ -97,7 +97,7 @@ export function PipelineKanban() {
                 return (
                     <div
                         key={stage}
-                        className="flex-shrink-0 w-80 bg-gray-50 rounded-lg p-4"
+                        className="flex-shrink-0 w-80 bg-gray-50 rounded-2xl p-4"
                     >
                         <div className="flex items-center justify-between mb-4">
                             <h3 className={cn('font-semibold text-sm', colors.text)}>
@@ -108,7 +108,7 @@ export function PipelineKanban() {
                             </span>
                         </div>
 
-                        <div className="space-y-3 min-h-[200px]">
+                        <div className="space-y-3 min-h-52">
                             {stageDeals.map((deal) => (
                                 <DealCard
                                     key={deal.id}

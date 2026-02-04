@@ -19,7 +19,7 @@ BEGIN
     WHERE id = OLD.event_id;
 
     -- If event is pending or attention, allow delete (for sync purposes)
-    IF v_event_status IN ('pendente', 'em_atencao') THEN
+    IF v_event_status IN ('pending', 'attention') THEN
         RETURN OLD;
     END IF;
 
@@ -32,13 +32,13 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 2. Relax Event Deletion (Optional but good for consistency)
--- If an event is 'pendente' and has no dependencies (checked by FKs usually), 
+-- If an event is 'pending' and has no dependencies (checked by FKs usually), 
 -- allowing delete might be useful for cleanup scripts.
 CREATE OR REPLACE FUNCTION prevent_financial_events_delete()
 RETURNS TRIGGER AS $$
 BEGIN
     -- Allow delete if pending
-    IF OLD.status IN ('pendente', 'em_atencao') THEN
+    IF OLD.status IN ('pending', 'attention') THEN
         RETURN OLD;
     END IF;
 

@@ -15,6 +15,8 @@ import { removeOrderFromRoute } from "@/lib/data/expedition";
 import { OrderItemsPopover } from "./OrderItemsPopover";
 import { deleteRoute } from "@/lib/data/expedition";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
+import { normalizeRouteStatus } from "@/lib/constants/status";
+import { Card } from "@/components/ui/Card";
 
 interface UnscheduledRouteCardProps {
     route: DeliveryRoute;
@@ -50,7 +52,8 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
     const [showDeleteAlert, setShowDeleteAlert] = useState(false);
 
     // Check if route is locked (em_rota or concluida - cannot be modified)
-    const isRouteLocked = route.status === 'em_rota' || route.status === 'in_progress' || route.status === 'concluida';
+    const normalizedStatus = normalizeRouteStatus(route.status) || route.status;
+    const isRouteLocked = normalizedStatus === 'in_route' || normalizedStatus === 'in_progress' || normalizedStatus === 'completed';
 
     const handleDeleteClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -103,20 +106,20 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                     <div
                         ref={setDropRef}
                         className={cn(
-                            "transition-colors rounded-lg",
+                            "transition-colors rounded-2xl",
                             isOver && !isRouteLocked && "ring-2 ring-blue-300 bg-blue-50"
                         )}
                         onMouseEnter={handleMouseEnter}
                         onMouseLeave={handleMouseLeave}
                     >
-                        <div
+                        <Card
                             ref={setNodeRef}
                             style={style}
                             className={cn(
-                                "bg-white border border-gray-200 rounded-lg overflow-hidden transition-all duration-200 ease-out",
-                                !isRouteLocked && "hover:shadow-md",
+                                "bg-white border border-gray-200/70 overflow-hidden transition-all duration-200 ease-out",
+                                !isRouteLocked && "hover:shadow-card",
                                 isRouteLocked && "opacity-75 bg-gray-50/50",
-                                isDragging && "opacity-50 ring-2 ring-blue-400 shadow-lg scale-105",
+                                isDragging && "opacity-50 ring-2 ring-blue-400 shadow-float scale-105",
                                 isDeleting && "opacity-50 pointer-events-none"
                             )}
                         >
@@ -159,7 +162,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                                     <button
                                         onClick={handleDeleteClick}
                                         disabled={isDeleting}
-                                        className="w-6 h-6 flex items-center justify-center rounded-sm hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors flex-shrink-0 disabled:opacity-50"
+                                        className="w-6 h-6 flex items-center justify-center rounded-2xl hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors flex-shrink-0 disabled:opacity-50"
                                         title="Excluir rota"
                                     >
                                         <X className="w-3.5 h-3.5" />
@@ -168,7 +171,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                             </div>
 
                             {/* Order List */}
-                            <div className="min-h-[80px] max-h-[200px] overflow-y-auto scrollbar-thin bg-gray-50/50 p-2">
+                            <div className="min-h-20 max-h-52 overflow-y-auto scrollbar-thin bg-gray-50/50 p-2">
                                 {route.orders && route.orders.length > 0 ? (
                                     <div className="space-y-2">
                                         {route.orders.map((ro) => {
@@ -187,13 +190,13 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                                         })}
                                     </div>
                                 ) : (
-                                    <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 gap-1 py-4 border-2 border-dashed border-gray-200/50 rounded-lg">
+                                    <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 gap-1 py-4 border-2 border-dashed border-gray-200/50 rounded-2xl">
                                         <Package className="w-4 h-4 opacity-50" />
                                         <span className="text-[10px]">Arraste pedidos aqui</span>
                                     </div>
                                 )}
                             </div>
-                        </div>
+                        </Card>
                     </div>
                 </PopoverTrigger>
 
@@ -205,7 +208,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
                 >
-                    <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+                    <Card className="bg-white shadow-float border border-gray-200/70 overflow-hidden">
                         {/* Header */}
                         <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-3 py-2 border-b border-blue-200">
                             <div className="flex items-center justify-between gap-2 mb-1">
@@ -251,7 +254,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                         </div>
 
                         {/* Orders List */}
-                        <div className="max-h-[200px] overflow-y-auto">
+                        <div className="max-h-52 overflow-y-auto">
                             {route.orders && route.orders.length > 0 ? (
                                 route.orders.map((ro) => {
                                     const order = ro.sales_order;
@@ -303,7 +306,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                                 </div>
                             )}
                         </div>
-                    </div>
+                    </Card>
                 </PopoverContent>
             </Popover>
 
@@ -315,7 +318,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                     <div>
                         <p>Deseja realmente excluir a rota <span className="font-semibold text-gray-900">"{route.name}"</span>?</p>
                         {route.orders && route.orders.length > 0 && (
-                            <div className="mt-3 p-3 bg-red-50 border-l-4 border-red-500 rounded-r text-red-700 text-sm">
+                            <div className="mt-3 p-3 bg-red-50 border-l-4 border-red-500 rounded-2xl text-red-700 text-sm">
                                 <p className="font-semibold">⚠️ Ação irreversível para a rota</p>
                                 <p>Esta rota possui {route.orders.length} pedidos. Eles voltarão para o Sandbox.</p>
                             </div>

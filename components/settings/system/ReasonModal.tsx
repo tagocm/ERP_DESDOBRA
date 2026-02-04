@@ -120,12 +120,12 @@ export function ReasonModal({ isOpen, onClose, reason, defaultGroup, companyId, 
                         </Select>
                     </div>
 
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
                         <Label>Ativo</Label>
                         <Switch checked={isActive} onCheckedChange={setIsActive} />
                     </div>
 
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
                         <Label>Exigir Observação</Label>
                         <Switch checked={requireNote} onCheckedChange={setRequireNote} />
                     </div>

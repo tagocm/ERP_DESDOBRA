@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from "@/utils/supabase/server";
+import { normalizeLogisticsStatus } from '@/lib/constants/status';
 
 export async function POST(request: Request) {
     try {
@@ -33,11 +34,14 @@ export async function POST(request: Request) {
             return NextResponse.json({ deleted: 0, skipped: ids.length });
         }
 
-        // Logic: Cannot delete if status_logistic is 'em_rota', 'entregue', 'nao_entregue'
+        // Logic: Cannot delete if status_logistic is 'in_route', 'delivered', 'not_delivered'
         // Blocked logic mirrors frontend 'canDelete'
-        const blockedStatuses = ['em_rota', 'entregue', 'nao_entregue'];
+        const blockedStatuses = ['in_route', 'delivered', 'not_delivered'];
 
-        const validDocs = documents.filter(doc => !blockedStatuses.includes(doc.status_logistic));
+        const validDocs = documents.filter(doc => {
+            const normalized = normalizeLogisticsStatus(doc.status_logistic) || doc.status_logistic;
+            return !blockedStatuses.includes(normalized);
+        });
         const validIds = validDocs.map(d => d.id);
         const skippedCount = ids.length - validIds.length;
 

@@ -1,6 +1,0 @@
-export default [
-  {
-    ignores: [".gemini/**"],
-  },
-  // ... o resto das suas configs
-];

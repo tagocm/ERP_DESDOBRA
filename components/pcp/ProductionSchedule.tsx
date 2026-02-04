@@ -392,7 +392,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                                 </div>
                                 <div className="space-y-1">
                                     <Label>Status</Label>
-                                    <div className="h-10 flex items-center px-3 border rounded-md bg-gray-50 text-sm font-medium">
+                                    <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium">
                                         {selectedOrder.status === 'planned' && "Planejada"}
                                         {selectedOrder.status === 'in_progress' && "Em Produção"}
                                         {selectedOrder.status === 'done' && "Concluída"}
@@ -446,7 +446,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
 
             {/* Custom Delete Confirmation Modal */}
             <Dialog open={!!orderToDelete} onOpenChange={(open) => !open && setOrderToDelete(null)}>
-                <DialogContent className="max-w-[400px]">
+                <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle className="text-red-600 flex items-center gap-2">
                             <AlertTriangle className="w-5 h-5" /> Confirmar Exclusão
@@ -492,7 +492,6 @@ function DroppableDay({ dateObj, dateStr, orders, onCreate, onOrderClick, onDele
 
     // Formatting from PlanningCalendar: 
     // const isToday = new Date().toISOString().split('T')[0] === dateStr
-    // className={cn("border rounded-lg p-3 min-h-[160px] cursor-pointer transition-all hover:shadow-md hover:border-primary flex flex-col justify-between" ...)}
 
     const isToday = new Date().toISOString().split('T')[0] === dateStr
 
@@ -500,7 +499,7 @@ function DroppableDay({ dateObj, dateStr, orders, onCreate, onOrderClick, onDele
         <div
             ref={setNodeRef}
             className={cn(
-                "bg-white p-2 min-h-[160px] cursor-pointer transition-all flex flex-col justify-between group",
+                "bg-white p-2 min-h-40 cursor-pointer transition-all flex flex-col justify-between group",
                 isOver ? "bg-blue-50 ring-inset ring-2 ring-blue-300" : "",
                 isToday ? "bg-slate-50/50" : ""
             )}
@@ -562,8 +561,8 @@ function DraggableOrder({ order, onClick, onDelete, isInconsistent }: { order: W
 
 function OrderCard({ order, isOverlay, onClick, onDelete, isInconsistent }: { order: WorkOrder, isOverlay?: boolean, onClick?: () => void, onDelete?: () => void, isInconsistent?: boolean }) {
     const statusColor = {
-        planned: "bg-white border-l-4 border-l-blue-400 shadow-sm",
-        in_progress: "bg-blue-50 border-l-4 border-l-blue-600 shadow-sm",
+        planned: "bg-white border-l-4 border-l-blue-400 shadow-card",
+        in_progress: "bg-blue-50 border-l-4 border-l-blue-600 shadow-card",
         done: "bg-green-50 border-1 border-green-200 opacity-60 grayscale",
         cancelled: "bg-gray-50 border-1 border-gray-200 opacity-50 line-through"
     }[order.status]
@@ -572,9 +571,9 @@ function OrderCard({ order, isOverlay, onClick, onDelete, isInconsistent }: { or
         <div
             onClick={onClick}
             className={cn(
-                "p-2 rounded text-xs border cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow relative overflow-hidden",
+                "p-2 rounded-2xl text-xs border cursor-grab active:cursor-grabbing hover:shadow-card transition-shadow relative overflow-hidden",
                 statusColor,
-                isOverlay ? "shadow-xl scale-105 rotate-2" : ""
+                isOverlay ? "shadow-float scale-105 rotate-2" : ""
             )}
         >
             <div className="font-semibold truncate pr-4">{order.item.name}</div>
@@ -587,7 +586,7 @@ function OrderCard({ order, isOverlay, onClick, onDelete, isInconsistent }: { or
                         </Badge>
                     )}
                     <button
-                        className="bg-transparent text-slate-400 hover:text-blue-500 rounded-full p-0.5 hover:bg-slate-100 transition-colors z-10"
+                        className="bg-transparent text-slate-400 hover:text-blue-500 rounded-2xl p-0.5 hover:bg-slate-100 transition-colors z-10"
                         onPointerDown={e => e.stopPropagation()}
                         onClick={(e) => {
                             e.stopPropagation()
@@ -598,7 +597,7 @@ function OrderCard({ order, isOverlay, onClick, onDelete, isInconsistent }: { or
                     </button>
                     {order.status === 'planned' && onDelete && (
                         <button
-                            className="bg-transparent text-slate-400 hover:text-red-500 rounded-full p-0.5 hover:bg-slate-100 transition-colors z-10"
+                            className="bg-transparent text-slate-400 hover:text-red-500 rounded-2xl p-0.5 hover:bg-slate-100 transition-colors z-10"
                             onPointerDown={e => e.stopPropagation()}
                             onClick={(e) => {
                                 e.stopPropagation()

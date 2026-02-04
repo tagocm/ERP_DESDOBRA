@@ -59,7 +59,7 @@ BEGIN
     INSERT INTO sales_documents (
         company_id, client_id, doc_type, status_commercial, status_logistic, date_issued, total_amount, sales_rep_id, price_table_id, document_number
     ) VALUES (
-        v_company_id, v_client_id, 'order', 'approved', 'pendente', CURRENT_DATE, 100.00, v_user_id, v_price_table_id,
+        v_company_id, v_client_id, 'order', 'approved', 'pending', CURRENT_DATE, 100.00, v_user_id, v_price_table_id,
         (SELECT COALESCE(MAX(document_number), 0) + 1 FROM sales_documents WHERE company_id = v_company_id AND doc_type = 'order')
     ) RETURNING id INTO v_order_id;
 

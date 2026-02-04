@@ -1,8 +1,50 @@
 
 export type SalesStatus = 'draft' | 'sent' | 'approved' | 'confirmed' | 'cancelled' | 'lost';
-export type LogisticStatus = 'pendente' | 'roteirizado' | 'agendado' | 'em_rota' | 'entregue' | 'devolvido' | 'parcial' | 'confirmado' | 'sandbox';
+export type LogisticStatus =
+    // EN (current)
+    | 'pending'
+    | 'routed'
+    | 'scheduled'
+    | 'in_route'
+    | 'delivered'
+    | 'not_delivered'
+    | 'returned'
+    | 'partial'
+    | 'cancelled'
+    | 'sandbox'
+    | 'separation'
+    | 'expedition'
+    // PT (legacy)
+    | 'pendente'
+    | 'roteirizado'
+    | 'agendado'
+    | 'em_rota'
+    | 'entregue'
+    | 'nao_entregue'
+    | 'devolvido'
+    | 'parcial'
+    | 'cancelado'
+    | 'confirmado';
 export type FiscalStatus = 'none' | 'authorized' | 'cancelled' | 'error';
-export type FinancialStatus = 'pendente' | 'pre_lancado' | 'aprovado' | 'em_revisao' | 'cancelado';
+export type FinancialStatus =
+    // EN (current)
+    | 'pending'
+    | 'pre_posted'
+    | 'approved'
+    | 'in_review'
+    | 'cancelled'
+    | 'paid'
+    | 'overdue'
+    | 'partial'
+    // PT (legacy)
+    | 'pendente'
+    | 'pre_lancado'
+    | 'aprovado'
+    | 'em_revisao'
+    | 'cancelado'
+    | 'pago'
+    | 'atrasado'
+    | 'parcial';
 export type DocType = 'proposal' | 'order';
 
 export interface SalesOrder {

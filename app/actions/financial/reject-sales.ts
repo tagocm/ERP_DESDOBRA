@@ -47,7 +47,7 @@ export async function rejectSalesFinancial({ salesDocumentId, reason, eventId }:
 
     // Check if it is "Post-Delivery" (Delivered/Returned/Authorized)
     const isPostDelivery =
-        ['entregue', 'devolvido', 'parcial'].includes(status_logistic) ||
+        ['delivered', 'returned', 'partial'].includes(status_logistic) ||
         status_fiscal === 'authorized';
 
     const now = new Date().toISOString();
@@ -59,7 +59,7 @@ export async function rejectSalesFinancial({ salesDocumentId, reason, eventId }:
         await supabase
             .from('financial_events')
             .update({
-                status: 'reprovado',
+                status: 'rejected',
                 rejected_by: userId,
                 rejected_at: now,
                 rejection_reason: reason,
@@ -103,14 +103,14 @@ export async function rejectSalesFinancial({ salesDocumentId, reason, eventId }:
                 direction: 'AR',
                 total_amount: order.total_amount,
                 issue_date: now,
-                status: 'em_atencao', // Mark as Attention
+                status: 'attention', // Mark as Attention
                 rejection_reason: `Rejeição Financeira (Pós-Entrega): ${reason}`,
                 rejected_by: userId,
                 rejected_at: now,
                 attention_marked_by: userId,
                 attention_marked_at: now,
                 attention_reason: reason,
-                operational_status: 'EM_ATENCAO'
+                operational_status: 'attention'
             });
 
     } else {
@@ -126,14 +126,14 @@ export async function rejectSalesFinancial({ salesDocumentId, reason, eventId }:
             dispatch_blocked_by: userId,
 
             // Revert Operational
-            status_logistic: 'pendente',
+            status_logistic: 'pending',
             scheduled_delivery_date: null,
 
             // Revert Commercial
             status_commercial: 'draft',
 
             // Update Financial Status
-            financial_status: 'em_revisao',
+            financial_status: 'in_review',
 
             updated_at: now
         };

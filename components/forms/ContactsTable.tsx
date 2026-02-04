@@ -2,6 +2,7 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
+import { Card } from "@/components/ui/Card"
 import { Plus, Trash2, Check, Edit2, Users, Save } from "lucide-react"
 import {
     Dialog,
@@ -102,48 +103,48 @@ export function ContactsTable({ contacts, onAdd, onEdit, onRemove }: ContactsTab
                 {!showForm && (
                     <Button
                         type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleAddNew}
-                        className="bg-white hover:bg-gray-50 text-gray-700 border-gray-200 shadow-sm rounded-lg h-9 px-4 font-medium transition-all active:scale-95"
-                    >
-                        <Plus className="w-4 h-4 mr-2 text-gray-500" />
-                        Adicionar Contato
-                    </Button>
+	                        variant="outline"
+	                        size="sm"
+	                        onClick={handleAddNew}
+	                        className="bg-white hover:bg-gray-50 text-gray-700 border-gray-200 h-9 px-4 font-medium transition-all active:scale-95"
+	                    >
+	                        <Plus className="w-4 h-4 mr-2 text-gray-500" />
+	                        Adicionar Contato
+	                    </Button>
                 )}
             </div>
 
-            {/* Contacts Table (True Gold Standard) */}
-            {contacts.length > 0 && !showForm && (
-                <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white shadow-card">
-                    <Table>
-                        <TableHeader className="bg-gray-50/50">
-                            <TableRow className="hover:bg-transparent border-gray-100">
-                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider w-[40%]">Contato</TableHead>
-                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider w-[20%]">Fones</TableHead>
-                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider w-[30%]">Email</TableHead>
-                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider text-right pr-6 w-[10%]">Ações</TableHead>
-                            </TableRow>
-                        </TableHeader>
+	            {/* Contacts Table (True Gold Standard) */}
+	            {contacts.length > 0 && !showForm && (
+	                <Card className="overflow-hidden">
+	                    <Table>
+	                        <TableHeader className="bg-gray-50/50">
+	                            <TableRow className="hover:bg-transparent border-gray-100">
+	                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider w-2/5">Contato</TableHead>
+	                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider w-1/5">Fones</TableHead>
+	                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider w-1/3">Email</TableHead>
+	                                <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider text-right pr-6 w-1/12">Ações</TableHead>
+	                            </TableRow>
+	                        </TableHeader>
                         <TableBody>
                             {contacts.map((contact, idx) => (
                                 <TableRow key={contact.id || idx} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
                                     {/* Column 1: Contact Name + Departments */}
                                     <TableCell className="px-6 py-4 align-top">
                                         <div className="flex items-start">
-                                            <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 shadow-sm border border-brand-100/50 mt-0.5">
-                                                <Users className="w-5 h-5" />
-                                            </div>
+	                                            <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-full flex items-center justify-center text-brand-600 border border-brand-100/50 mt-0.5">
+	                                                <Users className="w-5 h-5" />
+	                                            </div>
                                             <div className="ml-4 space-y-1">
                                                 <div className="flex items-center gap-2">
                                                     <div className="text-sm font-bold text-gray-900 leading-tight">
                                                         {contact.full_name}
                                                     </div>
                                                     {contact.is_primary && (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100/50 uppercase tracking-wider">
-                                                            <Check className="w-3 h-3" />
-                                                            Principal
-                                                        </span>
+	                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100/50 uppercase tracking-wider">
+	                                                            <Check className="w-3 h-3" />
+	                                                            Principal
+	                                                        </span>
                                                     )}
                                                 </div>
                                                 {(contact.departments && contact.departments.length > 0) && (
@@ -181,36 +182,36 @@ export function ContactsTable({ contacts, onAdd, onEdit, onRemove }: ContactsTab
                                     {/* Column 4: Actions (Always Visible) */}
                                     <TableCell className="px-6 py-4 text-right pr-6 align-top">
                                         <div className="flex justify-end gap-1 mt-0.5">
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 rounded-lg hover:bg-brand-50 hover:text-brand-600 text-gray-400 transition-colors"
-                                                onClick={() => handleEditExisting(contact)}
-                                            >
-                                                <Edit2 className="w-4 h-4" />
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
-                                                onClick={() => onRemove(contact.id!)}
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
+	                                            <Button
+	                                                type="button"
+	                                                variant="ghost"
+	                                                size="icon"
+	                                                className="h-8 w-8 rounded-full hover:bg-brand-50 hover:text-brand-600 text-gray-400 transition-colors"
+	                                                onClick={() => handleEditExisting(contact)}
+	                                            >
+	                                                <Edit2 className="w-4 h-4" />
+	                                            </Button>
+	                                            <Button
+	                                                type="button"
+	                                                variant="ghost"
+	                                                size="icon"
+	                                                className="h-8 w-8 rounded-full hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+	                                                onClick={() => onRemove(contact.id!)}
+	                                            >
+	                                                <Trash2 className="w-4 h-4" />
+	                                            </Button>
                                         </div>
                                     </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
-                </div>
-            )}
+	                </Card>
+	            )}
 
             {/* Contact Form Modal - True Gold Standard */}
-            <Dialog open={showForm} onOpenChange={(open) => !open && handleCancel()}>
-                <DialogContent className="max-w-[640px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-2xl">
+	            <Dialog open={showForm} onOpenChange={(open) => !open && handleCancel()}>
+	                <DialogContent className="max-w-2xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-float">
                     {/* Header: White Background with Title, Description and Close Button */}
                     <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
                         <div>
@@ -223,38 +224,38 @@ export function ContactsTable({ contacts, onAdd, onEdit, onRemove }: ContactsTab
                         </div>
                     </div>
 
-                    <div className="p-6 overflow-y-auto max-h-[70vh]">
-                        {editingContact && (
-                            <div className="space-y-6">
+	                    <div className="p-6 overflow-y-auto">
+	                        {editingContact && (
+	                            <div className="space-y-6">
                                 {/* Informações Básicas */}
                                 <div className="grid grid-cols-12 gap-4">
                                     <div className="col-span-12 md:col-span-6 space-y-1">
-                                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Nome Completo *</label>
-                                        <Input
-                                            className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
-                                            value={editingContact.full_name}
-                                            onChange={(e) => setEditingContact({ ...editingContact, full_name: e.target.value })}
-                                            placeholder="Nome do contato"
-                                        />
+	                                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Nome Completo *</label>
+	                                        <Input
+	                                            className="h-9 border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+	                                            value={editingContact.full_name}
+	                                            onChange={(e) => setEditingContact({ ...editingContact, full_name: e.target.value })}
+	                                            placeholder="Nome do contato"
+	                                        />
                                     </div>
                                     <div className="col-span-12 md:col-span-6 space-y-1">
                                         <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">E-mail</label>
-                                        <Input
-                                            type="email"
-                                            className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
-                                            value={editingContact.email}
-                                            onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value })}
-                                            placeholder="exemplo@empresa.com"
-                                        />
+	                                        <Input
+	                                            type="email"
+	                                            className="h-9 border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+	                                            value={editingContact.email}
+	                                            onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value })}
+	                                            placeholder="exemplo@empresa.com"
+	                                        />
                                     </div>
                                     <div className="col-span-12 md:col-span-6 space-y-1">
-                                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Telefone / WhatsApp</label>
-                                        <Input
-                                            className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
-                                            value={editingContact.phone}
-                                            onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value })}
-                                            placeholder="(00) 00000-0000"
-                                        />
+	                                        <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Telefone / WhatsApp</label>
+	                                        <Input
+	                                            className="h-9 border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+	                                            value={editingContact.phone}
+	                                            onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value })}
+	                                            placeholder="(00) 00000-0000"
+	                                        />
                                     </div>
                                     <div className="col-span-12 md:col-span-6 flex items-end pb-1">
                                         <label className="flex items-center gap-2 cursor-pointer group pt-4">
@@ -281,15 +282,15 @@ export function ContactsTable({ contacts, onAdd, onEdit, onRemove }: ContactsTab
                                 {/* Departamentos */}
                                 <div className="flex flex-wrap gap-2">
                                     {["Comercial", "Financeiro", "Compras", "Logística", "Fiscal", "Direção", "Outros"].map((dept) => (
-                                        <label
-                                            key={dept}
-                                            className={cn(
-                                                "flex items-center gap-1.5 cursor-pointer px-3 py-1.5 rounded-lg border transition-all text-xs font-bold",
-                                                editingContact.departments?.includes(dept)
-                                                    ? "bg-brand-600 text-white border-brand-600 shadow-sm shadow-brand-100"
-                                                    : "bg-white text-gray-500 border-gray-200 hover:border-brand-300 hover:bg-brand-50/30"
-                                            )}
-                                        >
+	                                        <label
+	                                            key={dept}
+	                                            className={cn(
+	                                                "flex items-center gap-1.5 cursor-pointer px-3 py-1.5 rounded-full border transition-all text-xs font-bold",
+	                                                editingContact.departments?.includes(dept)
+	                                                    ? "bg-brand-600 text-white border-brand-600"
+	                                                    : "bg-white text-gray-500 border-gray-200 hover:border-brand-300 hover:bg-brand-50/30"
+	                                            )}
+	                                        >
                                             <input
                                                 type="checkbox"
                                                 checked={editingContact.departments?.includes(dept)}
@@ -332,22 +333,22 @@ export function ContactsTable({ contacts, onAdd, onEdit, onRemove }: ContactsTab
 
                     {/* Footer Sticky Compact */}
                     <div className="bg-white px-6 py-3 border-t border-gray-100 flex gap-3 sticky bottom-0 z-10">
-                        <Button
-                            type="button"
-                            variant="ghost"
-                            onClick={handleCancel}
-                            className="flex-1 h-10 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            type="button"
-                            onClick={handleSave}
-                            className="flex-[2] h-10 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-lg shadow-brand-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                        >
-                            <Save className="w-4 h-4" />
-                            {editingContact?.id && !editingContact.id.startsWith('temp-') ? 'Salvar Alterações' : 'Confirmar Contato'}
-                        </Button>
+	                        <Button
+	                            type="button"
+	                            variant="ghost"
+	                            onClick={handleCancel}
+	                            className="flex-1 h-10 bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
+	                        >
+	                            Cancelar
+	                        </Button>
+	                        <Button
+	                            type="button"
+	                            onClick={handleSave}
+	                            className="flex-[2] h-10 bg-brand-600 hover:bg-brand-700 text-white font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+	                        >
+	                            <Save className="w-4 h-4" />
+	                            {editingContact?.id && !editingContact.id.startsWith('temp-') ? 'Salvar Alterações' : 'Confirmar Contato'}
+	                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>

@@ -31,6 +31,7 @@ import { DayDetailsPopover } from "./DayDetailsPopover";
 import { OrderItemsPopover } from "./OrderItemsPopover";
 import { cn } from "@/lib/utils";
 import { OrderCard } from "./OrderCard";
+import { normalizeRouteStatus } from "@/lib/constants/status";
 
 type DragItem = {
     id: string; // Order ID or Route ID
@@ -38,6 +39,11 @@ type DragItem = {
     sourceRouteId?: string;
     order?: any;
     route?: DeliveryRoute;
+};
+
+const isLockedRoute = (route?: DeliveryRoute) => {
+    const status = normalizeRouteStatus(route?.status) || route?.status || "";
+    return ['in_route', 'in_progress', 'completed', 'cancelled'].includes(status);
 };
 
 interface ExpeditionKanbanProps {
@@ -189,7 +195,7 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             // Check if source route is locked
             if (dragData.sourceRouteId) {
                 const sourceRoute = scheduledRoutes.find(r => r.id === dragData.sourceRouteId);
-                if (sourceRoute && (sourceRoute.status === 'em_rota' || sourceRoute.status === 'in_progress' || sourceRoute.status === 'concluida' || sourceRoute.status === 'cancelada')) {
+                if (sourceRoute && isLockedRoute(sourceRoute)) {
                     toast({ title: "Rota bloqueada", description: "Não é possível remover pedidos de rotas em andamento ou concluídas.", variant: "destructive" });
                     return;
                 }
@@ -201,7 +207,7 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
 
             // Check if target route is locked
             const targetRoute = [...scheduledRoutes, ...unscheduledRoutes].find(r => r.id === targetRouteId);
-            if (targetRoute && (targetRoute.status === 'em_rota' || targetRoute.status === 'in_progress' || targetRoute.status === 'concluida' || targetRoute.status === 'cancelada')) {
+            if (targetRoute && isLockedRoute(targetRoute)) {
                 toast({ title: "Rota bloqueada", description: "Não é possível adicionar pedidos a rotas em andamento ou concluídas.", variant: "destructive" });
                 return;
             }
@@ -209,7 +215,7 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             // Check if source route is locked
             if (dragData.sourceRouteId) {
                 const sourceRoute = scheduledRoutes.find(r => r.id === dragData.sourceRouteId);
-                if (sourceRoute && (sourceRoute.status === 'em_rota' || sourceRoute.status === 'in_progress' || sourceRoute.status === 'concluida' || sourceRoute.status === 'cancelada')) {
+                if (sourceRoute && isLockedRoute(sourceRoute)) {
                     toast({ title: "Rota bloqueada", description: "Não é possível mover pedidos de rotas iniciadas.", variant: "destructive" });
                     return;
                 }
@@ -223,14 +229,14 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             setAddToRouteModalOpen(true);
         } else if (dragData.type === 'route' && dropData?.type === 'calendar-day') {
             // Route to Calendar Day (schedule/reschedule)
-            if (dragData.route && (dragData.route.status === 'em_rota' || dragData.route.status === 'in_progress' || dragData.route.status === 'concluida' || dragData.route.status === 'cancelada')) {
+            if (dragData.route && isLockedRoute(dragData.route)) {
                 toast({ title: "Rota bloqueada", description: "Não é possível reagendar rotas em andamento ou concluídas.", variant: "destructive" });
                 return;
             }
             await handleScheduleRoute(dragData.route!.id, dropData.date);
         } else if (dragData.type === 'route' && dropData?.type === 'unscheduled-column') {
             // Scheduled Route back to Unscheduled
-            if (dragData.route && (dragData.route.status === 'em_rota' || dragData.route.status === 'in_progress' || dragData.route.status === 'concluida' || dragData.route.status === 'cancelada')) {
+            if (dragData.route && isLockedRoute(dragData.route)) {
                 toast({ title: "Rota bloqueada", description: "Não é possível reagendar rotas em andamento ou concluídas.", variant: "destructive" });
                 return;
             }
@@ -431,9 +437,9 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
         if (!addToRouteDate) return [];
         return scheduledRoutes.filter(r =>
             r.scheduled_date === addToRouteDate &&
-            r.status !== 'em_rota' &&
-            r.status !== 'in_progress' &&
-            r.status !== 'concluida'
+            (normalizeRouteStatus(r.status) || r.status) !== 'in_route' &&
+            (normalizeRouteStatus(r.status) || r.status) !== 'in_progress' &&
+            (normalizeRouteStatus(r.status) || r.status) !== 'completed'
         );
     }, [addToRouteDate, scheduledRoutes]);
 
@@ -453,7 +459,7 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
                 />
 
                 {/* TWO-COLUMN LAYOUT BELOW */}
-                <div className="flex gap-6 px-6 pt-6 min-h-[500px]">
+                <div className="flex gap-6 px-6 pt-6 min-h-96">
                     {/* COLUMN A: SANDBOX - 25% width */}
                     <div className="w-1/4">
                         <SandboxColumn
@@ -542,14 +548,14 @@ const SandboxColumn = memo(function SandboxColumn({ sandbox, selectedOrders, tog
         <div
             ref={setNodeRef}
             className={cn(
-                "flex-1 flex flex-col bg-gray-50/50 border border-gray-200 rounded-xl overflow-hidden transition-colors",
+                "flex-1 flex flex-col bg-gray-50/50 border border-gray-200 rounded-2xl overflow-hidden transition-colors",
                 isOver && "bg-blue-50 ring-2 ring-blue-300"
             )}
         >
             <div className="px-4 py-3 border-b border-gray-100 bg-white">
                 <div className="flex items-center justify-between">
                     {selectedOrders.size > 0 ? (
-                        <div className="flex items-center justify-between w-full bg-blue-50 p-2 rounded-lg border border-blue-100">
+                        <div className="flex items-center justify-between w-full bg-blue-50 p-2 rounded-2xl border border-blue-100">
                             <span className="text-sm font-medium text-blue-700">{selectedOrders.size} selecionados</span>
                             <Popover open={batchRouteOpen} onOpenChange={setBatchRouteOpen}>
                                 <PopoverTrigger asChild>
@@ -578,7 +584,7 @@ const SandboxColumn = memo(function SandboxColumn({ sandbox, selectedOrders, tog
                         <div className="flex items-center gap-2">
                             <Package className="w-4 h-4 text-gray-400" />
                             <h3 className="text-sm font-semibold text-gray-700">Sandbox</h3>
-                            <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full font-medium">{sandbox.length}</span>
+                            <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-2xl font-medium">{sandbox.length}</span>
                         </div>
                     )}
                 </div>
@@ -595,7 +601,7 @@ const SandboxColumn = memo(function SandboxColumn({ sandbox, selectedOrders, tog
                     />
                 ))}
                 {sandbox.length === 0 && (
-                    <div className="text-center py-10 text-gray-400 text-sm border-2 border-dashed border-gray-100 rounded-lg">
+                    <div className="text-center py-10 text-gray-400 text-sm border-2 border-dashed border-gray-100 rounded-2xl">
                         Nenhum pedido no sandbox
                     </div>
                 )}
@@ -614,7 +620,7 @@ const UnscheduledRoutesColumn = memo(function UnscheduledRoutesColumn({ routes, 
         <div
             ref={setNodeRef}
             className={cn(
-                "flex flex-col bg-gray-50/50 border border-gray-200 rounded-xl overflow-hidden transition-colors h-full",
+                "flex flex-col bg-gray-50/50 border border-gray-200 rounded-2xl overflow-hidden transition-colors h-full",
                 isOver && "bg-green-50 ring-2 ring-green-300"
             )}
         >
@@ -623,7 +629,7 @@ const UnscheduledRoutesColumn = memo(function UnscheduledRoutesColumn({ routes, 
                     <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-gray-400" />
                         <h3 className="text-sm font-semibold text-gray-700">Rotas Não Agendadas</h3>
-                        <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full font-medium">{routes.length}</span>
+                        <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-2xl font-medium">{routes.length}</span>
                     </div>
                     <Button size="sm" variant="outline" onClick={onCreateRoute} className="h-7 text-xs gap-1">
                         <Plus className="w-3 h-3" />
@@ -634,7 +640,7 @@ const UnscheduledRoutesColumn = memo(function UnscheduledRoutesColumn({ routes, 
 
             <div className="flex-1 overflow-y-auto p-4">
                 {routes.length === 0 ? (
-                    <div className="text-center py-10 text-gray-400 text-sm border-2 border-dashed border-gray-100 rounded-lg">
+                    <div className="text-center py-10 text-gray-400 text-sm border-2 border-dashed border-gray-100 rounded-2xl">
                         Nenhuma rota não agendada
                     </div>
                 ) : (
@@ -653,6 +659,3 @@ const UnscheduledRoutesColumn = memo(function UnscheduledRoutesColumn({ routes, 
         </div>
     );
 });
-
-
-

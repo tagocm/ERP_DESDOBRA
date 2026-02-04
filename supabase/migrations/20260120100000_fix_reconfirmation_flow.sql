@@ -119,7 +119,7 @@ BEGIN
             'AR',
             COALESCE(NEW.date_issued, CURRENT_DATE),
             COALESCE(NEW.total_amount, 0),
-            'pendente',
+            'pending',
             v_op_status
         )
         ON CONFLICT (company_id, origin_type, origin_id) 
@@ -131,36 +131,36 @@ BEGIN
             
             -- SMART STATUS RESET: Reset rejected events to pending, preserve approved
             status = CASE
-                WHEN financial_events.status = 'reprovado' THEN 'pendente'
-                WHEN financial_events.status = 'aprovado' THEN 'aprovado'  -- Never reset approved
+                WHEN financial_events.status = 'rejected' THEN 'pending'
+                WHEN financial_events.status = 'approved' THEN 'approved'  -- Never reset approved
                 ELSE financial_events.status  -- Keep current status for other cases
             END,
             
             -- Clear rejection fields when resetting rejected events
             rejected_by = CASE
-                WHEN financial_events.status = 'reprovado' THEN NULL
+                WHEN financial_events.status = 'rejected' THEN NULL
                 ELSE financial_events.rejected_by
             END,
             rejected_at = CASE
-                WHEN financial_events.status = 'reprovado' THEN NULL
+                WHEN financial_events.status = 'rejected' THEN NULL
                 ELSE financial_events.rejected_at
             END,
             rejection_reason = CASE
-                WHEN financial_events.status = 'reprovado' THEN NULL
+                WHEN financial_events.status = 'rejected' THEN NULL
                 ELSE financial_events.rejection_reason
             END,
             
             -- Clear attention fields when resetting rejected events
             attention_marked_by = CASE
-                WHEN financial_events.status = 'reprovado' THEN NULL
+                WHEN financial_events.status = 'rejected' THEN NULL
                 ELSE financial_events.attention_marked_by
             END,
             attention_marked_at = CASE
-                WHEN financial_events.status = 'reprovado' THEN NULL
+                WHEN financial_events.status = 'rejected' THEN NULL
                 ELSE financial_events.attention_marked_at
             END,
             attention_reason = CASE
-                WHEN financial_events.status = 'reprovado' THEN NULL
+                WHEN financial_events.status = 'rejected' THEN NULL
                 ELSE financial_events.attention_reason
             END;
         
@@ -262,7 +262,7 @@ BEGIN
             updated_at = NOW()
         WHERE origin_type = 'SALE' 
           AND origin_id = NEW.id
-          AND status NOT IN ('aprovado', 'reprovado');
+          AND status NOT IN ('approved', 'rejected');
           
     END IF;
 

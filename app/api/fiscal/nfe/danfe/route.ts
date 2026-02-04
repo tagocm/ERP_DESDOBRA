@@ -1,56 +1,138 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateDanfePdf } from '@/lib/danfe/pdfService';
-import { createClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseServer';
+import { logger } from "@/lib/logger";
+import { resolveCompanyContext } from "@/lib/auth/resolve-company";
+import { z } from "zod";
+import { rateLimit } from "@/lib/rate-limit";
+import { errorResponse } from "@/lib/api/response";
 
 export const maxDuration = 60; // Allow sufficient time for Chromium launch
 
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
-        let { xml, id } = body;
-
-        if (!xml && !id) {
-            return NextResponse.json({ error: 'XML or ID is required' }, { status: 400 });
+        const limit = rateLimit(req, { key: "nfe-danfe", limit: 20, windowMs: 60_000 });
+        if (!limit.ok) {
+            return errorResponse("Too many requests", 429, "RATE_LIMIT");
         }
 
+        const { companyId: ctxCompanyId } = await resolveCompanyContext();
+        let body: unknown;
+        try {
+            body = await req.json();
+        } catch {
+            return errorResponse("JSON inválido", 400, "BAD_JSON");
+        }
+
+        const schema = z.object({
+            xml: z.string().min(1).optional(),
+            id: z.string().min(1).optional()
+        }).refine((data) => data.xml || data.id, { message: 'XML ou ID é obrigatório' });
+
+        const parsed = schema.safeParse(body);
+        if (!parsed.success) {
+            return errorResponse("Payload inválido", 400, "INVALID_PAYLOAD");
+        }
+
+        let { xml, id } = parsed.data;
+
         // Declare companyId at top level for proper scope
-        let companyId: string | undefined;
+        let companyId: string | undefined = ctxCompanyId;
         const adminSupabase = createAdminClient();
 
         if (!xml && id) {
-            console.log('[DANFE API] Fetching NFe by ID:', id);
+            logger.info('[DANFE API] Fetching NFe by ID:', id);
 
-            // Step 1: Get artifact paths from sales_document_nfes.details
-            const { data: nfeRecord, error: nfeError } = await adminSupabase
-                .from('sales_document_nfes')
-                .select('document_id, nfe_key, details, status')
+            let details: any | null = null;
+            let documentId: string | null = null;
+            let nfeKey: string | null = null;
+            let sourceCompanyId: string | null = null;
+
+            // Step 1: Try current source (nfe_emissions)
+            const { data: emissionRecord, error: emissionError } = await adminSupabase
+                .from('nfe_emissions')
+                .select('id, company_id, sales_document_id, access_key, draft_snapshot, status')
                 .eq('id', id)
-                .single();
+                .maybeSingle();
 
-            console.log('[DANFE API] NFe record lookup:', { error: nfeError, hasData: !!nfeRecord });
-
-            if (nfeError || !nfeRecord) {
-                console.error('[DANFE API] sales_document_nfes error:', nfeError);
-                return NextResponse.json({
-                    error: 'NF-e record not found',
-                    details: nfeError?.message || 'No record in sales_document_nfes',
-                    id
-                }, { status: 404 });
+            if (emissionError) {
+                logger.warn('[DANFE API] nfe_emissions lookup error:', emissionError);
             }
 
-            // Step 2: Extract XML path from details (prefer nfeProc > signed > unsigned)
-            const details = nfeRecord.details as any;
-            const xmlPath = details?.artifacts?.nfe_proc || details?.artifacts?.signed_xml || details?.artifacts?.xml;
+            if (emissionRecord) {
+                if (emissionRecord.company_id !== ctxCompanyId) {
+                    return errorResponse("Sem permissão", 403, "FORBIDDEN");
+                }
+                details = emissionRecord.draft_snapshot;
+                documentId = emissionRecord.sales_document_id || null;
+                nfeKey = emissionRecord.access_key || null;
+                sourceCompanyId = emissionRecord.company_id || null;
+            } else {
+                // Step 2: Legacy source (sales_document_nfes)
+                const { data: nfeRecord, error: nfeError } = await adminSupabase
+                    .from('sales_document_nfes')
+                    .select('document_id, nfe_key, details, status, company_id')
+                    .eq('id', id)
+                    .single();
 
-            console.log('[DANFE API] XML Path from details:', xmlPath);
+                logger.info('[DANFE API] Legacy record lookup:', { error: nfeError, hasData: !!nfeRecord });
+
+                if (nfeError || !nfeRecord) {
+                    logger.error('[DANFE API] sales_document_nfes error:', nfeError);
+                    return errorResponse(
+                        "NF-e record not found",
+                        404,
+                        "NOT_FOUND",
+                        { details: nfeError?.message || "No record in nfe_emissions or sales_document_nfes", id }
+                    );
+                }
+                if (nfeRecord.company_id !== ctxCompanyId) {
+                    return errorResponse("Sem permissão", 403, "FORBIDDEN");
+                }
+
+                details = nfeRecord.details as any;
+                documentId = nfeRecord.document_id || null;
+                nfeKey = nfeRecord.nfe_key || null;
+                sourceCompanyId = nfeRecord.company_id || null;
+            }
+
+            // Step 3: Extract XML path from details (prefer nfeProc > signed > unsigned)
+            let xmlPath = details?.artifacts?.nfe_proc || details?.artifacts?.signed_xml || details?.artifacts?.xml;
+
+            // Fallback: if coming from nfe_emissions without artifacts, try legacy by document_id or access_key
+            if (!xmlPath && (documentId || nfeKey)) {
+                const legacyQuery = adminSupabase
+                    .from('sales_document_nfes')
+                    .select('document_id, nfe_key, details, status, company_id')
+                    .limit(1);
+                let legacyResult;
+                if (documentId) {
+                    legacyResult = await legacyQuery.eq('document_id', documentId).maybeSingle();
+                } else if (nfeKey) {
+                    legacyResult = await legacyQuery.eq('nfe_key', nfeKey).maybeSingle();
+                }
+                if (legacyResult?.data && !legacyResult?.error) {
+                    const legacyDetails = legacyResult.data.details as any;
+                    xmlPath = legacyDetails?.artifacts?.nfe_proc || legacyDetails?.artifacts?.signed_xml || legacyDetails?.artifacts?.xml;
+                    if (xmlPath) {
+                        details = legacyDetails;
+                        documentId = legacyResult.data.document_id || documentId;
+                        nfeKey = legacyResult.data.nfe_key || nfeKey;
+                        sourceCompanyId = legacyResult.data.company_id || sourceCompanyId;
+                        logger.info('[DANFE API] Fallback legacy artifacts resolved');
+                    }
+                }
+            }
+
+            logger.info('[DANFE API] XML Path from details:', xmlPath);
 
             if (!xmlPath) {
-                return NextResponse.json({
-                    error: 'XML not found',
-                    details: 'No XML artifact path in NFe details',
-                    nfe_key: nfeRecord.nfe_key
-                }, { status: 404 });
+                return errorResponse(
+                    "XML not found",
+                    404,
+                    "NOT_FOUND",
+                    { details: "No XML artifact path in NFe details", nfe_key: nfeKey }
+                );
             }
 
             // Step 3: Download XML from storage
@@ -68,10 +150,10 @@ export async function POST(req: NextRequest) {
 
                         if (!protErr && protData) {
                             protocolXml = await protData.text();
-                            console.log('[DANFE API] Protocol XML fetched');
+                            logger.info('[DANFE API] Protocol XML fetched');
                         }
                     } catch (protError) {
-                        console.warn('[DANFE API] Could not fetch protocol, continuing without it:', protError);
+                        logger.warn('[DANFE API] Could not fetch protocol, continuing without it:', protError);
                     }
                 }
 
@@ -80,25 +162,25 @@ export async function POST(req: NextRequest) {
                     .download(xmlPath);
 
                 if (xmlError || !xmlData) {
-                    console.error('[DANFE API] Storage download error:', xmlError);
+                    logger.error('[DANFE API] Storage download error:', xmlError);
                     throw new Error(xmlError?.message || 'Storage download failed');
                 }
 
                 xml = await xmlData.text();
-                console.log('[DANFE API] XML downloaded, length:', xml.length);
+                logger.info('[DANFE API] XML downloaded, length:', xml.length);
 
                 // Extract company_id for logo
                 try {
                     const { data: docRecord } = await adminSupabase
                         .from('sales_documents')
                         .select('company_id')
-                        .eq('id', nfeRecord.document_id)
+                        .eq('id', documentId)
                         .single();
 
-                    companyId = docRecord?.company_id;
-                    console.log('[DANFE API] Company ID for logo:', companyId);
+                    companyId = docRecord?.company_id || sourceCompanyId || ctxCompanyId;
+                    logger.info('[DANFE API] Company ID for logo:', companyId);
                 } catch (e) {
-                    console.warn('[DANFE API] Could not fetch company_id:', e);
+                    logger.warn('[DANFE API] Could not fetch company_id:', e);
                 }
 
                 // Step 4: Combine into nfeProc if we have separate NFe and Protocol
@@ -106,7 +188,7 @@ export async function POST(req: NextRequest) {
                 const isNfeProc = xml.includes('<nfeProc');
 
                 if (!isNfeProc && protocolXml && protocolXml.includes('<protNFe')) {
-                    console.log('[DANFE API] Assembling nfeProc on the fly...');
+                    logger.info('[DANFE API] Assembling nfeProc on the fly...');
                     try {
                         // Clean headers
                         const cleanNFe = xml.replace(/<\?xml[^>]*\?>/g, '').trim();
@@ -118,26 +200,32 @@ export async function POST(req: NextRequest) {
 ${cleanNFe}
 ${cleanProtocol}
 </nfeProc>`;
-                        console.log('[DANFE API] nfeProc assembled successfully');
+                        logger.info('[DANFE API] nfeProc assembled successfully');
                     } catch (assemblyError) {
-                        console.error('[DANFE API] Error assembling nfeProc:', assemblyError);
+                        logger.error('[DANFE API] Error assembling nfeProc:', assemblyError);
                     }
                 }
 
             } catch (storageError: any) {
-                console.error('[DANFE API] Storage exception:', storageError);
-                return NextResponse.json({
-                    error: 'Storage access failed',
-                    details: storageError.message,
-                    xml_path: xmlPath
-                }, { status: 500 });
+                logger.error('[DANFE API] Storage exception:', storageError);
+                return errorResponse(
+                    "Storage access failed",
+                    500,
+                    "STORAGE_ERROR",
+                    { details: storageError.message, xml_path: xmlPath }
+                );
             }
         }
 
+        if (!xml) {
+            return errorResponse("XML não encontrado", 404, "NOT_FOUND");
+        }
+        const xmlString = xml;
+
         // Generate PDF with better error handling
         try {
-            console.log('[DANFE API] Generating PDF with companyId:', companyId);
-            const pdfBuffer = await generateDanfePdf(xml, companyId);
+            logger.info('[DANFE API] Generating PDF with companyId:', companyId);
+            const pdfBuffer = await generateDanfePdf(xmlString, companyId);
 
             // Cast to any because NextResponse supports Buffer in Node.js runtime even if types strictly say BodyInit
             return new NextResponse(pdfBuffer as any, {
@@ -147,15 +235,14 @@ ${cleanProtocol}
                 },
             });
         } catch (pdfError: any) {
-            console.error('[DANFE API] PDF Generation Error:', pdfError.message);
-            console.error('[DANFE API] XML snippet:', xml.substring(0, 500));
+            logger.error('[DANFE API] PDF Generation Error:', pdfError.message);
 
             // Try to parse and show structure for debugging
             const debugInfo: any = { message: pdfError.message };
             try {
                 const { XMLParser } = await import('fast-xml-parser');
                 const parser = new XMLParser({ ignoreAttributes: false, parseTagValue: false });
-                const parsed = parser.parse(xml);
+                const parsed = parser.parse(xmlString);
                 debugInfo.xmlStructure = {
                     rootKeys: Object.keys(parsed),
                     hasNfeProc: 'nfeProc' in parsed,
@@ -166,18 +253,18 @@ ${cleanProtocol}
                 debugInfo.xmlStructure = 'Could not parse XML for debug';
             }
 
-            return NextResponse.json({
-                error: 'Failed to generate DANFE',
-                details: pdfError.message,
-                xml_preview: xml.substring(0, 200),
-                debug: debugInfo
-            }, { status: 500 });
+            return errorResponse(
+                "Failed to generate DANFE",
+                500,
+                "DANFE_ERROR",
+                {
+                    details: pdfError.message,
+                    debug: debugInfo
+                }
+            );
         }
     } catch (error: any) {
-        console.error('DANFE Generation Error:', error);
-        return NextResponse.json(
-            { error: 'Failed to generate DANFE', details: error.message },
-            { status: 500 }
-        );
+        logger.error('DANFE Generation Error:', error);
+        return errorResponse("Failed to generate DANFE", 500, "INTERNAL_ERROR", { details: error.message });
     }
 }

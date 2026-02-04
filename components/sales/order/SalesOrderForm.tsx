@@ -46,6 +46,7 @@ import {
 import { recalculateFiscalForOrder } from "@/lib/data/sales-orders";
 import { resendSalesForApproval } from "@/app/actions/financial/resend-sales-for-approval";
 import { getPaymentModes, PaymentMode } from "@/lib/clients-db";
+import { normalizeFinancialStatus, normalizeLogisticsStatus, translateLogisticsStatusPt } from "@/lib/constants/status";
 import {
     ArrowLeft,
     Save,
@@ -117,7 +118,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
         company_id: initialData?.company_id || '',
         client_id: initialData?.client_id || '',
         // Use 'pendente' as default if undefined, or map from legacy 'pending'
-        status_logistic: ((initialData?.status_logistic as string) === 'pending' ? 'pendente' : initialData?.status_logistic) || 'pendente',
+        status_logistic: normalizeLogisticsStatus(initialData?.status_logistic) || "pending",
         status_commercial: initialData?.status_commercial || 'draft',
         status_fiscal: initialData?.status_fiscal || 'none',
         date_issued: new Date().toISOString().split('T')[0],
@@ -165,6 +166,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
     const [dispatchMode, setDispatchMode] = useState<'avulsa' | 'existing'>('avulsa');
     const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
     const [availableRoutes, setAvailableRoutes] = useState<DeliveryRoute[]>([]);
+    const [dispatchConfirmOpen, setDispatchConfirmOpen] = useState(false);
 
     // Adjustments
     const [adjustments, setAdjustments] = useState<SalesOrderAdjustment[]>(initialData?.adjustments || []);
@@ -184,7 +186,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
 
     // FASE 1 - Locked logic for Sales Order
     const isLocked = mode === 'edit' && (
-        ['em_rota', 'entregue', 'nao_entregue'].includes(formData.status_logistic as string) ||
+        ['in_route', 'delivered', 'not_delivered'].includes(normalizeLogisticsStatus(formData.status_logistic) || (formData.status_logistic as string)) ||
         formData.status_fiscal === 'authorized'
     );
 
@@ -1095,7 +1097,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
             await addOrderToRoute(supabase, route.id, orderId, 999, selectedCompany.id);
 
             // Force status update to EM_ROTA because addOrderToRoute sets it to 'roteirizado'
-            await supabase.from('sales_documents').update({ status_logistic: 'em_rota' }).eq('id', orderId);
+            await supabase.from('sales_documents').update({ status_logistic: 'in_route' }).eq('id', orderId);
 
             // Removed dummy adjustment creation (caused 403 and unnecessary)
 
@@ -1269,7 +1271,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
             } else if (redirectToSeparation) {
                 toast({ title: "Pedido Confirmado", description: "Redirecionando para separação..." });
                 if (mode === 'edit') {
-                    setFormData(prev => ({ ...prev, status_commercial: 'confirmed', status_logistic: 'pendente' }));
+                    setFormData(prev => ({ ...prev, status_commercial: 'confirmed', status_logistic: 'pending' }));
                     router.replace(`/app/vendas/pedidos/${saved.id}?tab=separation`);
                 } else {
                     router.push(`/app/vendas/pedidos/${saved.id}?tab=separation`);
@@ -1289,17 +1291,21 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
     };
 
 
-    const handleDispatch = async () => {
-        if (!confirm("Confirma o despacho deste pedido?")) return;
+    const handleDispatch = () => {
+        setDispatchConfirmOpen(true);
+    };
+
+    const onConfirmDispatch = async () => {
         setIsLoading(true);
         try {
             await dispatchOrder(supabase, formData.id!, (await supabase.auth.getUser()).data.user!.id);
             toast({ title: "Pedido Despachado", description: "Status atualizado para Expedição." });
-            setFormData(prev => ({ ...prev, status_logistic: 'em_rota' }));
+            setFormData(prev => ({ ...prev, status_logistic: 'in_route' }));
         } catch (e: any) {
             toast({ title: "Erro", description: e.message, variant: "destructive" });
         } finally {
             setIsLoading(false);
+            setDispatchConfirmOpen(false);
         }
     };
 
@@ -1498,15 +1504,10 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
             sent: 'Enviado',
             approved: 'Aprovado',
             cancelled: 'Cancelado',
-            lost: 'Perdido',
-            pendente: 'Pendente',
-            roteirizado: 'Roteirizado',
-            agendado: 'Agendado',
-            em_rota: 'Em Rota',
-            entregue: 'Entregue',
-            devolvido: 'Devolvido'
+            lost: 'Perdido'
         };
-        return map[status] || status;
+        if (map[status]) return map[status];
+        return translateLogisticsStatusPt(status);
     };
 
     const loadOrder = async (id: string) => {
@@ -1570,9 +1571,9 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                 company_id: selectedCompany.id,
                 client_id: effectiveClientId,
                 status_commercial: 'draft' as const,
-                status_logistic: 'pendente' as const,
+                status_logistic: 'pending' as const,
                 status_fiscal: 'none' as const,
-                financial_status: 'pendente' as const,
+                financial_status: 'pending' as const,
                 date_issued: new Date().toISOString().split('T')[0],
                 price_table_id: formData.price_table_id,
                 payment_terms_id: formData.payment_terms_id,
@@ -1709,11 +1710,11 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
 
                         {/* --- SPLIT BUTTON: SAVE DRAFT --- */}
                         {formData.status_fiscal !== 'authorized' && formData.status_commercial !== 'confirmed' && (
-                            <div className="flex items-center -space-x-px">
+                            <div className="flex items-center -space-x-px overflow-hidden rounded-2xl focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background">
                                 <Button
                                     onClick={handleSaveDraft}
                                     disabled={isSaving || !formData.client_id || isLocked}
-                                    className="rounded-r-none border-r-0 z-10 focus:z-20 font-medium pr-2"
+                                    className="rounded-none z-10 focus:z-20 font-medium pr-2"
                                     data-testid="order-save-button"
                                 >
                                     <Save className="w-4 h-4 mr-2" /> Salvar Orçamento
@@ -1721,7 +1722,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button
-                                            className="rounded-l-none px-2 z-10 focus:z-20 pl-1 border-l-0"
+                                            className="rounded-none px-2 z-10 focus:z-20 pl-1"
                                             disabled={isSaving || !formData.client_id || isLocked}
                                         >
                                             <ChevronDown className="w-4 h-4" />
@@ -1748,11 +1749,11 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
 
                         {/* --- SPLIT BUTTON: CONFIRM --- */}
                         {formData.status_commercial === 'draft' && (
-                            <div className="flex items-center -space-x-px">
+                            <div className="flex items-center -space-x-px overflow-hidden rounded-2xl focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background">
                                 <Button
                                     onClick={() => handleConfirmTrigger()}
                                     disabled={isSaving || isLoading || !formData.client_id || !formData.items?.length}
-                                    className="bg-green-600 hover:bg-green-700 text-white rounded-r-none border-r-0 z-10 focus:z-20 font-medium pr-2"
+                                    className="bg-green-600 hover:bg-green-700 text-white rounded-none z-10 focus:z-20 font-medium pr-2"
                                     data-testid="order-confirm-button"
                                 >
                                     <CheckCircle className="w-4 h-4 mr-2" /> Confirmar Pedido
@@ -1760,7 +1761,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button
-                                            className="bg-green-600 hover:bg-green-700 text-white rounded-l-none px-2 z-10 focus:z-20 pl-1 border-l-0"
+                                            className="bg-green-600 hover:bg-green-700 text-white rounded-none px-2 z-10 focus:z-20 pl-1"
                                             disabled={isSaving || isLoading || !formData.client_id || !formData.items?.length}
                                         >
                                             <ChevronDown className="w-4 h-4" />
@@ -1783,14 +1784,14 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                         )}
 
                         {/* --- DISPATCH ACTION (Existing) --- */}
-                        {formData.status_commercial === 'confirmed' && ((formData.status_logistic as string) === 'pending') && (
-                            <div className="flex items-center -space-x-px">
-                                <Button onClick={handleDispatch} disabled={isSaving || isLoading} className="bg-blue-600 hover:bg-blue-700 text-white rounded-r-none border-r-0 z-10 focus:z-20 pr-2">
+                        {formData.status_commercial === 'confirmed' && ['pending'].includes(normalizeLogisticsStatus(formData.status_logistic) || (formData.status_logistic as string)) && (
+                            <div className="flex items-center -space-x-px overflow-hidden rounded-2xl focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background">
+                                <Button onClick={handleDispatch} disabled={isSaving || isLoading} className="bg-blue-600 hover:bg-blue-700 text-white rounded-none z-10 focus:z-20 pr-2">
                                     <Truck className="w-4 h-4 mr-2" /> Despachar / Enviar
                                 </Button>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-l-none px-2 z-10 focus:z-20 pl-1 border-l-0" disabled={isSaving || isLoading}>
+                                        <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-none px-2 z-10 focus:z-20 pl-1" disabled={isSaving || isLoading}>
                                             <ChevronDown className="w-4 h-4" />
                                         </Button>
                                     </DropdownMenuTrigger>
@@ -1811,7 +1812,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
 
             {isLocked && (
                 <div className="px-6 mt-6">
-                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-amber-800 shadow-sm animate-in fade-in slide-in-from-top-2 duration-500">
+                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-amber-800 animate-in fade-in slide-in-from-top-2 duration-500">
                         <AlertCircle className="w-5 h-5 text-amber-600" />
                         <div className="text-sm font-medium leading-relaxed">
                             Este pedido está em status logístico <strong className="uppercase">{formData.status_logistic?.replace('_', ' ')}</strong> ou já foi faturado, e não pode mais ser alterado.
@@ -1848,7 +1849,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
 
                             {/* Logistic Status */}
                             {(() => {
-                                const style = LOGISTICS_STATUS_COLORS[formData.status_logistic || 'pendente'] || LOGISTICS_STATUS_COLORS['pendente'];
+                                const style = LOGISTICS_STATUS_COLORS[normalizeLogisticsStatus(formData.status_logistic) || formData.status_logistic || 'pending'] || LOGISTICS_STATUS_COLORS['pending'];
                                 return (
                                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${style.bg.replace('bg-', 'border-').replace('100', '200')} ${style.bg} whitespace-nowrap`}>
                                         <span className={`text-xs font-semibold uppercase tracking-tight ${style.text}`}>Logístico</span>
@@ -1859,7 +1860,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
 
                             {/* Financial Status */}
                             {(() => {
-                                const style = getFinancialBadgeStyle(formData.financial_status || 'pendente');
+                                const style = getFinancialBadgeStyle(normalizeFinancialStatus(formData.financial_status) || formData.financial_status || 'pending');
                                 return (
                                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${style.bg.replace('bg-', 'border-').replace('100', '200')} ${style.bg} whitespace-nowrap`}>
                                         <span className={`text-xs font-semibold uppercase tracking-tight ${style.text}`}>Financeiro</span>
@@ -1888,7 +1889,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                 )}
 
                                 {/* --- BLOCK A: CLIENTE --- */}
-                                <div className="bg-white rounded-2xl shadow-card border border-gray-100/70">
+                                <Card className="border-gray-100/70">
                                     <div className="p-6 space-y-5">
                                         {/* Selector Row */}
                                         <div className="flex flex-col md:flex-row gap-6">
@@ -1918,10 +1919,10 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                             </div>
                                             {/* Read-only Summary - Always visible */}
                                             <div className="flex-[2] bg-gray-50/80 rounded-2xl border border-gray-100 p-4 grid grid-cols-1 md:grid-cols-[auto_1fr] gap-10">
-                                                <div className="bg-white p-3 rounded-lg border border-gray-100 shadow-sm min-w-[100px] text-center">
+                                                <Card className="p-3 text-center border-gray-100 shadow-none min-w-24">
                                                     <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Número</span>
                                                     <span className="block text-xl font-bold text-gray-800 font-mono" data-testid="order-number">{formData.id ? formData.id.slice(0, 8).toUpperCase() : '-'}</span>
-                                                </div>
+                                                </Card>
                                                 <div>
                                                     <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Localização / Tabela / Prazo / Forma</span>
                                                     <div className="flex items-center gap-2 text-sm">
@@ -2047,7 +2048,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                             )}
                                         </div>
                                     </div>
-                                </div>
+                                </Card>
 
 
                                 {/* --- DELIVERIES SECTION --- */}
@@ -2057,7 +2058,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                 />
 
                                 {/* --- BLOCK B: ITENS --- */}
-                                <div className="bg-white rounded-2xl shadow-card border border-gray-100/70 overflow-hidden">
+                                <Card className="border-gray-100/70 overflow-hidden">
                                     <div className="px-6 py-4 border-b border-gray-50 flex justify-between items-center bg-gray-50/30">
                                         <h3 className="font-semibold text-gray-800 flex items-center gap-2">
                                             Itens do Pedido
@@ -2071,28 +2072,28 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                         {/* Fiscal Status Indicators */}
                                         <div className="flex items-center gap-2">
                                             {fiscalStatus === 'calculating' && (
-                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg border border-blue-200/50">
+                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full border border-blue-200/50">
                                                     <Loader2 className="w-3 h-3 animate-spin" />
                                                     <span className="text-[10px] font-medium">Calculando...</span>
                                                 </div>
                                             )}
 
                                             {fiscalStatus === 'calculated' && (
-                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-200/50">
+                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200/50">
                                                     <CheckCircle2 className="w-3 h-3" />
                                                     <span className="text-[10px] font-medium">Fiscal OK</span>
                                                 </div>
                                             )}
 
                                             {fiscalStatus === 'pending' && (
-                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 text-slate-500 rounded-lg border border-slate-200/50">
+                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 text-slate-500 rounded-full border border-slate-200/50">
                                                     <Clock className="w-3 h-3" />
                                                     <span className="text-[10px] font-medium">Pendente...</span>
                                                 </div>
                                             )}
 
                                             {fiscalStatus === 'error' && (
-                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-50 text-red-700 rounded-lg border border-red-200/50">
+                                                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-red-50 text-red-700 rounded-full border border-red-200/50">
                                                     <AlertCircle className="w-3 h-3" />
                                                     <span className="text-[10px] font-medium">Erro</span>
                                                 </div>
@@ -2241,7 +2242,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                                                                 onValueChange={(val) => handleUpdateItem(idx, 'packaging_id', val)}
                                                                                 disabled={isLocked}
                                                                             >
-                                                                                <SelectTrigger className="h-8 text-xs border-0 bg-transparent hover:bg-gray-100 w-auto min-w-[80px]">
+                                                                                <SelectTrigger className="h-8 text-xs border-0 bg-transparent hover:bg-gray-100 w-auto min-w-20">
                                                                                     {/* Show current label */}
                                                                                     <SelectValue placeholder={item.product?.un || 'UN'} />
                                                                                 </SelectTrigger>
@@ -2309,10 +2310,10 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                                                 <tr className="bg-slate-50/40">
                                                                     <td></td>
                                                                     <td colSpan={7} className="py-3 px-6">
-                                                                        <div className="space-y-2.5">
+                                                                            <div className="space-y-2.5">
 
                                                                             {/* Product Classification (independent of operation) */}
-                                                                            <div className="bg-white rounded-xl border border-slate-200/60 p-3">
+                                                                            <Card className="border-slate-200/60 p-3 shadow-none">
                                                                                 <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-2">
                                                                                     Classificação Fiscal do Produto
                                                                                 </div>
@@ -2332,11 +2333,11 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                                                                         </span>
                                                                                     </div>
                                                                                 </div>
-                                                                            </div>
+                                                                            </Card>
 
                                                                             {/* DEBUG: Show Fiscal Notes/Errors */}
                                                                             {item.fiscal_notes && (
-                                                                                <div className="bg-amber-50 rounded-xl border border-amber-200/60 p-3 text-xs text-amber-800">
+                                                                                <div className="bg-amber-50 rounded-2xl border border-amber-200/60 p-3 text-xs text-amber-800">
                                                                                     <div className="font-semibold mb-1 flex items-center gap-1.5">
                                                                                         <AlertCircle className="w-3 h-3" />
                                                                                         Atenção Fiscal:
@@ -2345,7 +2346,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                                                                 </div>
                                                                             )}
 
-                                                                            <div className="bg-white rounded-xl border border-slate-200/60 p-3">
+                                                                            <Card className="border-slate-200/60 p-3 shadow-none">
                                                                                 <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-3 border-b border-slate-100 pb-2">
                                                                                     Operação Fiscal & Impostos
                                                                                 </div>
@@ -2455,7 +2456,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                                                                     </div>
 
                                                                                 </div>
-                                                                            </div>
+                                                                            </Card>
 
                                                                             {/* Status + Audit Footer */}
                                                                             <div className="flex items-center justify-between pt-1">
@@ -2548,11 +2549,11 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                             )}
                                         </table>
                                     </div>
-                                </div>
-
+                                </Card>
+                                
                                 {/* --- BLOCK C: FINALIZAÇÃO --- */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="bg-white rounded-2xl shadow-card border border-gray-100/70 p-6 space-y-3">
+                                    <Card className="border-gray-100/70 p-6 space-y-3">
                                         <Label className="text-gray-900 font-medium flex items-center gap-2">
                                             <Edit2 className="w-3 h-3 text-gray-400" /> Observações Internas
                                         </Label>
@@ -2562,8 +2563,8 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                             value={formData.internal_notes || ''}
                                             onChange={(e) => setFormData({ ...formData, internal_notes: e.target.value })}
                                         />
-                                    </div>
-                                    <div className="bg-white rounded-2xl shadow-card border border-gray-100/70 p-6 space-y-3">
+                                    </Card>
+                                    <Card className="border-gray-100/70 p-6 space-y-3">
                                         <Label className="text-gray-900 font-medium flex items-center gap-2">
                                             <Printer className="w-3 h-3 text-gray-400" /> Observações para o Cliente
                                         </Label>
@@ -2573,7 +2574,7 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                                             value={formData.client_notes || ''}
                                             onChange={(e) => setFormData({ ...formData, client_notes: e.target.value })}
                                         />
-                                    </div>
+                                    </Card>
                                 </div>
 
                                 {/* Floating Footer Action (Mobile mainly) */}
@@ -2720,6 +2721,15 @@ export function SalesOrderForm({ initialData, mode }: SalesOrderFormProps) {
                     </DialogFooter>
                 </DialogContent>
             </Dialog >
+
+            <ConfirmDialogDesdobra
+                open={dispatchConfirmOpen}
+                onOpenChange={setDispatchConfirmOpen}
+                title="Confirmação de Despacho"
+                description="Confirma o despacho deste pedido?"
+                onConfirm={onConfirmDispatch}
+                isLoading={isLoading}
+            />
 
             {/* Route Selection Modal */}
             {selectedCompany && (

@@ -14,7 +14,7 @@ export async function uploadNfeArtifact(
     // We use the 'company-assets' bucket but organized by NFe
     // Ideally we should use a separate bucket 'nfe-artifacts' but 'company-assets' is already configured.
     // To ensure security, RLS should be checked, but we are using Admin Client here for backend process.
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
         .from('company-assets')
         .upload(path, content, {
             contentType,

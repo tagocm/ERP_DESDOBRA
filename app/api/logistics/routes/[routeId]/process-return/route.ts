@@ -83,7 +83,7 @@ export async function POST(
             if (occ.event_type === 'NAO_CARREGAMENTO') {
                 // Return to sandbox
                 await supabase.from('sales_documents')
-                    .update({ status_logistic: 'pendente' })
+                    .update({ status_logistic: 'pending' })
                     .eq('id', orderId);
                 resultLog.actions.push("status_logistic_pendente");
             }
@@ -137,8 +137,8 @@ export async function POST(
                         .insert({
                             company_id: companyId,
                             doc_type: 'order',
-                            status_commercial: 'pendente',
-                            status_logistic: 'pendente',
+                            status_commercial: 'pending',
+                            status_logistic: 'pending',
                             client_id: currentOrder.client_id,
                             price_table_id: currentOrder.price_table_id,
                             payment_condition_id: currentOrder.payment_condition_id,

@@ -143,8 +143,8 @@ export function FinanceiroFlyoutPanel({ isOpen, onClose, anchorRef }: Financeiro
         <div
             ref={panelRef}
             className={cn(
-                "fixed bg-white border border-gray-100 shadow-lg rounded-lg overflow-hidden flex flex-col transition-all duration-200 ease-out z-[50]",
-                "w-[260px] h-auto",
+                "fixed bg-white border border-gray-100 shadow-float rounded-2xl overflow-hidden flex flex-col transition-all duration-200 ease-out z-50",
+                "w-64 h-auto",
                 isOpen
                     ? "opacity-100 scale-100 visible"
                     : "opacity-0 scale-95 invisible pointer-events-none"
@@ -163,7 +163,7 @@ export function FinanceiroFlyoutPanel({ isOpen, onClose, anchorRef }: Financeiro
                         <button
                             onClick={() => handleNavigation(item.href)}
                             className={cn(
-                                "flex w-full items-center rounded-md transition-colors mb-0.5 group text-left px-2 py-2 hover:bg-gray-50",
+                                "flex w-full items-center rounded-2xl transition-colors mb-0.5 group text-left px-2 py-2 hover:bg-gray-50",
                             )}
                         >
                             <item.icon className="w-5 h-5 text-gray-500 group-hover:text-gray-900 transition-colors mr-3 shrink-0" />

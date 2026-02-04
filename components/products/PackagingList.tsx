@@ -9,6 +9,8 @@ import {
 import { cn } from "@/lib/utils";
 import { ItemPackaging } from "@/types/product";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
 import { Edit2, Trash2, Package, Star } from "lucide-react";
 
 interface PackagingListProps {
@@ -30,7 +32,7 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
     }
 
     return (
-        <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white shadow-sm">
+        <Card className="overflow-hidden">
             <Table>
                 <TableHeader className="bg-gray-50/50">
                     <TableRow className="hover:bg-transparent border-gray-100">
@@ -50,9 +52,9 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                             <TableRow key={originalIndex} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
                                 <TableCell className="px-6 py-4">
                                     <div className="flex items-center">
-                                        <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 shadow-sm border border-brand-100/50">
+                                        <Card className="flex-shrink-0 h-9 w-9 bg-brand-50 flex items-center justify-center text-brand-600 border-brand-100/50">
                                             <Package className="w-5 h-5" />
-                                        </div>
+                                        </Card>
                                         <div className="ml-4">
                                             <div className="text-sm font-bold text-gray-900 leading-tight">{pkg.label}</div>
                                             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">{pkg.type}</div>
@@ -60,7 +62,7 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                                     </div>
                                 </TableCell>
                                 <TableCell className="px-6 py-4 text-center">
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 text-xs font-bold border border-slate-100">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-2xl bg-slate-50 text-slate-600 text-xs font-bold border border-slate-100">
                                         {pkg.qty_in_base} <span className="mx-1 opacity-40">×</span> {baseUom}
                                     </span>
                                 </TableCell>
@@ -75,10 +77,10 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                                 </TableCell>
                                 <TableCell className="px-6 py-4 text-center">
                                     {pkg.is_default_sales_unit ? (
-                                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100 text-[10px] font-bold uppercase tracking-wider shadow-sm">
+                                        <Badge className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100 text-[10px] font-bold uppercase tracking-wider">
                                             <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
                                             Principal
-                                        </div>
+                                        </Badge>
                                     ) : null}
                                 </TableCell>
                                 <TableCell className="px-6 py-4 text-center">
@@ -98,7 +100,7 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => onEdit(originalIndex)}
-                                            className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
+                                            className="h-8 w-8 rounded-2xl hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
                                         >
                                             <Edit2 className="w-4 h-4" />
                                         </Button>
@@ -106,7 +108,7 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => onDelete(originalIndex)}
-                                            className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+                                            className="h-8 w-8 rounded-2xl hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </Button>
@@ -117,6 +119,6 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                     })}
                 </TableBody>
             </Table>
-        </div>
+        </Card>
     );
 }

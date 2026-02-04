@@ -134,7 +134,7 @@ BEGIN
             v_company_id, 'RETURN', p_order_id, 
             'Devolução #' || v_order_number || '-' || substring(v_event_id::text, 1, 8),
             v_client_id, 'Cliente (Crédito)', 'AP', CURRENT_DATE, v_total_credit,
-            'pendente',
+            'pending',
             'Crédito gerado por devolução: ' || v_reason_text,
             NOW()
         ) RETURNING id INTO v_financial_event_id;

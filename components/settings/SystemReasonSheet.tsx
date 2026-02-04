@@ -198,7 +198,7 @@ export function SystemReasonSheet({
                             <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wider border-b pb-2">Regras de Automação</h3>
 
                             <div className="grid gap-4">
-                                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-2xl border border-gray-100">
                                     <Checkbox
                                         id="require_note"
                                         checked={form.require_note}
@@ -210,7 +210,7 @@ export function SystemReasonSheet({
                                     </div>
                                 </div>
 
-                                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-2xl border border-gray-100">
                                     <Checkbox
                                         id="return_to_sandbox_pending"
                                         checked={form.return_to_sandbox_pending}
@@ -222,7 +222,7 @@ export function SystemReasonSheet({
                                     </div>
                                 </div>
 
-                                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-2xl border border-gray-100">
                                     <Checkbox
                                         id="reverse_stock_and_finance"
                                         checked={form.reverse_stock_and_finance}
@@ -234,7 +234,7 @@ export function SystemReasonSheet({
                                     </div>
                                 </div>
 
-                                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-2xl border border-gray-100">
                                     <Checkbox
                                         id="create_devolution"
                                         checked={form.create_devolution}
@@ -246,7 +246,7 @@ export function SystemReasonSheet({
                                     </div>
                                 </div>
 
-                                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-2xl border border-gray-100">
                                     <Checkbox
                                         id="write_internal_notes"
                                         checked={form.write_internal_notes}
@@ -258,7 +258,7 @@ export function SystemReasonSheet({
                                     </div>
                                 </div>
 
-                                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-2xl border border-gray-100">
                                     <Checkbox
                                         id="register_attempt_note"
                                         checked={form.register_attempt_note}

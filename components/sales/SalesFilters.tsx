@@ -201,7 +201,7 @@ export function SalesFilters({ filters, onChange }: SalesFiltersProps) {
                                 <Button
                                     variant={"secondary"}
                                     className={cn(
-                                        "w-full justify-start text-left font-normal rounded-2xl border-gray-200 bg-white h-10 shadow-sm",
+                                        "w-full justify-start text-left font-normal rounded-2xl border-gray-200 bg-white h-10 shadow-card",
                                         !localFilters.dateFrom && "text-muted-foreground"
                                     )}
                                 >
@@ -252,11 +252,11 @@ export function SalesFilters({ filters, onChange }: SalesFiltersProps) {
                             <SelectContent>
                                 <SelectItem value="all">Todos</SelectItem>
                                 <SelectItem value="pending">Pendente</SelectItem>
-                                <SelectItem value="roteirizado">Roteirizado</SelectItem>
-                                <SelectItem value="agendado">Agendado</SelectItem>
-                                <SelectItem value="em_rota">Em Rota</SelectItem>
-                                <SelectItem value="entregue">Entregue</SelectItem>
-                                <SelectItem value="nao_entregue">Não Entregue</SelectItem>
+                                <SelectItem value="routed">Roteirizado</SelectItem>
+                                <SelectItem value="scheduled">Agendado</SelectItem>
+                                <SelectItem value="in_route">Em Rota</SelectItem>
+                                <SelectItem value="delivered">Entregue</SelectItem>
+                                <SelectItem value="not_delivered">Não Entregue</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -287,7 +287,7 @@ export function SalesFilters({ filters, onChange }: SalesFiltersProps) {
                                 <Button
                                     variant={"secondary"}
                                     className={cn(
-                                        "w-full justify-start text-left font-normal rounded-2xl border-gray-200 bg-white h-10 shadow-sm",
+                                        "w-full justify-start text-left font-normal rounded-2xl border-gray-200 bg-white h-10 shadow-card",
                                         !localFilters.dateTo && "text-muted-foreground"
                                     )}
                                 >

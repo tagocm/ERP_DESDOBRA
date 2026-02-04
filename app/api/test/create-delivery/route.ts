@@ -2,8 +2,12 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { createDeliveryFromSalesOrder } from "@/lib/services/deliveries";
+import { requireInternalApiAccess } from "@/lib/api/internal";
 
 export async function POST(request: Request) {
+    const gate = requireInternalApiAccess(request);
+    if (gate) return gate;
+
     const supabase = await createClient();
 
     try {

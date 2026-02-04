@@ -6,7 +6,7 @@
  * 2. "Char map" corruption (spread string: { "0": "{", "1": "\"", ... })
  * 3. Mixed content (valid keys + char map)
  */
-export function normalizeDetails(details: any): Record<string, any> {
+export function normalizeDetails(details: unknown): Record<string, unknown> {
     if (!details) return {};
 
     let current = details;
@@ -15,7 +15,7 @@ export function normalizeDetails(details: any): Record<string, any> {
     if (typeof current === 'string') {
         try {
             current = JSON.parse(current);
-        } catch (e) {
+        } catch (_e) {
             // If simple string, wrap it
             return { legacy_message: current };
         }
@@ -37,18 +37,18 @@ export function normalizeDetails(details: any): Record<string, any> {
             // Reconstruct string to see if it contains valuable info
             let reconstructed = '';
             for (const k of numericKeys) {
-                reconstructed += current[k];
+                reconstructed += (current as Record<string, string>)[k];
             }
 
             let parsedOld: any = {};
             try {
                 parsedOld = JSON.parse(reconstructed);
-            } catch (e) {
+            } catch (_e) {
                 parsedOld = { legacy_message: reconstructed };
             }
 
             // Clean current object (remove numeric keys)
-            const cleanObj = { ...current };
+            const cleanObj = { ...(current as Record<string, unknown>) };
             for (const k of numericKeys) {
                 delete cleanObj[k];
             }
@@ -68,9 +68,9 @@ export function normalizeDetails(details: any): Record<string, any> {
 
         } catch (e) {
             console.warn('Error normalizing details, returning original', e);
-            return current;
+            return current as Record<string, unknown>;
         }
     }
 
-    return current;
+    return current as Record<string, unknown>;
 }

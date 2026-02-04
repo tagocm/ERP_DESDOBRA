@@ -23,7 +23,7 @@ export function CompanySelector({ collapsed }: CompanySelectorProps) {
             <Button
                 variant="ghost"
                 className={cn(
-                    "flex items-center transition-all duration-300 rounded-lg overflow-hidden h-12 hover:bg-gray-100",
+                    "flex items-center transition-all duration-300 rounded-2xl overflow-hidden h-12 hover:bg-gray-100",
                     // Use consistent width and padding strategy
                     // Sidebar is w-16 (64px) collapsed. Footer p-2 => 16px padding total. Available 48px.
                     // If we make the button w-full, it will be 48px wide.
@@ -57,7 +57,7 @@ export function CompanySelector({ collapsed }: CompanySelectorProps) {
                 )}>
                     {/* Inner Icon Background */}
                     <div className={cn(
-                        "flex items-center justify-center rounded-lg transition-all duration-300",
+                        "flex items-center justify-center rounded-2xl transition-all duration-300",
                         // When collapsed: clean icon. When expanded: background box.
                         collapsed ? "w-8 h-8 bg-transparent" : "w-8 h-8 bg-brand-100"
                     )}>
@@ -94,7 +94,7 @@ export function CompanySelector({ collapsed }: CompanySelectorProps) {
                         onClick={() => setIsOpen(false)}
                     />
                     <div className={cn(
-                        "absolute z-50 bg-white rounded-xl border border-gray-200 shadow-xl py-1 animate-in fade-in zoom-in-95 duration-200 w-64",
+                        "absolute z-50 bg-white rounded-2xl border border-gray-200 shadow-float py-1 animate-in fade-in zoom-in-95 duration-200 w-64",
                         // Position based on collapsed state
                         collapsed
                             ? "left-full bottom-0 ml-2"
@@ -103,7 +103,7 @@ export function CompanySelector({ collapsed }: CompanySelectorProps) {
                         <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                             Minhas Empresas
                         </div>
-                        <div className="max-h-[200px] overflow-y-auto">
+                        <div className="max-h-52 overflow-y-auto">
                             {companies.map((company) => (
                                 <button
                                     key={company.id}
@@ -118,7 +118,7 @@ export function CompanySelector({ collapsed }: CompanySelectorProps) {
                                 >
                                     <div className="flex items-center gap-3 truncate">
                                         <div className={cn(
-                                            "w-2 h-2 rounded-full",
+                                            "w-2 h-2 rounded-2xl",
                                             selectedCompany.id === company.id ? "bg-brand-500" : "bg-gray-300"
                                         )} />
                                         <span className={cn(
@@ -136,7 +136,7 @@ export function CompanySelector({ collapsed }: CompanySelectorProps) {
                         </div>
                         <div className="border-t border-gray-100 mt-1 pt-1 p-1">
                             <button
-                                className="w-full text-left px-3 py-2 text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50 rounded-lg transition-colors"
+                                className="w-full text-left px-3 py-2 text-xs font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-50 rounded-2xl transition-colors"
                                 onClick={() => setIsOpen(false)}
                             >
                                 + Gerenciar Empresas

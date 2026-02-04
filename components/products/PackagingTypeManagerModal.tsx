@@ -26,6 +26,7 @@ import { PackagingType, createPackagingType, deletePackagingType, getAllPackagin
 import { useCompany } from "@/contexts/CompanyContext";
 import { cn } from "@/lib/utils";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
+import { Card } from "@/components/ui/Card";
 
 interface PackagingTypeManagerModalProps {
     open?: boolean;
@@ -177,7 +178,7 @@ export function PackagingTypeManagerModal({ open: controlledOpen, onOpenChange, 
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-            <DialogContent className="max-w-[800px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl">
+            <DialogContent className="max-w-4xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl">
                 <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
                     <div>
                         <DialogTitle className="text-xl font-semibold text-gray-900">Tipos de Embalagem</DialogTitle>
@@ -193,9 +194,9 @@ export function PackagingTypeManagerModal({ open: controlledOpen, onOpenChange, 
                     )}
                 </div>
 
-                <div className="p-6 overflow-y-auto max-h-[60vh]">
+                <div className="p-6 overflow-y-auto max-h-screen">
                     {(isCreating || editingId) && (
-                        <div className="mb-6 bg-white p-4 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-top-2">
+                        <Card className="mb-6 bg-white p-4 border border-gray-200/70 shadow-card animate-in fade-in slide-in-from-top-2">
                             <h4 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                 {isCreating ? <Plus className="w-4 h-4 text-brand-600" /> : <Edit className="w-4 h-4 text-brand-600" />}
                                 {isCreating ? "Novo Tipo" : "Editar Tipo"}
@@ -239,17 +240,17 @@ export function PackagingTypeManagerModal({ open: controlledOpen, onOpenChange, 
                                     </Button>
                                 </div>
                             </div>
-                        </div>
+                        </Card>
                     )}
 
-                    <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                    <Card className="border border-gray-200/70 overflow-hidden bg-white shadow-card">
                         <Table>
                             <TableHeader className="bg-gray-50/50">
                                 <TableRow className="hover:bg-transparent border-gray-100">
-                                    <TableHead className="w-[45%] text-xs font-semibold text-gray-500 h-10">NOME</TableHead>
-                                    <TableHead className="w-[20%] text-xs font-semibold text-gray-500 h-10">CÓDIGO</TableHead>
-                                    <TableHead className="w-[20%] text-xs font-semibold text-gray-500 h-10 text-center">ORIGEM</TableHead>
-                                    <TableHead className="w-[15%] text-xs font-semibold text-gray-500 h-10 text-right pr-4">AÇÕES</TableHead>
+                                    <TableHead className="w-5/12 text-xs font-semibold text-gray-500 h-10">NOME</TableHead>
+                                    <TableHead className="w-2/12 text-xs font-semibold text-gray-500 h-10">CÓDIGO</TableHead>
+                                    <TableHead className="w-2/12 text-xs font-semibold text-gray-500 h-10 text-center">ORIGEM</TableHead>
+                                    <TableHead className="w-3/12 text-xs font-semibold text-gray-500 h-10 text-right pr-4">AÇÕES</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -292,7 +293,7 @@ export function PackagingTypeManagerModal({ open: controlledOpen, onOpenChange, 
                                                         <>
                                                             <Button
                                                                 variant="ghost"
-                                                                className="h-7 w-7 p-0 rounded-lg hover:bg-blue-50 hover:text-blue-600"
+                                                                className="h-7 w-7 p-0 rounded-2xl hover:bg-blue-50 hover:text-blue-600"
                                                                 onClick={() => startEdit(type)}
                                                                 disabled={loading}
                                                             >
@@ -300,7 +301,7 @@ export function PackagingTypeManagerModal({ open: controlledOpen, onOpenChange, 
                                                             </Button>
                                                             <Button
                                                                 variant="ghost"
-                                                                className="h-7 w-7 p-0 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400"
+                                                                className="h-7 w-7 p-0 rounded-2xl hover:bg-red-50 hover:text-red-600 text-gray-400"
                                                                 onClick={() => setDeletingId(type.id)}
                                                             >
                                                                 <Trash2 className="w-3.5 h-3.5" />
@@ -317,7 +318,7 @@ export function PackagingTypeManagerModal({ open: controlledOpen, onOpenChange, 
                                 )}
                             </TableBody>
                         </Table>
-                    </div>
+                    </Card>
                 </div>
             </DialogContent>
 

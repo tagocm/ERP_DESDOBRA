@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
             .from('company_members')
             .select('company_id')
             .eq('company_id', companyId)
-            .eq('user_id', user.id)
+            .eq('auth_user_id', user.id)
             .single();
 
         if (membershipError || !membership) {

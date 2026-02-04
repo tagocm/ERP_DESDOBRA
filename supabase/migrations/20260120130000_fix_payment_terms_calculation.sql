@@ -62,7 +62,7 @@ BEGIN
             'AR',
             COALESCE(NEW.date_issued, v_confirmation_date),
             COALESCE(NEW.total_amount, 0),
-            'pendente',
+            'pending',
             v_op_status
         )
         ON CONFLICT (company_id, origin_type, origin_id) 
@@ -73,18 +73,18 @@ BEGIN
             
             -- SMART STATUS RESET
             status = CASE
-                WHEN financial_events.status = 'reprovado' THEN 'pendente'
-                WHEN financial_events.status = 'aprovado' THEN 'aprovado'
+                WHEN financial_events.status = 'rejected' THEN 'pending'
+                WHEN financial_events.status = 'approved' THEN 'approved'
                 ELSE financial_events.status
             END,
             
             -- Clear rejection fields
-            rejected_by = CASE WHEN financial_events.status = 'reprovado' THEN NULL ELSE financial_events.rejected_by END,
-            rejected_at = CASE WHEN financial_events.status = 'reprovado' THEN NULL ELSE financial_events.rejected_at END,
-            rejection_reason = CASE WHEN financial_events.status = 'reprovado' THEN NULL ELSE financial_events.rejection_reason END,
-            attention_marked_by = CASE WHEN financial_events.status = 'reprovado' THEN NULL ELSE financial_events.attention_marked_by END,
-            attention_marked_at = CASE WHEN financial_events.status = 'reprovado' THEN NULL ELSE financial_events.attention_marked_at END,
-            attention_reason = CASE WHEN financial_events.status = 'reprovado' THEN NULL ELSE financial_events.attention_reason END;
+            rejected_by = CASE WHEN financial_events.status = 'rejected' THEN NULL ELSE financial_events.rejected_by END,
+            rejected_at = CASE WHEN financial_events.status = 'rejected' THEN NULL ELSE financial_events.rejected_at END,
+            rejection_reason = CASE WHEN financial_events.status = 'rejected' THEN NULL ELSE financial_events.rejection_reason END,
+            attention_marked_by = CASE WHEN financial_events.status = 'rejected' THEN NULL ELSE financial_events.attention_marked_by END,
+            attention_marked_at = CASE WHEN financial_events.status = 'rejected' THEN NULL ELSE financial_events.attention_marked_at END,
+            attention_reason = CASE WHEN financial_events.status = 'rejected' THEN NULL ELSE financial_events.attention_reason END;
         
         -- Fetch payment info
         IF NEW.payment_terms_id IS NOT NULL THEN
@@ -220,7 +220,7 @@ BEGIN
             updated_at = NOW()
         WHERE origin_type = 'SALE' 
           AND origin_id = NEW.id
-          AND status NOT IN ('aprovado', 'reprovado');
+          AND status NOT IN ('approved', 'rejected');
     END IF;
 
     RETURN NEW;

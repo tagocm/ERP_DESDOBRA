@@ -87,7 +87,7 @@ export function DayDetailsPopover({
                         const totalWeight = route.orders?.reduce((sum, ro) => sum + (ro.sales_order?.total_weight_kg || 0), 0) || 0;
 
                         return (
-                            <div key={route.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                            <div key={route.id} className="border border-gray-200 rounded-2xl overflow-hidden">
                                 {/* Route Header */}
                                 <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
                                     <div className="flex items-start justify-between mb-2">

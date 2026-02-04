@@ -69,7 +69,7 @@ export function AddToRouteModal({
                             {availableRoutes.length > 0 && (
                                 <div className="space-y-2">
                                     <h4 className="text-sm font-medium text-gray-700">Rotas existentes</h4>
-                                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                                    <div className="space-y-2 max-h-72 overflow-y-auto">
                                         {availableRoutes.map(route => {
                                             const orderCount = route.orders?.length || 0;
                                             const totalValue = route.orders?.reduce((sum, ro) => sum + (ro.sales_order?.total_amount || 0), 0) || 0;
@@ -78,7 +78,7 @@ export function AddToRouteModal({
                                                 <button
                                                     key={route.id}
                                                     onClick={() => handleSelectRoute(route.id)}
-                                                    className="w-full p-3 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-colors text-left group"
+                                                    className="w-full p-3 border border-gray-200 rounded-2xl hover:border-blue-300 hover:bg-blue-50 transition-colors text-left group"
                                                 >
                                                     <div className="font-medium text-gray-900 mb-1">{route.name}</div>
                                                     <div className="flex items-center gap-4 text-xs text-gray-500">

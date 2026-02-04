@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabaseServer';
+import { createClient } from '@/utils/supabase/server';
 
 export async function POST(request: NextRequest) {
     try {
-        // Get authenticated user
-        const supabase = createAdminClient();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        const supabaseUser = await createClient();
+        const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
 
         if (authError || !user) {
             return NextResponse.json(
@@ -25,12 +24,12 @@ export async function POST(request: NextRequest) {
         }
 
         // Verify user is member of the company
-        const { data: membership, error: membershipError } = await supabase
+        const { data: membership, error: membershipError } = await supabaseUser
             .from('company_members')
             .select('company_id')
             .eq('company_id', companyId)
-            .eq('user_id', user.id)
-            .single();
+            .eq('auth_user_id', user.id)
+            .maybeSingle();
 
         if (membershipError || !membership) {
             return NextResponse.json(
@@ -40,11 +39,11 @@ export async function POST(request: NextRequest) {
         }
 
         // Get logo path from settings
-        const { data: settings, error: settingsError } = await supabase
+        const { data: settings, error: settingsError } = await supabaseUser
             .from('company_settings')
             .select('logo_path')
             .eq('company_id', companyId)
-            .single();
+            .maybeSingle();
 
         if (settingsError || !settings?.logo_path) {
             return NextResponse.json(
@@ -53,8 +52,16 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        const expectedPrefixes = [`companies/${companyId}/`, `${companyId}/`];
+        if (!expectedPrefixes.some((p) => settings.logo_path.startsWith(p))) {
+            return NextResponse.json(
+                { error: 'Nenhum logo encontrado' },
+                { status: 404 }
+            );
+        }
+
         // Generate signed URL (valid for 1 hour)
-        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        const { data: signedUrlData, error: signedUrlError } = await supabaseUser.storage
             .from('company-assets')
             .createSignedUrl(settings.logo_path, 3600); // 1 hour
 

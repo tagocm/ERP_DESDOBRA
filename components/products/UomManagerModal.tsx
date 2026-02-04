@@ -28,6 +28,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/Alert";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
+import { Card } from "@/components/ui/Card";
 
 interface UomManagerModalProps {
     open?: boolean;
@@ -157,7 +158,7 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
     return (
         <Dialog open={isOpen} onOpenChange={setOpen}>
             {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-            <DialogContent className="max-w-[800px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl">
+            <DialogContent className="max-w-4xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl">
                 <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
                     <div>
                         <DialogTitle className="text-xl font-semibold text-gray-900">Unidades de Medida</DialogTitle>
@@ -173,9 +174,9 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
                     )}
                 </div>
 
-                <div className="p-6 overflow-y-auto max-h-[60vh]">
+                <div className="p-6 overflow-y-auto max-h-screen">
                     {(isCreating || editingId) && (
-                        <div className="mb-6 bg-white p-4 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-top-2">
+                        <Card className="mb-6 bg-white p-4 border border-gray-200/70 shadow-card animate-in fade-in slide-in-from-top-2">
                             <h4 className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                                 {isCreating ? <Plus className="w-4 h-4 text-brand-600" /> : <Edit className="w-4 h-4 text-brand-600" />}
                                 {isCreating ? "Nova Unidade" : "Editar Unidade"}
@@ -211,17 +212,17 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
                                     </Button>
                                 </div>
                             </div>
-                        </div>
+                        </Card>
                     )}
 
-                    <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                    <Card className="border border-gray-200/70 overflow-hidden bg-white shadow-card">
                         <Table>
                             <TableHeader className="bg-gray-50/50">
                                 <TableRow className="hover:bg-transparent border-gray-100">
-                                    <TableHead className="w-[40%] text-xs font-semibold text-gray-500 h-10">NOME</TableHead>
-                                    <TableHead className="w-[20%] text-xs font-semibold text-gray-500 h-10">ABREVIAÇÃO</TableHead>
-                                    <TableHead className="w-[20%] text-xs font-semibold text-gray-500 h-10 text-center">EM USO</TableHead>
-                                    <TableHead className="w-[20%] text-xs font-semibold text-gray-500 h-10 text-right pr-4">AÇÕES</TableHead>
+                                    <TableHead className="w-2/5 text-xs font-semibold text-gray-500 h-10">NOME</TableHead>
+                                    <TableHead className="w-1/5 text-xs font-semibold text-gray-500 h-10">ABREVIAÇÃO</TableHead>
+                                    <TableHead className="w-1/5 text-xs font-semibold text-gray-500 h-10 text-center">EM USO</TableHead>
+                                    <TableHead className="w-1/5 text-xs font-semibold text-gray-500 h-10 text-right pr-4">AÇÕES</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -260,7 +261,7 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
                                                 <div className="flex justify-end gap-1 opacity-100 transition-opacity">
                                                     <Button
                                                         variant="ghost"
-                                                        className="h-7 w-7 p-0 rounded-lg hover:bg-blue-50 hover:text-blue-600"
+                                                        className="h-7 w-7 p-0 rounded-2xl hover:bg-blue-50 hover:text-blue-600"
                                                         onClick={() => startEdit(uom)}
                                                         disabled={loading}
                                                     >
@@ -269,7 +270,7 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
                                                     <Button
                                                         variant="ghost"
                                                         className={cn(
-                                                            "h-7 w-7 p-0 rounded-lg",
+                                                            "h-7 w-7 p-0 rounded-2xl",
                                                             (uom.usage_count || 0) > 0
                                                                 ? "text-gray-300 cursor-not-allowed hover:bg-transparent"
                                                                 : "hover:bg-red-50 hover:text-red-600 text-gray-400"
@@ -287,7 +288,7 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
                                 )}
                             </TableBody>
                         </Table>
-                    </div>
+                    </Card>
                 </div>
             </DialogContent>
 

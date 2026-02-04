@@ -126,7 +126,7 @@ function DayColumn({ date, dateKey, routes, isToday, onDayClick, renderRouteCard
             </button>
 
             {/* Routes Container - Fixed height for 3 cards, scroll for more */}
-            <div className="p-1 space-y-0.5 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 h-[96px]">
+            <div className="p-1 space-y-0.5 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400 h-24">
                 {routes.length === 0 ? (
                     <div className="h-full flex items-center justify-center text-center">
                         <div className="text-[10px] text-gray-300 px-1 leading-tight">

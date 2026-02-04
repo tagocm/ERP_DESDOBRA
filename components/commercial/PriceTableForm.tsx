@@ -288,7 +288,7 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
                 }
             />
 
-            <div className="container mx-auto max-w-[1600px] px-6 pb-8 space-y-6">
+            <div className="container mx-auto max-w-screen-2xl px-6 pb-8 space-y-6">
 
                 {/* CARD A: GERAL */}
                 <Card>
@@ -343,7 +343,7 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
                                         type="checkbox"
                                         checked={formData.is_active}
                                         onChange={e => setFormData({ ...formData, is_active: e.target.checked })}
-                                        className="w-4 h-4 text-brand-600 rounded border-gray-300 focus:ring-brand-500"
+                                        className="w-4 h-4 text-brand-600 rounded-2xl border-gray-300 focus:ring-brand-500"
                                     />
                                     <span className="text-sm font-medium text-gray-900">Tabela Ativa</span>
                                 </label>
@@ -354,7 +354,7 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
                                         type="checkbox"
                                         checked={formData.freight_included}
                                         onChange={e => setFormData({ ...formData, freight_included: e.target.checked })}
-                                        className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300"
+                                        className="w-4 h-4 rounded-2xl text-brand-600 focus:ring-brand-500 border-gray-300"
                                     />
                                     <span className="text-sm font-medium text-gray-900">Frete incluso (CIF)</span>
                                 </label>
@@ -384,13 +384,13 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
                                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
                                     <Input
                                         placeholder="Filtrar itens..."
-                                        className="h-9 pl-8 w-[200px]"
+                                        className="h-9 pl-8 w-52"
                                         value={searchTerm}
                                         onChange={e => setSearchTerm(e.target.value)}
                                     />
                                 </div>
                                 <select
-                                    className="h-9 rounded-md border border-gray-300 bg-white px-3 py-1 text-sm focus-visible:outline-none"
+                                    className="h-9 rounded-2xl border border-gray-300 bg-white px-3 py-1 text-sm focus-visible:outline-none"
                                     value={filterType}
                                     onChange={(e) => setFilterType(e.target.value as any)}
                                 >
@@ -442,12 +442,12 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
 
                                                 <div className="space-y-1">
                                                     {items.map(product => (
-                                                        <div key={product.id} className="grid grid-cols-12 gap-x-4 items-center py-1.5 hover:bg-gray-50 rounded px-2 -mx-2 transition-colors group">
+                                                        <div key={product.id} className="grid grid-cols-12 gap-x-4 items-center py-1.5 hover:bg-gray-50 rounded-2xl px-2 -mx-2 transition-colors group">
                                                             <div className="col-span-6 md:col-span-7 break-words pr-2">
                                                                 <div className="text-sm font-medium text-gray-900 leading-tight">{product.name}</div>
                                                                 {product.sku && <div className="text-xs text-gray-500 font-mono mt-0.5">{product.sku}</div>}
                                                             </div>
-                                                            <div className="col-span-2 md:col-span-1 text-center text-xs text-gray-500 bg-gray-50 rounded py-1 border border-gray-100">
+                                                            <div className="col-span-2 md:col-span-1 text-center text-xs text-gray-500 bg-gray-50 rounded-2xl py-1 border border-gray-100">
                                                                 {product.uom}
                                                             </div>
                                                             <div className="col-span-2 md:col-span-2 text-right text-xs text-gray-500">
@@ -459,7 +459,7 @@ export function PriceTableForm({ initialData, isEdit }: PriceTableFormProps) {
                                                             <div className="col-span-2 md:col-span-2 flex justify-end">
                                                                 <DecimalInput
                                                                     placeholder="0,00"
-                                                                    className="w-full text-right h-9 rounded-md border border-gray-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 group-hover:border-gray-300"
+                                                                    className="w-full text-right h-9 rounded-2xl border border-gray-200 bg-white px-3 py-1 text-sm transition-colors focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 group-hover:border-gray-300"
                                                                     value={prices[product.id]}
                                                                     onChange={(val) => handlePriceChange(product.id, val)}
                                                                 />

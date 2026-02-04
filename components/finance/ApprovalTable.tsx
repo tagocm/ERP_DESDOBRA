@@ -33,6 +33,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { formatCurrency, toTitleCase, cn } from "@/lib/utils";
 import { ApprovalRowExpanded } from "./ApprovalRowExpanded";
 import { getFinancialBadgeStyle } from "@/lib/constants/statusColors";
+import { normalizeFinancialStatus } from "@/lib/constants/status";
 
 export function ApprovalTable({ companyId }: { companyId: string }) {
     const [postings, setPostings] = useState<ArTitle[]>([]);
@@ -302,39 +303,39 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-700">
-            {/* Top Stats Row */}
-            <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 shadow-card flex flex-col gap-1 relative overflow-hidden group hover:border-blue-200 transition-all">
+            <div className="space-y-6 animate-in fade-in duration-700">
+                {/* Top Stats Row */}
+                <div className="flex flex-col sm:flex-row gap-4">
+                <Card className="flex-1 p-4 border-gray-100 flex flex-col gap-1 relative overflow-hidden group hover:border-blue-200 transition-all">
                     <span className="text-[10px] uppercase font-black text-gray-400 tracking-widest pl-1">Total Pendente</span>
                     <div className="text-2xl font-black text-gray-900 tabular-nums">
                         {formatCurrency(totalPending)}
                     </div>
                     <div className="absolute -right-6 -top-6 bg-blue-50 w-24 h-24 rounded-full opacity-50 group-hover:scale-110 transition-transform" />
-                </div>
-                <div className="flex-1 bg-white p-4 rounded-2xl border border-gray-100 shadow-card flex flex-col gap-1 relative overflow-hidden group hover:border-blue-200 transition-all">
+                </Card>
+                <Card className="flex-1 p-4 border-gray-100 flex flex-col gap-1 relative overflow-hidden group hover:border-blue-200 transition-all">
                     <span className="text-[10px] uppercase font-black text-gray-400 tracking-widest pl-1">Seleção Ativa</span>
                     <div className={`text-2xl font-black tabular-nums ${selectedIds.size > 0 ? 'text-blue-600' : 'text-gray-300'}`}>
                         {formatCurrency(totalSelected)}
                     </div>
                     <div className="absolute -right-6 -top-6 bg-blue-50 w-24 h-24 rounded-full opacity-50 group-hover:scale-110 transition-transform" />
+                </Card>
                 </div>
-            </div>
 
-            <Card className="min-h-[500px]">
+            <Card>
                 <CardHeaderStandard
                     title="Fluxo de Aprovação"
                     description="Revise e valide lançamentos financeiros antes de efetivá-los."
                     icon={<LayoutGrid className="w-5 h-5" />}
                     actions={
                         selectedIds.size > 0 && (
-                            <div className="flex items-center gap-2 animate-in slide-in-from-right-4 bg-blue-50/50 p-1.5 rounded-xl border border-blue-100/50">
+                            <div className="flex items-center gap-2 animate-in slide-in-from-right-4 bg-blue-50/50 p-1.5 rounded-2xl border border-blue-100/50">
                                 <span className="text-xs font-bold text-blue-700 px-2">
                                     {selectedIds.size} selecionados
                                 </span>
                                 <Button
                                     size="sm"
-                                    className="h-8 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                                    className="h-8 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white"
                                     onClick={() => setShowApproveDialog(true)}
                                 >
                                     <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> Aprovar
@@ -356,7 +357,7 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                         />
                     </div>
                     <Select value={filterStatus} onValueChange={setFilterStatus}>
-                        <SelectTrigger className="w-full sm:w-[180px] h-10 bg-white border-gray-200">
+                        <SelectTrigger className="w-full sm:w-44 h-10 bg-white border-gray-200">
                             <Filter className="w-4 h-4 mr-2 text-gray-500" />
                             <SelectValue placeholder="Filtrar Status" />
                         </SelectTrigger>
@@ -372,24 +373,24 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-gray-50/40 hover:bg-gray-50/40 border-b border-gray-200">
-                                <TableHead className="w-[50px] text-center"></TableHead>
-                                <TableHead className="w-[50px]">
+                                <TableHead className="w-12 text-center"></TableHead>
+                                <TableHead className="w-12">
                                     <Checkbox
                                         checked={postings.length > 0 && selectedIds.size === postings.filter(p => p.status === 'PENDING_APPROVAL').length}
                                         onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
                                         className="translate-y-[2px]"
                                     />
                                 </TableHead>
-                                <SortableHead sortKey="document" label="Documento" className="w-[120px]" />
+                                <SortableHead sortKey="document" label="Documento" className="w-32" />
                                 <SortableHead sortKey="client" label="Cliente Parceiro" />
-                                <SortableHead sortKey="date_issued" label="Lançado em" className="w-[120px]" />
-                                <SortableHead sortKey="total" label="Total" className="w-[140px]" />
-                                <SortableHead sortKey="terms" label="Condição" className="w-[100px]" />
-                                <SortableHead sortKey="flow" label="Fluxo" className="w-[100px]" />
-                                <SortableHead sortKey="installments_count" label="Parc." className="w-[80px] text-center" />
-                                <SortableHead sortKey="due_date" label="Vencimento" className="w-[120px]" />
-                                <TableHead className="w-[140px] text-center">Status Pedido</TableHead>
-                                <SortableHead sortKey="status" label="Status Pagamento" className="w-[150px] text-right" />
+                                <SortableHead sortKey="date_issued" label="Lançado em" className="w-32" />
+                                <SortableHead sortKey="total" label="Total" className="w-36" />
+                                <SortableHead sortKey="terms" label="Condição" className="w-24" />
+                                <SortableHead sortKey="flow" label="Fluxo" className="w-24" />
+                                <SortableHead sortKey="installments_count" label="Parc." className="w-20 text-center" />
+                                <SortableHead sortKey="due_date" label="Vencimento" className="w-32" />
+                                <TableHead className="w-36 text-center">Status Pedido</TableHead>
+                                <SortableHead sortKey="status" label="Status Pagamento" className="w-40 text-right" />
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -429,7 +430,7 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                                                 <TableCell className="text-center pl-4 py-3">
                                                     <div
                                                         className={cn(
-                                                            "w-6 h-6 rounded-md flex items-center justify-center transition-all duration-300",
+                                                            "w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300",
                                                             isExpanded ? 'bg-blue-100 text-blue-600 rotate-180' : 'text-gray-300 hover:bg-gray-100 hover:text-gray-500'
                                                         )}
                                                     >
@@ -452,7 +453,7 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                                                         <span className="text-[10px] text-gray-400 font-medium uppercase">Financiero</span>
                                                     </div>
                                                 </TableCell>
-                                                <TableCell className="max-w-[200px] py-3">
+                                                <TableCell className="w-48 py-3">
                                                     <div className="flex flex-col">
                                                         <span className="text-sm font-medium text-gray-700 truncate" title={posting.organization?.legal_name || ""}>
                                                             {toTitleCase(posting.organization?.trade_name || posting.organization?.legal_name || 'Não identificado')}
@@ -469,7 +470,7 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                                                     </span>
                                                 </TableCell>
                                                 <TableCell className="py-3">
-                                                    <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-md truncate block uppercase">
+                                                    <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full truncate block uppercase">
                                                         {posting.payment_terms_snapshot || '-'}
                                                     </span>
                                                 </TableCell>
@@ -489,10 +490,10 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                                                 <TableCell className="text-center py-3">
                                                     <span className={cn(
                                                         "inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                                                        getFinancialBadgeStyle(posting.sales_document?.financial_status || 'pendente').bg,
-                                                        getFinancialBadgeStyle(posting.sales_document?.financial_status || 'pendente').text
+                                                        getFinancialBadgeStyle(normalizeFinancialStatus(posting.sales_document?.financial_status) || posting.sales_document?.financial_status || 'pending').bg,
+                                                        getFinancialBadgeStyle(normalizeFinancialStatus(posting.sales_document?.financial_status) || posting.sales_document?.financial_status || 'pending').text
                                                     )}>
-                                                        {getFinancialBadgeStyle(posting.sales_document?.financial_status || 'pendente').label}
+                                                        {getFinancialBadgeStyle(normalizeFinancialStatus(posting.sales_document?.financial_status) || posting.sales_document?.financial_status || 'pending').label}
                                                     </span>
                                                 </TableCell>
                                                 <TableCell className="text-right py-3 pr-4">
@@ -524,7 +525,7 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
             </Card>
 
             <AlertDialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
-                <AlertDialogContent className="rounded-2xl border-none shadow-xl">
+                <AlertDialogContent className="rounded-2xl border-none shadow-float">
                     <AlertDialogHeader>
                         <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mb-2 mx-auto sm:mx-0">
                             <CheckCircle className="w-6 h-6 text-blue-600" />
@@ -535,11 +536,11 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleBatchApprove}
                             disabled={isApproving}
-                            className="bg-blue-600 hover:bg-blue-700 rounded-xl"
+                            className="bg-blue-600 hover:bg-blue-700"
                         >
                             {isApproving ? "Processando..." : "Sim, Aprovar"}
                         </AlertDialogAction>

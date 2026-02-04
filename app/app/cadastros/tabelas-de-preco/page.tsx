@@ -5,6 +5,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Card } from "@/components/ui/Card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Plus, Search, Trash2, Pencil, Copy, Calendar, Tag, Edit2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -116,13 +117,13 @@ export default function PriceTablesPage() {
                 }
             />
 
-            <div className="max-w-[1600px] mx-auto px-6 h-full pb-10">
+            <div className="max-w-screen-2xl mx-auto px-6 h-full pb-10">
                 <div className="mb-6 flex gap-4">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <Input
                             placeholder="Buscar por nome..."
-                            className="pl-10 h-10 rounded-xl bg-white border-gray-200"
+                            className="pl-10 h-10 rounded-2xl bg-white border-gray-200"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
@@ -131,7 +132,7 @@ export default function PriceTablesPage() {
                         value={statusFilter}
                         onValueChange={(val) => setStatusFilter(val)}
                     >
-                        <SelectTrigger className="w-48 h-10 rounded-xl bg-white border-gray-200">
+                        <SelectTrigger className="w-48 h-10 rounded-2xl bg-white border-gray-200">
                             <SelectValue placeholder="Todas as situações" />
                         </SelectTrigger>
                         <SelectContent>
@@ -142,7 +143,7 @@ export default function PriceTablesPage() {
                     </Select>
                 </div>
 
-                <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white shadow-sm">
+                <Card className="overflow-hidden">
                     <Table>
                         <TableHeader className="bg-gray-50/50">
                             <TableRow className="hover:bg-transparent border-gray-100">
@@ -252,7 +253,7 @@ export default function PriceTablesPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 rounded-lg hover:bg-brand-50 hover:text-brand-600 text-gray-400 transition-colors"
+                                                className="h-8 w-8 rounded-2xl hover:bg-brand-50 hover:text-brand-600 text-gray-400 transition-colors"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleDuplicate(table.id);
@@ -264,7 +265,7 @@ export default function PriceTablesPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 rounded-lg hover:bg-brand-50 hover:text-brand-600 text-gray-400 transition-colors"
+                                                className="h-8 w-8 rounded-2xl hover:bg-brand-50 hover:text-brand-600 text-gray-400 transition-colors"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         router.push(`/app/cadastros/tabelas-de-preco/${table.id}`);
@@ -276,7 +277,7 @@ export default function PriceTablesPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+                                                className="h-8 w-8 rounded-2xl hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleDelete(table.id, table.name);
@@ -292,11 +293,11 @@ export default function PriceTablesPage() {
                             )}
                         </TableBody>
                     </Table>
-                </div>
+                </Card>
             </div>
 
             <AlertDialog open={deleteDialog.open} onOpenChange={(open) => !open && setDeleteDialog({ open: false, id: null, name: null })}>
-                <AlertDialogContent className="rounded-xl">
+                    <AlertDialogContent className="rounded-2xl">
                     <AlertDialogHeader>
                         <AlertDialogTitle>Excluir Tabela de Preços?</AlertDialogTitle>
                         <AlertDialogDescription>

@@ -23,7 +23,7 @@ export function ReturnOutcomeSelector({
                 disabled={disabled}
                 title="Entregue"
                 className={`w-8 h-8 rounded flex items-center justify-center border transition-all duration-200 ${currentOutcome === 'ENTREGUE'
-                    ? 'bg-green-500 border-green-500 shadow-sm'
+                    ? 'bg-green-500 border-green-500 shadow-card'
                     : 'bg-white border-green-200 hover:border-green-400'
                     }`}
             >
@@ -36,7 +36,7 @@ export function ReturnOutcomeSelector({
                 disabled={disabled}
                 title="Devolvido Parcial"
                 className={`w-8 h-8 rounded flex items-center justify-center border transition-all duration-200 ${currentOutcome === 'DEVOLVIDO_PARCIAL'
-                    ? 'bg-amber-400 border-amber-400 shadow-sm'
+                    ? 'bg-amber-400 border-amber-400 shadow-card'
                     : 'bg-white border-amber-200 hover:border-amber-400'
                     }`}
             >
@@ -51,7 +51,7 @@ export function ReturnOutcomeSelector({
                 disabled={disabled}
                 title="Não Entregue"
                 className={`w-8 h-8 rounded flex items-center justify-center border transition-all duration-200 ${currentOutcome === 'NAO_ENTREGUE'
-                    ? 'bg-red-500 border-red-500 shadow-sm'
+                    ? 'bg-red-500 border-red-500 shadow-card'
                     : 'bg-white border-red-200 hover:border-red-400'
                     }`}
             >

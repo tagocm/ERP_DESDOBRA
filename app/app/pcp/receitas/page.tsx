@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { Plus, Edit, Trash2, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -89,7 +90,7 @@ export default function ReceitasPage() {
                 }
             />
 
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <Card className="overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
@@ -192,7 +193,7 @@ export default function ReceitasPage() {
                         )}
                     </tbody>
                 </table>
-            </div>
+            </Card>
         </div>
     );
 }

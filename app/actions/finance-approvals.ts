@@ -34,8 +34,8 @@ export async function listPendingApprovalsAction() {
     try {
         const data = await listPendingApprovals(supabase, companyId)
         return { data }
-    } catch (error: any) {
-        return { error: error.message }
+    } catch (error: unknown) {
+        return { error: error instanceof Error ? error.message : 'Erro inesperado' }
     }
 }
 
@@ -48,8 +48,8 @@ export async function approveUnifiedAction(flow: 'AR' | 'AP', id: string) {
         await approveTitle(supabase, flow, id, user.id)
         revalidatePath('/app/financeiro/aprovacoes')
         return { success: true }
-    } catch (error: any) {
-        return { error: error.message }
+    } catch (error: unknown) {
+        return { error: error instanceof Error ? error.message : 'Erro inesperado' }
     }
 }
 
@@ -62,8 +62,8 @@ export async function rejectUnifiedAction(flow: 'AR' | 'AP', id: string, reason:
         await rejectTitle(supabase, flow, id, reason, user.id)
         revalidatePath('/app/financeiro/aprovacoes')
         return { success: true }
-    } catch (error: any) {
-        return { error: error.message }
+    } catch (error: unknown) {
+        return { error: error instanceof Error ? error.message : 'Erro inesperado' }
     }
 }
 
@@ -73,7 +73,7 @@ export async function markAttentionAction(flow: 'AR' | 'AP', id: string, reason:
         await markAttention(supabase, flow, id, reason)
         revalidatePath('/app/financeiro/aprovacoes')
         return { success: true }
-    } catch (error: any) {
-        return { error: error.message }
+    } catch (error: unknown) {
+        return { error: error instanceof Error ? error.message : 'Erro inesperado' }
     }
 }

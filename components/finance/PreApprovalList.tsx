@@ -4,9 +4,11 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import { FileText, ArrowUpRight, ArrowDownLeft, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { PreApprovalActions } from './PreApprovalActions'
 import { FinancialEvent } from '@/lib/finance/events-db'
+import { normalizeFinancialEventStatus } from '@/lib/constants/status'
 
 interface Title {
     id: string
@@ -33,7 +35,7 @@ function mapTitleToEvent(t: Title): FinancialEvent {
         total_amount: t.amount_total,
         issue_date: t.date_issued,
         attention_reason: t.attention_reason || null,
-        status: (t.attention_status as any) || 'pendente',
+        status: normalizeFinancialEventStatus(t.attention_status) || 'pending',
         // Defaults for required fields not in Title view
         company_id: '',
         origin_type: 'MANUAL',
@@ -64,7 +66,7 @@ export function PreApprovalList({ data, isLoading, onRefresh }: PreApprovalListP
 
     if (!data || data.length === 0) {
         return (
-            <div className="p-12 text-center border border-gray-200 rounded-lg bg-gray-50 text-gray-500">
+            <div className="p-12 text-center border border-gray-200 rounded-2xl bg-gray-50 text-gray-500">
                 <FileText className="w-12 h-12 mx-auto mb-4 opacity-20" />
                 <h3 className="text-lg font-medium">Tudo Aprovado!</h3>
                 <p>Não há lançamentos pendentes de aprovação.</p>
@@ -73,17 +75,17 @@ export function PreApprovalList({ data, isLoading, onRefresh }: PreApprovalListP
     }
 
     return (
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+        <Card className="bg-white overflow-hidden">
             <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
                     <thead className="bg-gray-50 text-gray-500 font-semibold border-b">
                         <tr>
                             <th className="px-6 py-4 w-12">Tipo</th>
                             <th className="px-6 py-4">Parceiro / Entidade</th>
-                            <th className="px-6 py-4 w-[140px]">Emissão</th>
+                            <th className="px-6 py-4 w-36">Emissão</th>
                             <th className="px-6 py-4">Detalhes / Termos</th>
                             <th className="px-6 py-4 text-right">Valor</th>
-                            <th className="px-6 py-4 w-[140px] text-right">Ação</th>
+                            <th className="px-6 py-4 w-36 text-right">Ação</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -139,6 +141,6 @@ export function PreApprovalList({ data, isLoading, onRefresh }: PreApprovalListP
                 title={selectedTitle ? mapTitleToEvent(selectedTitle) : null}
                 onSuccess={onRefresh}
             />
-        </div>
+        </Card>
     )
 }

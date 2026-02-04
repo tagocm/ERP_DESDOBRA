@@ -58,9 +58,9 @@ export function ReauthModal({ isOpen, onClose, onConfirm }: ReauthModalProps) {
         <Dialog open={isOpen} onOpenChange={(open) => {
             if (!open && !loading) onClose();
         }}>
-            <DialogContent className="sm:max-w-[440px] gap-6 p-6">
+            <DialogContent className="sm:max-w-lg gap-6 p-6">
                 <DialogHeader className="flex flex-col items-center gap-2 text-center sm:text-left sm:items-start sm:gap-1">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 mb-2 sm:mb-0">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-50 mb-2 sm:mb-0">
                         <ShieldCheck className="h-5 w-5 text-brand-600" />
                     </div>
                     <DialogTitle className="text-xl font-semibold text-gray-900">Confirmar Alterações</DialogTitle>
@@ -71,7 +71,7 @@ export function ReauthModal({ isOpen, onClose, onConfirm }: ReauthModalProps) {
 
                 <div className="space-y-4">
                     {error && (
-                        <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg">
+                        <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 border border-red-100 rounded-2xl">
                             <AlertCircle className="w-4 h-4 shrink-0" />
                             <span>{error}</span>
                         </div>
@@ -92,7 +92,7 @@ export function ReauthModal({ isOpen, onClose, onConfirm }: ReauthModalProps) {
 
                 <DialogFooter className="sm:justify-end gap-2">
                     <Button variant="secondary" onClick={onClose} disabled={loading} className="h-10 px-4">Cancelar</Button>
-                    <Button onClick={handleConfirm} disabled={loading} className="h-10 px-4 min-w-[140px]">
+                    <Button onClick={handleConfirm} disabled={loading} className="h-10 px-4 min-w-36">
                         {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         Confirmar
                     </Button>

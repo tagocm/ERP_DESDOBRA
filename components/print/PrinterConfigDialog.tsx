@@ -57,7 +57,7 @@ export function PrinterConfigDialog({ open, onOpenChange, printerHook }: Printer
                 <div className="py-6 space-y-4">
                     {!isQZConnected ? (
                         <div className="text-center space-y-4">
-                            <div className="bg-amber-50 text-amber-800 p-4 rounded-md text-sm">
+                            <div className="bg-amber-50 text-amber-800 p-4 rounded-2xl text-sm">
                                 O <strong>QZ Tray</strong> não foi detectado. Certifique-se de que ele está instalado e rodando em seu computador.
                             </div>
                             <Button variant="outline" onClick={() => connectQZ()} disabled={connecting}>

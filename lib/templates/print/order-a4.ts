@@ -1,5 +1,6 @@
 
 import { format } from "date-fns";
+import { translateLogisticsStatusPt } from "@/lib/constants/status";
 
 interface TemplateData {
   company: any;
@@ -179,7 +180,7 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
        </div>
        <div class="col">
          <div class="label">STATUS LOGÍSTICO</div>
-         <div class="value">${order.status_logistic || "PENDENTE"}</div>
+         <div class="value">${(translateLogisticsStatusPt(order.status_logistic) || "Pendente").toUpperCase()}</div>
        </div>
     </div>
   </div>

@@ -4,7 +4,7 @@
  */
 
 import { createAdminClient } from '@/lib/supabaseServer';
-import { SupabaseClient } from '@supabase/supabase-js';
+import { type FinancialEventStatus } from '@/lib/constants/status';
 
 export interface FinancialEvent {
     id: string;
@@ -17,7 +17,7 @@ export interface FinancialEvent {
     direction: 'AR' | 'AP';
     issue_date: string;
     total_amount: number;
-    status: 'pendente' | 'em_atencao' | 'aprovando' | 'aprovado' | 'reprovado';
+    status: FinancialEventStatus;
     operational_status?: string | null;
     approved_by: string | null;
     approved_at: string | null;
@@ -59,7 +59,7 @@ export interface ValidationPendency {
 }
 
 /**
- * List pending events for approval (pendente or em_atencao)
+ * List pending events for approval (pending or attention)
  */
 export async function listPendingEvents(companyId: string): Promise<FinancialEvent[]> {
     const supabase = await createAdminClient();
@@ -73,7 +73,7 @@ export async function listPendingEvents(companyId: string): Promise<FinancialEve
             installments:financial_event_installments(*)
         `)
         .eq('company_id', companyId)
-        .in('status', ['pendente', 'em_atencao'])
+        .in('status', ['pending', 'attention'])
         .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -137,7 +137,7 @@ export async function updateEventInstallments(
  */
 export async function updateEventStatus(
     eventId: string,
-    status: 'pendente' | 'em_atencao' | 'aprovado' | 'reprovado',
+    status: 'pending' | 'attention' | 'approved' | 'rejected',
     updates: Partial<FinancialEvent> = {}
 ): Promise<void> {
     const supabase = await createAdminClient();
@@ -167,7 +167,7 @@ export async function markEventAttention(
     const { error } = await supabase
         .from('financial_events')
         .update({
-            status: 'em_atencao',
+            status: 'attention',
             attention_marked_by: userId,
             attention_marked_at: new Date().toISOString(),
             attention_reason: reason
@@ -213,17 +213,17 @@ export async function approveEventAtomic(
 ): Promise<boolean> {
     const supabase = await createAdminClient();
 
-    // Atomic update: only if status is pendente or em_atencao
+    // Atomic update: only if status is pending or attention
     const { data, error } = await supabase
         .from('financial_events')
         .update({
-            status: 'aprovando', // Transitional state (lock)
+            status: 'approving', // Transitional state (lock)
             approved_by: userId,
             approved_at: new Date().toISOString(),
             approval_snapshot: snapshot
         })
         .eq('id', eventId)
-        .in('status', ['pendente', 'em_atencao'])
+        .in('status', ['pending', 'attention'])
         .select('id');
 
     if (error) throw error;
@@ -240,9 +240,9 @@ export async function finalizeApproval(eventId: string): Promise<void> {
 
     const { error } = await supabase
         .from('financial_events')
-        .update({ status: 'aprovado' })
+        .update({ status: 'approved' })
         .eq('id', eventId)
-        .eq('status', 'aprovando');
+        .eq('status', 'approving');
 
     if (error) throw error;
 }
@@ -256,12 +256,12 @@ export async function rollbackApproval(eventId: string): Promise<void> {
     const { error } = await supabase
         .from('financial_events')
         .update({
-            status: 'em_atencao',
+            status: 'attention',
             attention_reason: 'Falha ao criar título oficial. Verifique os dados e tente novamente.',
             attention_marked_at: new Date().toISOString()
         })
         .eq('id', eventId)
-        .eq('status', 'aprovando');
+        .eq('status', 'approving');
 
     if (error) throw error;
 }
@@ -279,7 +279,7 @@ export async function rejectEvent(
     const { error } = await supabase
         .from('financial_events')
         .update({
-            status: 'reprovado',
+            status: 'rejected',
             rejected_by: userId,
             rejected_at: new Date().toISOString(),
             rejection_reason: reason

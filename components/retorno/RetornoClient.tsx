@@ -6,6 +6,7 @@ import { Calendar, PackageCheck, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select-shadcn';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { Card } from '@/components/ui/Card';
 import { RouteDetails } from '@/components/retorno/RouteDetails';
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from 'next/navigation';
@@ -300,7 +301,7 @@ export function RetornoClient({ initialRoutes }: RetornoClientProps) {
                 <div className="grid grid-cols-12 gap-6">
                     {/* Routes List */}
                     <div className="col-span-4">
-                        <div className="bg-white border border-gray-200 rounded-lg">
+                        <Card className="border-gray-200">
                             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                                 <div>
                                     <h3 className="font-semibold text-gray-900">Rotas em Rota</h3>
@@ -319,7 +320,7 @@ export function RetornoClient({ initialRoutes }: RetornoClientProps) {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
+                            <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
                                 {filteredRoutes.length > 0 ? (
                                     filteredRoutes.map((route: any) => {
                                         const isSelected = selectedRoute?.id === route.id;
@@ -355,13 +356,13 @@ export function RetornoClient({ initialRoutes }: RetornoClientProps) {
                                         );
                                     })
                                 ) : (
-                                    <div className="h-[104px] flex flex-col items-center justify-center text-gray-500">
+                                    <div className="h-24 flex flex-col items-center justify-center text-gray-500">
                                         <Calendar className="w-8 h-8 mb-2 opacity-20" />
                                         <p className="text-sm">Nenhuma rota em andamento</p>
                                     </div>
                                 )}
                             </div>
-                        </div>
+                        </Card>
                     </div>
 
                     {/* Route Details */}
@@ -385,7 +386,7 @@ export function RetornoClient({ initialRoutes }: RetornoClientProps) {
                 description={
                     <div className="space-y-3">
                         <p>Você deseja finalizar o retorno da rota <strong>{selectedRoute?.name}</strong>?</p>
-                        <div className="bg-gray-50 rounded-lg p-3 space-y-2 text-sm">
+                        <div className="bg-gray-50 rounded-2xl p-3 space-y-2 text-sm">
                             <p><strong>Resumo das ações:</strong></p>
                             <ul className="space-y-1 ml-4 list-disc">
                                 {summary.entregues > 0 && (

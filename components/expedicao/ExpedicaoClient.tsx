@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Calendar, PackageCheck, Play, Printer, Check } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select-shadcn';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { ConfirmDialogDesdobra } from '@/components/ui/ConfirmDialogDesdobra';
@@ -12,6 +13,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabaseBrowser';
 import { resetAndUnscheduleRoute } from '@/lib/data/expedition';
+import { normalizeLoadingStatus, normalizeLogisticsStatus, normalizeRouteStatus } from '@/lib/constants/status';
 
 interface ExpedicaoClientProps {
     initialRoutes: any[];
@@ -32,7 +34,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
         if (selectedRoute) {
             const updated = (initialRoutes || []).find(r => r.id === selectedRoute.id);
             if (updated) {
-                if (updated.status === 'cancelada') {
+                if ((normalizeRouteStatus(updated.status) || updated.status) === 'cancelled') {
                     setSelectedRoute(null);
                 } else {
                     setSelectedRoute(updated);
@@ -52,9 +54,9 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
             return;
         }
 
-        const countFull = selectedRoute.orders?.filter((o: any) => o.loading_status === 'loaded').length || 0;
-        const countPartial = selectedRoute.orders?.filter((o: any) => o.loading_status === 'partial' || o.sales_order?.occurrences?.some((occ: any) => occ.occurrence_type === 'PARTIAL_LOADED')).length || 0;
-        const countNotLoaded = selectedRoute.orders?.filter((o: any) => o.loading_status === 'not_loaded' || o.sales_order?.occurrences?.some((occ: any) => occ.occurrence_type === 'NOT_LOADED_TOTAL')).length || 0;
+        const countFull = selectedRoute.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'loaded').length || 0;
+        const countPartial = selectedRoute.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'partial' || o.sales_order?.occurrences?.some((occ: any) => occ.occurrence_type === 'PARTIAL_LOADED')).length || 0;
+        const countNotLoaded = selectedRoute.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'not_loaded' || o.sales_order?.occurrences?.some((occ: any) => occ.occurrence_type === 'NOT_LOADED_TOTAL')).length || 0;
         const totalCount = selectedRoute.orders?.length || 0;
 
         // Ensure we don't double count if statuses overlap with occurrences
@@ -62,7 +64,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
         // But for "countProcessed" we just need to know if "decision made".
 
         const countProcessed = selectedRoute.orders?.filter((o: any) => {
-            const hasStatus = ['loaded', 'partial', 'not_loaded'].includes(o.loading_status);
+            const hasStatus = ['loaded', 'partial', 'not_loaded'].includes(normalizeLoadingStatus(o.loading_status) || o.loading_status);
             const hasOccurrence = o.sales_order?.occurrences?.length > 0;
             return hasStatus || hasOccurrence;
         }).length || 0;
@@ -128,11 +130,11 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
         }
     };
 
-    const hasInRouteOrders = selectedRoute?.orders?.some((o: any) => o.sales_order?.status_logistic === 'em_rota');
+    const hasInRouteOrders = selectedRoute?.orders?.some((o: any) => (normalizeLogisticsStatus(o.sales_order?.status_logistic) || o.sales_order?.status_logistic) === 'in_route');
 
     // Check if ALL orders are marked as Not Loaded
     const allOrdersNotLoaded = selectedRoute?.orders?.length > 0 &&
-        selectedRoute.orders.every((o: any) => o.loading_status === 'not_loaded');
+        selectedRoute.orders.every((o: any) => normalizeLoadingStatus(o.loading_status) === 'not_loaded');
 
     // Filter logic
     const filteredRoutes = routes.filter(route => {
@@ -151,9 +153,9 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
             // Check if same week
             const start = format(new Date(), 'ww-yyyy');
             const target = format(routeDate, 'ww-yyyy');
-            return start === target && route.status !== 'cancelada';
+            return start === target && (normalizeRouteStatus(route.status) || route.status) !== 'cancelled';
         }
-        return route.status !== 'cancelada';
+        return (normalizeRouteStatus(route.status) || route.status) !== 'cancelled';
     });
 
     return (
@@ -188,7 +190,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                     description={
                         allOrdersNotLoaded ? (
                             <div className="space-y-3">
-                                <div className="p-3 bg-red-50 border-l-4 border-red-500 rounded-r text-red-800 text-sm">
+                                <div className="p-3 bg-red-50 border-l-4 border-red-500 rounded-2xl text-red-800 text-sm">
                                     <p className="font-semibold">⚠️ Cancelamento de Rota</p>
                                     <p>Todos os {dialogConfig.totalCount} pedidos foram marcados como <strong>NÃO CARREGADO</strong>.</p>
                                 </div>
@@ -202,7 +204,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                         ) : (
                             <div className="space-y-3">
                                 {(dialogConfig.countPartial > 0 || dialogConfig.countNotLoaded > 0) ? (
-                                    <div className="p-3 bg-amber-50 border-l-4 border-amber-500 rounded-r text-amber-800 text-sm">
+                                    <div className="p-3 bg-amber-50 border-l-4 border-amber-500 rounded-2xl text-amber-800 text-sm">
                                         <p className="font-semibold">⚠️ Atenção para exceções</p>
                                         <ul className="list-disc ml-4 mt-1">
                                             {dialogConfig.countPartial > 0 && (
@@ -218,7 +220,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                                         </ul>
                                     </div>
                                 ) : (
-                                    <div className="p-3 bg-green-50 border-l-4 border-green-500 rounded-r text-green-800 text-sm">
+                                    <div className="p-3 bg-green-50 border-l-4 border-green-500 rounded-2xl text-green-800 text-sm">
                                         <p className="font-semibold">✓ Tudo conferido</p>
                                         <p>Todos os {dialogConfig.totalCount} pedidos estão completos.</p>
                                     </div>
@@ -246,7 +248,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                 <div className="grid grid-cols-12 gap-6">
                     {/* Routes List */}
                     <div className="col-span-4">
-                        <div className="bg-white border border-gray-200 rounded-lg">
+                        <Card>
                             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
                                 <div>
                                     <h3 className="font-semibold text-gray-900">Rotas Agendadas</h3>
@@ -265,7 +267,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                                     </SelectContent>
                                 </Select>
                             </div>
-                            <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
+                            <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto">
                                 {filteredRoutes.length > 0 ? (
                                     filteredRoutes.map((route: any) => {
                                         const isSelected = selectedRoute?.id === route.id;
@@ -274,7 +276,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
 
                                         // Calculate statuses for dots and completion
                                         const processedOrders = orders.map((o: any) => {
-                                            let status = o.loading_status || 'pending';
+                                            let status = normalizeLoadingStatus(o.loading_status) || 'pending';
                                             if (!['pending', 'loaded', 'partial', 'not_loaded'].includes(status)) status = 'pending';
                                             return { ...o, effectiveStatus: status };
                                         });
@@ -313,7 +315,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                                                                 return (
                                                                     <div
                                                                         key={idx}
-                                                                        className={`w-2.5 h-2.5 rounded-full border ${dotColor}`}
+                                                                        className={`w-2.5 h-2.5 rounded-2xl border ${dotColor}`}
                                                                         title={`Pedido #${o.sales_order?.document_number}: ${o.effectiveStatus}`}
                                                                     />
                                                                 );
@@ -328,7 +330,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
 
                                                     {/* Completion Check */}
                                                     {isFullyChecked && (
-                                                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-700 ml-2">
+                                                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-2xl bg-green-100 text-green-700 ml-2">
                                                             <Check className="w-4 h-4" />
                                                         </span>
                                                     )}
@@ -337,13 +339,13 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                                         );
                                     })
                                 ) : (
-                                    <div className="h-[104px] flex flex-col items-center justify-center text-gray-500">
+                                    <div className="h-24 flex flex-col items-center justify-center text-gray-500">
                                         <Calendar className="w-8 h-8 mb-2 opacity-20" />
                                         <p className="text-sm">Nenhuma rota agendada</p>
                                     </div>
                                 )}
                             </div>
-                        </div>
+                        </Card>
                     </div>
 
                     {/* Route Details */}

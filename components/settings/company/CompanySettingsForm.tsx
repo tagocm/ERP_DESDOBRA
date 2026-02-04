@@ -232,7 +232,7 @@ export function CompanySettingsForm() {
                 </Tabs>
             </PageHeader>
 
-            <div className="max-w-[1600px] mx-auto pb-20 px-6 mt-6">
+            <div className="max-w-screen-2xl mx-auto pb-20 px-6 mt-6">
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
                     <TabsContent value="identification" className="mt-0 focus-visible:outline-none">
                         <TabIdentification data={settings} onChange={handleChange} isAdmin={isAdmin} />

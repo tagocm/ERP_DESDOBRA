@@ -48,8 +48,9 @@ export default function LoginPage() {
 
     // Auto-login for development
     useEffect(() => {
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined' && !window.localStorage.getItem('disable-auto-login')) {
             const autoLogin = async () => {
+
                 const supabase = createClient();
                 const { data } = await supabase.auth.getUser();
                 if (!data.user) {
@@ -98,7 +99,7 @@ export default function LoginPage() {
                 <CardContent>
                     <form onSubmit={handleLogin} className="space-y-4">
                         {error && (
-                            <div className="p-3 text-sm text-red-600 bg-red-50 rounded-lg">
+                            <div className="p-3 text-sm text-red-600 bg-red-50 rounded-2xl">
                                 {error}
                             </div>
                         )}

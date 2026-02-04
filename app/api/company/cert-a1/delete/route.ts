@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabaseServer';
 import { createClient } from '@/utils/supabase/server';
 
 export async function DELETE(request: NextRequest) {
@@ -7,9 +6,6 @@ export async function DELETE(request: NextRequest) {
         // Get authenticated user
         const supabaseUser = await createClient();
         const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-
-        // Admin client for privileged operations
-        const supabase = createAdminClient();
 
         if (authError || !user) {
             return NextResponse.json(
@@ -29,12 +25,12 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Verify user is member of the company
-        const { data: membership, error: membershipError } = await supabase
+        const { data: membership, error: membershipError } = await supabaseUser
             .from('company_members')
             .select('company_id')
             .eq('company_id', companyId)
-            .eq('user_id', user.id)
-            .single();
+            .eq('auth_user_id', user.id)
+            .maybeSingle();
 
         if (membershipError || !membership) {
             return NextResponse.json(
@@ -44,11 +40,11 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Get certificate path from settings
-        const { data: settings, error: settingsError } = await supabase
+        const { data: settings, error: settingsError } = await supabaseUser
             .from('company_settings')
             .select('cert_a1_storage_path')
             .eq('company_id', companyId)
-            .single();
+            .maybeSingle();
 
         if (settingsError || !settings?.cert_a1_storage_path) {
             return NextResponse.json(
@@ -57,8 +53,16 @@ export async function DELETE(request: NextRequest) {
             );
         }
 
+        const expectedPrefixes = [`companies/${companyId}/`, `${companyId}/`];
+        if (!expectedPrefixes.some((p) => settings.cert_a1_storage_path.startsWith(p))) {
+            return NextResponse.json(
+                { error: 'Nenhum certificado encontrado' },
+                { status: 404 }
+            );
+        }
+
         // Delete file from Storage
-        const { error: deleteError } = await supabase.storage
+        const { error: deleteError } = await supabaseUser.storage
             .from('company-assets')
             .remove([settings.cert_a1_storage_path]);
 
@@ -71,7 +75,7 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Update company_settings to remove certificate data
-        const { error: updateError } = await supabase
+        const { error: updateError } = await supabaseUser
             .from('company_settings')
             .update({
                 cert_a1_storage_path: null,

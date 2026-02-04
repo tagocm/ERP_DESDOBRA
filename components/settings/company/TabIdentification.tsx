@@ -269,7 +269,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
 
                             <div
                                 className={cn(
-                                    "relative w-40 h-40 flex items-center justify-center bg-white rounded-lg border-2 border-dashed overflow-hidden shrink-0 group transition-all",
+                                    "relative w-40 h-40 flex items-center justify-center bg-white rounded-2xl border-2 border-dashed overflow-hidden shrink-0 group transition-all",
                                     isDragOver
                                         ? "border-brand-500 bg-brand-50/50 scale-[1.02]"
                                         : "border-gray-300 hover:border-brand-500"
@@ -291,7 +291,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                                                     variant="danger"
                                                     size="sm"
                                                     onClick={() => onChange('logo_path', null)}
-                                                    className="h-9 w-9 p-0 rounded-full"
+                                                    className="h-9 w-9 p-0 rounded-2xl"
                                                 >
                                                     <Trash2 className="w-5 h-5" />
                                                 </Button>
@@ -307,7 +307,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                             </div>
 
                             {isAdmin && (
-                                <div className="w-full max-w-[160px] flex flex-col gap-2">
+                                <div className="w-full max-w-40 flex flex-col gap-2">
                                     <input
                                         type="file"
                                         accept="image/png, image/jpeg, image/svg+xml"
@@ -477,7 +477,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
 
                 <CardContent className="grid grid-cols-1 md:grid-cols-12 gap-6">
                     <div className="md:col-span-12 mb-2">
-                        <div className={cn("rounded-lg border p-4 flex items-start gap-3", data.city_code_ibge ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200")}>
+                        <div className={cn("rounded-2xl border p-4 flex items-start gap-3", data.city_code_ibge ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200")}>
                             {data.city_code_ibge ? <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5" /> : <AlertTriangle className="w-5 h-5 text-red-600 mt-0.5" />}
                             <div>
                                 <h4 className={cn("text-sm font-semibold", data.city_code_ibge ? "text-green-800" : "text-red-800")}>

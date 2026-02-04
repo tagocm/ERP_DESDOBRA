@@ -73,7 +73,7 @@ export function FiscalSummaryCard({ items, className }: FiscalSummaryCardProps) 
             {isOpen && (
                 <CardContent className="pt-0 pb-4 px-4 space-y-2">
                     {/* Sub-Section: Classifications */}
-                    <div className="border border-gray-100 rounded-lg overflow-hidden">
+                    <div className="border border-gray-100 rounded-2xl overflow-hidden">
                         <button
                             onClick={() => toggleSection('classification')}
                             className="w-full px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between"
@@ -112,7 +112,7 @@ export function FiscalSummaryCard({ items, className }: FiscalSummaryCardProps) 
                     </div>
 
                     {/* Sub-Section: Applied Rules */}
-                    <div className="border border-gray-100 rounded-lg overflow-hidden">
+                    <div className="border border-gray-100 rounded-2xl overflow-hidden">
                         <button
                             onClick={() => toggleSection('rules')}
                             className="w-full px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between"
@@ -153,7 +153,7 @@ export function FiscalSummaryCard({ items, className }: FiscalSummaryCardProps) 
                     </div>
 
                     {/* Sub-Section: Tax Preview */}
-                    <div className="border border-gray-100 rounded-lg overflow-hidden">
+                    <div className="border border-gray-100 rounded-2xl overflow-hidden">
                         <button
                             onClick={() => toggleSection('taxes')}
                             className="w-full px-3 py-2 bg-gray-50 hover:bg-gray-100 transition-colors flex items-center justify-between"

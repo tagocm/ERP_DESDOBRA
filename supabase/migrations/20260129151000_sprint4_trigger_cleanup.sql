@@ -14,7 +14,7 @@ BEGIN
         IF (NEW.status_logistic IS DISTINCT FROM OLD.status_logistic) THEN
             IF NEW.status_logistic::text = 'em_rota' AND NEW.financial_status = 'pre_lancado' THEN
                 v_reason := 'Entrou em rota';
-            ELSIF NEW.status_logistic::text IN ('devolvido', 'pendente') AND NEW.financial_status = 'em_revisao' THEN
+            ELSIF NEW.status_logistic::text IN ('devolvido', 'pending') AND NEW.financial_status = 'em_revisao' THEN
                 IF NEW.status_logistic::text = 'devolvido' THEN
                      v_reason := 'Ocorrência logística: devolvido';
                 ELSE
@@ -23,7 +23,7 @@ BEGIN
             END IF;
         END IF;
 
-        IF NEW.financial_status = 'aprovado' THEN v_reason := 'Aprovado pelo financeiro'; END IF;
+        IF NEW.financial_status = 'approved' THEN v_reason := 'Aprovado pelo financeiro'; END IF;
         IF NEW.financial_status = 'cancelado' THEN v_reason := 'Pedido Cancelado'; END IF;
 
         INSERT INTO public.sales_document_finance_events (
@@ -59,7 +59,7 @@ DECLARE
     v_terms_name TEXT := 'À Vista';
 BEGIN
     IF NEW.status_logistic::text = 'em_rota' AND (OLD.status_logistic IS DISTINCT FROM 'em_rota') THEN
-        IF OLD.financial_status::text = 'pendente' THEN
+        IF OLD.financial_status::text = 'pending' THEN
              UPDATE sales_documents SET financial_status = 'pre_lancado' WHERE id = NEW.id;
         END IF;
 
@@ -104,8 +104,8 @@ BEGIN
         END IF;
     END IF;
 
-    IF OLD.status_logistic::text = 'em_rota' AND NEW.status_logistic::text IN ('pendente', 'devolvido') THEN
-        IF OLD.financial_status::text = 'aprovado' THEN
+    IF OLD.status_logistic::text = 'em_rota' AND NEW.status_logistic::text IN ('pending', 'devolvido') THEN
+        IF OLD.financial_status::text = 'approved' THEN
              UPDATE sales_documents SET financial_status = 'em_revisao' WHERE id = NEW.id;
         END IF;
     END IF;

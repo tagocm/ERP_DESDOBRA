@@ -53,15 +53,15 @@ export function NFeItemsTable({ items, totals, availableUoms = [], onUpdateItem 
                     <Table>
                         <TableHeader className="bg-gray-50">
                             <TableRow>
-                                <TableHead className="w-[50px]"></TableHead>
-                                <TableHead className="min-w-[200px]">Produto / Descrição</TableHead>
-                                <TableHead className="w-[140px] text-center">NCM</TableHead>
-                                <TableHead className="w-[100px] text-center">CFOP</TableHead>
-                                <TableHead className="w-[100px] text-center">Unid.</TableHead>
-                                <TableHead className="w-[100px] text-center">Qtd</TableHead>
-                                <TableHead className="w-[120px] text-center">Valor Unit.</TableHead>
-                                <TableHead className="w-[100px] text-center">Desc.</TableHead>
-                                <TableHead className="w-[120px] text-right">Total</TableHead>
+                                <TableHead className="w-12"></TableHead>
+                                <TableHead className="min-w-48">Produto / Descrição</TableHead>
+                                <TableHead className="w-36 text-center">NCM</TableHead>
+                                <TableHead className="w-24 text-center">CFOP</TableHead>
+                                <TableHead className="w-24 text-center">Unid.</TableHead>
+                                <TableHead className="w-24 text-center">Qtd</TableHead>
+                                <TableHead className="w-28 text-center">Valor Unit.</TableHead>
+                                <TableHead className="w-24 text-center">Desc.</TableHead>
+                                <TableHead className="w-32 text-right">Total</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -107,7 +107,7 @@ export function NFeItemsTable({ items, totals, availableUoms = [], onUpdateItem 
                                                 value={item.uom || ''}
                                                 onValueChange={(val) => onUpdateItem(idx, 'uom', val)}
                                             >
-                                                <SelectTrigger className="h-8 w-[90px] mx-auto text-xs bg-white">
+                                                <SelectTrigger className="h-8 w-24 mx-auto text-xs bg-white">
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
@@ -153,7 +153,7 @@ export function NFeItemsTable({ items, totals, availableUoms = [], onUpdateItem 
                                     {expandedRows.has(idx) && (
                                         <TableRow className="bg-gray-50 hover:bg-gray-50">
                                             <TableCell colSpan={9} className="p-4 pt-0">
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 border rounded-md bg-white shadow-sm">
+                                                <Card className="grid grid-cols-1 md:grid-cols-3 gap-6 p-4 border-gray-200 shadow-none">
 
                                                     {/* ICMS Group */}
                                                     <div className="space-y-3">
@@ -282,7 +282,7 @@ export function NFeItemsTable({ items, totals, availableUoms = [], onUpdateItem 
                                                         </div>
                                                     </div>
 
-                                                </div>
+                                                </Card>
                                             </TableCell>
                                         </TableRow>
                                     )}
@@ -322,7 +322,7 @@ export function NFeItemsTable({ items, totals, availableUoms = [], onUpdateItem 
                             </div>
                         </div>
 
-                        <div className="w-full md:w-[480px]">
+                        <div className="w-full md:w-96">
                             <div className="grid grid-cols-2 gap-x-12 text-sm text-muted-foreground">
                                 {/* Col 1 */}
                                 <div className="space-y-2">

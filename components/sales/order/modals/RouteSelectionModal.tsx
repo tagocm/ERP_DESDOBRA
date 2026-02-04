@@ -13,6 +13,7 @@ import { DeliveryRoute } from "@/types/sales";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
+import { normalizeRouteStatus } from "@/lib/constants/status";
 
 interface RouteSelectionModalProps {
     open: boolean;
@@ -96,7 +97,7 @@ export function RouteSelectionModal({ open, onOpenChange, companyId, onConfirm }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <Truck className="h-5 w-5 text-primary" />
@@ -114,7 +115,7 @@ export function RouteSelectionModal({ open, onOpenChange, companyId, onConfirm }
                         </div>
                     ) : (
                         <RadioGroup value={selectedValue} onValueChange={setSelectedValue} className="gap-3">
-                            <ScrollArea className="h-[200px] w-full rounded-md border p-2">
+                    <ScrollArea className="h-[200px] w-full rounded-2xl border p-2">
                                 <div className="space-y-2">
                                     {routes.length === 0 && (
                                         <div className="text-sm text-center text-muted-foreground py-4">
@@ -124,14 +125,14 @@ export function RouteSelectionModal({ open, onOpenChange, companyId, onConfirm }
 
                                     {routes.map((route) => (
                                         <div key={route.id} className={cn(
-                                            "flex items-center space-x-2 rounded-lg border p-3 cursor-pointer transition-colors hover:bg-accent",
+                                            "flex items-center space-x-2 rounded-2xl border p-3 cursor-pointer transition-colors hover:bg-accent",
                                             selectedValue === route.id ? "bg-accent border-primary" : "border-transparent"
                                         )}>
                                             <RadioGroupItem value={route.id} id={route.id} />
                                             <Label htmlFor={route.id} className="flex-1 cursor-pointer font-medium">
                                                 {route.name}
                                                 <span className="block text-xs text-muted-foreground font-normal">
-                                                    {route.orders?.length || 0} pedidos • {route.status === 'em_rota' ? 'Em Saída' : 'Planejada'}
+                                                    {route.orders?.length || 0} pedidos • {(normalizeRouteStatus(route.status) || route.status) === 'in_route' ? 'Em Saída' : 'Planejada'}
                                                 </span>
                                             </Label>
                                         </div>
@@ -140,7 +141,7 @@ export function RouteSelectionModal({ open, onOpenChange, companyId, onConfirm }
                             </ScrollArea>
 
                             <div className={cn(
-                                "flex flex-col space-y-3 rounded-lg border p-3 transition-colors",
+                                "flex flex-col space-y-3 rounded-2xl border p-3 transition-colors",
                                 selectedValue === 'new' ? "bg-accent/50 border-primary" : "border-transparent hover:bg-accent/30"
                             )}>
                                 <div className="flex items-center space-x-2">
