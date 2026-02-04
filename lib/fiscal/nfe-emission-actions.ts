@@ -4,6 +4,7 @@ import { createClient } from '@/utils/supabase/server';
 import { SalesOrder } from '@/types/sales';
 import { revalidatePath } from 'next/cache';
 import { emitOffline } from '@/lib/fiscal/nfe/offline/emitOffline';
+import { logger } from '@/lib/logger';
 
 // --- Types ---
 
@@ -133,7 +134,7 @@ export async function getNFeEmissionData(orderId: string): Promise<EmissionData>
     // 2. Get User's Company (Issuer)
     // Assuming auth user context
     const { data: { user } } = await supabase.auth.getUser();
-    console.log(`[getNFeEmissionData] Auth User ID: ${user?.id}`);
+    logger.debug('[getNFeEmissionData] auth user loaded', { has_user: !!user });
     // const { data: member } = await supabase.from('company_members').select('company_id').eq('auth_user_id', user?.id).single();
 
     // Using company_id from order is safer if RLS matches, but let's stick to auth context or order's company
@@ -146,10 +147,9 @@ export async function getNFeEmissionData(orderId: string): Promise<EmissionData>
         .eq('id', order.company_id)
         .single();
 
-    console.log(`[getNFeEmissionData] Order Company ID: ${order.company_id}`);
-    console.log(`[getNFeEmissionData] Fetched Company:`, company ? `Found (${company.id})` : 'NULL');
+    logger.debug('[getNFeEmissionData] company fetched', { found: !!company });
     if (!company) {
-        console.error('[getNFeEmissionData] ERROR: Company not found for order!');
+        logger.error('[getNFeEmissionData] company not found for order', { orderId });
     }
 
     // 2.1 Fetch all active payment terms for dropdown
@@ -254,7 +254,7 @@ export async function emitNFe(orderId: string, draftData: NFeDraftData) {
     if (!order?.company_id) throw new Error("Pedido sem empresa vinculada.");
 
     // 2. ENQUEUE JOB
-    console.log(`[emitNFe] Enqueueing NFE_EMIT for Order ${orderId}`);
+    logger.debug('[emitNFe] enqueueing NFE_EMIT', { orderId });
 
     const { data: job, error: jobError } = await adminSupabase
         .from('jobs_queue')
@@ -267,7 +267,11 @@ export async function emitNFe(orderId: string, draftData: NFeDraftData) {
         .single();
 
     if (jobError || !job) {
-        console.error('[emitNFe] Job Enqueue Error:', jobError);
+        if (jobError) {
+            logger.error('[emitNFe] job enqueue error', { message: jobError.message, code: jobError.code });
+        } else {
+            logger.error('[emitNFe] job enqueue error: no job returned');
+        }
         throw new Error("Falha ao enfileirar processamento.");
     }
 
