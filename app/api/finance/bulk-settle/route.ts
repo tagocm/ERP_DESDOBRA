@@ -1,9 +1,15 @@
 
-import { createClient } from '@/lib/supabaseServer';
 import { NextResponse } from 'next/server';
+import { createClient } from '@/utils/supabase/server';
 
 export async function POST(request: Request) {
-    const supabase = createClient();
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+        return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+
     const { installmentIds, date, accountId } = await request.json();
 
     if (!installmentIds || !Array.isArray(installmentIds) || installmentIds.length === 0) {
@@ -16,6 +22,22 @@ export async function POST(request: Request) {
 
     let successCount = 0;
     const errors = [];
+
+    const isUuid = (value: unknown) =>
+        typeof value === 'string' &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+
+    // Fetch companies the current user belongs to once (avoid per-row membership queries)
+    const { data: memberships, error: membershipsError } = await supabase
+        .from('company_members')
+        .select('company_id')
+        .eq('auth_user_id', user.id);
+
+    if (membershipsError) {
+        return NextResponse.json({ error: 'Erro ao validar empresa do usuário' }, { status: 500 });
+    }
+
+    const allowedCompanyIds = new Set((memberships || []).map((m: any) => m.company_id));
 
     // Process each installment
     // Note: Ideally this should be a stored procedure for atomicity
@@ -43,18 +65,26 @@ export async function POST(request: Request) {
                 continue;
             }
 
+            const installmentCompanyId = inst.company_id;
+            if (!installmentCompanyId || !allowedCompanyIds.has(installmentCompanyId)) {
+                errors.push({ id, reason: 'Sem permissão' });
+                continue;
+            }
+
             const amountToPay = inst.amount_open; // Full settle
 
             // 2. Create Payment
             const { data: payment, error: payError } = await supabase
                 .from('ar_payments')
                 .insert({
+                    company_id: installmentCompanyId,
+                    created_by: user.id,
                     amount: amountToPay,
                     method: inst.payment_method || 'OUTROS', // Inherit method or default
                     paid_at: date, // User selected date (can be timestamp?)
                     notes: `Baixa em Lote - ${new Date().toLocaleDateString('pt-BR')}`,
-                    financial_account_id: accountId, // If schema supports it
-                    // status: 'CONFIRMED' // If schema has status
+                    // accountId is kept for UI contract; persistence can be added when schema supports it
+                    reference: accountId
                 })
                 .select()
                 .single();
@@ -95,7 +125,8 @@ export async function POST(request: Request) {
                 .update({
                     status: 'PAID',
                     amount_paid: (inst.amount_paid || 0) + amountToPay,
-                    amount_open: 0
+                    amount_open: 0,
+                    ...(isUuid(accountId) ? { financial_account_id: accountId } : {})
                 })
                 .eq('id', inst.id);
 
