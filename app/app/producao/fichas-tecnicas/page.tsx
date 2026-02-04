@@ -278,7 +278,7 @@ export default function BomListPage() {
                     <div className="space-y-8">
                         <div>
                             <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Produto Final</h4>
-                            <div className="flex items-start gap-3 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                            <div className="flex items-start gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100">
                                 <div className="bg-white p-2 rounded border border-gray-200">
                                     <Package className="w-5 h-5 text-brand-600" />
                                 </div>
@@ -294,7 +294,7 @@ export default function BomListPage() {
                         </div>
 
                         <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+                            <div className="bg-blue-50/50 p-3 rounded-2xl border border-blue-100">
                                 <div className="flex items-center gap-2 mb-1">
                                     <Calculator className="w-4 h-4 text-blue-600" />
                                     <span className="text-xs font-semibold text-blue-700 uppercase">Rendimento</span>
@@ -303,7 +303,7 @@ export default function BomListPage() {
                                     {bomDetail.yield_qty} <span className="text-sm font-normal text-gray-500">{bomDetail.yield_uom}</span>
                                 </p>
                             </div>
-                            <div className="bg-green-50/50 p-3 rounded-lg border border-green-100">
+                            <div className="bg-green-50/50 p-3 rounded-2xl border border-green-100">
                                 <div className="flex items-center gap-2 mb-1">
                                     <CheckCircle2 className="w-4 h-4 text-green-600" />
                                     <span className="text-xs font-semibold text-green-700 uppercase">Status</span>
@@ -324,7 +324,7 @@ export default function BomListPage() {
                                     {bomDetail.lines.length} itens
                                 </span>
                             </h4>
-                            <div className="border rounded-lg overflow-hidden">
+                            <div className="border rounded-2xl overflow-hidden">
                                 <table className="w-full text-sm">
                                     <thead className="bg-gray-50 text-gray-500 text-xs">
                                         <tr>
@@ -367,7 +367,7 @@ export default function BomListPage() {
                                         {bomDetail.byproducts.length} itens
                                     </span>
                                 </h4>
-                                <div className="border rounded-lg overflow-hidden border-orange-100">
+                                <div className="border rounded-2xl overflow-hidden border-orange-100">
                                     <table className="w-full text-sm">
                                         <thead className="bg-orange-50 text-orange-700 text-xs">
                                             <tr>

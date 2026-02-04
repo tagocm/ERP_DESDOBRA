@@ -156,7 +156,7 @@ export function RecurringRuleForm() {
                             Cancelar
                         </Button>
                     </Link>
-                    <Button type="submit" variant="pill" size="lg" className="bg-brand-600 hover:bg-brand-700 text-white min-w-[140px]" disabled={loading}>
+                    <Button type="submit" variant="pill" size="lg" className="bg-brand-600 hover:bg-brand-700 text-white min-w-36" disabled={loading}>
                         {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
                         Salvar Contrato
                     </Button>
@@ -277,11 +277,11 @@ export function RecurringRuleForm() {
                                     }}
                                     className="grid grid-cols-2 gap-4"
                                 >
-                                    <div className={`flex items-center space-x-3 border rounded-xl p-4 cursor-pointer transition-all ${watchGenMode === 'MANUAL' ? 'border-brand-500 bg-brand-50/50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}>
+                                    <div className={`flex items-center space-x-3 border rounded-2xl p-4 cursor-pointer transition-all ${watchGenMode === 'MANUAL' ? 'border-brand-500 bg-brand-50/50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}>
                                         <RadioGroupItem value="MANUAL" id="gm-manual" />
                                         <Label htmlFor="gm-manual" className="flex-1 cursor-pointer font-medium">Manual</Label>
                                     </div>
-                                    <div className={`flex items-center space-x-3 border rounded-xl p-4 cursor-pointer transition-all ${watchGenMode === 'AUTOMATICO' ? 'border-brand-500 bg-brand-50/50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}>
+                                    <div className={`flex items-center space-x-3 border rounded-2xl p-4 cursor-pointer transition-all ${watchGenMode === 'AUTOMATICO' ? 'border-brand-500 bg-brand-50/50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}>
                                         <RadioGroupItem value="AUTOMATICO" id="gm-auto" />
                                         <Label htmlFor="gm-auto" className="flex-1 cursor-pointer font-medium">Automático</Label>
                                     </div>
@@ -382,11 +382,11 @@ export function RecurringRuleForm() {
                                     }}
                                     className="flex flex-col gap-3"
                                 >
-                                    <div className={`flex items-center space-x-3 border rounded-xl p-3 cursor-pointer transition-all ${watchAmountType === 'FIXO' ? 'border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500' : 'border-gray-200'}`}>
+                                    <div className={`flex items-center space-x-3 border rounded-2xl p-3 cursor-pointer transition-all ${watchAmountType === 'FIXO' ? 'border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500' : 'border-gray-200'}`}>
                                         <RadioGroupItem value="FIXO" id="at-fixo" />
                                         <Label htmlFor="at-fixo" className="flex-1 cursor-pointer font-medium">Valor Fixo</Label>
                                     </div>
-                                    <div className={`flex items-center space-x-3 border rounded-xl p-3 cursor-pointer transition-all ${watchAmountType === 'VARIAVEL' ? 'border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500' : 'border-gray-200'}`}>
+                                    <div className={`flex items-center space-x-3 border rounded-2xl p-3 cursor-pointer transition-all ${watchAmountType === 'VARIAVEL' ? 'border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500' : 'border-gray-200'}`}>
                                         <RadioGroupItem value="VARIAVEL" id="at-var" />
                                         <Label htmlFor="at-var" className="flex-1 cursor-pointer font-medium">Valor Variável</Label>
                                     </div>
@@ -447,11 +447,11 @@ export function RecurringRuleForm() {
                                     <div className="space-y-2">
                                         <div className="flex justify-between">
                                             <span className="opacity-60">Contrato:</span>
-                                            <span className="truncate max-w-[140px] text-right">{watchName || "—"}</span>
+                                            <span className="truncate max-w-36 text-right">{watchName || "—"}</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="opacity-60">Fornecedor:</span>
-                                            <span className="truncate max-w-[140px] text-right">{watchPartnerName || "—"}</span>
+                                            <span className="truncate max-w-36 text-right">{watchPartnerName || "—"}</span>
                                         </div>
                                         <div className="flex justify-between">
                                             <span className="opacity-60">Geração:</span>
