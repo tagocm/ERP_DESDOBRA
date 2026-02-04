@@ -8,6 +8,7 @@
 import React, { useEffect, useState } from "react";
 import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Textarea } from "@/components/ui/Textarea";
 import { Input } from "@/components/ui/Input";
@@ -238,7 +239,7 @@ export function EventDetailDrawer({ eventId, onClose, onSuccess }: EventDetailDr
                     ) : (
                         <>
                             {/* Event Header Card */}
-                            <div className="bg-white border rounded-xl shadow-sm p-4 grid grid-cols-2 gap-4 text-sm">
+                            <Card className="p-4 grid grid-cols-2 gap-4 text-sm">
                                 <div>
                                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Origem</label>
                                     <div className="font-semibold text-gray-900">{event.origin_reference}</div>
@@ -261,10 +262,10 @@ export function EventDetailDrawer({ eventId, onClose, onSuccess }: EventDetailDr
                                     <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Total</label>
                                     <div className="font-black text-lg text-gray-900">{formatCurrency(event.total_amount)}</div>
                                 </div>
-                            </div>
+                            </Card>
 
                             {/* Installments Editor */}
-                            <div className="bg-white border rounded-xl shadow-sm p-4">
+                            <Card className="p-4">
                                 <InstallmentsEditor
                                     installments={event.installments || []}
                                     totalAmount={event.total_amount}
@@ -286,7 +287,7 @@ export function EventDetailDrawer({ eventId, onClose, onSuccess }: EventDetailDr
                                         Salvar Alterações
                                     </Button>
                                 </div>
-                            </div>
+                            </Card>
 
                             {/* Validation Checklist */}
                             <ValidationChecklist
@@ -311,7 +312,7 @@ export function EventDetailDrawer({ eventId, onClose, onSuccess }: EventDetailDr
                                 </Button>
 
                                 <Button
-                                    className="bg-green-600 hover:bg-green-700 w-full sm:w-auto font-bold shadow-md shadow-green-200"
+                                    className="bg-green-600 hover:bg-green-700 w-full sm:w-auto font-bold shadow-card"
                                     onClick={handleApprove}
                                     disabled={saving || event.status === 'approved' || pendencies.some(p => p.severity === 'error')}
                                 >

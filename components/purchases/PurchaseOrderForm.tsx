@@ -578,7 +578,7 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
                         <div className="space-y-6 px-6 py-6">
 
                             {isLocked && (
-                                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-amber-800 shadow-sm">
+                                <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-amber-800 shadow-card">
                                     <CheckCircle className="w-5 h-5 text-amber-600" />
                                     <div className="text-sm font-medium leading-relaxed">
                                         Este pedido está com status <strong>{statusLabel.toUpperCase()}</strong> e não pode ser alterado.
@@ -996,7 +996,7 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
 
                     <TabsContent value="financial" className="mt-0">
                         <div className="space-y-6 px-6 py-6">
-                            <Card className="border-0 shadow-sm ring-1 ring-gray-100">
+                            <Card className="border-0 ring-1 ring-gray-100">
                                 <CardContent className="p-8 grid grid-cols-1 md:grid-cols-2 gap-12">
                                     <div className="space-y-6">
                                         <h3 className="font-bold text-gray-900 flex items-center gap-2 text-sm uppercase tracking-wide">

@@ -143,7 +143,7 @@ export function QuickEntryModal({ isOpen, onClose, onSuccess }: QuickEntryModalP
                     <div className="space-y-2">
                         <Label>Fornecedor (Opcional)</Label>
                         <select
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            className="w-full h-10 rounded-lg border border-input bg-background px-3 py-2 text-sm"
                             value={supplierId}
                             onChange={(e) => setSupplierId(e.target.value)}
                         >
@@ -166,7 +166,7 @@ export function QuickEntryModal({ isOpen, onClose, onSuccess }: QuickEntryModalP
                                     onChange={(e) => setSearchItem(e.target.value)}
                                 />
                                 {searchItem && filteredItems.length > 0 && (
-                                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-2xl shadow-float max-h-40 overflow-y-auto">
                                         {filteredItems.map(item => (
                                             <button
                                                 key={item.id}
@@ -189,7 +189,7 @@ export function QuickEntryModal({ isOpen, onClose, onSuccess }: QuickEntryModalP
                             ) : (
                                 <div className="space-y-2">
                                     {items.map((item, idx) => (
-                                        <div key={idx} className="flex gap-2 items-center bg-gray-50 p-2 rounded-md border">
+                                        <div key={idx} className="flex gap-2 items-center bg-gray-50 p-2 rounded-lg border">
                                             <div className="flex-1 font-medium text-sm truncate">{item.name}</div>
                                             <div className="w-20">
                                                 <Input
