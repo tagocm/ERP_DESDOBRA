@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { organizationsRepo } from '@/lib/data/organizations'
+import { getActiveCompanyId } from '@/lib/auth/get-active-company'
+import { errorResponse } from '@/lib/api/response'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 // Schema for creating an organization
 const createOrgSchema = z.object({
-    companyId: z.string().uuid(),
+    companyId: z.string().uuid().optional(),
     trade_name: z.string().min(1),
     legal_name: z.string().optional(),
     document: z.string().optional(),
@@ -16,21 +21,20 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams
     const companyId = searchParams.get('companyId')
 
-    if (!companyId) {
-        return NextResponse.json(
-            { error: 'Missing companyId query parameter' },
-            { status: 400 }
-        )
+    let activeCompanyId: string
+    try {
+        activeCompanyId = await getActiveCompanyId()
+    } catch {
+        return errorResponse('Unauthorized', 401)
     }
 
+    if (companyId && companyId !== activeCompanyId) return errorResponse('Forbidden', 403)
+
     try {
-        const data = await organizationsRepo.list(companyId)
+        const data = await organizationsRepo.list(activeCompanyId)
         return NextResponse.json(data)
     } catch (error: any) {
-        return NextResponse.json(
-            { error: error.message || 'Internal Server Error' },
-            { status: 500 }
-        )
+        return errorResponse('Internal Server Error', 500, undefined, error instanceof Error ? error.message : error)
     }
 }
 
@@ -39,7 +43,16 @@ export async function POST(request: NextRequest) {
         const body = await request.json()
         const parsed = createOrgSchema.parse(body)
 
-        const data = await organizationsRepo.create(parsed.companyId, {
+        let activeCompanyId: string
+        try {
+            activeCompanyId = await getActiveCompanyId()
+        } catch {
+            return errorResponse('Unauthorized', 401)
+        }
+
+        if (parsed.companyId && parsed.companyId !== activeCompanyId) return errorResponse('Forbidden', 403)
+
+        const data = await organizationsRepo.create(activeCompanyId, {
             trade_name: parsed.trade_name,
             legal_name: parsed.legal_name,
             document_number: parsed.document,
@@ -52,9 +65,6 @@ export async function POST(request: NextRequest) {
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.issues }, { status: 400 })
         }
-        return NextResponse.json(
-            { error: error.message || 'Internal Server Error' },
-            { status: 500 }
-        )
+        return errorResponse('Internal Server Error', 500, undefined, error instanceof Error ? error.message : error)
     }
 }
