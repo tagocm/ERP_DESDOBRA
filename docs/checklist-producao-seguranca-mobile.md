@@ -6,8 +6,8 @@
 
 ### Segurança
 - [x] Em produção, APIs **não retornam** `details`/stacktrace (apenas `message` + `code`)
-- [ ] `console.*` removido de rotas/actions (usar `logger` com redaction)
-- [ ] Rate limit aplicado em rotas públicas (dev alto / prod baixo)
+- [x] `console.*` removido de rotas/actions (usar `logger` com redaction)
+- [x] Rate limit aplicado em rotas públicas (dev alto / prod baixo)
 - [x] Headers de segurança ativos em produção (CSP mínima, `frame-ancestors`, etc.)
 - [x] Rotas `/api/debug/*` e `/api/test/*` bloqueadas em produção sem token
 
@@ -26,7 +26,8 @@
 ### CI/DB
 - [ ] CI sempre verde: lint + typecheck + unit + build + e2e
 - [ ] E2E roda em ambiente previsível (sem drift manual)
-- [ ] Check automático: migration duplicada / fora de ordem / RLS faltando
+- [x] Check automático: migration duplicada / fora de ordem
+- [ ] Check automático: RLS faltando (auditoria)
 
 ### Qualidade / Organização
 - [ ] Budgets para warnings (não regredir)
@@ -49,7 +50,7 @@
 - [x] Headers de segurança (prod por padrão; dev via flag)
 
 ### P1 — em andamento
-- [ ] Auditar `app/api/**` para remover `console.*` e padronizar `errorResponse`
+- [x] Auditar `app/api/**` e `app/actions/**` para remover `console.*` e padronizar logs com `logger`
 - [ ] Revisar rotas de debug/test e garantir `INTERNAL_API_TOKEN` em produção
 - [ ] Revisar policies permissivas (ex.: políticas com `USING (true)` em tabelas sensíveis)
 - [ ] `npm audit`: resolver vulnerabilidades (priorizar high) sem quebrar build
@@ -94,6 +95,7 @@
 - [ ] Migrar APIs para tipos do Supabase (`types/supabase.ts`) e remover `as any` por hotspots
 
 ## 5) CI / E2E (estabilizar)
+- [x] Check de migrations no CI: `node scripts/check-migrations.js`
 - [ ] Garantir que o Supabase remoto usado no CI tenha migrations aplicadas e grants corretos
 - [ ] Tornar E2E determinístico: seed isolado por run + limpeza + usuários/empresas fixos de teste
 - [ ] Separar “checks bloqueantes” vs “informativos” (ex.: warnings de lint não bloqueiam)

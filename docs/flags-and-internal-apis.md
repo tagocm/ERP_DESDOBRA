@@ -12,6 +12,10 @@ Este projeto usa algumas flags de ambiente para **segurança** e **debug control
   - **Padrão:** `false` em produção.
   - Controla se endpoints de NF-e podem retornar XML completo em respostas.
 
+- `EXPOSE_NFE_LOGS=true`
+  - **Padrão:** `false` em produção.
+  - Controla se endpoints de NF-e podem retornar logs de debug em respostas (use com cuidado: pode conter dados sensíveis).
+
 - `SECURITY_HEADERS=true`
   - **Padrão:** em produção os headers já são aplicados; em dev pode ser usado para testar.
 
@@ -47,4 +51,3 @@ npx tsx scripts/mobile/process-expenses.ts --limit 50
 Opções:
 - `--company <uuid>`
 - `--dry-run`
-
