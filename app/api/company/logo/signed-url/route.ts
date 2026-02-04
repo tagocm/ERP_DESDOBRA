@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabaseServer';
 import { createClient } from '@/utils/supabase/server';
 
 export async function POST(request: NextRequest) {
     try {
         const supabaseUser = await createClient();
         const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-
-        // Admin client only for Storage ops (temporary until Storage RLS matches path convention)
-        const supabaseAdmin = createAdminClient();
 
         if (authError || !user) {
             return NextResponse.json(
@@ -65,7 +61,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Generate signed URL (valid for 1 hour)
-        const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin.storage
+        const { data: signedUrlData, error: signedUrlError } = await supabaseUser.storage
             .from('company-assets')
             .createSignedUrl(settings.logo_path, 3600); // 1 hour
 
