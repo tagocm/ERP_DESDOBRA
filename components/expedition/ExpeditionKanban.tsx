@@ -42,7 +42,7 @@ type DragItem = {
 };
 
 const isLockedRoute = (route?: DeliveryRoute) => {
-    const status = normalizeRouteStatus(route?.status) || route?.status;
+    const status = normalizeRouteStatus(route?.status) || route?.status || "";
     return ['in_route', 'in_progress', 'completed', 'cancelled'].includes(status);
 };
 
