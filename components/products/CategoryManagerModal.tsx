@@ -10,6 +10,7 @@ import { ProductCategory } from "@/types/product";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/Alert";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
+import { Card } from "@/components/ui/Card";
 import {
     Table,
     TableBody,
@@ -108,7 +109,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
     // List logic
 
     return (
-        <DialogContent className="max-w-[800px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl">
+        <DialogContent className="max-w-4xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl">
             {/* Header */}
             <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
                 <div>
@@ -129,10 +130,10 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                 </Button>
             </div>
 
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
+            <div className="p-6 overflow-y-auto max-h-screen">
                 {/* Create/Edit Form Inline */}
                 {(addBoxOpen || editingId) && (
-                    <div className="mb-6 bg-white p-4 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-top-2">
+                    <Card className="mb-6 bg-white p-4 border border-gray-200/70 shadow-card animate-in fade-in slide-in-from-top-2">
                         <div className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                             {editingId ? <Edit className="w-4 h-4 text-blue-500" /> : <Plus className="w-4 h-4 text-brand-500" />}
                             {editingId ? "Editar Categoria" : "Nova Categoria"}
@@ -175,11 +176,11 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                                 <X className="w-4 h-4" />
                             </Button>
                         </div>
-                    </div>
+                    </Card>
                 )}
 
                 {/* List Container */}
-                <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                <Card className="border border-gray-200/70 overflow-hidden bg-white shadow-card">
                     <Table>
                         <TableHeader className="bg-gray-50/50">
                             <TableRow className="hover:bg-transparent border-gray-100">
@@ -266,7 +267,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                             )}
                         </TableBody>
                     </Table>
-                </div>
+                </Card>
             </div>
 
 
