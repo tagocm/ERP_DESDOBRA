@@ -22,7 +22,7 @@ async function getActiveCompanyId() {
     // Simplify for now, assuming single company or derived from session/profile
     // In strict multi-tenant, we should get this from the request context or safe session storage
     // using the pattern:
-    const { data: profile } = await supabase.from('user_profiles').select('company_id').eq('user_id', user.id).single()
+    const { data: profile } = await supabase.from('user_profiles').select('company_id').eq('auth_user_id', user.id).single()
     return profile?.company_id
 }
 
