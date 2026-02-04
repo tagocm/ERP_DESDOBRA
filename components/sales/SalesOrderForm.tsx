@@ -53,7 +53,8 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
     const [data, setData] = useState<Partial<SalesOrder>>(emptyDoc);
     const [deletedItemIds, setDeletedItemIds] = useState<string[]>([]);
     const [activeTab, setActiveTab] = useState("general");
-    const isLocked = !isNew && ['in_route', 'delivered', 'returned'].includes(normalizeLogisticsStatus(data.status_logistic) || data.status_logistic);
+    const currentLogisticsStatus = normalizeLogisticsStatus(data.status_logistic) || data.status_logistic || "";
+    const isLocked = !isNew && ['in_route', 'delivered', 'returned'].includes(currentLogisticsStatus);
 
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
