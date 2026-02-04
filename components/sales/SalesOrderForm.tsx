@@ -10,6 +10,7 @@ import { getSalesDocumentById, upsertSalesDocument, upsertSalesItem, deleteSales
 import { SalesOrder } from "@/types/sales";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { Tabs, TabsContent } from "@/components/ui/Tabs";
 import { FormTabsList, FormTabsTrigger } from "@/components/ui/FormTabs";
 import { useToast } from "@/components/ui/use-toast";
@@ -241,7 +242,7 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
 
             <div className="px-6 pb-0">
                 {isLocked && (
-                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg flex items-center gap-3 text-amber-800 mb-6 shadow-sm">
+                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-amber-800 mb-6 shadow-card">
                         <Ban className="w-5 h-5" />
                         <div className="text-sm font-medium">
                             Este pedido está com status logístico <strong>{translateLogisticsStatusPt(data.status_logistic).toUpperCase()}</strong> e não pode mais ser alterado.
@@ -261,7 +262,7 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
                         <FormTabsTrigger value="history">Histórico</FormTabsTrigger>
                     </FormTabsList>
 
-                    <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden mt-6">
+                    <Card className="bg-white overflow-hidden mt-6">
                         <div className="p-6">
                             <TabsContent value="general" className="focus-visible:outline-none mt-0">
                                 <TabGeneral data={data} onChange={handleChange} disabled={isLocked} />
@@ -282,7 +283,7 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
                                 {data.id ? <TabHistory orderId={data.id} /> : <div className="p-12 text-center text-gray-400">Salve o pedido para ver o histórico</div>}
                             </TabsContent>
                         </div>
-                    </div>
+                    </Card>
                 </Tabs>
             </div>
         </div>
