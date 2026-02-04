@@ -2,6 +2,36 @@
 
 > Objetivo: deixar o Desdobra pronto para produção **sem travar o desenvolvimento** (hardening incremental, budgets e flags).
 
+## Checklist (marcável)
+
+### Segurança
+- [x] Em produção, APIs **não retornam** `details`/stacktrace (apenas `message` + `code`)
+- [ ] `console.*` removido de rotas/actions (usar `logger` com redaction)
+- [ ] Rate limit aplicado em rotas públicas (dev alto / prod baixo)
+- [x] Headers de segurança ativos em produção (CSP mínima, `frame-ancestors`, etc.)
+- [x] Rotas `/api/debug/*` e `/api/test/*` bloqueadas em produção sem token
+
+### Multi-tenant / RLS
+- [ ] Checklist “toda query por empresa” (sempre `company_id`)
+- [ ] RLS habilitado em 100% das tabelas de negócio
+- [ ] Teste negativo: tenant A não lê/edita tenant B
+
+### Mobile
+- [x] Ingestão idempotente (unique `event_id` + insert atômico)
+- [x] Token por dispositivo com revogação/expiração + `last_used_at`
+- [ ] Processor assíncrono com retries e status (`received/processed/error`)
+- [ ] Tela admin para tokens e fila de eventos
+- [x] Eventos viram `financial_events` (pré-aprovação) sem bypass perigoso
+
+### CI/DB
+- [ ] CI sempre verde: lint + typecheck + unit + build + e2e
+- [ ] E2E roda em ambiente previsível (sem drift manual)
+- [ ] Check automático: migration duplicada / fora de ordem / RLS faltando
+
+### Qualidade / Organização
+- [ ] Budgets para warnings (não regredir)
+- [ ] Plano de redução de warnings por sprint (top arquivos)
+
 ## 0) Critérios de “pronto para produção”
 - [ ] CI verde (lint/typecheck/unit/e2e) com ambiente previsível
 - [ ] Logs sem dados sensíveis (XML, tokens, senhas, payloads)
@@ -76,4 +106,3 @@
 
 ## Referências
 - Flags e rotas internas: `docs/flags-and-internal-apis.md`
-
