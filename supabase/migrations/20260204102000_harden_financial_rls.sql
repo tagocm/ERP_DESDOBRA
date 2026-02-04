@@ -7,6 +7,15 @@
 
 -- price_tables: remove legacy dev policy (other tenant policies should remain)
 DROP POLICY IF EXISTS "Enable all for devs" ON public.price_tables;
+ALTER TABLE public.price_tables ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "price_tables_tenant_access" ON public.price_tables;
+
+CREATE POLICY "price_tables_tenant_access"
+    ON public.price_tables
+    FOR ALL
+    TO authenticated
+    USING (public.is_member_of(company_id))
+    WITH CHECK (public.is_member_of(company_id));
 
 -- payment_terms: replace legacy dev policy with tenant policy
 ALTER TABLE public.payment_terms ENABLE ROW LEVEL SECURITY;
@@ -201,4 +210,3 @@ CREATE POLICY "ap_payment_allocations_tenant_access"
               )
         )
     );
-

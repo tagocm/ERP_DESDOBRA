@@ -26,5 +26,5 @@ CREATE POLICY "inventory_movements_tenant_access"
 REVOKE ALL ON FUNCTION public.deduct_stock_from_route(UUID, UUID) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.deduct_stock_from_route(UUID, UUID) FROM anon;
 REVOKE ALL ON FUNCTION public.deduct_stock_from_route(UUID, UUID) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.deduct_stock_from_route(UUID, UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.deduct_stock_from_route(UUID, UUID) TO service_role;
-
