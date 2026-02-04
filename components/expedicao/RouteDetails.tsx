@@ -157,7 +157,7 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
                     <button
                         onClick={() => setActiveTab('separation')}
                         className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'separation'
-                            ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                            ? 'bg-white text-gray-900 ring-1 ring-gray-200'
                             : 'text-gray-500 hover:text-gray-900'
                             }`}
                     >
@@ -166,7 +166,7 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
                     <button
                         onClick={() => setActiveTab('checklist')}
                         className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'checklist'
-                            ? 'bg-white text-gray-900 shadow-sm ring-1 ring-gray-200'
+                            ? 'bg-white text-gray-900 ring-1 ring-gray-200'
                             : 'text-gray-500 hover:text-gray-900'
                             }`}
                     >

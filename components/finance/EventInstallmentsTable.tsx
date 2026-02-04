@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/Label";
 import { Input } from "@/components/ui/Input";
 import { CurrencyInput } from "@/components/ui/CurrencyInput";
+import { Card } from "@/components/ui/Card";
 
 
 interface EventInstallmentsTableProps {
@@ -215,7 +216,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
     const canEdit = event.status !== 'approved' && event.status !== 'rejected';
 
     return (
-        <div className="bg-white border rounded-lg overflow-hidden shadow-sm animate-in fade-in zoom-in-95 duration-200">
+        <Card className="overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Extended Header */}
             <div className="bg-gray-50/50 border-b px-4 py-3 flex flex-col sm:flex-row gap-4 items-center justify-between">
                 <div className="flex items-center gap-8 text-sm flex-1">
@@ -241,7 +242,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                                             <option key={term.id} value={term.id}>{term.name}</option>
                                         ))}
                                     </select>
-                                </div>
+        </Card>
                                 <div className="flex flex-col gap-1 flex-1">
                                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Forma de Pagto (Todos)</span>
                                     <select

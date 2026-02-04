@@ -16,6 +16,7 @@ import { OrderItemsPopover } from "./OrderItemsPopover";
 import { deleteRoute } from "@/lib/data/expedition";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { normalizeRouteStatus } from "@/lib/constants/status";
+import { Card } from "@/components/ui/Card";
 
 interface UnscheduledRouteCardProps {
     route: DeliveryRoute;
@@ -111,14 +112,14 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                         onMouseEnter={handleMouseEnter}
                         onMouseLeave={handleMouseLeave}
                     >
-                        <div
+                        <Card
                             ref={setNodeRef}
                             style={style}
                             className={cn(
-                                "bg-white border border-gray-200 rounded-lg overflow-hidden transition-all duration-200 ease-out",
-                                !isRouteLocked && "hover:shadow-md",
+                                "bg-white border border-gray-200/70 overflow-hidden transition-all duration-200 ease-out",
+                                !isRouteLocked && "hover:shadow-card",
                                 isRouteLocked && "opacity-75 bg-gray-50/50",
-                                isDragging && "opacity-50 ring-2 ring-blue-400 shadow-lg scale-105",
+                                isDragging && "opacity-50 ring-2 ring-blue-400 shadow-float scale-105",
                                 isDeleting && "opacity-50 pointer-events-none"
                             )}
                         >
@@ -170,7 +171,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                             </div>
 
                             {/* Order List */}
-                            <div className="min-h-[80px] max-h-[200px] overflow-y-auto scrollbar-thin bg-gray-50/50 p-2">
+                            <div className="min-h-20 max-h-52 overflow-y-auto scrollbar-thin bg-gray-50/50 p-2">
                                 {route.orders && route.orders.length > 0 ? (
                                     <div className="space-y-2">
                                         {route.orders.map((ro) => {
@@ -195,7 +196,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                                     </div>
                                 )}
                             </div>
-                        </div>
+                        </Card>
                     </div>
                 </PopoverTrigger>
 
@@ -207,7 +208,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                     onMouseEnter={handleMouseEnter}
                     onMouseLeave={handleMouseLeave}
                 >
-                    <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+                    <Card className="bg-white shadow-float border border-gray-200/70 overflow-hidden">
                         {/* Header */}
                         <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-3 py-2 border-b border-blue-200">
                             <div className="flex items-center justify-between gap-2 mb-1">
@@ -253,7 +254,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                         </div>
 
                         {/* Orders List */}
-                        <div className="max-h-[200px] overflow-y-auto">
+                        <div className="max-h-52 overflow-y-auto">
                             {route.orders && route.orders.length > 0 ? (
                                 route.orders.map((ro) => {
                                     const order = ro.sales_order;
@@ -305,7 +306,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                                 </div>
                             )}
                         </div>
-                    </div>
+                    </Card>
                 </PopoverContent>
             </Popover>
 
