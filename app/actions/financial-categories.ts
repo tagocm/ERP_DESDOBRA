@@ -27,8 +27,8 @@ export async function getFinancialCategoriesAction(companyId: string) {
 
         if (error) throw error;
         return { data: data as FinancialCategory[] };
-    } catch (error: any) {
-        return { error: error.message };
+    } catch (error: unknown) {
+        return { error: error instanceof Error ? error.message : 'Erro inesperado' };
     }
 }
 
@@ -53,8 +53,8 @@ export async function createFinancialCategoryAction(name: string) {
 
         revalidatePath('/app/financeiro/fatos-geradores');
         return { data: data as FinancialCategory };
-    } catch (error: any) {
-        return { error: error.message };
+    } catch (error: unknown) {
+        return { error: error instanceof Error ? error.message : 'Erro inesperado' };
     }
 }
 
@@ -77,8 +77,8 @@ export async function updateFinancialCategoryAction(id: string, name: string) {
 
         revalidatePath('/app/financeiro/fatos-geradores');
         return { data: data as FinancialCategory };
-    } catch (error: any) {
-        return { error: error.message };
+    } catch (error: unknown) {
+        return { error: error instanceof Error ? error.message : 'Erro inesperado' };
     }
 }
 
@@ -94,7 +94,7 @@ export async function deleteFinancialCategoryAction(id: string) {
 
         revalidatePath('/app/financeiro/fatos-geradores');
         return { success: true };
-    } catch (error: any) {
-        return { error: error.message };
+    } catch (error: unknown) {
+        return { error: error instanceof Error ? error.message : 'Erro inesperado' };
     }
 }
