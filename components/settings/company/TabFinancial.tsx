@@ -185,7 +185,7 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
 
                 <div className="p-6 pt-0 space-y-8">
                     {/* SECTION A: DEFAULTS */}
-                    <div className="bg-gray-50/50 border border-gray-100 rounded-xl p-5">
+                    <div className="bg-gray-50/50 border border-gray-100 rounded-2xl p-5">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                             <div className="space-y-1.5">
                                 <label className="text-xs font-bold text-gray-500 uppercase tracking-tight">Multa Padrão</label>
@@ -223,7 +223,7 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
                             <h4 className="text-sm font-bold text-gray-900 tracking-tight">Prazos e Regras</h4>
                         </div>
 
-                        <div className="overflow-hidden border border-gray-200 rounded-lg">
+                        <div className="overflow-hidden border border-gray-200 rounded-2xl">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
@@ -297,12 +297,12 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {bankAccounts.length === 0 && (
-                                <div className="col-span-full py-12 text-center border-2 border-dashed border-gray-100 rounded-xl">
+                                <div className="col-span-full py-12 text-center border-2 border-dashed border-gray-100 rounded-2xl">
                                     <p className="text-sm text-gray-400 italic">Nenhuma conta cadastrada.</p>
                                 </div>
                             )}
                             {bankAccounts.map(acc => (
-                                <div key={acc.id} className="flex items-center justify-between p-5 border border-gray-100 rounded-xl bg-white shadow-sm hover:border-brand-100 hover:shadow-md transition-all group">
+                                <Card key={acc.id} className="flex items-center justify-between p-5 border-gray-100 hover:border-brand-100 transition-all group hover:shadow-float">
                                     <div className="flex items-center gap-4">
                                         <div className="w-12 h-12 rounded-full bg-brand-50 flex items-center justify-center text-brand-600 border border-brand-100 group-hover:bg-brand-100 transition-colors">
                                             <Landmark className="w-6 h-6" />
@@ -318,7 +318,7 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
                                                     <span className="ml-2 text-gray-400 font-normal">| PIX: <span className="text-gray-900 font-black">{acc.pix_key}</span></span>
                                                 )}
                                                 {acc.is_default && (
-                                                    <span className="ml-2 bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[9px] uppercase font-black tracking-wider shadow-sm">Padrão</span>
+                                                    <span className="ml-2 bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-[9px] uppercase font-black tracking-wider">Padrão</span>
                                                 )}
                                             </p>
                                         </div>
@@ -333,7 +333,7 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
                                             <Trash2 className="w-4 h-4" />
                                         </Button>
                                     )}
-                                </div>
+                                </Card>
                             ))}
                         </div>
                     )}
@@ -398,7 +398,7 @@ function NewBankAccountDialog({ onSave }: { onSave: (acc: Partial<BankAccount>) 
                     Nova Conta
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-[500px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-2xl">
+            <DialogContent className="max-w-2xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-float">
                 {/* Header */}
                 <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
                     <div>
@@ -436,7 +436,7 @@ function NewBankAccountDialog({ onSave }: { onSave: (acc: Partial<BankAccount>) 
                                 <Input
                                     value={acc.agency}
                                     onChange={e => setAcc({ ...acc, agency: e.target.value })}
-                                    className="h-9 rounded-lg border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                    className="h-9 border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
                                 />
                             </div>
                             <div className="space-y-1.5">
@@ -455,7 +455,7 @@ function NewBankAccountDialog({ onSave }: { onSave: (acc: Partial<BankAccount>) 
                                         }
                                         setAcc({ ...acc, account_number: formatted });
                                     }}
-                                    className="h-9 rounded-lg border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                    className="h-9 border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
                                     maxLength={20}
                                 />
                             </div>
@@ -467,11 +467,11 @@ function NewBankAccountDialog({ onSave }: { onSave: (acc: Partial<BankAccount>) 
                                 value={acc.pix_key}
                                 onChange={e => setAcc({ ...acc, pix_key: e.target.value })}
                                 placeholder="CPF, CNPJ, Email, Celular ou Aleatória"
-                                className="h-9 rounded-lg border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                className="h-9 border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
                             />
                         </div>
 
-                        <div className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-lg shadow-sm">
+                        <Card className="p-3 flex items-center gap-3 border-gray-100">
                             <input
                                 type="checkbox"
                                 checked={acc.is_default}
@@ -482,7 +482,7 @@ function NewBankAccountDialog({ onSave }: { onSave: (acc: Partial<BankAccount>) 
                             <label htmlFor="is_def" className="text-sm font-medium text-gray-700 cursor-pointer select-none">
                                 Definir como Conta Padrão
                             </label>
-                        </div>
+                        </Card>
                     </div>
                 </div>
 
@@ -491,14 +491,14 @@ function NewBankAccountDialog({ onSave }: { onSave: (acc: Partial<BankAccount>) 
                     <Button
                         variant="ghost"
                         onClick={() => setOpen(false)}
-                        className="flex-1 h-10 rounded-lg bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
+                        className="flex-1 h-10 bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
                     >
                         Cancelar
                     </Button>
                     <Button
                         onClick={handleSave}
                         disabled={loading || !acc.bank_name || !acc.agency || !acc.account_number}
-                        className="flex-[2] h-10 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-lg shadow-brand-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                        className="flex-[2] h-10 bg-brand-600 hover:bg-brand-700 text-white font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                     >
                         {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                         Salvar Conta
