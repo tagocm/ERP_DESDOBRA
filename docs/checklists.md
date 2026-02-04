@@ -5,4 +5,4 @@ Este repositório mantém checklists separadas por área.
 - Produto/UI: `docs/checklist-ui-e-produtos.md`
 - UX: `docs/checklist-ux-refactor.md`
 - Produção/Segurança/Mobile: `docs/checklist-producao-seguranca-mobile.md`
-
+- Nota 9 (Produção): `docs/checklist-nota-9.md`
