@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabaseServer';
 import { createClient } from '@/utils/supabase/server';
 
 export async function DELETE(request: NextRequest) {
@@ -7,9 +6,6 @@ export async function DELETE(request: NextRequest) {
         // Get authenticated user
         const supabaseUser = await createClient();
         const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-
-        // Admin client for privileged operations
-        const supabaseAdmin = createAdminClient();
 
         if (authError || !user) {
             return NextResponse.json(
@@ -66,7 +62,7 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Delete file from Storage
-        const { error: deleteError } = await supabaseAdmin.storage
+        const { error: deleteError } = await supabaseUser.storage
             .from('company-assets')
             .remove([settings.cert_a1_storage_path]);
 
