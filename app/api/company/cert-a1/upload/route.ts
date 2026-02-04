@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
         const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
 
         // Admin client for privileged operations
-        const supabase = createAdminClient();
+        const supabaseAdmin = createAdminClient();
 
         if (authError || !user) {
             return NextResponse.json(
@@ -39,12 +39,12 @@ export async function POST(request: NextRequest) {
         }
 
         // Verify user is member of the company
-        const { data: membership, error: membershipError } = await supabase
+        const { data: membership, error: membershipError } = await supabaseUser
             .from('company_members')
             .select('company_id')
             .eq('company_id', companyId)
-            .eq('user_id', user.id)
-            .single();
+            .eq('auth_user_id', user.id)
+            .maybeSingle();
 
         if (membershipError || !membership) {
             return NextResponse.json(
@@ -66,18 +66,18 @@ export async function POST(request: NextRequest) {
         const filePath = generateFilePath(companyId, 'cert', file.name);
 
         // Get existing cert path to delete old file
-        const { data: existingSettings } = await supabase
+        const { data: existingSettings } = await supabaseUser
             .from('company_settings')
             .select('cert_a1_storage_path')
             .eq('company_id', companyId)
-            .single();
+            .maybeSingle();
 
         // Convert file to buffer
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
         // Upload to Storage
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabaseAdmin.storage
             .from('company-assets')
             .upload(filePath, buffer, {
                 contentType: 'application/x-pkcs12',
@@ -94,9 +94,12 @@ export async function POST(request: NextRequest) {
 
         // Delete old certificate if exists
         if (existingSettings?.cert_a1_storage_path) {
-            await supabase.storage
-                .from('company-assets')
-                .remove([existingSettings.cert_a1_storage_path]);
+            const expectedPrefixes = [`companies/${companyId}/`, `${companyId}/`];
+            if (expectedPrefixes.some((p) => existingSettings.cert_a1_storage_path.startsWith(p))) {
+                await supabaseAdmin.storage
+                    .from('company-assets')
+                    .remove([existingSettings.cert_a1_storage_path]);
+            }
         }
 
         const uploadedAt = new Date().toISOString();
@@ -106,7 +109,7 @@ export async function POST(request: NextRequest) {
         const expiresAt = null;
 
         // Update company_settings
-        const { error: updateError } = await supabase
+        const { error: updateError } = await supabaseUser
             .from('company_settings')
             .upsert({
                 company_id: companyId,
@@ -121,7 +124,7 @@ export async function POST(request: NextRequest) {
         if (updateError) {
             console.error('Update error:', updateError);
             // Try to clean up uploaded file
-            await supabase.storage.from('company-assets').remove([filePath]);
+            await supabaseAdmin.storage.from('company-assets').remove([filePath]);
             return NextResponse.json(
                 { error: 'Erro ao atualizar configurações' },
                 { status: 500 }
