@@ -21,16 +21,22 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
     // --- Helpers ---
     const strip = (s: string | null | undefined) => (s || '').replace(/\D/g, '');
     const truncate = (s: string, len: number) => (s || '').substring(0, len);
-    const requireField = (val: any, fieldName: string) => {
-        if (!val) throw new Error(`Campo obrigatório faltando: ${fieldName}`);
-        return val;
+    const requireString = (val: unknown, fieldName: string) => {
+        if (!val && val !== 0) throw new Error(`Campo obrigatório faltando: ${fieldName}`);
+        return String(val);
+    };
+    const requireNumber = (val: unknown, fieldName: string) => {
+        if (val === undefined || val === null || val === '') throw new Error(`Campo obrigatório faltando: ${fieldName}`);
+        const n = Number(val);
+        if (isNaN(n)) throw new Error(`Valor numérico inválido para: ${fieldName}`);
+        return n;
     };
 
     // --- 1. EMIT (Build first to extract cMun for cMunFG) ---
     const crt = settings.tax_regime === 'simples_nacional' ? '1' : '3';
 
     // FIX: Use is_main instead of is_default (bug critical - was using wrong field)
-    const emitAddr = company.addresses?.find((a: any) => a.is_main) || company.addresses?.[0];
+    const emitAddr = company.addresses?.find((a: { is_main: boolean }) => a.is_main) || company.addresses?.[0];
 
     if (!emitAddr) throw new Error('Dados de endereço do emitente não encontrados.');
 
@@ -45,10 +51,10 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
     });
 
     const emit: NfeEmit = {
-        cnpj: requireField(strip(settings.cnpj || company.document_number), 'CNPJ Emitente'),
-        xNome: requireField(truncate(settings.legal_name || company.name, 60), 'Razão Social Emitente'),
+        cnpj: requireString(strip(settings.cnpj || company.document_number), 'CNPJ Emitente'),
+        xNome: requireString(truncate(settings.legal_name || company.name, 60), 'Razão Social Emitente'),
         xFant: truncate(settings.trade_name || company.slug, 60),
-        ie: requireField(strip(settings.ie), 'Inscrição Estadual Emitente'),
+        ie: requireString(strip(settings.ie), 'Inscrição Estadual Emitente'),
         crt: crt as any,
         enderEmit: mapAddress(emitAddr, company.settings, 'Emitente')
     };
@@ -94,10 +100,10 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
     // Homologation environment allows overriding destination name for test safety, 
     // but we use Watermark in DANFE for compliance. We keep real name in XML.
     const isHomolog = keyParams.tpAmb === '2';
-    const destName = requireField(client.name || client.legal_name, 'Nome/Razão Social Destinatário');
+    const destName = requireString(client.name || client.legal_name, 'Nome/Razão Social Destinatário');
 
     // Fallback to document_number if document is missing (DB schema variance)
-    const clientCnpj = requireField(strip(client.document || client.document_number), 'CPF/CNPJ Destinatário');
+    const clientCnpj = requireString(strip(client.document || client.document_number), 'CPF/CNPJ Destinatário');
 
     let indIEDest: "1" | "2" | "9" = "9"; // Default Non-contributor
     if (client.state_registration && client.state_registration.toLowerCase() !== 'isento') {
@@ -130,18 +136,17 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
 
         let uCom = 'UN';
         let uTrib = 'UN';
-        let qCom = Number(item.quantity);
-        let vUnCom = Number(item.unit_price);
+        const qCom = Number(item.quantity);
+        const vUnCom = Number(item.unit_price);
 
         // 1. Snapshot Strategy (Gold Standard)
         if (snapshot && snapshot.sell_unit_code) {
             uCom = snapshot.sell_unit_code;
             uTrib = snapshot.base_unit_code || uCom;
 
-            // If factor exists, calculate qTrib and vUnTrib correctly
             // qTrib = qCom * factor
             // vUnTrib = vUnCom / factor
-            const factor = Number(snapshot.factor_in_base) || 1;
+            const _factor = Number(snapshot.factor_in_base) || 1;
 
             // qTrib is essentially qty_base if consistency holds, but let's calculate to be sure
             // or use item.qty_base if trusted. Snapshot factor is safer.
@@ -187,7 +192,7 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
 
         // Build product description with explicit unit conversion
         const descResult = buildNfeProductDescription({
-            itemName: requireField(prod.name || item.product_name, `Nome do Produto (Item ${idx + 1})`),
+            itemName: requireString(prod.name || item.product_name, `Nome do Produto (Item ${idx + 1})`),
             salesUomAbbrev: item.sales_uom_abbrev_snapshot || resolveUomAbbrev(
                 (item.packaging as any)?.uoms?.abbrev,
                 item.packaging?.type,
@@ -201,14 +206,14 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
         });
 
         const nfeProd: NfeProd = {
-            cProd: requireField(truncate(prod.sku || prod.code || item.product_id, 60), `Código do Produto (Item ${idx + 1})`),
+            cProd: requireString(truncate(prod.sku || prod.code || item.product_id, 60), `Código do Produto (Item ${idx + 1})`),
             xProd: descResult.xProd, // Use generated description
-            ncm: requireField(strip(fiscal.ncm), `NCM do Product (Item ${idx + 1})`),
-            cfop: requireField(strip(fiscal.cfop_internal || '5102'), `CFOP do Produto (Item ${idx + 1})`),
+            ncm: requireString(strip(fiscal.ncm), `NCM do Product (Item ${idx + 1})`),
+            cfop: requireString(strip(fiscal.cfop_internal || '5102'), `CFOP do Produto (Item ${idx + 1})`),
             uCom: uCom,
             qCom: qCom,
             vUnCom: vUnCom,
-            vProd: requireField(Number(item.total_amount) || (qCom * vUnCom), `Valor Total (Item ${idx + 1})`),
+            vProd: requireNumber(Number(item.total_amount) || (qCom * vUnCom), `Valor Total (Item ${idx + 1})`),
             cean: 'SEM GTIN',
             ceanTrib: 'SEM GTIN',
             uTrib: uTrib,
@@ -400,14 +405,24 @@ const strip = (s: string | null | undefined) => (s || '').replace(/\D/g, '');
 
 // --- Address Mapper ---
 // --- Address Mapper ---
-function mapAddress(addr: any, settings: any, contextName: string): NfeEndereco {
+interface AddressData {
+    street?: string;
+    number?: string;
+    neighborhood?: string;
+    city_code_ibge?: string;
+    city?: string;
+    state?: string;
+    zip?: string;
+}
+
+function mapAddress(addr: AddressData | null, settings: any, contextName: string): NfeEndereco {
     if (!addr) {
         throw new Error(`Endereço obrigatório faltando para: ${contextName}`);
     }
 
-    const requireAddr = (val: any, field: string) => {
+    const requireAddr = (val: unknown, field: string) => {
         if (!val) throw new Error(`Campo de endereço '${field}' faltando para: ${contextName}`);
-        return val;
+        return String(val);
     }
 
     return {

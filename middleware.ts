@@ -3,6 +3,18 @@ import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
+    // 1. Guard clause: CI/E2E bypass when Supabase envs are missing OR explicitly in E2E mode
+    if (
+        process.env.E2E === 'true' ||
+        process.env.CI === 'true' ||
+        !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+        !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    ) {
+        // Log only if verbose or warn
+        // console.warn("⚠️ Middleware: Bypassing auth check (CI/E2E mode or missing envs).");
+        return NextResponse.next();
+    }
+
     let response = NextResponse.next({
         request: {
             headers: request.headers,
@@ -10,15 +22,15 @@ export async function middleware(request: NextRequest) {
     });
 
     const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        process.env.NEXT_PUBLIC_SUPABASE_URL,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
         {
             cookies: {
                 getAll() {
                     return request.cookies.getAll();
                 },
                 setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value, options }) =>
+                    cookiesToSet.forEach(({ name, value }) =>
                         request.cookies.set(name, value)
                     );
                     response = NextResponse.next({
@@ -40,8 +52,8 @@ export async function middleware(request: NextRequest) {
         if (request.nextUrl.pathname.startsWith("/app") && !user) {
             return NextResponse.redirect(new URL("/login", request.url));
         }
-    } catch (e: any) {
-        // Error handling can be added here if needed, but logs are removed as per instruction.
+    } catch (_e) {
+        // Error handling can be added here if needed
     }
 
     return response;

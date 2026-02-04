@@ -88,7 +88,7 @@ export function BulkSettleModal({ open, onOpenChange, selectedIds, installments,
                 <div className="grid gap-6 py-4">
                     {/* Invalid Items Warning */}
                     {invalidCount > 0 && (
-                        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-r-md flex items-start gap-3">
+                        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 rounded-2xl flex items-start gap-3">
                             <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
                             <div className="text-sm">
                                 <p className="font-bold text-yellow-800">Atenção</p>
@@ -126,7 +126,7 @@ export function BulkSettleModal({ open, onOpenChange, selectedIds, installments,
                     </div>
 
                     {/* Summary Card */}
-                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200">
                         <div className="flex justify-between items-end mb-4 border-b border-gray-200 pb-2">
                             <div className="text-sm font-medium text-gray-500 uppercase tracking-wider">Resumo da Baixa</div>
                         </div>
@@ -143,7 +143,7 @@ export function BulkSettleModal({ open, onOpenChange, selectedIds, installments,
                     </div>
 
                     {/* Preview Table */}
-                    <div className="border rounded-md max-h-[200px] overflow-y-auto">
+                    <div className="border rounded-2xl max-h-52 overflow-y-auto">
                         <table className="w-full text-sm">
                             <thead className="bg-gray-50 sticky top-0">
                                 <tr>
@@ -158,7 +158,7 @@ export function BulkSettleModal({ open, onOpenChange, selectedIds, installments,
                                         <td className="px-3 py-2">
                                             #{inst.ar_title?.document_number}-{inst.installment_number}
                                         </td>
-                                        <td className="px-3 py-2 truncate max-w-[150px]">
+                                        <td className="px-3 py-2 truncate max-w-40">
                                             {inst.ar_title?.organization?.trade_name || '---'}
                                         </td>
                                         <td className="px-3 py-2 text-right font-medium text-gray-700">

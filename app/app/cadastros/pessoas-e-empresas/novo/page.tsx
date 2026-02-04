@@ -1005,7 +1005,7 @@ export default function NewOrganizationPage() {
                                     value={commercialData.notes_commercial}
                                     onChange={handleCommercialChange}
                                     rows={4}
-                                    className="flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                                    className="flex w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                                     placeholder="Informações adicionais sobre negociações..."
                                 />
                             </CardContent>
@@ -1274,7 +1274,7 @@ export default function NewOrganizationPage() {
                                                     value={fiscalData.notes_fiscal}
                                                     onChange={handleFiscalChange}
                                                     rows={3}
-                                                    className="flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                                    className="flex w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                                                 />
                                             </div>
                                         </CardContent>

@@ -59,7 +59,7 @@ BEGIN
             END IF;
         END IF;
 
-        IF NEW.financial_status = 'aprovado' THEN
+        IF NEW.financial_status = 'approved' THEN
              v_reason := 'Aprovado pelo financeiro';
         END IF;
 
@@ -114,7 +114,7 @@ BEGIN
     IF NEW.status_logistic::text = 'em_rota' AND (OLD.status_logistic IS DISTINCT FROM 'em_rota') THEN
         
         -- Update Order Status to PRE_LANCADO (Processing)
-        IF OLD.financial_status = 'pendente' THEN
+        IF OLD.financial_status = 'pending' THEN
              UPDATE sales_documents 
              SET financial_status = 'pre_lancado' 
              WHERE id = NEW.id;
@@ -208,10 +208,10 @@ BEGIN
     -- 2. Return Logic: Em Review
     -- Trigger A: Em Rota -> Pendente
     -- Trigger B: Em Rota -> Nao Entregue (Devolvido/Falha)
-    -- STRICT RULE: Only if PREVIOUS status was 'aprovado'
+    -- STRICT RULE: Only if PREVIOUS status was 'approved'
     
     IF OLD.status_logistic::text = 'em_rota' AND NEW.status_logistic::text IN ('pending', 'nao_entregue') THEN
-        IF OLD.financial_status = 'aprovado' THEN
+        IF OLD.financial_status = 'approved' THEN
              UPDATE sales_documents 
              SET financial_status = 'em_revisao'
              WHERE id = NEW.id;

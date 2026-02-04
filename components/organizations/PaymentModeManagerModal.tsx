@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { getPaymentModes, createPaymentMode, updatePaymentMode, deletePaymentMode, PaymentMode } from "@/lib/data/payment-modes";
 import { cn } from "@/lib/utils";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
+import { Card } from "@/components/ui/Card";
 import {
     Table,
     TableBody,
@@ -103,7 +104,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
     };
 
     return (
-        <DialogContent className="max-w-[800px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl">
+        <DialogContent className="max-w-4xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl">
             {/* Header */}
             <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
                 <div>
@@ -117,17 +118,17 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                         setEditingId(null);
                         setAddBoxOpen(!addBoxOpen);
                     }}
-                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-full px-4 text-xs h-8 shadow-sm transition-all"
+                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-2xl px-4 text-xs h-8 shadow-card transition-all"
                 >
                     <Plus className="w-3.5 h-3.5 mr-1.5" />
                     Nova Modalidade
                 </Button>
             </div>
 
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
+            <div className="p-6 overflow-y-auto max-h-screen">
                 {/* Create/Edit Form Inline */}
                 {(addBoxOpen || editingId) && (
-                    <div className="mb-6 bg-white p-4 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-top-2">
+                    <Card className="mb-6 bg-white p-4 border border-gray-200/70 shadow-card animate-in fade-in slide-in-from-top-2">
                         <div className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                             {editingId ? <Edit className="w-4 h-4 text-blue-500" /> : <Plus className="w-4 h-4 text-brand-500" />}
                             {editingId ? "Editar Modalidade" : "Nova Modalidade"}
@@ -140,7 +141,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                                     value={editingId ? editName : newItemName}
                                     onChange={(e) => editingId ? setEditName(e.target.value) : setNewItemName(e.target.value)}
                                     placeholder="Ex: Pix, Boleto 30 Dias..."
-                                    className="h-9 text-sm rounded-lg"
+                                    className="h-9 text-sm rounded-2xl"
                                     autoFocus
                                     onKeyDown={(e) => e.key === 'Enter' && (editingId ? handleUpdate(editingId) : handleCreate())}
                                 />
@@ -151,7 +152,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                             <Button
                                 onClick={() => editingId ? handleUpdate(editingId) : handleCreate()}
                                 disabled={isCreating || isUpdating || !(editingId ? editName : newItemName).trim()}
-                                className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition-all"
+                                className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-medium transition-all"
                             >
                                 {(isCreating || isUpdating) ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -165,16 +166,16 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                                     setEditingId(null);
                                     setAddBoxOpen(false);
                                 }}
-                                className="h-9 w-9 p-0 bg-gray-50 hover:bg-white text-gray-500 rounded-lg border-gray-200"
+                                className="h-9 w-9 p-0 bg-gray-50 hover:bg-white text-gray-500 rounded-2xl border-gray-200"
                             >
                                 <X className="w-4 h-4" />
                             </Button>
                         </div>
-                    </div>
+                    </Card>
                 )}
 
                 {/* List Container */}
-                <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                <Card className="border border-gray-200/70 overflow-hidden bg-white shadow-card">
                     <Table>
                         <TableHeader className="bg-gray-50/50">
                             <TableRow className="hover:bg-transparent border-gray-100">
@@ -204,7 +205,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                                         </TableCell>
                                         <TableCell className="py-3 text-center">
                                             {mode.usage_count! > 0 ? (
-                                                <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium">
+                                                <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-2xl font-medium">
                                                     {mode.usage_count} usos
                                                 </span>
                                             ) : (
@@ -221,7 +222,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                                                         setEditingId(mode.id);
                                                         setEditName(mode.name);
                                                     }}
-                                                    className="h-7 w-7 p-0 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
+                                                    className="h-7 w-7 p-0 rounded-2xl hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
                                                 >
                                                     <Edit className="h-3.5 w-3.5" />
                                                 </Button>
@@ -232,7 +233,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                                                     onClick={() => setItemToDelete(mode.id)}
                                                     disabled={mode.usage_count! > 0}
                                                     className={cn(
-                                                        "h-7 w-7 p-0 rounded-lg transition-colors border-none bg-transparent",
+                                                        "h-7 w-7 p-0 rounded-2xl transition-colors border-none bg-transparent",
                                                         mode.usage_count! > 0
                                                             ? "opacity-20 cursor-not-allowed"
                                                             : "hover:bg-red-50 hover:text-red-600 text-gray-400"
@@ -247,7 +248,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                             )}
                         </TableBody>
                     </Table>
-                </div>
+                </Card>
             </div>
 
             <ConfirmDialogDesdobra

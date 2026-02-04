@@ -8,17 +8,17 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
     const { id } = await params;
     const supabase = await createClient();
 
+    let order;
     try {
-        const order = await getSalesDocumentById(supabase, id);
+        order = await getSalesDocumentById(supabase, id);
 
         if (!order) {
             notFound();
         }
-
-        return <SalesOrderForm initialData={order} mode="edit" />;
-
     } catch (e) {
         console.error("Error loading order:", e);
         return <div>Erro ao carregar pedido.</div>;
     }
+
+    return <SalesOrderForm initialData={order} mode="edit" />;
 }

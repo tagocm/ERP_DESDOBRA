@@ -53,7 +53,7 @@ export async function rejectPurchaseFinancial({ purchaseOrderId, reason, eventId
         await supabase
             .from('financial_events')
             .update({
-                status: 'reprovado',
+                status: 'rejected',
                 rejected_by: userId,
                 rejected_at: now,
                 rejection_reason: reason,
@@ -95,7 +95,7 @@ export async function rejectPurchaseFinancial({ purchaseOrderId, reason, eventId
                 origin_type: 'PURCHASE',
                 company_id: order.company_id,
                 direction: 'AP',
-                status: 'em_atencao',
+                status: 'attention',
                 issue_date: now,
                 rejection_reason: `Rejeição Financeira (Pós-Recebimento): ${reason}`,
                 rejected_by: userId,
@@ -103,7 +103,7 @@ export async function rejectPurchaseFinancial({ purchaseOrderId, reason, eventId
                 attention_marked_by: userId,
                 attention_marked_at: now,
                 attention_reason: reason,
-                operational_status: 'EM_ATENCAO'
+                operational_status: 'attention'
             });
 
     } else {

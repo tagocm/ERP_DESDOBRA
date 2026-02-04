@@ -101,7 +101,7 @@ export function CategorySelector({ value, onChange, className, disabled, company
                             "flex h-10 w-full items-center justify-between rounded-2xl border bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500",
                             "focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2",
                             "disabled:cursor-not-allowed disabled:opacity-50",
-                            "shadow-sm transition-all border-gray-200",
+                            "shadow-card transition-all border-gray-200",
                             "hover:bg-white hover:text-gray-900", // Override ghost hover
                             "text-gray-900", // FORCE override Button ghost text-gray-600 to match Select (usually gray-900 or black)
                             "font-normal", // Override Button's font-semibold

@@ -3,8 +3,10 @@
 import { format } from "date-fns";
 import { Eye, FileText } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
 import Link from "next/link";
 import { DeliveryRoute } from "@/types/sales";
+import { normalizeLogisticsStatus } from "@/lib/constants/status";
 
 interface RouteHistoryTableProps {
     data: any[]; // Extended DeliveryRoute with joined orders/sales_order
@@ -18,16 +20,18 @@ export function RouteHistoryTable({ data, isLoading }: RouteHistoryTableProps) {
 
     if (!data || data.length === 0) {
         return (
-            <div className="p-12 text-center border border-gray-200 rounded-lg bg-gray-50 text-gray-500">
-                <FileText className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                <h3 className="text-lg font-medium">Nenhuma rota concluída encontrada</h3>
-                <p>Ajuste os filtros ou finalize uma rota na tela de Retorno.</p>
-            </div>
+            <Card>
+                <CardContent className="p-12 text-center text-gray-500">
+                    <FileText className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                    <h3 className="text-lg font-medium">Nenhuma rota concluída encontrada</h3>
+                    <p>Ajuste os filtros ou finalize uma rota na tela de Retorno.</p>
+                </CardContent>
+            </Card>
         );
     }
 
     return (
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <Card className="overflow-hidden">
             <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
                     <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
@@ -38,7 +42,7 @@ export function RouteHistoryTable({ data, isLoading }: RouteHistoryTableProps) {
                             <th className="px-6 py-4 text-center text-xs uppercase tracking-wider">Peso Total</th>
                             <th className="px-6 py-4 text-center text-xs uppercase tracking-wider">Resultados</th>
                             <th className="px-6 py-4 text-center text-xs uppercase tracking-wider">Status</th>
-                            <th className="px-6 py-4 w-[60px]"></th>
+                            <th className="px-6 py-4 w-16"></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -51,9 +55,9 @@ export function RouteHistoryTable({ data, isLoading }: RouteHistoryTableProps) {
                             let notDelivered = 0;
 
                             route.orders?.forEach((o: any) => {
-                                const st = o.sales_order?.status_logistic;
-                                if (st === 'entregue') delivered++;
-                                else if (st === 'nao_entregue') notDelivered++;
+                                const st = normalizeLogisticsStatus(o.sales_order?.status_logistic) || o.sales_order?.status_logistic;
+                                if (st === 'delivered') delivered++;
+                                else if (st === 'not_delivered') notDelivered++;
                             });
 
                             return (
@@ -72,12 +76,12 @@ export function RouteHistoryTable({ data, isLoading }: RouteHistoryTableProps) {
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex items-center justify-center gap-2 text-[10px] font-bold">
-                                            {delivered > 0 && <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-full" title="Entregues">{delivered} OK</span>}
-                                            {notDelivered > 0 && <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-full" title="Não Entregues">{notDelivered} NÃO</span>}
+                                            {delivered > 0 && <span className="bg-green-100 text-green-700 px-2 py-0.5 rounded-2xl" title="Entregues">{delivered} OK</span>}
+                                            {notDelivered > 0 && <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded-2xl" title="Não Entregues">{notDelivered} NÃO</span>}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-center">
-                                        <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                                        <span className="inline-flex px-3 py-1 rounded-2xl text-xs font-bold bg-green-100 text-green-800">
                                             CONCLUÍDA
                                         </span>
                                     </td>
@@ -94,6 +98,6 @@ export function RouteHistoryTable({ data, isLoading }: RouteHistoryTableProps) {
                     </tbody>
                 </table>
             </div>
-        </div>
+        </Card>
     );
 }

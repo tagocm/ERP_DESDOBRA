@@ -11,7 +11,7 @@ export async function getSandboxOrders(supabase: SupabaseClient, companyId: stri
         .select(`
             id, document_number, total_amount, date_issued, status_commercial, status_logistic, total_weight_kg,
             client:organizations!client_id(trade_name),
-            items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items(id, name, sku, net_weight_g_base)),
+            items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items!fk_sales_item_product(id, name, sku, net_weight_g_base)),
             deliveries:deliveries(
                 id, status,
                 items:delivery_items(sales_document_item_id, qty_delivered)
@@ -20,7 +20,7 @@ export async function getSandboxOrders(supabase: SupabaseClient, companyId: stri
         .eq('company_id', companyId)
         .eq('status_commercial', 'confirmed')
         .eq('status_commercial', 'confirmed')
-        .in('status_logistic', ['pendente', 'parcial'])
+        .in('status_logistic', ['pending', 'partial'])
         .eq('dispatch_blocked', false)
         .is('deleted_at', null)
         .order('date_issued', { ascending: false });
@@ -102,17 +102,17 @@ export async function deleteRoute(supabase: SupabaseClient, routeId: string) {
     if (routeOrders && routeOrders.length > 0) {
         const orderIds = routeOrders.map(ro => ro.sales_document_id);
 
-        // 2. Reset order status to 'pendente' (Sandbox)
+        // 2. Reset order status to 'pending' (Sandbox)
         const { error: updateError } = await supabase
             .from('sales_documents')
             .update({
-                status_logistic: 'pendente',
+                status_logistic: 'pending',
                 scheduled_delivery_date: null
             })
             .in('id', orderIds)
             // Safety check: don't reset if already delivered/returned (though typically one wouldn't delete such a route)
-            .neq('status_logistic', 'entregue')
-            .neq('status_logistic', 'devolvido');
+            .neq('status_logistic', 'delivered')
+            .neq('status_logistic', 'returned');
 
         if (updateError) throw updateError;
     }
@@ -161,7 +161,7 @@ export async function addOrderToRoute(
         .single();
 
     const isAutomaticRoute = route?.name?.toLowerCase().startsWith('rota automática');
-    const loadingStatus = isAutomaticRoute ? 'loaded' : 'pendente'; // Default to pendente (gray)
+    const loadingStatus = isAutomaticRoute ? 'loaded' : 'pending'; // Default to pendente (gray)
 
     // Check if order is already in ANY ACTIVE route
     // We ignore completed/cancelled routes (history)
@@ -175,8 +175,8 @@ export async function addOrderToRoute(
             )
         `)
         .eq('sales_document_id', orderId)
-        .neq('route.status', 'concluida')
-        .neq('route.status', 'cancelada')
+        .neq('route.status', 'completed')
+        .neq('route.status', 'cancelled')
         .maybeSingle();
 
     if (existing) {
@@ -196,7 +196,7 @@ export async function addOrderToRoute(
             } else {
                 // Reset to pendente when moving between routes to force re-check
                 // Unless we explicitly want to keep it? Safest is to reset.
-                updatePayload.loading_status = 'pendente';
+                updatePayload.loading_status = 'pending';
                 updatePayload.partial_payload = null; // Clear any partial data
             }
 
@@ -222,7 +222,7 @@ export async function addOrderToRoute(
 
     // Prepare update for sales_document
     const orderUpdate: any = {
-        status_logistic: 'roteirizado',
+        status_logistic: 'routed',
         scheduled_delivery_date: route?.scheduled_date || null
     };
 
@@ -232,13 +232,13 @@ export async function addOrderToRoute(
     }
 
     // Update order status and schedule date
-    // ensure we don't accidentally overwrite 'entregue' if there's a race condition (though kanban checks this)
+    // ensure we don't accidentally overwrite 'delivered' if there's a race condition (though kanban checks this)
     const { error: updateError } = await supabase
         .from('sales_documents')
         .update(orderUpdate)
         .eq('id', orderId)
-        .neq('status_logistic', 'entregue')
-        .neq('status_logistic', 'devolvido');
+        .neq('status_logistic', 'delivered')
+        .neq('status_logistic', 'returned');
 
     if (updateError) throw updateError;
 }
@@ -255,11 +255,11 @@ export async function removeOrderFromRoute(supabase: SupabaseClient, routeId: st
     // Update order status back to 'pending'
     const { error: updateError } = await supabase
         .from('sales_documents')
-        .update({ status_logistic: 'pendente' })
+        .update({ status_logistic: 'pending' })
         .eq('id', orderId)
-        .neq('status_logistic', 'entregue')
-        .neq('status_logistic', 'devolvido')
-        .neq('status_logistic', 'em_rota');
+        .neq('status_logistic', 'delivered')
+        .neq('status_logistic', 'returned')
+        .neq('status_logistic', 'in_route');
 
     if (updateError) throw updateError;
 }
@@ -309,7 +309,7 @@ export async function updateRouteSchedule(
     if (error) throw error;
 
     // Determine target status based on whether we're scheduling or unscheduling
-    const targetStatus = scheduledDate ? 'agendado' : 'roteirizado';
+    const targetStatus = scheduledDate ? 'scheduled' : 'routed';
 
     // Get all orders from this route
     const { data: routeOrders } = await supabase
@@ -328,8 +328,8 @@ export async function updateRouteSchedule(
                 scheduled_delivery_date: scheduledDate
             })
             .in('id', orderIds)
-            .neq('status_logistic', 'entregue')
-            .neq('status_logistic', 'devolvido');
+            .neq('status_logistic', 'delivered')
+            .neq('status_logistic', 'returned');
 
         if (updateError) throw updateError;
     }
@@ -338,7 +338,7 @@ export async function updateRouteSchedule(
 }
 
 export async function getScheduledRoutes(supabase: SupabaseClient, companyId: string, weekStart: string, weekEnd: string) {
-    let query = supabase
+    const query = supabase
         .from('delivery_routes')
         .select(`
             *,
@@ -480,7 +480,7 @@ export async function getExpeditionRoutes(
                     items:sales_document_items(
                         id, quantity, unit_price, unit_weight_kg,
                         packaging:item_packaging(id, label, qty_in_base),
-                        product:items(id, name, sku, uom, net_weight_g_base)
+                        product:items!fk_sales_item_product(id, name, sku, uom, net_weight_g_base)
                     ),
                     deliveries:deliveries(
                         id, status,
@@ -497,8 +497,8 @@ export async function getExpeditionRoutes(
     if (filters?.dateTo) query = query.lte('scheduled_date', filters.dateTo);
 
     // Filter: Expedição only shows PLANNED routes (not yet started)
-    // Routes in 'em_rota' status should appear in Retorno screen instead
-    query = query.neq('status', 'em_rota').neq('status', 'concluida');
+    // Routes in 'in_route' status should appear in Retorno screen instead
+    query = query.neq('status', 'in_route').neq('status', 'completed');
 
     query = query.order('scheduled_date');
 
@@ -546,7 +546,7 @@ export async function getRetornoRoutes(
                     items:sales_document_items(
                         id, quantity, unit_price, unit_weight_kg,
                         packaging:item_packaging(id, label, qty_in_base),
-                        product:items(id, name, sku, uom, net_weight_g_base)
+                        product:items!fk_sales_item_product(id, name, sku, uom, net_weight_g_base)
                     ),
                     deliveries:deliveries(
                         id, status,
@@ -556,7 +556,7 @@ export async function getRetornoRoutes(
             )
         `)
         .eq('company_id', companyId)
-        .eq('status', 'em_rota'); // Only show routes that are EM_ROTA
+        .eq('status', 'in_route'); // Only show routes that are EM_ROTA
 
     if (filters?.dateFrom) query = query.gte('scheduled_date', filters.dateFrom);
     if (filters?.dateTo) query = query.lte('scheduled_date', filters.dateTo);
@@ -672,7 +672,7 @@ export async function checkAndCleanupExpiredRoutes(supabase: SupabaseClient, com
     if (!expiredCandidates || expiredCandidates.length === 0) return 0;
 
     // Filter routes that are truly "unprocessed"
-    // Unprocessed = No orders are 'em_rota', 'entregue', 'nao_entregue'
+    // Unprocessed = No orders are 'in_route', 'delivered', 'nao_entregue'
     // If a route has NO orders, it is also considered unprocessed/expired
     const toResetIds = expiredCandidates
         .filter((route: any) => {
@@ -680,7 +680,7 @@ export async function checkAndCleanupExpiredRoutes(supabase: SupabaseClient, com
             if (orders.length === 0) return true;
 
             const hasProcessedOrders = orders.some((o: any) =>
-                ['em_rota', 'entregue', 'devolvido', 'parcial'].includes(o.sales_order?.status_logistic)
+                ['in_route', 'delivered', 'returned', 'partial'].includes(o.sales_order?.status_logistic)
             );
 
             return !hasProcessedOrders;
@@ -697,7 +697,7 @@ export async function checkAndCleanupExpiredRoutes(supabase: SupabaseClient, com
 
     if (updateError) throw updateError;
 
-    // Reset status_logistic of orders in these routes to 'roteirizado' (since they are no longer scheduled)
+    // Reset status_logistic of orders in these routes to 'routed' (since they are no longer scheduled)
     // We get all orders from these routes first
     const { data: routeOrders } = await supabase
         .from('delivery_route_orders')
@@ -710,13 +710,13 @@ export async function checkAndCleanupExpiredRoutes(supabase: SupabaseClient, com
         await supabase
             .from('sales_documents')
             .update({
-                status_logistic: 'roteirizado',
+                status_logistic: 'routed',
                 scheduled_delivery_date: null
             })
             .in('id', orderIds)
-            .neq('status_logistic', 'entregue')
-            .neq('status_logistic', 'devolvido')
-            .neq('status_logistic', 'em_rota');
+            .neq('status_logistic', 'delivered')
+            .neq('status_logistic', 'returned')
+            .neq('status_logistic', 'in_route');
     }
 
     return toResetIds.length;
@@ -750,7 +750,7 @@ export async function finishRoute(
     // Update route status to CONCLUIDA
     const { error } = await supabase
         .from('delivery_routes')
-        .update({ status: 'concluida' })
+        .update({ status: 'completed' })
         .eq('id', routeId);
 
     if (error) throw error;
@@ -792,7 +792,7 @@ export async function getCompletedRoutes(
             )
         `)
         .eq('company_id', companyId)
-        .eq('status', 'concluida')
+        .eq('status', 'completed')
         .order('route_date', { ascending: false });
 
     if (filters?.startDate) {
@@ -884,7 +884,7 @@ export async function getOrCreateAutomaticDispatcherRoute(supabase: SupabaseClie
         .from('delivery_routes')
         .select('*')
         .eq('company_id', companyId)
-        .eq('status', 'em_rota')
+        .eq('status', 'in_route')
         .ilike('name', `Rota Automática%`)
         .gte('route_date', today)
         .limit(1)
@@ -903,7 +903,7 @@ export async function getOrCreateAutomaticDispatcherRoute(supabase: SupabaseClie
             name: routeName,
             route_date: today,
             scheduled_date: today,
-            status: 'em_rota'
+            status: 'in_route'
         }])
         .select()
         .single();
@@ -923,7 +923,7 @@ export async function resetAndUnscheduleRoute(
     const { error: resetError } = await supabase
         .from('delivery_route_orders')
         .update({
-            loading_status: 'pendente',
+            loading_status: 'pending',
             partial_payload: null,
             return_outcome_type: null,
             return_payload: null,
@@ -938,13 +938,13 @@ export async function resetAndUnscheduleRoute(
         .from('delivery_routes')
         .update({
             scheduled_date: null,
-            status: 'pendente'
+            status: 'pending'
         })
         .eq('id', routeId);
 
     if (routeError) throw routeError;
 
-    // 3. Update Sales Documents status to 'roteirizado'
+    // 3. Update Sales Documents status to 'routed'
     const { data: routeOrders } = await supabase
         .from('delivery_route_orders')
         .select('sales_document_id')
@@ -956,15 +956,15 @@ export async function resetAndUnscheduleRoute(
         await supabase
             .from('sales_documents')
             .update({
-                status_logistic: 'roteirizado',
+                status_logistic: 'routed',
                 scheduled_delivery_date: null,
                 loading_checked: false,
                 loading_checked_at: null,
                 loading_checked_by: null
             })
             .in('id', orderIds)
-            .neq('status_logistic', 'entregue')
-            .neq('status_logistic', 'devolvido');
+            .neq('status_logistic', 'delivered')
+            .neq('status_logistic', 'returned');
     }
 }
 // Helper function to calculate order balances (Partial Delivery Logic)

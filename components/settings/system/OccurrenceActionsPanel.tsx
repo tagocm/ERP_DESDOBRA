@@ -56,7 +56,7 @@ export function OccurrenceActionsPanel({
         : "Estas ações vêm marcadas por padrão, mas o operador pode ajustar antes de confirmar.";
 
     return (
-        <div className="border rounded-lg bg-gray-50/50 border-gray-100 p-4 space-y-4">
+        <div className="border rounded-2xl bg-gray-50/50 border-gray-100 p-4 space-y-4">
             <div>
                 <h4 className="text-sm font-semibold text-gray-900">{panelTitle}</h4>
                 <p className="text-xs text-gray-500 mt-1">{subtitle}</p>

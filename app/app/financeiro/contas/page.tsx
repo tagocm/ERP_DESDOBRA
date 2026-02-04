@@ -35,7 +35,7 @@ export default async function AccountsPage() {
     }
 
     return (
-        <div className="max-w-[1600px] mx-auto pb-10 space-y-6 animate-in fade-in duration-500">
+        <div className="max-w-screen-2xl mx-auto pb-10 space-y-6 animate-in fade-in duration-500">
             <PageHeader
                 title="Contas"
                 subtitle="Gerencie suas contas a receber e a pagar em um único lugar."

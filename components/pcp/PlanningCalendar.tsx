@@ -25,7 +25,7 @@ export function PlanningCalendar({ startDate, onDateChange, data, alerts = [], o
 
         // Initialize days
         const daysKeys: string[] = []
-        let curr = new Date(startDate)
+        const curr = new Date(startDate)
         for (let i = 0; i < 7; i++) {
             const d = curr.toISOString().split('T')[0]
             daysKeys.push(d)
@@ -73,7 +73,7 @@ export function PlanningCalendar({ startDate, onDateChange, data, alerts = [], o
                         <div
                             key={dateKey}
                             className={cn(
-                                "bg-white flex flex-col transition-colors min-h-[220px]",
+                                "bg-white flex flex-col transition-colors min-h-56",
                             )}
                         >
                             {/* Day Header */}
@@ -119,7 +119,7 @@ export function PlanningCalendar({ startDate, onDateChange, data, alerts = [], o
                             </button>
 
                             {/* Body: Scrollable Cards */}
-                            <div className="p-1 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 hover:scrollbar-thumb-gray-300 h-[190px]">
+                            <div className="p-1 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200 hover:scrollbar-thumb-gray-300 h-48">
                                 {items.length === 0 && totalAlerts === 0 ? (
                                     <div className="h-full flex items-center justify-center text-center">
                                         <div className="text-[10px] text-gray-300 px-1 italic">

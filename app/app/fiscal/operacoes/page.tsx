@@ -5,6 +5,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Card } from "@/components/ui/Card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Plus, Search, Trash2, Edit2, Copy, FileText, CheckCircle2, AlertTriangle, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -119,13 +120,13 @@ export default function FiscalOperationsPage() {
                 }
             />
 
-            <div className="max-w-[1600px] mx-auto px-6 h-full pb-8">
+            <div className="max-w-screen-2xl mx-auto px-6 h-full pb-8">
                 <div className="mb-6 flex gap-4">
                     <div className="relative w-48">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <Input
                             placeholder="Filtrar por UF..."
-                            className="pl-10 h-10 rounded-xl bg-white border-gray-200"
+                            className="pl-10 h-10 rounded-2xl bg-white border-gray-200"
                             value={searchState}
                             onChange={(e) => setSearchState(e.target.value)}
                             maxLength={2}
@@ -135,7 +136,7 @@ export default function FiscalOperationsPage() {
                         value={filterGroup}
                         onValueChange={setFilterGroup}
                     >
-                        <SelectTrigger className="w-64 h-10 rounded-xl bg-white border-gray-200">
+                        <SelectTrigger className="w-64 h-10 rounded-2xl bg-white border-gray-200">
                             <SelectValue placeholder="Todos os Grupos" />
                         </SelectTrigger>
                         <SelectContent>
@@ -147,7 +148,7 @@ export default function FiscalOperationsPage() {
                     </Select>
                 </div>
 
-                <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white shadow-sm">
+                <Card className="overflow-hidden">
                     <Table>
                         <TableHeader className="bg-gray-50/50">
                             <TableRow className="hover:bg-transparent border-gray-100">
@@ -189,7 +190,7 @@ export default function FiscalOperationsPage() {
                                             <span className="font-bold text-gray-700">{op.tax_group?.name || '-'}</span>
                                         </TableCell>
                                         <TableCell className="px-6 py-4">
-                                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-brand-50 text-brand-700 font-bold text-xs border border-brand-100">
+                                            <span className="inline-flex items-center justify-center w-8 h-8 rounded-2xl bg-brand-50 text-brand-700 font-bold text-xs border border-brand-100">
                                                 {op.destination_state}
                                             </span>
                                         </TableCell>
@@ -226,7 +227,7 @@ export default function FiscalOperationsPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
+                                                    className="h-8 w-8 rounded-2xl hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
                                                     title="Duplicar Regra"
                                                     onClick={(e) => handleDuplicate(op, e)}
                                                 >
@@ -235,7 +236,7 @@ export default function FiscalOperationsPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 rounded-lg hover:bg-brand-50 hover:text-brand-600 text-gray-400 transition-colors"
+                                                    className="h-8 w-8 rounded-2xl hover:bg-brand-50 hover:text-brand-600 text-gray-400 transition-colors"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         router.push(`/app/fiscal/operacoes/${op.id}`);
@@ -246,7 +247,7 @@ export default function FiscalOperationsPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+                                                    className="h-8 w-8 rounded-2xl hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
                                                     onClick={(e) => handleDelete(op.id, e)}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
@@ -258,7 +259,7 @@ export default function FiscalOperationsPage() {
                             )}
                         </TableBody>
                     </Table>
-                </div>
+                </Card>
             </div>
 
             <ConfirmDialogDesdobra

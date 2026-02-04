@@ -75,7 +75,7 @@ export async function resendSalesForApproval({
 
         // Check if order is pre-delivery (not yet delivered/returned)
         const isPostDelivery =
-            ['entregue', 'devolvido', 'parcial'].includes(status_logistic) ||
+            ['delivered', 'returned', 'partial'].includes(status_logistic) ||
             status_fiscal === 'authorized';
 
         if (isPostDelivery) {
@@ -86,7 +86,7 @@ export async function resendSalesForApproval({
         }
 
         // Check if order is actually blocked or in review
-        if (!dispatch_blocked && financial_status !== 'em_revisao') {
+        if (!dispatch_blocked && financial_status !== 'in_review') {
             return {
                 success: false,
                 error: 'Pedido não está bloqueado ou em revisão financeira. Use a confirmação normal.'
@@ -105,7 +105,7 @@ export async function resendSalesForApproval({
                 dispatch_blocked_at: null,
                 dispatch_blocked_by: null,
                 financial_status: null,
-                status_logistic: 'pendente', // Back to pending logistics
+                status_logistic: 'pending', // Back to pending logistics
                 updated_at: now
             })
             .eq('id', salesDocumentId);
@@ -131,11 +131,11 @@ export async function resendSalesForApproval({
 
         // 5. Explicitly reset financial event to pending
         // Note: The trigger will also do this, but we do it explicitly for clarity
-        if (event && event.status === 'reprovado') {
+        if (event && event.status === 'rejected') {
             const { error: resetEventError } = await supabase
                 .from('financial_events')
                 .update({
-                    status: 'pendente',
+                    status: 'pending',
                     rejected_by: null,
                     rejected_at: null,
                     rejection_reason: null,
@@ -143,7 +143,7 @@ export async function resendSalesForApproval({
                     attention_marked_at: null,
                     attention_reason: null,
                     total_amount: order.total_amount,
-                    operational_status: 'pendente',
+                    operational_status: 'pending',
                     updated_at: now
                 })
                 .eq('id', event.id);

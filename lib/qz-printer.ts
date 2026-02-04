@@ -8,8 +8,6 @@ export type PrinterConfig = {
     isConnected: boolean;
 };
 
-let isConnected = false;
-
 export const QZ_CONFIG = {
     retries: 3,
     delay: 1000
@@ -20,7 +18,7 @@ export const qzConnect = async (): Promise<void> => {
 
     try {
         await qz.websocket.connect(QZ_CONFIG);
-        isConnected = true;
+        // isConnected state is managed by qz itself usually, or we can use qz.websocket.isActive()
     } catch (err) {
         console.error("QZ Tray Connection Error:", err);
         throw err;
@@ -54,14 +52,14 @@ export const printZPL = async (printerName: string, zplData: string) => {
 export const setupQZSecurity = () => {
     // Trusted CA chain (this is where you'd put the certificate)
     // Trusted CA chain (this is where you'd put the certificate)
-    qz.security.setCertificatePromise((resolve: (cert: string | undefined) => void, reject: (err?: any) => void) => {
+    qz.security.setCertificatePromise((resolve: (cert: string | undefined) => void, _reject: (err?: unknown) => void) => {
         // Resolve with undefined/null to indicate no certificate (unsigned)
         // This will trigger a popup in QZ Tray asking the user to trust the connection
         resolve(undefined);
     });
 
     qz.security.setSignaturePromise((toSign: string) => {
-        return (resolve: any, reject: any) => {
+        return (resolve: (signed: string) => void, _reject: (err?: unknown) => void) => {
             resolve(toSign);
         };
     });

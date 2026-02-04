@@ -56,21 +56,21 @@ export function DeliveryDetailDrawer({ deliveryId, open, onClose }: DeliveryDeta
     useEffect(() => {
         if (open && deliveryId) {
             console.log('[DeliveryDetailDrawer] Opening with deliveryId:', deliveryId);
-            setLoading(true);
-            fetch(`/api/deliveries/${deliveryId}`)
-                .then(res => {
+            // Start async work immediately, setState only in async callbacks
+            (async () => {
+                setLoading(true);
+                try {
+                    const res = await fetch(`/api/deliveries/${deliveryId}`);
                     console.log('[DeliveryDetailDrawer] Response status:', res.status);
-                    return res.json();
-                })
-                .then(data => {
-                    console.log('[DeliveryDetailDrawer] Received data:', data);
-                    setData(data);
-                    setLoading(false);
-                })
-                .catch(err => {
+                    const json = await res.json();
+                    console.log('[DeliveryDetailDrawer] Received data:', json);
+                    setData(json);
+                } catch (err) {
                     console.error('[DeliveryDetailDrawer] Error:', err);
+                } finally {
                     setLoading(false);
-                });
+                }
+            })();
         } else if (!open) {
             setData(null);
         }
@@ -81,7 +81,7 @@ export function DeliveryDetailDrawer({ deliveryId, open, onClose }: DeliveryDeta
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-screen overflow-y-auto">
                 <DialogHeader>
                     <div className="flex items-center justify-between">
                         <DialogTitle>{title}</DialogTitle>
@@ -110,7 +110,7 @@ export function DeliveryDetailDrawer({ deliveryId, open, onClose }: DeliveryDeta
                     </div>
                 ) : data ? (
                     <div className="space-y-6">
-                        <div className="border border-gray-100 rounded-lg overflow-hidden">
+                        <div className="border border-gray-100 rounded-2xl overflow-hidden">
                             <Table>
                                 <TableHeader className="bg-gray-50/50">
                                     <TableRow>
@@ -159,7 +159,7 @@ export function DeliveryDetailDrawer({ deliveryId, open, onClose }: DeliveryDeta
                         </div>
 
                         {/* Total Summary */}
-                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
                             <div className="flex justify-between items-center">
                                 <span className="text-sm font-medium text-gray-700">Total da Entrega</span>
                                 <span className="text-lg font-bold text-gray-900">
@@ -173,7 +173,7 @@ export function DeliveryDetailDrawer({ deliveryId, open, onClose }: DeliveryDeta
                         </div>
 
                         {data.notes && (
-                            <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 text-sm">
+                            <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100 text-sm">
                                 <h4 className="font-semibold text-gray-700 mb-1">Observações</h4>
                                 <p className="text-gray-600 leading-relaxed">{data.notes}</p>
                             </div>

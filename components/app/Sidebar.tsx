@@ -218,7 +218,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                     className={cn(
                         "border-r border-gray-200 bg-white flex flex-col transition-all duration-300 h-full",
                         ((collapsed || density === 'icons') && isHovered)
-                            ? "absolute top-0 left-0 w-64 z-50 rounded-r-2xl border-r-2 border-brand-100"
+                            ? "absolute top-0 left-0 w-64 z-50 rounded-2xl border-r-2 border-brand-100"
                             : "w-full"
                     )}
                 >
@@ -320,7 +320,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                                                         {/* Parent padding is px-2 (0.5rem each side). Total space 64px. */}
                                                         {/* Content width = 64 - 16 = 48px. */}
                                                         {/* If we center icon in 48px: */}
-                                                        <div className="w-[calc(4rem-1rem)] flex items-center justify-center shrink-0 transition-all duration-300">
+                                                        <div className="w-12 flex items-center justify-center shrink-0 transition-all duration-300">
                                                             <item.icon className="w-5 h-5" />
                                                         </div>
 
@@ -338,7 +338,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                                                     <Link
                                                         href={item.href}
                                                         className={cn(
-                                                            "flex items-center rounded-md transition-all duration-300 mb-0.5 group overflow-hidden whitespace-nowrap",
+                                                            "flex items-center rounded-2xl transition-all duration-300 mb-0.5 group overflow-hidden whitespace-nowrap",
                                                             density === 'compact' ? "h-8" : "h-9",
                                                             isActive(item.href)
                                                                 ? "bg-brand-50 text-brand-700 font-medium"
@@ -349,7 +349,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                                                         {/* Parent padding is px-2 (0.5rem each side). Total space 64px. */}
                                                         {/* Content width = 64 - 16 = 48px. */}
                                                         {/* If we center icon in 48px: */}
-                                                        <div className="w-[calc(4rem-1rem)] flex items-center justify-center shrink-0 transition-all duration-300">
+                                                        <div className="w-12 flex items-center justify-center shrink-0 transition-all duration-300">
                                                             <item.icon className="w-5 h-5" />
                                                         </div>
 
@@ -382,12 +382,12 @@ export function Sidebar({ collapsed }: SidebarProps) {
                                 <button
                                     onClick={handleLogout}
                                     className={cn(
-                                        "flex w-full items-center rounded-md transition-all duration-300 mb-0.5 group overflow-hidden whitespace-nowrap text-left",
+                                        "flex w-full items-center rounded-2xl transition-all duration-300 mb-0.5 group overflow-hidden whitespace-nowrap text-left",
                                         density === 'compact' ? "h-8" : "h-9",
                                         "text-red-600 hover:bg-red-50 hover:text-red-700"
                                     )}
                                 >
-                                    <div className="w-[calc(4rem-1rem)] flex items-center justify-center shrink-0 transition-all duration-300">
+                                    <div className="w-12 flex items-center justify-center shrink-0 transition-all duration-300">
                                         <LogOut className="w-5 h-5" />
                                     </div>
                                     <span

@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/Label';
 import { Switch } from "@/components/ui/Switch";
 import { createClient } from "@/utils/supabase/client";
-import { getOccurrenceReasons } from "@/lib/data/reasons";
+import { getDeliveryReasons } from "@/lib/data/reasons";
 import { OccurrenceReason } from "@/types/reasons";
 import { useCompany } from "@/contexts/CompanyContext";
 
@@ -48,7 +48,7 @@ export function NotLoadedModal({ isOpen, onClose, onSuccess, order, routeId, ini
                 setReasonsError(false);
 
                 try {
-                    const data = await getOccurrenceReasons(supabase, selectedCompany.id, 'exp_nao_carregado');
+                    const data: OccurrenceReason[] = await getDeliveryReasons(supabase, selectedCompany.id, 'EXPEDICAO_NAO_CARREGADO');
 
                     if (isMounted) {
                         if (data && data.length > 0) {
@@ -58,10 +58,10 @@ export function NotLoadedModal({ isOpen, onClose, onSuccess, order, routeId, ini
                             if (initialData) {
                                 let reasonToSelect = null;
                                 if (initialData.reasonId) {
-                                    reasonToSelect = data.find(r => r.id === initialData.reasonId);
+                                    reasonToSelect = data.find((r: OccurrenceReason) => r.id === initialData.reasonId);
                                 }
                                 if (!reasonToSelect && initialData.reason) { // Fallback to name
-                                    reasonToSelect = data.find(r => r.name === initialData.reason);
+                                    reasonToSelect = data.find((r: OccurrenceReason) => r.name === initialData.reason);
                                 }
 
                                 if (reasonToSelect) {
@@ -119,7 +119,7 @@ export function NotLoadedModal({ isOpen, onClose, onSuccess, order, routeId, ini
         // User request: "b) Textarea Observação (livre)" implying optional? 
         // But usually "Livre" means free text. Let's make it optional unless 'Other' is selected or reason strictly requires it.
 
-        if (selectedReason?.require_notes && !notes.trim()) {
+        if (selectedReason?.require_note && !notes.trim()) {
             toast({ title: "Erro", description: "Observação é obrigatória para este motivo.", variant: "destructive" });
             return;
         }
@@ -166,7 +166,7 @@ export function NotLoadedModal({ isOpen, onClose, onSuccess, order, routeId, ini
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-lg max-h-screen overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Pedido Não Carregado</DialogTitle>
                     <DialogDescription>
@@ -212,7 +212,7 @@ export function NotLoadedModal({ isOpen, onClose, onSuccess, order, routeId, ini
                             </Label>
                         </div>
 
-                        <div className="bg-amber-50 p-3 rounded-md flex gap-3 text-xs text-amber-800 border border-amber-100">
+                        <div className="bg-amber-50 p-3 rounded-2xl flex gap-3 text-xs text-amber-800 border border-amber-100">
                             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                             <div>
                                 <p className="font-semibold mb-0.5">Atenção</p>

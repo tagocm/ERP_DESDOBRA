@@ -23,7 +23,7 @@ export function DealCard({ deal, onClick }: DealCardProps) {
         <div
             onClick={onClick}
             className={cn(
-                'p-3 bg-white rounded-lg border shadow-sm cursor-pointer hover:shadow-md transition-shadow',
+                'p-3 bg-white rounded-2xl border shadow-card cursor-pointer hover:shadow-float transition-shadow',
                 colors.border
             )}
         >

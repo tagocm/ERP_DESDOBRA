@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { normalizeLogisticsStatus, translateLogisticsStatusPt } from '@/lib/constants/status';
 
 export default async function RouteHistoryDetailsPage({ params }: { params: Promise<{ id: string }> }) {
     const supabase = await createClient();
@@ -46,8 +47,9 @@ export default async function RouteHistoryDetailsPage({ params }: { params: Prom
     // Calculate Stats
     const stats = route.orders?.reduce((acc: any, order: any) => {
         acc.total++;
-        if (order.sales_order?.status_logistic === 'entregue') acc.delivered++;
-        else if (order.sales_order?.status_logistic === 'nao_entregue') acc.notDelivered++;
+        const normalized = normalizeLogisticsStatus(order.sales_order?.status_logistic) || order.sales_order?.status_logistic;
+        if (normalized === 'delivered') acc.delivered++;
+        else if (normalized === 'not_delivered') acc.notDelivered++;
 
         acc.weight += order.sales_order?.total_weight_kg || 0;
         return acc;
@@ -70,25 +72,25 @@ export default async function RouteHistoryDetailsPage({ params }: { params: Prom
 
             <div className="flex flex-col gap-6 px-6 pb-6">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white p-4 rounded-xl border border-gray-200/60 shadow-sm">
+                    <Card className="p-4 border-gray-200/60 shadow-none">
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Total Pedidos</p>
                         <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-gray-200/60 shadow-sm">
+                    </Card>
+                    <Card className="p-4 border-gray-200/60 shadow-none">
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Peso Total</p>
                         <p className="text-2xl font-bold text-gray-900">{stats.weight.toFixed(1)} <span className="text-sm font-normal text-gray-500">kg</span></p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-gray-200/60 shadow-sm">
+                    </Card>
+                    <Card className="p-4 border-gray-200/60 shadow-none">
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Entregues</p>
                         <p className="text-2xl font-bold text-green-600 flex items-center gap-2">
                             {stats.delivered}
                             <span className="text-xs font-normal bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{(stats.delivered / stats.total * 100).toFixed(0)}%</span>
                         </p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-gray-200/60 shadow-sm">
+                    </Card>
+                    <Card className="p-4 border-gray-200/60 shadow-none">
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Devoluções</p>
                         <p className="text-2xl font-bold text-red-600">{stats.notDelivered}</p>
-                    </div>
+                    </Card>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -96,17 +98,17 @@ export default async function RouteHistoryDetailsPage({ params }: { params: Prom
                         const order = ro.sales_order;
                         if (!order) return null;
 
-                        const status = order.status_logistic;
+                        const status = normalizeLogisticsStatus(order.status_logistic) || order.status_logistic;
 
                         let statusBadge = null;
-                        if (status === 'entregue') {
+                        if (status === 'delivered') {
                             statusBadge = (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-100">
                                     <CheckCircle2 className="w-3.5 h-3.5" />
                                     Entregue
                                 </span>
                             );
-                        } else if (status === 'nao_entregue') {
+                        } else if (status === 'not_delivered') {
                             statusBadge = (
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-100">
                                     <XCircle className="w-3.5 h-3.5" />
@@ -116,13 +118,13 @@ export default async function RouteHistoryDetailsPage({ params }: { params: Prom
                         } else {
                             statusBadge = (
                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
-                                    {status}
+                                    {translateLogisticsStatusPt(status)}
                                 </span>
                             );
                         }
 
                         return (
-                            <Card key={ro.id} className="h-full flex flex-col hover:shadow-lg transition-all duration-300">
+                            <Card key={ro.id} className="h-full flex flex-col hover:shadow-float transition-all duration-300">
                                 <CardHeader className="pb-3 border-b border-gray-100">
                                     <div className="flex justify-between items-start mb-1">
                                         <div className="space-y-1">
@@ -153,7 +155,7 @@ export default async function RouteHistoryDetailsPage({ params }: { params: Prom
                                 </CardContent>
 
                                 {order.internal_notes && (
-                                    <div className="mt-auto p-4 bg-amber-50/50 border-t border-amber-100/50 rounded-b-2xl">
+                                    <div className="mt-auto p-4 bg-amber-50/50 border-t border-amber-100/50">
                                         <div className="flex gap-2">
                                             <FileText className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                                             <div className="space-y-1">

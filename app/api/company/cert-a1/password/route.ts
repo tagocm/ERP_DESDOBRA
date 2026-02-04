@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabaseServer';
 import { createClient } from '@/utils/supabase/server';
 import { storePassword, deletePassword } from '@/lib/vault-helpers';
 
@@ -8,9 +7,6 @@ export async function POST(request: NextRequest) {
         // Get authenticated user
         const supabaseUser = await createClient();
         const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-
-        // Admin client for privileged database operations
-        const supabase = createAdminClient();
 
         if (authError || !user) {
             return NextResponse.json(
@@ -38,7 +34,7 @@ export async function POST(request: NextRequest) {
 
         // Verify user is member of the company
         console.log(`[CertPassword] Checking membership for User ${user.id} in Company ${companyId}`);
-        const { data: membership, error: membershipError } = await supabase
+        const { data: membership, error: membershipError } = await supabaseUser
             .from('company_members')
             .select('company_id')
             .eq('company_id', companyId)
@@ -58,7 +54,7 @@ export async function POST(request: NextRequest) {
         }
 
         // Get existing password secret ID (if any)
-        const { data: existingSettings } = await supabase
+        const { data: existingSettings } = await supabaseUser
             .from('company_settings')
             .select('cert_password_encrypted, cert_a1_storage_path')
             .eq('company_id', companyId)
@@ -81,7 +77,7 @@ export async function POST(request: NextRequest) {
         let expiresAt: string | null = null;
         if (existingSettings?.cert_a1_storage_path) {
             try {
-                const { data: fileData, error: fileError } = await supabase.storage
+                const { data: fileData, error: fileError } = await supabaseUser.storage
                     .from('company-assets')
                     .download(existingSettings.cert_a1_storage_path);
 
@@ -114,7 +110,7 @@ export async function POST(request: NextRequest) {
             updatePayload.cert_a1_expires_at = expiresAt;
         }
 
-        const { error: updateError } = await supabase
+        const { error: updateError } = await supabaseUser
             .from('company_settings')
             .upsert(updatePayload, {
                 onConflict: 'company_id'
@@ -152,9 +148,6 @@ export async function DELETE(request: NextRequest) {
         const supabaseUser = await createClient();
         const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
 
-        // Admin client for privileged operations
-        const supabase = createAdminClient();
-
         if (authError || !user) {
             return NextResponse.json(
                 { error: 'Não autenticado' },
@@ -173,7 +166,7 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Verify user is member of the company
-        const { data: membership, error: membershipError } = await supabase
+        const { data: membership, error: membershipError } = await supabaseUser
             .from('company_members')
             .select('company_id')
             .eq('company_id', companyId)
@@ -188,7 +181,7 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Get password secret ID
-        const { data: settings, error: settingsError } = await supabase
+        const { data: settings, error: settingsError } = await supabaseUser
             .from('company_settings')
             .select('cert_password_encrypted')
             .eq('company_id', companyId)
@@ -205,7 +198,7 @@ export async function DELETE(request: NextRequest) {
         await deletePassword(settings.cert_password_encrypted);
 
         // Update company_settings to remove password reference
-        const { error: updateError } = await supabase
+        const { error: updateError } = await supabaseUser
             .from('company_settings')
             .update({
                 cert_password_encrypted: null,

@@ -115,7 +115,7 @@ export function NumberingAdjustmentModal({ open, onOpenChange, currentNumber, on
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[425px]">
+            <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                     <DialogTitle>Ajustar Numeração NF-e</DialogTitle>
                     <DialogDescription>
@@ -125,7 +125,7 @@ export function NumberingAdjustmentModal({ open, onOpenChange, currentNumber, on
                 </DialogHeader>
 
                 <div className="grid gap-4 py-4">
-                    <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-md border border-amber-200 text-amber-800 text-sm">
+                    <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-2xl border border-amber-200 text-amber-800 text-sm">
                         <AlertTriangle className="h-5 w-5 shrink-0" />
                         <p>Cuidado: Alterar a numeração pode causar rejeições na SEFAZ se houver duplicidade.</p>
                     </div>
@@ -148,7 +148,7 @@ export function NumberingAdjustmentModal({ open, onOpenChange, currentNumber, on
                         <textarea
                             value={reason}
                             onChange={(e) => setReason(e.target.value)}
-                            className="col-span-3 flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="col-span-3 flex min-h-20 w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             placeholder="Justifique a alteração..."
                         />
                     </div>

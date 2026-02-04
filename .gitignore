@@ -1,13 +1,85 @@
+
+# Dependencies
 node_modules/
-.next/
-.next 2/
+node_modules_DELETE_ME/
+package-lock.json.DELETE_ME
+package-lock 2.json
+
+# Python
 .venv/
 __pycache__/
+*.py[cod]
+
+# Build & Runtime
+.next/
+.next 2/
 dist/
 build/
+coverage/
+
+# Logs
 *.log
+*.txt
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & config
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+! .env.example
+
+# Editor & OS
 .DS_Store
 .vscode/
-.env
-.env.*
-! .env.example
+.idea/
+*.swp
+*.swo
+
+# Artifacts & Temporary (Local Only)
+artifacts/
+tmp/
+.gemini/
+.agent/
+
+# Backups & Dumps
+*.bak
+*.bak2
+*.old
+*.zip
+*.tar
+*.gz
+*.sql
+*.pdf
+*.xml
+rls-audit-report.json
+
+# Specific SQL to ignore (if covered by *.sql, these are redundant but clear documentation)
+policies_dump.sql
+schema_dump.sql
+BD_RESET.sql
+check_tables.sql
+check_columns.sql
+check_default_cols.sql
+check_inv_cols.sql
+check_weight.sql
+create_dummy_data.sql
+
+# Allow specific useful patterns
+!supabase/migrations/*.sql
+!scripts/*.sql
+!certs/sefaz-ca-bundle.pem
+tsconfig.tsbuildinfo
+lint_output.txt
+lint_report.txt
+
+reports/
+
+# Playwright
+playwright-report/
+test-results/
+playwright/.cache/

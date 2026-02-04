@@ -23,7 +23,7 @@ export function ValidationChecklist({ pendencies, onAutoFix, isProcessing }: Val
 
     if (pendencies.length === 0) {
         return (
-            <div className="flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-2xl">
                 <CheckCircle2 className="w-5 h-5 text-green-600" />
                 <span className="text-sm font-semibold text-green-900">
                     Tudo certo! Evento pronto para aprovação.
@@ -47,7 +47,7 @@ export function ValidationChecklist({ pendencies, onAutoFix, isProcessing }: Val
                     {errors.map((pendency, idx) => (
                         <div
                             key={`error-${idx}`}
-                            className="flex items-start justify-between gap-3 p-3 bg-red-50 border border-red-200 rounded-lg"
+                            className="flex items-start justify-between gap-3 p-3 bg-red-50 border border-red-200 rounded-2xl"
                         >
                             <div className="flex-1">
                                 <Badge variant="destructive" className="mb-2 text-[10px]">
@@ -81,7 +81,7 @@ export function ValidationChecklist({ pendencies, onAutoFix, isProcessing }: Val
                     {warnings.map((pendency, idx) => (
                         <div
                             key={`warning-${idx}`}
-                            className="flex items-start justify-between gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg"
+                            className="flex items-start justify-between gap-3 p-3 bg-amber-50 border border-amber-200 rounded-2xl"
                         >
                             <div className="flex-1">
                                 <Badge className="mb-2 bg-amber-100 text-amber-800 text-[10px]">

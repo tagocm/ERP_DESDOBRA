@@ -10,6 +10,7 @@ import { ProductCategory } from "@/types/product";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/Alert";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
+import { Card } from "@/components/ui/Card";
 import {
     Table,
     TableBody,
@@ -108,7 +109,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
     // List logic
 
     return (
-        <DialogContent className="max-w-[800px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl">
+        <DialogContent className="max-w-4xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl">
             {/* Header */}
             <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
                 <div>
@@ -122,17 +123,17 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                         setEditingId(null);
                         setAddBoxOpen(!addBoxOpen);
                     }}
-                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-full px-4 text-xs h-8 shadow-sm transition-all"
+                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-2xl px-4 text-xs h-8 shadow-card transition-all"
                 >
                     <Plus className="w-3.5 h-3.5 mr-1.5" />
                     Nova Categoria
                 </Button>
             </div>
 
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
+            <div className="p-6 overflow-y-auto max-h-screen">
                 {/* Create/Edit Form Inline */}
                 {(addBoxOpen || editingId) && (
-                    <div className="mb-6 bg-white p-4 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-top-2">
+                    <Card className="mb-6 bg-white p-4 border border-gray-200/70 shadow-card animate-in fade-in slide-in-from-top-2">
                         <div className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                             {editingId ? <Edit className="w-4 h-4 text-blue-500" /> : <Plus className="w-4 h-4 text-brand-500" />}
                             {editingId ? "Editar Categoria" : "Nova Categoria"}
@@ -145,7 +146,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                                     value={editingId ? editName : newItemName}
                                     onChange={(e) => editingId ? setEditName(e.target.value) : setNewItemName(e.target.value)}
                                     placeholder="Ex: Alimentos, Bebidas..."
-                                    className="h-9 text-sm rounded-lg"
+                                    className="h-9 text-sm rounded-2xl"
                                     autoFocus
                                     onKeyDown={(e) => e.key === 'Enter' && (editingId ? handleUpdate(editingId) : handleCreate())}
                                 />
@@ -156,7 +157,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                             <Button
                                 onClick={() => editingId ? handleUpdate(editingId) : handleCreate()}
                                 disabled={isCreating || isUpdating || !(editingId ? editName : newItemName).trim()}
-                                className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition-all"
+                                className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-medium transition-all"
                             >
                                 {(isCreating || isUpdating) ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -170,16 +171,16 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                                     setEditingId(null);
                                     setAddBoxOpen(false);
                                 }}
-                                className="h-9 w-9 p-0 bg-gray-50 hover:bg-white text-gray-500 rounded-lg border-gray-200"
+                                className="h-9 w-9 p-0 bg-gray-50 hover:bg-white text-gray-500 rounded-2xl border-gray-200"
                             >
                                 <X className="w-4 h-4" />
                             </Button>
                         </div>
-                    </div>
+                    </Card>
                 )}
 
                 {/* List Container */}
-                <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                <Card className="border border-gray-200/70 overflow-hidden bg-white shadow-card">
                     <Table>
                         <TableHeader className="bg-gray-50/50">
                             <TableRow className="hover:bg-transparent border-gray-100">
@@ -217,7 +218,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                                         </TableCell>
                                         <TableCell className="py-3 text-center">
                                             {cat.product_count! > 0 ? (
-                                                <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium">
+                                                <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-2xl font-medium">
                                                     {cat.product_count} itens
                                                 </span>
                                             ) : (
@@ -236,7 +237,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                                                     }}
                                                     disabled={!cat.company_id} // Disable edit for global
                                                     className={cn(
-                                                        "h-7 w-7 p-0 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors",
+                                                        "h-7 w-7 p-0 rounded-2xl hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors",
                                                         !cat.company_id && "opacity-30 cursor-not-allowed hover:bg-transparent hover:text-gray-400"
                                                     )}
                                                     title={!cat.company_id ? "Categorias globais não podem ser editadas" : "Editar"}
@@ -250,7 +251,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                                                     onClick={() => setCategoryToDelete(cat.id)}
                                                     disabled={cat.product_count! > 0 || !cat.company_id}
                                                     className={cn(
-                                                        "h-7 w-7 p-0 rounded-lg transition-colors border-none bg-transparent",
+                                                        "h-7 w-7 p-0 rounded-2xl transition-colors border-none bg-transparent",
                                                         cat.product_count! > 0 || !cat.company_id
                                                             ? "opacity-20 cursor-not-allowed"
                                                             : "hover:bg-red-50 hover:text-red-600 text-gray-400"
@@ -266,7 +267,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                             )}
                         </TableBody>
                     </Table>
-                </div>
+                </Card>
             </div>
 
 

@@ -107,7 +107,7 @@ export async function receivePurchaseOrderAction(
 
 export async function cancelPurchaseOrderAction(purchaseOrderId: string, reason?: string) {
     const companyId = await getActiveCompanyId()
-    return await purchasesRepository.cancelPurchaseOrder(companyId, purchaseOrderId, reason)
+    return await purchasesRepository.cancelPurchaseOrder(companyId, purchaseOrderId)
 }
 
 export async function archivePurchaseOrderAction(purchaseOrderId: string, reason: string) {

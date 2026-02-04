@@ -60,6 +60,7 @@ export function InstallmentsEditor({
             payment_condition: null,
             payment_method: null,
             suggested_account_id: null,
+            financial_account_id: null,
             category_id: null,
             cost_center_id: null,
             notes: null,
@@ -119,13 +120,13 @@ export function InstallmentsEditor({
                 )}
             </div>
 
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border rounded-2xl overflow-hidden">
                 <Table>
                     <TableHeader>
                         <TableRow className="bg-gray-50">
                             <TableHead className="w-12 text-center">#</TableHead>
-                            <TableHead className="w-[140px]">Vencimento</TableHead>
-                            <TableHead className="w-[140px]">Valor</TableHead>
+                            <TableHead className="w-36">Vencimento</TableHead>
+                            <TableHead className="w-36">Valor</TableHead>
                             <TableHead>Condição</TableHead>
                             <TableHead>Conta</TableHead>
                             <TableHead className="w-10 text-right"></TableHead>

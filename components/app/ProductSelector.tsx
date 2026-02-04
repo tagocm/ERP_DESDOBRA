@@ -11,9 +11,10 @@ interface ProductSelectorProps {
     onChange: (product: any) => void;
     className?: string;
     disabled?: boolean;
+    "data-testid"?: string;
 }
 
-export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps>(({ value, onChange, className, disabled }, ref) => {
+export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps>(({ value, onChange, className, disabled, "data-testid": dataTestId }, ref) => {
     const { selectedCompany } = useCompany();
     const supabase = createClient();
 
@@ -145,9 +146,10 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
                 <input
                     ref={internalInputRef}
                     onKeyDown={handleKeyDown}
+                    data-testid={dataTestId}
                     type="text"
                     className={cn(
-                        "flex h-9 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:cursor-not-allowed disabled:opacity-50",
+                        "flex h-9 w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:cursor-not-allowed disabled:opacity-50",
                         selectedProduct && "pr-8"
                     )}
                     placeholder="Digite nome ou SKU..."
@@ -162,7 +164,7 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
                     <button
                         type="button"
                         onClick={handleClear}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-md transition-colors"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-2xl transition-colors"
                         disabled={disabled}
                     >
                         <X className="h-4 w-4 text-gray-400" />
@@ -171,7 +173,10 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
             </div>
 
             {open && (
-                <div className="absolute z-50 mt-1 max-h-60 w-full min-w-[300px] overflow-auto rounded-xl border border-gray-100 bg-white py-1 text-base shadow-xl focus:outline-none sm:text-sm">
+                <div
+                    role="listbox"
+                    className="absolute z-50 mt-1 max-h-60 w-full min-w-72 overflow-auto rounded-2xl border border-gray-100 bg-white py-1 text-base shadow-float focus:outline-none sm:text-sm"
+                >
                     {loading && (
                         <div className="py-6 text-center text-xs text-gray-500 flex flex-col items-center gap-2">
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -188,6 +193,8 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
                     {!loading && options.map((option) => (
                         <div
                             key={option.id}
+                            role="option"
+                            aria-selected={selectedProduct?.id === option.id}
                             className={cn(
                                 "relative cursor-pointer select-none py-2.5 px-3 hover:bg-gray-50 flex items-center justify-between transition-colors",
                                 selectedProduct?.id === option.id ? "bg-brand-50 text-brand-700 font-medium" : "text-gray-700"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ArInstallment } from "@/types/financial";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -9,17 +9,33 @@ import { formatCurrency } from "@/lib/utils";
 import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabaseBrowser";
 import { useToast } from "@/components/ui/use-toast";
+import { Card } from "@/components/ui/Card";
 
 interface Props {
     installment: ArInstallment;
     onUpdate: () => void;
-    onClose: () => void;
+    onClose?: () => void;
+    trigger?: React.ReactNode;
 }
 
 const formatDate = (date: string) => new Date(date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: '2-digit', minute: '2-digit' });
 
-export function InstallmentPaymentManager({ installment, onUpdate, onClose }: Props) {
-    const [payments, setPayments] = useState<any[]>([]);
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+interface PaymentAllocationData {
+    id: string;
+    amount: number;
+    created_at: string;
+    payment: {
+        id: string;
+        method: string | null;
+        notes: string | null;
+        paid_at: string;
+    } | null;
+}
+
+export function InstallmentPaymentManager({ installment, onUpdate, onClose, trigger }: Props) {
+    const [payments, setPayments] = useState<PaymentAllocationData[]>([]);
     const [loading, setLoading] = useState(false);
 
     // New Payment Form
@@ -43,20 +59,30 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose }: Pr
     const { toast } = useToast();
     const supabase = createClient();
 
-    const fetchPayments = async () => {
+    const fetchPayments = useCallback(async () => {
         setLoading(true);
         const { data } = await supabase
             .from('ar_payment_allocations')
             .select(`
                 id, amount, created_at,
-                payment:ar_payments(id, method, notes, interest_amount, penalty_amount, discount_amount, date_paid)
-            `)
+                payment:ar_payments(id, method, notes, paid_at)
+            `) // Simplified fields to match DB safely (interest/penalty are usually on payment, but verify names)
+            // Re-adding interest/penalty/discount if they exist on ar_payments. Checking supabase.ts...
+            // ar_payments doesn't seem to have interest_amount/penalty_amount/discount_amount directly on Row?
+            // Checking supabase.ts lines 623-637: amount, company_id, ..., id, method, notes, original_payment_id, paid_at, reference, reversal_reason, status.
+            // It DOES NOT have interest_amount, penalty_amount, discount_amount.
+            // Those must be on the RELATION or calculated? Or maybe the query was wrong/legacy.
+            // I will remove them from the query to avoid runtime error if they don't exist, OR check if they are on Installment?
+            // They are part of the 'pay' logic (Line 96 sent to API).
+            // But reading them back from 'payment' object in DB? If columns don't exist, Supabase ignores or errors.
+            // I'll stick to what is in supabase.ts types for safety: id, method, notes, paid_at.
             .eq('installment_id', installment.id)
             .order('created_at', { ascending: false });
 
-        if (data) setPayments(data);
+        // Cast to avoid complex type mapping for now, assuming the query returns what we need or minimal
+        if (data) setPayments(data as unknown as PaymentAllocationData[]);
         setLoading(false);
-    };
+    }, [supabase, installment.id]);
 
     useEffect(() => {
         fetchPayments();
@@ -64,9 +90,9 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose }: Pr
         const open = Number(installment.amount_open);
         setAmount(open);
         setAmountStr(open.toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
-    }, [installment]);
+    }, [installment, fetchPayments]);
 
-    const handleCurrencyChange = (val: string, setterNum: any, setterStr: any) => {
+    const handleCurrencyChange = (val: string, setterNum: (v: number) => void, setterStr: (v: string) => void) => {
         const numbers = val.replace(/\D/g, "");
         const num = Number(numbers) / 100;
         setterNum(num);
@@ -133,16 +159,17 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose }: Pr
         }
     };
 
-    return (
-        <div className="w-[400px] flex flex-col bg-white rounded-xl overflow-hidden border border-gray-100 shadow-2xl">
+    const content = (
+        <Card className="w-96 flex flex-col overflow-hidden shadow-float">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
                 <h4 className="font-bold text-sm text-gray-700">Gerenciar Pagamentos</h4>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onClose}>
                     <X className="w-4 h-4 text-gray-400" />
                 </Button>
             </div>
-
-            <div className="max-h-[300px] overflow-y-auto">
+            {/* ... rest of the content ... */}
+            <div className="max-h-72 overflow-y-auto">
+                {/* ... existing table code ... */}
                 {loading ? (
                     <div className="p-4 text-center"><Loader2 className="animate-spin w-4 h-4 mx-auto" /></div>
                 ) : payments.length === 0 ? (
@@ -161,11 +188,11 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose }: Pr
                             {payments.map(p => (
                                 <tr key={p.id} className="group hover:bg-red-50/10 transition-colors">
                                     <td className="px-4 py-2 text-xs text-gray-600 font-medium">
-                                        {formatDate(p.payment?.date_paid || p.created_at)}
+                                        {formatDate(p.payment?.paid_at || p.created_at)}
                                     </td>
                                     <td className="px-4 py-2 text-xs text-gray-600">
                                         {p.payment?.method}
-                                        {p.payment?.notes && <span className="block text-[9px] text-gray-400 truncate max-w-[100px]">{p.payment.notes}</span>}
+                                        {p.payment?.notes && <span className="block text-[9px] text-gray-400 truncate max-w-28">{p.payment.notes}</span>}
                                     </td>
                                     <td className="px-4 py-2 text-xs font-bold text-gray-900 text-right">
                                         {formatCurrency(p.amount)}
@@ -175,7 +202,8 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose }: Pr
                                             variant="ghost"
                                             size="sm"
                                             className="h-6 w-6 p-0 text-gray-300 hover:text-red-500"
-                                            onClick={() => handleDelete(p.id, p.payment?.id)}
+                                            // Payment should exist if allocation exists, but check safely
+                                            onClick={() => p.payment?.id && handleDelete(p.id, p.payment.id)}
                                         >
                                             <Trash2 className="w-3.5 h-3.5" />
                                         </Button>
@@ -213,7 +241,6 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose }: Pr
                     </div>
                 </div>
 
-                {/* Advanced Fields Row */}
                 <div className="grid grid-cols-3 gap-2">
                     <div className="space-y-1">
                         <Label className="text-[10px] text-gray-500">Juros (+)</Label>
@@ -263,6 +290,21 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose }: Pr
                     </Button>
                 </div>
             </div>
-        </div>
+        </Card>
     );
+
+    if (trigger) {
+        return (
+            <Popover>
+                <PopoverTrigger asChild>
+                    {trigger}
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                    {content}
+                </PopoverContent>
+            </Popover>
+        )
+    }
+
+    return content;
 }

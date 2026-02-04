@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS public.occurrence_reasons (
     
     -- Action Configuration
     -- Where does the order go?
-    action_destination TEXT NOT NULL CHECK (action_destination IN ('pendente', 'agendado', 'devolvido', 'entregue')),
+    action_destination TEXT NOT NULL CHECK (action_destination IN ('pending', 'agendado', 'devolvido', 'entregue')),
     
     -- Reschedule Policy
     reschedule_policy TEXT NOT NULL DEFAULT 'optional' CHECK (reschedule_policy IN ('none', 'optional', 'required')),

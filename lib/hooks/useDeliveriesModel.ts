@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 
 export function useDeliveriesModel(companyId?: string) {
     const [enabled, setEnabled] = useState<boolean>(false);
-    const [loading, setLoading] = useState(true);
+    // Initialize loading as false if no companyId from the start
+    const [loading, setLoading] = useState(!companyId ? false : true);
 
     useEffect(() => {
         if (!companyId) {
-            setLoading(false);
+            // Don't setState here, already initialized to false
             return;
         }
 

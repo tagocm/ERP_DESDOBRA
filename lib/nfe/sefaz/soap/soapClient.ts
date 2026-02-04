@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { NfeSefazError } from "../errors";
 import { parsePfx } from "../../sign/cert";
 import { SefazCertConfig, SefazRequestOptions } from "../types";
+import { logger } from "@/lib/logger";
 
 export async function soapRequest(
     url: string,
@@ -48,16 +49,7 @@ export async function soapRequest(
                 arch: process.arch
             };
 
-            const logPath = '/tmp/cert-diagnostics.log';
-            const logEntry = `\n[DIAGNOSTIC] ${JSON.stringify(diagnosticInfo, null, 2)}\nStack: ${err.stack}\n`;
-
-            try {
-                fs.appendFileSync(logPath, logEntry);
-            } catch (e) {
-                console.error('Failed to write diagnostic log', e);
-            }
-
-            console.error('[soapClient] PFX Parse Error:', diagnosticInfo);
+            logger.error('[soapClient] PFX Parse Error:', diagnosticInfo);
 
             // Reject with structured error
             const structuredError: any = new NfeSefazError("Erro ao processar certificado para mTLS", "CERT", err);
@@ -86,15 +78,15 @@ export async function soapRequest(
                 if (fs.existsSync(bundlePath)) {
                     ca = fs.readFileSync(bundlePath);
                     if (isDebug) {
-                        console.log(`[soapClient] Loaded CA bundle from: ${bundlePath} (${ca.length} bytes)`);
+                        logger.info(`[soapClient] Loaded CA bundle from: ${bundlePath} (${ca.length} bytes)`);
                     }
                 } else {
                     if (isDebug) {
-                        console.error(`[soapClient] CA bundle file not found at: ${bundlePath}`);
+                        logger.error(`[soapClient] CA bundle file not found at: ${bundlePath}`);
                     }
                 }
             } catch (err: any) {
-                console.error(`[SEFAZ] Warn: Failed to load CA from SEFAZ_CA_BUNDLE_PATH: ${process.env.SEFAZ_CA_BUNDLE_PATH}. Error: ${err.message}`);
+                logger.error(`[SEFAZ] Warn: Failed to load CA from SEFAZ_CA_BUNDLE_PATH: ${process.env.SEFAZ_CA_BUNDLE_PATH}. Error: ${err.message}`);
             }
         }
 
@@ -125,7 +117,13 @@ export async function soapRequest(
 
         // Debug Setup
         let requestId: string = "";
-        let debugDir = options.debugDir || "/tmp/desdobra-sefaz";
+        const debugDirRaw = options.debugDir || process.env.SEFAZ_DEBUG_DIR;
+        const debugDir = debugDirRaw
+            ? (path.isAbsolute(debugDirRaw) ? debugDirRaw : path.resolve(process.cwd(), debugDirRaw))
+            : undefined;
+        const allowDebugFilesInProd = process.env.SEFAZ_DEBUG_ALLOW_PROD === "true";
+        const shouldWriteDebugFiles =
+            !!debugDir && (process.env.NODE_ENV !== "production" || allowDebugFilesInProd);
 
 
 
@@ -143,55 +141,62 @@ export async function soapRequest(
 
         if (isDebug) {
             requestId = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}`;
-            if (!fs.existsSync(debugDir)) {
-                fs.mkdirSync(debugDir, { recursive: true });
+
+            if (shouldWriteDebugFiles) {
+                if (!fs.existsSync(debugDir)) {
+                    fs.mkdirSync(debugDir, { recursive: true });
+                }
             }
 
-            console.log(`\n[SEFAZ-DIAGNOSTIC] Request ID: ${requestId}`);
-            console.log(`Target URL: ${url}`);
-            console.log(`Node Version: ${process.version}`);
-            console.log(`Exec Path: ${process.execPath}`);
-            console.log(`Platform: ${process.platform} (${process.arch})`);
-            console.log(`Runtime: ${typeof process.versions.node !== 'undefined' ? 'Node.js' : 'Edge/Other'}`);
-            console.log('--- TLS Environment ---');
-            console.log(`NODE_EXTRA_CA_CERTS: ${process.env.NODE_EXTRA_CA_CERTS || 'Not set'}`);
-            console.log(`NODE_OPTIONS: ${process.env.NODE_OPTIONS || 'Not set'}`);
-            console.log(`SEFAZ_CA_BUNDLE_PATH: ${process.env.SEFAZ_CA_BUNDLE_PATH || 'Not set'}`);
+            logger.info(`\n[SEFAZ-DIAGNOSTIC] Request ID: ${requestId}`);
+            logger.info(`Target URL: ${url}`);
+            logger.info(`Node Version: ${process.version}`);
+            logger.info(`Exec Path: ${process.execPath}`);
+            logger.info(`Platform: ${process.platform} (${process.arch})`);
+            logger.info(`Runtime: ${typeof process.versions.node !== 'undefined' ? 'Node.js' : 'Edge/Other'}`);
+            logger.info('--- TLS Environment ---');
+            logger.info(`NODE_EXTRA_CA_CERTS: ${process.env.NODE_EXTRA_CA_CERTS || 'Not set'}`);
+            logger.info(`NODE_OPTIONS: ${process.env.NODE_OPTIONS || 'Not set'}`);
+            logger.info(`SEFAZ_CA_BUNDLE_PATH: ${process.env.SEFAZ_CA_BUNDLE_PATH || 'Not set'}`);
 
             // Log Agent CA details
             if (options.caPem) {
-                console.log(`Agent CA: Provided via options (Length: ${options.caPem.length})`);
+                logger.info(`Agent CA: Provided via options (Length: ${options.caPem.length})`);
             } else if (ca) {
                 const caLen = Buffer.isBuffer(ca) ? ca.length : ca.length;
-                console.log(`Agent CA: Loaded effectively from file/env (Length: ${caLen})`);
+                logger.info(`Agent CA: Loaded effectively from file/env (Length: ${caLen})`);
 
                 // Deep inspection of the bundle content
                 const caStr = ca.toString();
                 const firstLine = caStr.split('\n').find(l => l.trim().length > 0) || 'EMPTY';
                 const lastLine = caStr.trim().split('\n').pop() || 'EMPTY';
-                console.log(`Agent CA Preview: Start="${firstLine.substring(0, 30)}..." End="...${lastLine.substring(lastLine.length - 30)}"`);
+                logger.info(`Agent CA Preview: Start="${firstLine.substring(0, 30)}..." End="...${lastLine.substring(lastLine.length - 30)}"`);
             } else {
-                console.log(`Agent CA: Using default system store (on most systems)`);
+                logger.info(`Agent CA: Using default system store (on most systems)`);
             }
 
             // Log Headers & SOAP details
-            console.log('--- SOAP Request Details ---');
-            console.log(`Endpoint URL: ${url}`);
-            console.log(`SOAP Action: ${soapAction || 'None'}`);
-            console.log(`Headers: ${JSON.stringify(reqOptions.headers, null, 2)}`);
+            logger.info('--- SOAP Request Details ---');
+            logger.info(`Endpoint URL: ${url}`);
+            logger.info(`SOAP Action: ${soapAction || 'None'}`);
+            logger.info(`Headers: ${JSON.stringify(reqOptions.headers, null, 2)}`);
             const inferredVersion = contentType.includes('application/soap+xml') ? '1.2' : '1.1';
-            console.log(`Inferred SOAP Version: ${inferredVersion}`);
+            logger.info(`Inferred SOAP Version: ${inferredVersion}`);
 
-            console.log(`Agent rejectUnauthorized: ${agent.options.rejectUnauthorized}`);
-            console.log('-----------------------\n');
+            logger.info(`Agent rejectUnauthorized: ${agent.options.rejectUnauthorized}`);
+            logger.info('-----------------------\n');
 
             // Save Request Artifacts (sanitized)
-            fs.writeFileSync(path.join(debugDir, `${requestId}.request.soap.xml`), sanitize(xmlBody));
+            if (shouldWriteDebugFiles) {
+                fs.writeFileSync(path.join(debugDir, `${requestId}.request.soap.xml`), sanitize(xmlBody));
+            }
 
             // Try to extract inner XML (naive regex)
             const innerMatch = xmlBody.match(/<nfeDadosMsg[^>]*>([\s\S]*?)<\/nfeDadosMsg>/);
             if (innerMatch && innerMatch[1]) {
-                fs.writeFileSync(path.join(debugDir, `${requestId}.request.inner.xml`), sanitize(innerMatch[1].trim()));
+                if (shouldWriteDebugFiles) {
+                    fs.writeFileSync(path.join(debugDir, `${requestId}.request.inner.xml`), sanitize(innerMatch[1].trim()));
+                }
             }
         }
 
@@ -201,8 +206,6 @@ export async function soapRequest(
             res.on("end", () => {
                 // Debug Response Artifacts (sanitized)
                 if (isDebug) {
-                    fs.writeFileSync(path.join(debugDir, `${requestId}.response.soap.xml`), sanitize(data));
-
                     const meta = {
                         requestId,
                         url,
@@ -214,16 +217,25 @@ export async function soapRequest(
                         },
                         timestamp: new Date().toISOString()
                     };
-                    fs.writeFileSync(path.join(debugDir, `${requestId}.meta.json`), JSON.stringify(meta, null, 2));
+                    if (shouldWriteDebugFiles) {
+                        fs.writeFileSync(path.join(debugDir, `${requestId}.response.soap.xml`), sanitize(data));
+                        fs.writeFileSync(path.join(debugDir, `${requestId}.meta.json`), JSON.stringify(meta, null, 2));
+                    }
 
                     // Stdout Log
                     const maxBody = options.debugMaxBodyChars || 5000;
                     const snippet = data.length > maxBody ? data.substring(0, maxBody) + "...(truncated)" : data;
 
-                    console.log(`\n[SEFAZ-DEBUG] ${requestId}`);
-                    console.log(`URL: ${url} | Status: ${res.statusCode}`);
-                    console.log(`Artifacts: ${debugDir}/${requestId}.*`);
-                    console.log(`Response Snippet:\n${snippet}\n`);
+                    logger.info(`\n[SEFAZ-DEBUG] ${requestId}`);
+                    logger.info(`URL: ${url} | Status: ${res.statusCode}`);
+                    if (shouldWriteDebugFiles) {
+                        logger.info(`Artifacts: ${debugDir}/${requestId}.*`);
+                    } else if (debugDir) {
+                        logger.info(`Artifacts: disabled (set SEFAZ_DEBUG_ALLOW_PROD=true to enable in production)`);
+                    } else {
+                        logger.info(`Artifacts: disabled (set options.debugDir or SEFAZ_DEBUG_DIR to enable file output)`);
+                    }
+                    logger.info(`Response Snippet:\n${snippet}\n`);
                 }
 
                 if (res.statusCode && res.statusCode >= 500) {
@@ -235,7 +247,7 @@ export async function soapRequest(
 
         req.on("error", (err: any) => {
             if (isDebug) {
-                console.error(`[SEFAZ-DEBUG] Request Error: ${err.message}`);
+                logger.error(`[SEFAZ-DEBUG] Request Error: ${err.message}`);
             }
 
             // Specialized TLS Error Handling
@@ -261,7 +273,7 @@ export async function soapRequest(
         req.on("timeout", () => {
             req.destroy();
             if (isDebug) {
-                console.error(`[SEFAZ-DEBUG] Request Timeout`);
+                logger.error(`[SEFAZ-DEBUG] Request Timeout`);
             }
             reject(new NfeSefazError(`Timeout na conexão SEFAZ (${reqOptions.timeout}ms)`, "SOAP"));
         });

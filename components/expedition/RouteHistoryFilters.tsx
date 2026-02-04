@@ -1,6 +1,7 @@
 "use client";
 
 import { Input } from "@/components/ui/Input";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Search } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -61,7 +62,8 @@ export function RouteHistoryFilters() {
     }
 
     return (
-        <div className="bg-white p-4 border border-gray-200 rounded-lg shadow-sm flex flex-col md:flex-row gap-4 items-center">
+        <Card>
+            <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center">
             <div className="relative w-full md:max-w-sm">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
                 <Input
@@ -84,6 +86,7 @@ export function RouteHistoryFilters() {
                     </SelectContent>
                 </Select>
             </div>
-        </div>
+            </CardContent>
+        </Card>
     );
 }

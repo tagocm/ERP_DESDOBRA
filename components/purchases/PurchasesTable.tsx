@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { Eye, FileText, Trash2, Edit2, Calendar, Building2, CheckCircle, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
@@ -135,7 +136,7 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
                     <Badge variant="destructive" className="text-[10px] font-bold px-2 py-0.5" title={order.receiving_blocked_reason || 'Bloqueado'}>
                         NÃO RECEBER
                     </Badge>
-                    <Badge variant="outline" className={cn('text-xs font-bold px-3 py-1 rounded-full bg-blue-100 text-blue-700 border-blue-300')}>
+                    <Badge variant="outline" className={cn('text-xs font-bold px-3 py-1 rounded-2xl bg-blue-100 text-blue-700 border-blue-300')}>
                         Enviado
                     </Badge>
                 </div>
@@ -150,7 +151,7 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
         }[order.status] || { label: order.status, className: '' };
 
         return (
-            <Badge variant="outline" className={cn('text-xs font-bold px-3 py-1 rounded-full', statusConfig.className)}>
+            <Badge variant="outline" className={cn('text-xs font-bold px-3 py-1 rounded-2xl', statusConfig.className)}>
                 {statusConfig.label}
             </Badge>
         );
@@ -208,7 +209,7 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
 
     if (!data || data.length === 0) {
         return (
-            <div className="p-12 text-center border border-gray-200 rounded-lg bg-gray-50 text-gray-500">
+            <div className="p-12 text-center border border-gray-200 rounded-2xl bg-gray-50 text-gray-500">
                 <FileText className="w-12 h-12 mx-auto mb-4 opacity-20" />
                 <h3 className="text-lg font-medium">Nenhum pedido encontrado</h3>
                 <p>Ajuste os filtros ou crie um novo pedido.</p>
@@ -219,9 +220,9 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
     return (
         <>
             {selectedIds.size > 0 && (
-                <div className="mb-4 p-4 bg-brand-50 border border-brand-100 rounded-lg flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                <div className="mb-4 p-4 bg-brand-50 border border-brand-100 rounded-2xl flex items-center justify-between animate-in fade-in slide-in-from-top-2">
                     <div className="flex items-center gap-3">
-                        <div className="bg-brand-100 text-brand-700 px-3 py-1 rounded-md text-sm font-semibold">
+                        <div className="bg-brand-100 text-brand-700 px-3 py-1 rounded-2xl text-sm font-semibold">
                             {selectedIds.size} {selectedIds.size === 1 ? 'pedido selecionado' : 'pedidos selecionados'}
                         </div>
 
@@ -264,26 +265,26 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
                 </div>
             )}
 
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+            <Card className="bg-white overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-200">
                             <tr>
-                                <th className="px-6 py-4 w-[40px]">
+                                <th className="px-6 py-4 w-10">
                                     <Checkbox
                                         checked={data.length > 0 && selectedIds.size === data.length}
                                         onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
                                         aria-label="Select all"
                                     />
                                 </th>
-                                <th className="px-6 py-4 w-[120px] text-xs uppercase tracking-wider">Número</th>
+                                <th className="px-6 py-4 w-28 text-xs uppercase tracking-wider">Número</th>
                                 <th className="px-6 py-4 text-xs uppercase tracking-wider">Fornecedor</th>
-                                <th className="px-6 py-4 w-[140px] text-xs uppercase tracking-wider">Data</th>
+                                <th className="px-6 py-4 w-36 text-xs uppercase tracking-wider">Data</th>
                                 <th className="px-6 py-4 text-xs uppercase tracking-wider">Condição</th>
                                 <th className="px-6 py-4 text-xs uppercase tracking-wider">Modalidade</th>
                                 <th className="px-6 py-4 text-right text-xs uppercase tracking-wider">Total</th>
                                 <th className="px-6 py-4 text-center text-xs uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-4 w-[160px] text-right">Ações</th>
+                                <th className="px-6 py-4 w-40 text-right">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -408,7 +409,7 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
                             </p>
 
                             <div className={cn(
-                                "p-3 border-l-4 rounded-r text-sm",
+                                "p-3 border-l-4 rounded-2xl text-sm",
                                 actionDialog.type === 'receive'
                                     ? "bg-blue-50 border-blue-500 text-blue-800"
                                     : "bg-red-50 border-red-500 text-red-800"
@@ -430,7 +431,7 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
                 />
 
 
-            </div>
+            </Card>
         </>
     );
 }

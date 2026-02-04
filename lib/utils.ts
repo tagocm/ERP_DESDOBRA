@@ -1,6 +1,7 @@
 
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { format, parseISO } from "date-fns"
 
 export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))
@@ -95,9 +96,41 @@ export function formatCurrency(value: number | string | null | undefined): strin
         currency: 'BRL',
     });
 }
+
+/**
+ * Format date to Brazilian format (dd/MM/yyyy)
+ * Uses parseISO to avoid timezone issues with ISO date strings
+ * @param date - ISO date string or Date object
+ * @returns Formatted date string or "-" if invalid
+ */
 export function formatDate(date: string | Date | null | undefined): string {
     if (!date) return "-";
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return "-";
-    return d.toLocaleDateString("pt-BR");
+
+    try {
+        // If string, use parseISO to avoid timezone conversion issues
+        const parsed = typeof date === 'string' ? parseISO(date) : date;
+        if (isNaN(parsed.getTime())) return "-";
+
+        return format(parsed, "dd/MM/yyyy");
+    } catch {
+        return "-";
+    }
+}
+
+/**
+ * Format date and time to Brazilian format (dd/MM/yyyy HH:mm)
+ * @param date - ISO datetime string or Date object
+ * @returns Formatted datetime string or "-" if invalid
+ */
+export function formatDateTime(date: string | Date | null | undefined): string {
+    if (!date) return "-";
+
+    try {
+        const parsed = typeof date === 'string' ? parseISO(date) : date;
+        if (isNaN(parsed.getTime())) return "-";
+
+        return format(parsed, "dd/MM/yyyy HH:mm");
+    } catch {
+        return "-";
+    }
 }

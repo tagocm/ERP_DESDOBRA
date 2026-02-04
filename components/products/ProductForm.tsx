@@ -983,12 +983,12 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                         {/* Status Badge */}
                         {formData.has_fiscal_output && (
                             (formData.is_active && formData.tax_group_id && formData.ncm?.length === 8 && formData.uom) ? (
-                                <span className="mr-2 inline-flex items-center rounded-md bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
+                                <span className="mr-2 inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700 ring-1 ring-inset ring-green-600/20">
                                     <CheckCircle2 className="w-3 h-3 mr-1" />
                                     Pronto para NF-e
                                 </span>
                             ) : (
-                                <span className="mr-2 inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20" title="Complete os dados fiscais (Grupo, NCM) para emitir NF-e">
+                                <span className="mr-2 inline-flex items-center rounded-full bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 ring-1 ring-inset ring-amber-600/20" title="Complete os dados fiscais (Grupo, NCM) para emitir NF-e">
                                     <AlertTriangle className="w-3 h-3 mr-1" />
                                     Pendente Fiscal
                                 </span>
@@ -1044,7 +1044,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 </Tabs>
             </PageHeader>
 
-            <div className="container mx-auto max-w-[1600px] px-6 pb-8">
+            <div className="container mx-auto max-w-screen-2xl px-6 pb-8">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
 
                     {/* --- TAB GERAL --- */}
@@ -1423,7 +1423,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                 icon={<FileText className="w-5 h-5" />}
                                 title="Dados Fiscais"
                                 actions={
-                                    <label className="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                                    <label className="flex items-center gap-2 cursor-pointer bg-gray-50 px-3 py-1.5 rounded-2xl border border-gray-200">
                                         <input
                                             type="checkbox"
                                             checked={formData.has_fiscal_output}
@@ -1449,7 +1449,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                 onGroupUpdated={() => {
                                                     if (selectedCompany) getTaxGroups(createClient(), selectedCompany.id).then(setTaxGroups);
                                                 }}
-                                                className={cn("mt-1", errors.tax_group_id && "border-red-500 rounded-2xl")}
+                                                className={cn("mt-1", errors.tax_group_id && "border-red-500")}
                                             />
                                             <p className="text-[10px] text-gray-500 mt-1">Define as regras de tributação (ICMS, IPI, PIS, COFINS).</p>
                                             {errors.tax_group_id && <p className="text-xs text-red-500 mt-1">{errors.tax_group_id}</p>}
@@ -1578,11 +1578,11 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                     <table className="w-full text-sm">
                                         <thead className="bg-gray-50">
                                             <tr>
-                                                <th className="px-4 py-3 text-left font-medium text-gray-600 w-[50%]">Insumo (Matéria-prima/Emb.)</th>
-                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-[15%]">Qtd.</th>
-                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-[10%]">Unid.</th>
-                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-[20%]">Obs.</th>
-                                                <th className="px-4 py-3 w-[5%]"></th>
+                                                <th className="px-4 py-3 text-left font-medium text-gray-600 w-1/2">Insumo (Matéria-prima/Emb.)</th>
+                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-1/6">Qtd.</th>
+                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-1/12">Unid.</th>
+                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-1/5">Obs.</th>
+                                                <th className="px-4 py-3 w-12"></th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-100">
@@ -1604,7 +1604,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                                     className="h-9 border-brand-500 ring-1 ring-brand-500"
                                                                 />
                                                                 {ingredientSearchTerm && (
-                                                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-2xl shadow-card border border-gray-100 max-h-48 overflow-y-auto z-20">
+                                                                    <Card className="absolute top-full left-0 right-0 mt-1 border-gray-100 max-h-48 overflow-y-auto z-20">
                                                                         {filteredIngredients.length > 0 ? filteredIngredients.map(item => (
                                                                             <div
                                                                                 key={item.id}
@@ -1617,7 +1617,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                                         )) : (
                                                                             <div className="px-3 py-2 text-gray-400 text-xs text-center">Nenhum item encontrado.</div>
                                                                         )}
-                                                                    </div>
+                                                                    </Card>
                                                                 )}
                                                             </div>
                                                         ) : (
@@ -1690,7 +1690,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                 </div>
 
                                 {/* Seção de Co-produtos (Output Adicional) */}
-                                <div className="border-t border-gray-100 p-4 bg-white rounded-b-2xl">
+                                <div className="border-t border-gray-100 p-4 bg-white">
                                     {!showByproducts && byproducts.length === 0 ? (
                                         <button
                                             type="button"
@@ -1732,15 +1732,15 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             </div>
 
                                             {showByproducts && (
-                                                <div className="border border-gray-100 rounded-xl overflow-hidden mt-2">
+                                                <div className="border border-gray-100 rounded-2xl overflow-hidden mt-2">
                                                     <table className="w-full text-sm">
                                                         <thead className="bg-gray-50">
                                                             <tr>
-                                                                <th className="px-4 py-3 text-left font-medium text-gray-600 w-[40%]">Produto (Co-produto)</th>
-                                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-[15%]">Qtd.</th>
-                                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-[15%]">Base / Unid.</th>
-                                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-[25%]">Obs.</th>
-                                                                <th className="px-4 py-3 w-[5%]"></th>
+                                                                <th className="px-4 py-3 text-left font-medium text-gray-600 w-2/5">Produto (Co-produto)</th>
+                                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-1/6">Qtd.</th>
+                                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-1/6">Base / Unid.</th>
+                                                                <th className="px-4 py-3 text-center font-medium text-gray-600 w-1/4">Obs.</th>
+                                                                <th className="px-4 py-3 w-12"></th>
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-gray-100">
@@ -1760,7 +1760,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                                                         className="h-9 border-brand-500 ring-1 ring-brand-500"
                                                                                     />
                                                                                     {byproductSearchTerm && (
-                                                                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-2xl shadow-card border border-gray-100 max-h-48 overflow-y-auto z-20">
+                                                                                        <Card className="absolute top-full left-0 right-0 mt-1 border-gray-100 max-h-48 overflow-y-auto z-20">
                                                                                             {filteredByproducts.length > 0 ? filteredByproducts.map(searchItem => (
                                                                                                 <div
                                                                                                     key={searchItem.id}
@@ -1775,7 +1775,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                                                             )) : (
                                                                                                 <div className="px-3 py-2 text-gray-400 text-xs text-center">Nenhum item encontrado.</div>
                                                                                             )}
-                                                                                        </div>
+                                                                                        </Card>
                                                                                     )}
                                                                                 </div>
                                                                             ) : (
@@ -1868,7 +1868,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                 actions={
                                     <Button
                                         onClick={() => handleOpenPackagingModal()}
-                                        className="bg-brand-600 hover:bg-brand-700 text-white rounded-full px-4 text-xs h-8 shadow-sm transition-all"
+                                        className="bg-brand-600 hover:bg-brand-700 text-white rounded-full px-4 text-xs h-8 transition-all"
                                     >
                                         <Plus className="w-3.5 h-3.5 mr-1.5" />
                                         Adicionar Embalagem

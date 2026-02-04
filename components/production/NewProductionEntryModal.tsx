@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/Label";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/use-toast";
@@ -137,7 +138,7 @@ export function NewProductionEntryModal({ isOpen, onClose, onSuccess }: NewProdu
                             <SelectTrigger className="h-12">
                                 <SelectValue placeholder="Selecione a OP..." />
                             </SelectTrigger>
-                            <SelectContent className="max-h-[300px]">
+                            <SelectContent className="max-h-72">
                                 {orders.map(order => (
                                     <SelectItem key={order.id} value={order.id}>
                                         <div className="flex flex-col text-left">
@@ -156,10 +157,10 @@ export function NewProductionEntryModal({ isOpen, onClose, onSuccess }: NewProdu
                     </div>
 
                     {selectedOrder && (
-                        <div className="bg-blue-50/50 border border-blue-100 rounded-lg p-4 flex gap-4 items-center">
-                            <div className="bg-white p-2 rounded-md border border-blue-100 shadow-sm">
+                        <div className="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 flex gap-4 items-center">
+                            <Card className="p-2 border-blue-100 bg-white">
                                 <Package className="w-5 h-5 text-blue-600" />
-                            </div>
+                            </Card>
                             <div className="flex-1">
                                 <h4 className="font-medium text-blue-900 text-sm">{selectedOrder.item?.name}</h4>
                                 <div className="flex gap-4 mt-1 text-xs text-blue-700">

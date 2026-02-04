@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/Label";
 import { Input } from "@/components/ui/Input";
 import { CurrencyInput } from "@/components/ui/CurrencyInput";
+import { Card } from "@/components/ui/Card";
 
 
 interface EventInstallmentsTableProps {
@@ -212,10 +213,10 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
         else setExpandedInstallmentId(id);
     };
 
-    const canEdit = event.status !== 'aprovado' && event.status !== 'reprovado';
+    const canEdit = event.status !== 'approved' && event.status !== 'rejected';
 
     return (
-        <div className="bg-white border rounded-lg overflow-hidden shadow-sm animate-in fade-in zoom-in-95 duration-200">
+        <Card className="overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Extended Header */}
             <div className="bg-gray-50/50 border-b px-4 py-3 flex flex-col sm:flex-row gap-4 items-center justify-between">
                 <div className="flex items-center gap-8 text-sm flex-1">
@@ -392,14 +393,14 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
             <Table>
                 <TableHeader>
                     <TableRow className="bg-gray-50/30 text-xs hover:bg-gray-50/30">
-                        <TableHead className="w-[40px] text-center font-bold text-gray-500">#</TableHead>
-                        <TableHead className="w-[200px] font-bold text-gray-500">Vencimento</TableHead>
-                        <TableHead className="w-[200px] text-right font-bold text-gray-500">Valor</TableHead>
-                        <TableHead className="w-[220px] font-bold text-gray-500">Forma Pagto</TableHead>
-                        <TableHead className="w-[200px] font-bold text-gray-500">Conta Destino</TableHead>
+                        <TableHead className="w-10 text-center font-bold text-gray-500">#</TableHead>
+                        <TableHead className="w-48 font-bold text-gray-500">Vencimento</TableHead>
+                        <TableHead className="w-48 text-right font-bold text-gray-500">Valor</TableHead>
+                        <TableHead className="w-56 font-bold text-gray-500">Forma Pagto</TableHead>
+                        <TableHead className="w-48 font-bold text-gray-500">Conta Destino</TableHead>
                         <TableHead className="font-bold text-gray-500">Classificação</TableHead>
-                        <TableHead className="w-[80px] text-center font-bold text-gray-500">Status</TableHead>
-                        <TableHead className="w-[50px]"></TableHead>
+                        <TableHead className="w-20 text-center font-bold text-gray-500">Status</TableHead>
+                        <TableHead className="w-12"></TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -492,7 +493,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                                             {/* Account Select */}
                                             <div className="flex items-center gap-1">
                                                 <select
-                                                    className="h-7 text-[10px] border rounded bg-white w-full px-1 min-w-[200px]"
+                                                    className="h-7 text-[10px] border rounded bg-white w-full px-1 min-w-48"
                                                     value={inst.suggested_account_id || ''}
                                                     onChange={(e) => handleInstallmentChange({ ...inst, suggested_account_id: e.target.value || null })}
                                                     onClick={(e) => e.stopPropagation()}
@@ -511,7 +512,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                                             {/* Cost Center Select */}
                                             <div className="flex items-center gap-1">
                                                 <select
-                                                    className="h-7 text-[10px] border rounded bg-white w-full px-1 min-w-[200px]"
+                                                    className="h-7 text-[10px] border rounded bg-white w-full px-1 min-w-48"
                                                     value={inst.cost_center_id || ''}
                                                     onChange={(e) => handleInstallmentChange({ ...inst, cost_center_id: e.target.value || null })}
                                                     onClick={(e) => e.stopPropagation()}
@@ -528,7 +529,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className="flex flex-col gap-0.5 max-w-[180px]">
+                                    <div className="flex flex-col gap-0.5 max-w-44">
                                             {inst.suggested_account_id ? (
                                                 <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1 rounded truncate">
                                                     Conta: ...{inst.suggested_account_id.slice(-4)}
@@ -580,15 +581,15 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                             </TableRow>
                         )
                     }
-                </TableBody >
-            </Table >
+                </TableBody>
+            </Table>
 
             <RecalculateDialog
                 open={recalculateOpen}
                 onOpenChange={setRecalculateOpen}
                 onConfirm={handleRecalculate}
             />
-        </div >
+        </Card>
     );
 }
 

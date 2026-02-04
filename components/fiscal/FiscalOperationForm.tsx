@@ -115,13 +115,10 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
         if (initialData) {
             const data = { ...initialData };
             if (isDuplicate) {
-                // @ts-ignore
+                // @ts-expect-error: Removing readonly id for duplication
                 delete data.id;
-                // @ts-ignore
                 delete data.created_at;
-                // @ts-ignore
                 delete data.updated_at;
-                // @ts-ignore
                 delete data.deleted_at;
             } else {
                 // If editing, use the saved origin state if available (though it should match company currently, 
@@ -329,7 +326,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                 }
             />
 
-            <div className="container mx-auto max-w-[1600px] px-6">
+            <div className="container mx-auto max-w-screen-2xl px-6">
                 <div className="grid grid-cols-12 gap-6">
 
                     {/* LEFT COLUMN: Application Rules */}
@@ -392,7 +389,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    <div className="col-span-2 flex items-center gap-2 p-3 rounded-lg bg-gray-50">
+                                    <div className="col-span-2 flex items-center gap-2 p-3 rounded-2xl bg-gray-50">
                                         <Switch
                                             checked={formData.customer_is_final_consumer}
                                             onCheckedChange={(v) => handleChange('customer_is_final_consumer', v)}
@@ -438,7 +435,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
 
                                 <div>
                                     <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">Resumo da Regra</Label>
-                                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                                    <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100">
                                         <p className="text-sm text-gray-700 leading-relaxed font-medium">
                                             {getSummary()}
                                         </p>
@@ -457,7 +454,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                 {/* Origin State (Read-only) */}
                                 <div className="flex items-center gap-2 mb-2">
                                     <span className="text-xs font-medium text-gray-400">Origem (Emitente):</span>
-                                    <span className="inline-flex items-center justify-center min-w-[2rem] px-1.5 py-0.5 rounded text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-100">
+                                    <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-100">
                                         {originState}
                                     </span>
                                     <span className="text-[10px] text-gray-300 font-light">
@@ -470,18 +467,11 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                     <Label className="text-gray-700 font-medium text-sm">CFOP *</Label>
                                     <Popover open={cfopOpen} onOpenChange={setCfopOpen}>
                                         <PopoverTrigger asChild>
-                                            <div
-                                                role="button"
-                                                tabIndex={0}
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
                                                 aria-expanded={cfopOpen}
-                                                className="flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 h-10 text-sm shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer transition-all"
-                                                onClick={() => setCfopOpen(!cfopOpen)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === "Enter" || e.key === " ") {
-                                                        e.preventDefault();
-                                                        setCfopOpen(!cfopOpen);
-                                                    }
-                                                }}
+                                                className="w-full justify-between px-3 font-normal"
                                             >
                                                 {selectedCfopData ? (
                                                     <div className="flex items-center gap-2 overflow-hidden">
@@ -492,12 +482,12 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                                     <span className="text-gray-400 font-normal">Selecione o CFOP...</span>
                                                 )}
                                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40" />
-                                            </div>
+                                            </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent className="w-[600px] p-0" align="start">
+                                        <PopoverContent className="w-96 p-0" align="start">
                                             <Command>
                                                 <CommandInput placeholder="Buscar CFOP (código ou descrição)..." className="h-9" />
-                                                <CommandList className="max-h-[300px] overflow-y-auto">
+                                                <CommandList>
                                                     <CommandEmpty>Nenhum CFOP encontrado.</CommandEmpty>
                                                     <CommandGroup>
                                                         {filteredCfops.map((cfop) => (
@@ -537,28 +527,28 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
 
 
                                 <Tabs defaultValue="icms" className="w-full">
-                                    <TabsList className="w-full justify-start h-auto p-1 bg-gray-100 rounded-xl mb-6">
+                                    <TabsList className="mb-6">
                                         <TabsTrigger
                                             value="icms"
-                                            className="flex-1 rounded-lg px-4 py-2 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-brand-600 data-[state=active]:shadow-sm transition-all"
+                                            className="flex-1"
                                         >
                                             ICMS
                                         </TabsTrigger>
                                         <TabsTrigger
                                             value="st"
-                                            className="flex-1 rounded-lg px-4 py-2 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-brand-600 data-[state=active]:shadow-sm transition-all"
+                                            className="flex-1"
                                         >
                                             ICMS ST
                                         </TabsTrigger>
                                         <TabsTrigger
                                             value="pis_cofins"
-                                            className="flex-1 rounded-lg px-4 py-2 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-brand-600 data-[state=active]:shadow-sm transition-all"
+                                            className="flex-1"
                                         >
                                             PIS / COFINS
                                         </TabsTrigger>
                                         <TabsTrigger
                                             value="ipi"
-                                            className="flex-1 rounded-lg px-4 py-2 text-sm font-medium text-gray-500 data-[state=active]:bg-white data-[state=active]:text-brand-600 data-[state=active]:shadow-sm transition-all"
+                                            className="flex-1"
                                         >
                                             IPI
                                         </TabsTrigger>
@@ -580,7 +570,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                                             <SelectTrigger className="h-9 text-sm">
                                                                 <SelectValue placeholder="Selecione..." />
                                                             </SelectTrigger>
-                                                            <SelectContent className="max-h-[300px]">
+                                                            <SelectContent>
                                                                 {ICMS_CST_OPTIONS.map(opt => (
                                                                     <SelectItem key={opt.value} value={opt.value}>
                                                                         <span className="font-medium mr-2">{opt.value}</span>
@@ -602,7 +592,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                                             <SelectTrigger className="h-9 text-sm">
                                                                 <SelectValue placeholder="Selecione..." />
                                                             </SelectTrigger>
-                                                            <SelectContent className="max-h-[300px]">
+                                                            <SelectContent>
                                                                 {ICMS_CSOSN_OPTIONS.map(opt => (
                                                                     <SelectItem key={opt.value} value={opt.value}>
                                                                         <span className="font-medium mr-2">{opt.value}</span>
@@ -654,7 +644,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                                     </Select>
                                                 </div>
 
-                                                <div className="col-span-2 flex items-center gap-3 pt-1 p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+                                                <div className="col-span-2 flex items-center gap-3 pt-1 p-3 bg-blue-50/50 rounded-2xl border border-blue-100">
                                                     <Switch
                                                         checked={formData.icms_show_in_xml}
                                                         onCheckedChange={(v) => handleChange('icms_show_in_xml', v)}
@@ -670,7 +660,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
 
                                         {/* ST TAB */}
                                         <TabsContent value="st" className="m-0 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                            <div className="flex items-center gap-3 mb-4 bg-amber-50 p-3 rounded-lg border border-amber-100">
+                                            <div className="flex items-center gap-3 mb-4 bg-amber-50 p-3 rounded-2xl border border-amber-100">
                                                 <Switch
                                                     checked={formData.st_applies}
                                                     onCheckedChange={(v) => handleChange('st_applies', v)}
@@ -735,7 +725,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                                     <Switch checked={formData.pis_applies} onCheckedChange={(v) => handleChange('pis_applies', v)} className="scale-90" />
                                                 </div>
                                                 {formData.pis_applies && (
-                                                    <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-3 rounded-lg border border-gray-100">
+                                                    <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-3 rounded-2xl border border-gray-100">
                                                         <div className="col-span-2">
                                                             <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">CST PIS</Label>
                                                             <Select
@@ -745,7 +735,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                                                 <SelectTrigger className="h-9 bg-white">
                                                                     <SelectValue placeholder="Selecione..." />
                                                                 </SelectTrigger>
-                                                                <SelectContent className="max-h-[300px]">
+                                                                <SelectContent>
                                                                     {PIS_COFINS_CST_OPTIONS.map(opt => (
                                                                         <SelectItem key={opt.value} value={opt.value}>
                                                                             <span className="font-medium mr-2">{opt.value}</span>
@@ -775,7 +765,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                                     <Switch checked={formData.cofins_applies} onCheckedChange={(v) => handleChange('cofins_applies', v)} className="scale-90" />
                                                 </div>
                                                 {formData.cofins_applies && (
-                                                    <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-3 rounded-lg border border-gray-100">
+                                                    <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-3 rounded-2xl border border-gray-100">
                                                         <div className="col-span-2">
                                                             <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">CST COFINS</Label>
                                                             <Select
@@ -785,7 +775,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                                                 <SelectTrigger className="h-9 bg-white">
                                                                     <SelectValue placeholder="Selecione..." />
                                                                 </SelectTrigger>
-                                                                <SelectContent className="max-h-[300px]">
+                                                                <SelectContent>
                                                                     {PIS_COFINS_CST_OPTIONS.map(opt => (
                                                                         <SelectItem key={opt.value} value={opt.value}>
                                                                             <span className="font-medium mr-2">{opt.value}</span>
@@ -811,7 +801,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
 
                                         {/* IPI TAB */}
                                         <TabsContent value="ipi" className="m-0 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                                            <div className="flex items-center gap-3 mb-4 bg-purple-50 p-3 rounded-lg border border-purple-100">
+                                            <div className="flex items-center gap-3 mb-4 bg-purple-50 p-3 rounded-2xl border border-purple-100">
                                                 <Switch
                                                     checked={formData.ipi_applies}
                                                     onCheckedChange={(v) => handleChange('ipi_applies', v)}
@@ -835,7 +825,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                                             <SelectTrigger className="h-9 bg-white">
                                                                 <SelectValue placeholder="Selecione..." />
                                                             </SelectTrigger>
-                                                            <SelectContent className="max-h-[300px]">
+                                                            <SelectContent>
                                                                 {IPI_CST_OPTIONS.map(opt => (
                                                                     <SelectItem key={opt.value} value={opt.value}>
                                                                         <span className="font-medium mr-2">{opt.value}</span>

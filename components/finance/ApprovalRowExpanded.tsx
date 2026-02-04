@@ -215,7 +215,7 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onDeleteTitle
     );
 
     return (
-        <Card className="border-gray-100 shadow-sm bg-white overflow-hidden">
+        <Card className="border-gray-100 shadow-card bg-white overflow-hidden">
             {/* Simple Summary Header */}
             <div className="px-6 py-4 bg-gray-50 flex flex-wrap gap-6 items-center border-b border-gray-100/50">
                 <div className="flex gap-8">
@@ -242,7 +242,7 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onDeleteTitle
                         <PaymentMethodSelect
                             value={generalPaymentMethod}
                             onChange={handleGeneralMethodChange}
-                            className="h-8 text-xs border-gray-200 w-[200px]"
+                            className="h-8 text-xs border-gray-200 w-52"
                         />
                     </div>
                 </div>
@@ -330,7 +330,7 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onDeleteTitle
                                                 ) : (
                                                     <span className="text-xs text-gray-600 font-medium">{inst.payment_method}</span>
                                                 )}
-                                                {isOverride && <Link2Off className="w-3 h-3 text-orange-400" title="Manual" />}
+                                                {isOverride && <span title="Manual"><Link2Off className="w-3 h-3 text-orange-400" /></span>}
                                             </div>
                                         </td>
                                         <td className="px-6 py-3">
@@ -355,7 +355,7 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onDeleteTitle
                                                             <Coins className="w-3.5 h-3.5" />
                                                         </Button>
                                                     </PopoverTrigger>
-                                                    <PopoverContent className="w-auto p-0 border-none shadow-xl bg-white rounded-xl" align="end" sideOffset={5}>
+                                                    <PopoverContent className="w-auto p-0 border-none shadow-float bg-white rounded-2xl" align="end" sideOffset={5}>
                                                         <InstallmentPaymentManager
                                                             installment={inst}
                                                             onUpdate={() => {
@@ -423,7 +423,7 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onDeleteTitle
             </CardContent>
 
             <AlertDialog open={showDeleteTitleDialog} onOpenChange={setShowDeleteTitleDialog}>
-                <AlertDialogContent className="rounded-xl">
+                <AlertDialogContent className="rounded-2xl">
                     <AlertDialogHeader>
                         <AlertDialogTitle>Excluir Lançamento?</AlertDialogTitle>
                         <AlertDialogDescription>

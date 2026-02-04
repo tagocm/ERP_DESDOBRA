@@ -29,7 +29,7 @@ export function ReasonModal({ isOpen, onClose, reason, defaultGroup, companyId, 
     // Form State
     const [name, setName] = useState("");
     const [isActive, setIsActive] = useState(true);
-    const [group, setGroup] = useState<DeliveryReasonGroup>("CARREGAMENTO_PARCIAL");
+    const [group, setGroup] = useState<DeliveryReasonGroup>("EXPEDICAO_CARREGADO_PARCIAL");
     const [requireNote, setRequireNote] = useState(false);
 
     useEffect(() => {
@@ -120,12 +120,12 @@ export function ReasonModal({ isOpen, onClose, reason, defaultGroup, companyId, 
                         </Select>
                     </div>
 
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
                         <Label>Ativo</Label>
                         <Switch checked={isActive} onCheckedChange={setIsActive} />
                     </div>
 
-                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl">
                         <Label>Exigir Observação</Label>
                         <Switch checked={requireNote} onCheckedChange={setRequireNote} />
                     </div>

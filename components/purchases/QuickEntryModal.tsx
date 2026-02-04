@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
+import { Card, CardContent } from "@/components/ui/Card"
 import { Plus, Trash2, Search, Zap } from "lucide-react"
 import { createPurchaseOrderAction, receivePurchaseOrderAction } from "@/app/actions/purchases"
 import { useToast } from "@/components/ui/use-toast"
@@ -143,7 +144,7 @@ export function QuickEntryModal({ isOpen, onClose, onSuccess }: QuickEntryModalP
                     <div className="space-y-2">
                         <Label>Fornecedor (Opcional)</Label>
                         <select
-                            className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                            className="w-full h-10 rounded-2xl border border-input bg-background px-3 py-2 text-sm"
                             value={supplierId}
                             onChange={(e) => setSupplierId(e.target.value)}
                         >
@@ -166,7 +167,7 @@ export function QuickEntryModal({ isOpen, onClose, onSuccess }: QuickEntryModalP
                                     onChange={(e) => setSearchItem(e.target.value)}
                                 />
                                 {searchItem && filteredItems.length > 0 && (
-                                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-40 overflow-y-auto">
+                                    <Card className="absolute z-10 w-full mt-1 shadow-float max-h-40 overflow-y-auto">
                                         {filteredItems.map(item => (
                                             <button
                                                 key={item.id}
@@ -176,12 +177,12 @@ export function QuickEntryModal({ isOpen, onClose, onSuccess }: QuickEntryModalP
                                                 {item.name}
                                             </button>
                                         ))}
-                                    </div>
+                                    </Card>
                                 )}
                             </div>
                         </div>
 
-                        <div className="max-h-[300px] overflow-y-auto pr-1">
+                        <div className="max-h-72 overflow-y-auto pr-1">
                             {items.length === 0 ? (
                                 <div className="text-center py-6 text-gray-400 text-sm italic">
                                     Busque e selecione itens acima.
@@ -189,27 +190,29 @@ export function QuickEntryModal({ isOpen, onClose, onSuccess }: QuickEntryModalP
                             ) : (
                                 <div className="space-y-2">
                                     {items.map((item, idx) => (
-                                        <div key={idx} className="flex gap-2 items-center bg-gray-50 p-2 rounded-md border">
-                                            <div className="flex-1 font-medium text-sm truncate">{item.name}</div>
-                                            <div className="w-20">
-                                                <Input
-                                                    type="number"
-                                                    value={item.qty_display}
-                                                    onChange={(e) => updateItem(idx, 'qty_display', e.target.value)}
-                                                    className="h-8 text-right text-xs"
-                                                    placeholder="Qtd"
-                                                />
-                                            </div>
-                                            <div className="w-12 text-[10px] text-gray-500 uppercase">{item.uom_label}</div>
-                                            <Button
-                                                size="icon"
-                                                variant="ghost"
-                                                className="h-7 w-7 text-red-400 hover:text-red-600 p-0"
-                                                onClick={() => removeItem(idx)}
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
-                                        </div>
+                                        <Card key={idx}>
+                                            <CardContent className="p-2 flex gap-2 items-center">
+                                                <div className="flex-1 font-medium text-sm truncate">{item.name}</div>
+                                                <div className="w-20">
+                                                    <Input
+                                                        type="number"
+                                                        value={item.qty_display}
+                                                        onChange={(e) => updateItem(idx, 'qty_display', e.target.value)}
+                                                        className="h-8 text-right text-xs"
+                                                        placeholder="Qtd"
+                                                    />
+                                                </div>
+                                                <div className="w-12 text-[10px] text-gray-500 uppercase">{item.uom_label}</div>
+                                                <Button
+                                                    size="icon"
+                                                    variant="ghost"
+                                                    className="h-7 w-7 text-red-400 hover:text-red-600 p-0"
+                                                    onClick={() => removeItem(idx)}
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </Button>
+                                            </CardContent>
+                                        </Card>
                                     ))}
                                 </div>
                             )}
@@ -217,7 +220,7 @@ export function QuickEntryModal({ isOpen, onClose, onSuccess }: QuickEntryModalP
                     </div>
                 </div>
 
-                <DialogFooter className="bg-gray-50 p-4 rounded-b-lg gap-2">
+                <DialogFooter className="bg-gray-50 p-4 rounded-2xl gap-2">
                     <Button variant="ghost" onClick={onClose} disabled={loading}>
                         Cancelar
                     </Button>

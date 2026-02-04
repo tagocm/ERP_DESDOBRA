@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabaseBrowser";
 import { useCompany } from "@/contexts/CompanyContext";
 import { cn, toTitleCase } from "@/lib/utils";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
+import { Card } from "@/components/ui/Card";
 import {
     Table,
     TableBody,
@@ -95,7 +96,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
         try {
             await createTaxGroup(supabase, {
                 company_id: selectedCompany.id,
-                name: toTitleCase(formName),
+                name: toTitleCase(formName) || "",
                 // Deprecated: ncm, cest, origin_default removed from payload
                 is_active: formIsActive,
                 observation: formObservation || null
@@ -116,7 +117,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
         setIsUpdating(true);
         try {
             await updateTaxGroup(supabase, id, {
-                name: toTitleCase(formName),
+                name: toTitleCase(formName) || "",
                 // Deprecated: ncm, cest, origin_default removed from payload
                 is_active: formIsActive,
                 observation: formObservation || null
@@ -148,9 +149,9 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
     };
 
     return (
-        <DialogContent className="max-w-[900px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl">
+        <DialogContent className="max-w-4xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl flex flex-col max-h-screen">
             {/* Header */}
-            <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
+            <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center">
                 <div>
                     <DialogTitle className="text-xl font-semibold text-gray-900">Grupos Tributários</DialogTitle>
                     <DialogDescription className="text-sm text-gray-500 mt-1">
@@ -162,17 +163,17 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                         resetForm();
                         setAddBoxOpen(!addBoxOpen);
                     }}
-                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-full px-4 text-xs h-8 shadow-sm transition-all"
+                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-full px-4 text-xs h-8 transition-all"
                 >
                     <Plus className="w-3.5 h-3.5 mr-1.5" />
                     Novo Grupo
                 </Button>
             </div>
 
-            <div className="p-6 overflow-y-auto max-h-[60vh]">
+            <div className="flex-1 p-6 overflow-y-auto">
                 {/* Create/Edit Form Inline */}
                 {(addBoxOpen || editingId) && (
-                    <div className="mb-6 bg-white p-4 rounded-xl border border-gray-200 shadow-sm animate-in fade-in slide-in-from-top-2">
+                    <Card className="mb-6 p-4 border-gray-200 shadow-none animate-in fade-in slide-in-from-top-2">
                         <div className="text-sm font-semibold text-gray-900 mb-4 flex items-center justify-between">
                             <div className="flex items-center gap-2">
                                 {editingId ? <Edit className="w-4 h-4 text-blue-500" /> : <Plus className="w-4 h-4 text-brand-500" />}
@@ -205,9 +206,9 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                                 <Input
                                     value={formName}
                                     onChange={(e) => setFormName(e.target.value)}
-                                    onBlur={() => setFormName(toTitleCase(formName))}
+                                    onBlur={() => setFormName(toTitleCase(formName) || "")}
                                     placeholder="Ex: Revenda 18%, Produção Própria..."
-                                    className="h-9 text-sm rounded-lg"
+                                    className="h-9 text-sm rounded-2xl"
                                     autoFocus
                                 />
                             </div>
@@ -218,7 +219,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                                     value={formObservation}
                                     onChange={(e) => setFormObservation(e.target.value)}
                                     placeholder="Ex: Base reduzida conf art. X..."
-                                    className="h-9 text-sm rounded-lg"
+                                    className="h-9 text-sm rounded-2xl"
                                 />
                             </div>
                         </div>
@@ -227,7 +228,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                             <Button
                                 onClick={() => editingId ? handleUpdate(editingId) : handleCreate()}
                                 disabled={isCreating || isUpdating}
-                                className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition-all"
+                                className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-medium transition-all"
                             >
                                 {(isCreating || isUpdating) ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -241,16 +242,16 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                                     resetForm();
                                     setAddBoxOpen(false);
                                 }}
-                                className="h-9 w-9 p-0 bg-gray-50 hover:bg-white text-gray-500 rounded-lg border-gray-200"
+                                className="h-9 w-9 p-0 bg-gray-50 hover:bg-white text-gray-500 rounded-2xl border-gray-200"
                             >
                                 <X className="w-4 h-4" />
                             </Button>
                         </div>
-                    </div>
+                    </Card>
                 )}
 
                 {/* List Container */}
-                <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                <Card className="border-gray-200 overflow-hidden shadow-none">
                     <Table>
                         <TableHeader className="bg-gray-50/50">
                             <TableRow className="hover:bg-transparent border-gray-100">
@@ -284,7 +285,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={() => handleStartEdit(group)}
-                                                    className="h-7 w-7 p-0 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
+                                                    className="h-7 w-7 p-0 rounded-2xl hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
                                                 >
                                                     <Edit className="h-3.5 w-3.5" />
                                                 </Button>
@@ -293,7 +294,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={() => setGroupToDelete(group.id)}
-                                                    className="h-7 w-7 p-0 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+                                                    className="h-7 w-7 p-0 rounded-2xl hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
                                                 >
                                                     <Trash2 className="h-3.5 w-3.5" />
                                                 </Button>
@@ -304,7 +305,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                             )}
                         </TableBody>
                     </Table>
-                </div>
+                </Card>
             </div>
 
             <ConfirmDialogDesdobra

@@ -170,7 +170,7 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
         <div className="animate-in slide-in-from-top-2">
 
             {/* Compact Summary Strip */}
-            <div className="flex items-center gap-6 mb-4 px-1 text-sm bg-gray-50/50 p-2 rounded-lg border border-gray-100 w-fit">
+            <div className="flex items-center gap-6 mb-4 px-1 text-sm bg-gray-50/50 p-2 rounded-2xl border border-gray-100 w-fit">
                 <div className="flex items-baseline gap-2">
                     <span className="text-[10px] font-bold text-gray-400 uppercase">Original:</span>
                     <span className="font-bold text-gray-900">{formatCurrency(installment.amount_original)}</span>
@@ -191,12 +191,12 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
 
                 {/* Left Column (2/3): Payment History */}
                 <div className="lg:col-span-2 flex flex-col">
-                    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm flex-1 flex flex-col h-full">
+                    <Card className="overflow-hidden flex-1 flex flex-col h-full">
                         <div className="bg-gray-50/50 border-b border-gray-100 px-3 py-2 flex justify-between items-center shrink-0">
                             <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Histórico de Pagamentos</h4>
                         </div>
                         {allocations.length === 0 ? (
-                            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 min-h-[200px]">
+                            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 min-h-52">
                                 <span className="text-xs italic">Nenhum pagamento registrado</span>
                             </div>
                         ) : (
@@ -224,7 +224,7 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
                                                 <td className="px-3 py-2 text-right font-bold text-green-700">
                                                     {formatCurrency(alloc.amount_allocated)}
                                                 </td>
-                                                <td className="px-3 py-2 text-gray-400 text-[10px] truncate max-w-[150px]">
+                                                <td className="px-3 py-2 text-gray-400 text-[10px] truncate max-w-40">
                                                     {alloc.ar_payments?.notes || '-'}
                                                 </td>
                                             </tr>
@@ -233,17 +233,17 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
                                 </table>
                             </div>
                         )}
-                    </div>
+                    </Card>
                 </div>
 
                 {/* Right Column (1/3): Payment Form */}
                 <div className="h-full">
-                    <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm h-full flex flex-col justify-start">
+                    <Card className="p-3 h-full flex flex-col justify-start">
                         {/* Header with Title and Button */}
                         <div className="mb-4 pb-2 border-b border-gray-50 flex justify-between items-center">
                             <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Novo Pagamento</h4>
                             <Button
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-7 text-xs shadow-sm px-3"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-7 text-xs shadow-card px-3"
                                 onClick={handleRegisterPayment}
                                 disabled={isSaving || installment.status === 'PAID'}
                             >
@@ -342,7 +342,7 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
                                 </div>
                             </div>
                         )}
-                    </div>
+                    </Card>
                 </div>
 
             </div>

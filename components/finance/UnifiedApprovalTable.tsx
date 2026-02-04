@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import {
     listPendingEventsAction,
     approveEventAction,
@@ -19,6 +19,7 @@ import {
 import { rejectSalesFinancial } from "@/app/actions/financial/reject-sales";
 import { rejectPurchaseFinancial } from "@/app/actions/financial/reject-purchase";
 import { type FinancialEvent } from '@/lib/finance/events-db';
+import { translateFinancialEventStatusPt } from "@/lib/constants/status";
 
 import { Card } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
@@ -49,7 +50,6 @@ import {
 import { CheckCircle, Loader2, Search, Filter, LayoutGrid, ArrowUp, ArrowDown, ArrowUpDown, ChevronRight, ChevronDown, ExternalLink, Edit2, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { formatCurrency, toTitleCase, cn, formatDate } from "@/lib/utils";
-import { EventDetailDrawer } from "./EventDetailDrawer";
 import { EventInstallmentsTable } from "./EventInstallmentsTable";
 
 interface UnifiedApprovalTableProps {
@@ -114,7 +114,7 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
     }, [companyId]);
 
     // --- Data Fetching ---
-    const fetchEvents = async () => {
+    const fetchEvents = useCallback(async () => {
         setLoading(true);
         const res = await listPendingEventsAction(companyId);
         if (!res.success) {
@@ -123,13 +123,13 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
             setEvents(res.data || []);
         }
         setLoading(false);
-    };
+    }, [companyId, toast]);
 
     useEffect(() => {
         if (companyId) {
             fetchEvents();
         }
-    }, [companyId]);
+    }, [companyId, fetchEvents]);
 
     // --- Computed ---
     const filteredEvents = useMemo(() => {
@@ -385,6 +385,7 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
             'delivered': 'Entregue',
             'not_loaded': 'Não Carregado',
             'loaded': 'Carregado',
+            'attention': 'Em atenção',
             // Purchase
             'draft': 'Rascunho',
             'sent': 'Enviado',
@@ -410,6 +411,8 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
             case 'pending':
             case 'draft':
                 return "bg-gray-100 text-gray-600 border-gray-200";
+            case 'attention':
+                return "bg-amber-100 text-amber-700 border-amber-200";
             case 'not_loaded':
             case 'cancelled':
                 return "bg-red-50 text-red-700 border-red-200";
@@ -422,26 +425,26 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
         <div className="space-y-6">
             {/* Cards */}
             <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-1 relative overflow-hidden">
+                <Card className="flex-1 p-4 border-gray-100 flex flex-col gap-1 relative overflow-hidden">
                     <span className="text-[10px] uppercase font-black text-gray-400 tracking-widest pl-1">Total Pendente</span>
                     <div className="text-2xl font-black text-gray-900 tabular-nums">{formatCurrency(totalPending)}</div>
-                </div>
-                <div className="flex-1 bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex flex-col gap-1 relative overflow-hidden">
+                </Card>
+                <Card className="flex-1 p-4 border-gray-100 flex flex-col gap-1 relative overflow-hidden">
                     <span className="text-[10px] uppercase font-black text-gray-400 tracking-widest pl-1">Seleção Ativa</span>
                     <div className={`text-2xl font-black tabular-nums ${selectedIds.size > 0 ? 'text-blue-600' : 'text-gray-300'}`}>
                         {formatCurrency(totalSelected)}
                     </div>
-                </div>
+                </Card>
             </div>
 
-            <Card className="min-h-[500px]">
+            <Card className="min-h-96">
                 <CardHeaderStandard
                     title="Pré-Aprovação Financeira"
                     description="Valide os lançamentos antes de gerar títulos oficiais."
                     icon={<LayoutGrid className="w-5 h-5" />}
                     actions={
                         selectedIds.size > 0 && (
-                            <div className="flex items-center gap-2 animate-in slide-in-from-right-4 bg-blue-50/50 p-1.5 rounded-xl border border-blue-100/50">
+                            <div className="flex items-center gap-2 animate-in slide-in-from-right-4 bg-blue-50/50 p-1.5 rounded-2xl border border-blue-100/50">
                                 <span className="text-xs font-bold text-blue-700 px-2">{selectedIds.size} selecionados</span>
                                 <Button
                                     size="sm"
@@ -466,7 +469,7 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
                         />
                     </div>
                     <Select value={filterDirection} onValueChange={setFilterDirection}>
-                        <SelectTrigger className="w-[180px] bg-white border-gray-200">
+                        <SelectTrigger className="w-44 bg-white border-gray-200">
                             <Filter className="w-4 h-4 mr-2 text-gray-500" />
                             <SelectValue placeholder="Tipo" />
                         </SelectTrigger>
@@ -482,22 +485,22 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
                     <Table>
                         <TableHeader>
                             <TableRow className="bg-gray-50/40">
-                                <TableHead className="w-[40px]"></TableHead>
-                                <TableHead className="w-[40px]">
+                                <TableHead className="w-10"></TableHead>
+                                <TableHead className="w-10">
                                     <Checkbox
                                         checked={filteredEvents.length > 0 && selectedIds.size === filteredEvents.length}
                                         onCheckedChange={(c) => handleSelectAll(c as boolean)}
                                         className="translate-y-[2px]"
                                     />
                                 </TableHead>
-                                <SortableHead sortKey="direction" label="Tipo" className="w-[80px]" />
+                                <SortableHead sortKey="direction" label="Tipo" className="w-20" />
                                 <SortableHead sortKey="partner" label="Parceiro" />
                                 <TableHead>Origem</TableHead>
-                                <TableHead className="w-[140px]">Status Operacional</TableHead>
-                                <SortableHead sortKey="issued" label="Emissão" className="w-[100px]" />
-                                <SortableHead sortKey="total" label="Total" className="w-[120px]" />
-                                <TableHead className="w-[100px]">Status</TableHead>
-                                <TableHead className="w-[40px]"></TableHead>
+                                <TableHead className="w-36">Status Operacional</TableHead>
+                                <SortableHead sortKey="issued" label="Emissão" className="w-24" />
+                                <SortableHead sortKey="total" label="Total" className="w-32" />
+                                <TableHead className="w-24">Status</TableHead>
+                                <TableHead className="w-10"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -542,7 +545,7 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
                                                 </Badge>
                                             </TableCell>
                                             <TableCell>
-                                                <span className="font-semibold text-gray-900 block truncate max-w-[200px]" title={event.partner_name || ''}>
+                                                <span className="font-semibold text-gray-900 block truncate w-48 lg:w-64" title={event.partner_name || ''}>
                                                     {toTitleCase(event.partner_name || 'Desconhecido')}
                                                 </span>
                                             </TableCell>
@@ -564,12 +567,14 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
                                                 {formatCurrency(event.total_amount)}
                                             </TableCell>
                                             <TableCell>
-                                                {event.status === 'em_atencao' ? (
+                                                {event.status === 'attention' ? (
                                                     <Badge className="bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-100">
-                                                        Em Atenção
+                                                        {translateFinancialEventStatusPt(event.status)}
                                                     </Badge>
                                                 ) : (
-                                                    <Badge variant="secondary" className="text-gray-500 bg-gray-100">Pendente</Badge>
+                                                    <Badge variant="secondary" className="text-gray-500 bg-gray-100">
+                                                        {translateFinancialEventStatusPt(event.status)}
+                                                    </Badge>
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-right">
@@ -629,7 +634,7 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Aprovar {selectedIds.size} eventos?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Os eventos serão validados individualmente. Se houver pendências, eles não serão aprovados e ficarão "Em Atenção".
+                            Os eventos serão validados individualmente. Se houver pendências, eles não serão aprovados e ficarão &quot;Em Atenção&quot;.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

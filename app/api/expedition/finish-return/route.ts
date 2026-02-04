@@ -231,7 +231,7 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                const finalStatus = isFullyDelivered ? 'entregue' : 'parcial';
+                const finalStatus = isFullyDelivered ? 'delivered' : 'partial';
                 const note = `[${baseDate}] ${isFullyDelivered ? 'ENTREGUE' : 'ENTREGA PARCIAL'} na rota ${routeName}.`;
 
                 await supabase.from('sales_documents')
@@ -239,7 +239,7 @@ export async function POST(request: NextRequest) {
                         status_logistic: finalStatus,
                         internal_notes: (order.internal_notes || '') + '\n' + note,
                         updated_at: nowIso,
-                        loading_checked: finalStatus === 'parcial' ? false : order.loading_checked
+                        loading_checked: finalStatus === 'partial' ? false : order.loading_checked
                     })
                     .eq('id', order.id);
 
@@ -281,7 +281,7 @@ export async function POST(request: NextRequest) {
                     }
                 }
 
-                const newStatusLogistic = hasAnyPending ? 'parcial' : 'entregue';
+                const newStatusLogistic = hasAnyPending ? 'partial' : 'delivered';
                 const note = `[${baseDate}] ENTREGA PARCIAL (Retorno da Rota) - Status: ${newStatusLogistic}`;
 
                 await supabase.from('sales_documents')
@@ -369,7 +369,7 @@ export async function POST(request: NextRequest) {
         // 4. Close Route
         const { error: routeError } = await supabase
             .from('delivery_routes')
-            .update({ status: 'concluida' })
+            .update({ status: 'completed' })
             .eq('id', routeId);
 
         if (routeError) throw routeError;

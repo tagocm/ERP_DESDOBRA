@@ -5,13 +5,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Label } from '@/components/ui/Label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/Tabs'
 import { format, addDays } from 'date-fns'
 import { approveTitleAction, rejectTitleAction, updateTitleAction } from '@/app/actions/finance'
 import { useToast } from '@/components/ui/use-toast'
-import { Loader2, DollarSign, Calendar, AlertTriangle } from 'lucide-react'
+import { Loader2, AlertTriangle } from 'lucide-react'
+import { FinancialEvent } from '@/lib/finance/events-db'
 
 // Mock terms if we don't fetch them (simplified for MVP)
 // Ideally we pass company terms as props
@@ -24,26 +23,31 @@ const MOCK_TERMS = [
 interface PreApprovalActionsProps {
     isOpen: boolean
     onClose: () => void
-    title: any
+    title: FinancialEvent | null
     onSuccess: () => void
 }
 
 export function PreApprovalActions({ isOpen, onClose, title, onSuccess }: PreApprovalActionsProps) {
     const { toast } = useToast()
     const [loading, setLoading] = useState(false)
-    const [action, setAction] = useState<'detail' | 'reject'>('detail')
+    // removed unused action state
 
     // Form State
     const [amount, setAmount] = useState(0)
     const [dueDate, setDueDate] = useState('')
-    const [installments, setInstallments] = useState<any[]>([])
+    const [installments, setInstallments] = useState<{
+        installment_number: number
+        due_date: string
+        amount_original: number
+        amount_open: number
+    }[]>([])
 
     // Initialize
     useEffect(() => {
         if (title) {
-            setAmount(Number(title.amount_total))
-            setDueDate(title.due_date ? format(new Date(title.due_date), 'yyyy-MM-dd') : format(addDays(new Date(), 30), 'yyyy-MM-dd'))
-            generatePreview(title.amount_total, 1, 30) // Default if no logic
+            setAmount(Number(title.total_amount))
+            setDueDate(title.issue_date ? format(new Date(title.issue_date), 'yyyy-MM-dd') : format(addDays(new Date(), 30), 'yyyy-MM-dd'))
+            generatePreview(title.total_amount, 1, 30) // Default if no logic
         }
     }, [title])
 
@@ -64,15 +68,16 @@ export function PreApprovalActions({ isOpen, onClose, title, onSuccess }: PreApp
     }
 
     const handleApprove = async () => {
+        if (!title) return
         setLoading(true)
         try {
-            const res = await approveTitleAction(title.id, title.type, installments)
+            const res = await approveTitleAction(title.id, title.direction, installments)
             if (res.error) throw new Error(res.error)
             toast({ title: 'Aprovado com sucesso!' })
 
             // Allow update if changed (simple logic check)
-            if (amount !== Number(title.amount_total)) {
-                await updateTitleAction(title.id, title.type, { amount_total: amount })
+            if (amount !== Number(title.total_amount)) {
+                await updateTitleAction(title.id, title.direction, { amount_total: amount })
             }
 
             onSuccess()
@@ -86,17 +91,19 @@ export function PreApprovalActions({ isOpen, onClose, title, onSuccess }: PreApp
     }
 
     const handleReject = async () => {
+        if (!title) return
         if (!confirm('Rejeitar este título? Ele será cancelado.')) return
         setLoading(true)
         try {
-            const res = await rejectTitleAction(title.id, title.type)
+            const res = await rejectTitleAction(title.id, title.direction)
             if (res.error) throw new Error(res.error)
             toast({ title: 'Rejeitado/Cancelado.' })
             onSuccess()
             onClose()
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error)
-            toast({ title: 'Erro', description: error.message, variant: 'destructive' })
+            const msg = error instanceof Error ? error.message : 'Unknown error'
+            toast({ title: 'Erro', description: msg, variant: 'destructive' })
         } finally {
             setLoading(false)
         }
@@ -109,7 +116,7 @@ export function PreApprovalActions({ isOpen, onClose, title, onSuccess }: PreApp
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>
-                        {title.type === 'AR' ? 'Aprovar Contas a Receber' : 'Aprovar Contas a Pagar'}
+                        {title.direction === 'AR' ? 'Aprovar Contas a Receber' : 'Aprovar Contas a Pagar'}
                     </DialogTitle>
                 </DialogHeader>
 
@@ -118,7 +125,7 @@ export function PreApprovalActions({ isOpen, onClose, title, onSuccess }: PreApp
                     <div className="space-y-4 border-r pr-6">
                         <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">Parceiro</Label>
-                            <div className="font-semibold text-lg">{title.entity_name}</div>
+                            <div className="font-semibold text-lg">{title.partner_name}</div>
                         </div>
                         <div className="space-y-1">
                             <Label className="text-xs text-muted-foreground">Valor Total</Label>
@@ -133,8 +140,8 @@ export function PreApprovalActions({ isOpen, onClose, title, onSuccess }: PreApp
                                 />
                             </div>
                         </div>
-                        {title.attention_status && (
-                            <div className="bg-amber-50 text-amber-900 p-3 rounded-md text-sm flex gap-2 items-start">
+                        {title.status === 'attention' && (
+                            <div className="bg-amber-50 text-amber-900 p-3 rounded-2xl text-sm flex gap-2 items-start">
                                 <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-600" />
                                 <div>
                                     <div className="font-bold">Atenção Necessária</div>
@@ -147,7 +154,7 @@ export function PreApprovalActions({ isOpen, onClose, title, onSuccess }: PreApp
                     {/* PREVIEW */}
                     <div className="space-y-4">
                         <Label className="font-semibold">Simulação de Parcelas</Label>
-                        <div className="space-y-2 max-h-[300px] overflow-auto pr-2">
+                        <div className="space-y-2 max-h-72 overflow-auto pr-2">
                             {installments.map((inst, idx) => (
                                 <div key={idx} className="flex gap-2 items-center bg-gray-50 p-2 rounded text-sm">
                                     <div className="w-8 font-bold text-gray-500">#{inst.installment_number}</div>
@@ -182,7 +189,7 @@ export function PreApprovalActions({ isOpen, onClose, title, onSuccess }: PreApp
                 </div>
 
                 <DialogFooter className="gap-2">
-                    <Button variant="destructive" onClick={handleReject} disabled={loading}>
+                    <Button variant="danger" onClick={handleReject} disabled={loading}>
                         Rejeitar
                     </Button>
                     <div className="flex-1" />

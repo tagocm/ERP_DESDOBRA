@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { PartialLoadingModal } from '@/components/logistics/PartialLoadingModal';
 import { useCompany } from '@/contexts/CompanyContext';
+import { normalizeLoadingStatus } from '@/lib/constants/status';
 
 interface LoadingChecklistProps {
     route: any;
@@ -135,7 +136,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                     const order = routeOrder.sales_order;
                     if (!order) return null;
 
-                    let status = routeOrder.loading_status;
+                    let status = normalizeLoadingStatus(routeOrder.loading_status) || 'pending';
                     const occurrences = order.occurrences || [];
 
                     if (occurrences.some((o: any) => o.occurrence_type === 'NOT_LOADED_TOTAL')) {
@@ -144,7 +145,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                         // Keep explicit status
                     }
 
-                    if (!['pending', 'pendente', 'loaded', 'not_loaded', 'partial'].includes(status)) status = 'pendente';
+                    if (!['pending', 'loaded', 'not_loaded', 'partial'].includes(status)) status = 'pending';
 
                     const isLoading = loadingStates[order.id];
 
@@ -160,7 +161,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                                         disabled={isLoading}
                                         title="Carregado (Completo)"
                                         className={`w-6 h-6 rounded flex items-center justify-center border transition-all duration-200 ${status === 'loaded'
-                                            ? 'bg-green-500 border-green-500 shadow-sm'
+                                            ? 'bg-green-500 border-green-500 shadow-card'
                                             : 'bg-white border-green-200 hover:border-green-400'
                                             }`}
                                     >
@@ -173,7 +174,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                                         disabled={isLoading}
                                         title="Carregamento Parcial"
                                         className={`w-6 h-6 rounded flex items-center justify-center border transition-all duration-200 ${status === 'partial'
-                                            ? 'bg-amber-400 border-amber-400 shadow-sm' // Using amber/yellow
+                                            ? 'bg-amber-400 border-amber-400 shadow-card' // Using amber/yellow
                                             : 'bg-white border-amber-200 hover:border-amber-400'
                                             }`}
                                     >
@@ -186,7 +187,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                                         disabled={isLoading}
                                         title="Não Carregado"
                                         className={`w-6 h-6 rounded flex items-center justify-center border transition-all duration-200 ${status === 'not_loaded'
-                                            ? 'bg-red-500 border-red-500 shadow-sm'
+                                            ? 'bg-red-500 border-red-500 shadow-card'
                                             : 'bg-white border-red-200 hover:border-red-400'
                                             }`}
                                     >

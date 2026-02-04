@@ -1,7 +1,6 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Sheet } from "@/components/ui/Sheet";
 import AccountSheet from "./AccountSheet";
@@ -12,21 +11,9 @@ export function SettingsSheetManager() {
     const router = useRouter();
     const panel = searchParams.get("panel");
 
-    const [isAccountOpen, setIsAccountOpen] = useState(false);
-    const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
-
-    useEffect(() => {
-        if (panel === "account") {
-            setIsAccountOpen(true);
-            setIsPreferencesOpen(false);
-        } else if (panel === "preferences") {
-            setIsPreferencesOpen(true);
-            setIsAccountOpen(false);
-        } else {
-            setIsAccountOpen(false);
-            setIsPreferencesOpen(false);
-        }
-    }, [panel]);
+    // Derived state - no need for useState or useEffect
+    const isAccountOpen = panel === "account";
+    const isPreferencesOpen = panel === "preferences";
 
     const handleClose = () => {
         // Remove query param to close sheet

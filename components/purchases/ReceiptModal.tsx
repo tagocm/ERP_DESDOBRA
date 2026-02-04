@@ -88,9 +88,9 @@ export function ReceiptModal({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden bg-white">
+            <DialogContent className="sm:max-w-lg p-0 overflow-hidden bg-white">
                 <div className="bg-brand-50/50 p-6 border-b border-brand-100/50 flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-brand-100 flex items-center justify-center text-brand-700">
+                    <div className="h-10 w-10 rounded-2xl bg-brand-100 flex items-center justify-center text-brand-700">
                         {step === 1 ? <FileText className="w-5 h-5" /> : <Receipt className="w-5 h-5" />}
                     </div>
                     <div>
@@ -152,7 +152,7 @@ export function ReceiptModal({
                     ) : (
                         <div className="space-y-4">
                             {/* Read-only Summary */}
-                            <div className="bg-brand-50/50 rounded-lg p-3 border border-brand-100 text-sm grid grid-cols-2 gap-2 text-brand-700">
+                            <div className="bg-brand-50/50 rounded-2xl p-3 border border-brand-100 text-sm grid grid-cols-2 gap-2 text-brand-700">
                                 <div><span className="font-semibold text-brand-900">Total:</span> {purchaseOrder.total_amount?.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</div>
                                 <div><span className="font-semibold text-brand-900">Itens:</span> {purchaseOrder.items?.length || 0}</div>
                                 <div><span className="font-semibold text-brand-900">NF:</span> {invoiceNumber}</div>
@@ -173,7 +173,7 @@ export function ReceiptModal({
                             </div>
 
                             {generateFinancial && (
-                                <div className="space-y-3 pl-6 border-l-2 border-brand-100 bg-brand-50/20 p-3 rounded-r-md">
+                                <div className="space-y-3 pl-6 border-l-2 border-brand-100 bg-brand-50/20 p-3 rounded-2xl">
                                     <div className="space-y-2">
                                         <Label className="text-brand-700 text-xs uppercase tracking-wide font-semibold">Prazo de Pagamento <span className="text-red-500">*</span></Label>
                                         <Select
@@ -242,7 +242,7 @@ export function ReceiptModal({
                         <Button
                             onClick={handleConfirm}
                             disabled={loading || (generateFinancial && (!paymentTermsId || !paymentModeId))}
-                            className="bg-green-600 hover:bg-green-700 text-white gap-2 shadow-sm"
+                            className="bg-green-600 hover:bg-green-700 text-white gap-2"
                         >
                             {loading ? 'Processando...' : 'Confirmar Entrada'}
                             {!loading && <CheckCircle className="w-4 h-4" />}

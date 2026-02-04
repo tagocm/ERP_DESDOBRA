@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
 import { Trash2, Plus } from "lucide-react";
+import { useRef } from "react";
 
 interface TabProps {
     data: Partial<SalesOrder>;
@@ -15,13 +16,14 @@ interface TabProps {
 
 export function TabPayment({ data, onChange, disabled }: TabProps) {
     const payments = data.payments || [];
+    const tempIdCounter = useRef(1);
 
     const handleAddPayment = () => {
         const totalPayments = payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
         const remaining = (data.total_amount || 0) - totalPayments;
 
         const newPayment: SalesOrderPayment = {
-            id: `temp-${Date.now()}`,
+            id: `temp-${tempIdCounter.current++}`,
             document_id: data.id || '',
             installment_number: payments.length + 1,
             due_date: new Date().toISOString().split('T')[0],
@@ -62,7 +64,7 @@ export function TabPayment({ data, onChange, disabled }: TabProps) {
                 </div>
             </div>
 
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border rounded-2xl overflow-hidden">
                 <div className="grid grid-cols-12 gap-4 p-3 bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     <div className="col-span-1 text-center">Nº</div>
                     <div className="col-span-3">Vencimento</div>

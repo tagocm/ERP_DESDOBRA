@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabaseServer';
+import { createClient } from '@/utils/supabase/server';
 import { validateLogoFile, generateFilePath } from '@/lib/upload-helpers';
 
 export async function POST(request: NextRequest) {
     try {
-        // Get authenticated user
-        const supabase = createAdminClient();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        // Authenticate user via session client (cookies)
+        const supabaseUser = await createClient();
+        const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
 
         if (authError || !user) {
             return NextResponse.json(
@@ -35,12 +35,12 @@ export async function POST(request: NextRequest) {
         }
 
         // Verify user is member of the company
-        const { data: membership, error: membershipError } = await supabase
+        const { data: membership, error: membershipError } = await supabaseUser
             .from('company_members')
             .select('company_id')
             .eq('company_id', companyId)
-            .eq('user_id', user.id)
-            .single();
+            .eq('auth_user_id', user.id)
+            .maybeSingle();
 
         if (membershipError || !membership) {
             return NextResponse.json(
@@ -62,18 +62,18 @@ export async function POST(request: NextRequest) {
         const filePath = generateFilePath(companyId, 'logo', file.name);
 
         // Get existing logo path to delete old file
-        const { data: existingSettings } = await supabase
+        const { data: existingSettings } = await supabaseUser
             .from('company_settings')
             .select('logo_path')
             .eq('company_id', companyId)
-            .single();
+            .maybeSingle();
 
         // Convert file to buffer
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
         // Upload to Storage
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabaseUser.storage
             .from('company-assets')
             .upload(filePath, buffer, {
                 contentType: file.type,
@@ -90,13 +90,16 @@ export async function POST(request: NextRequest) {
 
         // Delete old logo if exists
         if (existingSettings?.logo_path) {
-            await supabase.storage
-                .from('company-assets')
-                .remove([existingSettings.logo_path]);
+            const expectedPrefixes = [`companies/${companyId}/`, `${companyId}/`];
+            if (expectedPrefixes.some((p) => existingSettings.logo_path.startsWith(p))) {
+                await supabaseUser.storage
+                    .from('company-assets')
+                    .remove([existingSettings.logo_path]);
+            }
         }
 
         // Update company_settings
-        const { error: updateError } = await supabase
+        const { error: updateError } = await supabaseUser
             .from('company_settings')
             .upsert({
                 company_id: companyId,
@@ -109,7 +112,7 @@ export async function POST(request: NextRequest) {
         if (updateError) {
             console.error('Update error:', updateError);
             // Try to clean up uploaded file
-            await supabase.storage.from('company-assets').remove([filePath]);
+            await supabaseUser.storage.from('company-assets').remove([filePath]);
             return NextResponse.json(
                 { error: 'Erro ao atualizar configurações' },
                 { status: 500 }

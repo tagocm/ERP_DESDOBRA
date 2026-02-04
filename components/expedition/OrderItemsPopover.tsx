@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Card } from "@/components/ui/Card";
 import { Package, Hash } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 
@@ -103,7 +104,7 @@ export function OrderItemsPopover({ orderId, preloadedItems, partialPayloadItems
                 .select(`
                     *,
                     packaging:item_packaging(label),
-                    product:items(id, name, sku)
+                    product:items!fk_sales_item_product(id, name, sku)
                 `)
                 .eq('document_id', orderId)
                 .order('created_at', { ascending: true });
@@ -178,7 +179,7 @@ export function OrderItemsPopover({ orderId, preloadedItems, partialPayloadItems
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
             >
-                <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+                <Card className="shadow-float overflow-hidden">
                     {/* Header - Green theme */}
                     <div className="bg-gradient-to-r from-green-50 to-green-100 px-3 py-2 border-b border-green-200">
                         <div className="flex items-center justify-between gap-2">
@@ -232,7 +233,7 @@ export function OrderItemsPopover({ orderId, preloadedItems, partialPayloadItems
                             </div>
                         )}
                     </div>
-                </div>
+                </Card>
             </PopoverContent>
         </Popover>
     );

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/popover"
 import { getCfops, Cfop } from "@/lib/data/cfops"
 import { useToast } from "@/components/ui/use-toast"
+import { createClient } from "@/lib/supabaseBrowser";
 
 interface CfopSelectorProps {
     value?: string; // code
@@ -36,12 +37,14 @@ export function CfopSelector({ value, onChange, className, disabled }: CfopSelec
     const [loading, setLoading] = React.useState(false)
     const [initialLoadDone, setInitialLoadDone] = React.useState(false)
 
+    const supabase = createClient();
+
     // Load all CFOPs once or on open? There are not that many (< 1000). 
     // Loading all is safer for "search by description".
     const fetchCfops = async () => {
         setLoading(true);
         try {
-            const data = await getCfops();
+            const data = await getCfops(supabase);
             setCfops(data);
         } catch (e) {
             console.error(e);
@@ -67,7 +70,7 @@ export function CfopSelector({ value, onChange, className, disabled }: CfopSelec
         }
     }, [value, initialLoadDone]);
 
-    const selectedCfop = cfops.find((c) => c.code === value)
+    const selectedCfop = cfops.find((c) => c.codigo === value)
 
     return (
         <Popover open={open} onOpenChange={(val) => !disabled && setOpen(val)}>
@@ -81,7 +84,7 @@ export function CfopSelector({ value, onChange, className, disabled }: CfopSelec
                         "flex h-10 w-full items-center justify-between rounded-2xl border bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500",
                         "focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2",
                         "disabled:cursor-not-allowed disabled:opacity-50",
-                        "shadow-sm transition-all border-gray-200",
+                        "shadow-card transition-all border-gray-200",
                         "hover:bg-white hover:text-gray-900",
                         "text-gray-900",
                         "font-normal",
@@ -91,7 +94,7 @@ export function CfopSelector({ value, onChange, className, disabled }: CfopSelec
                     )}
                 >
                     {selectedCfop ? (
-                        <span className="truncate">{selectedCfop.code} — {selectedCfop.description}</span>
+                        <span className="truncate">{selectedCfop.codigo} — {selectedCfop.descricao}</span>
                     ) : (
                         <span className="text-gray-500">Selecione o CFOP...</span>
                     )}
@@ -119,12 +122,12 @@ export function CfopSelector({ value, onChange, className, disabled }: CfopSelec
                             <CommandGroup className="max-h-[300px] overflow-y-auto">
                                 {cfops.map((cfop) => (
                                     <CommandItem
-                                        key={cfop.code}
-                                        value={`${cfop.code} ${cfop.description}`.toLowerCase()} // value for filtering
+                                        key={cfop.codigo}
+                                        value={`${cfop.codigo} ${cfop.descricao}`.toLowerCase()} // value for filtering
                                         onSelect={() => {
-                                            onChange(cfop.code)
+                                            onChange(cfop.codigo)
                                             setOpen(false)
-                                            toast({ title: "CFOP definido no produto", duration: 2000 });
+                                            toast({ title: "CFOP definido no produto" });
                                         }}
                                         className="cursor-pointer text-left items-center data-[disabled]:pointer-events-auto data-[disabled]:opacity-100"
                                     >
@@ -132,14 +135,14 @@ export function CfopSelector({ value, onChange, className, disabled }: CfopSelec
                                             <Check
                                                 className={cn(
                                                     "mr-2 h-4 w-4 shrink-0",
-                                                    value === cfop.code ? "opacity-100" : "opacity-0"
+                                                    value === cfop.codigo ? "opacity-100" : "opacity-0"
                                                 )}
                                             />
                                             <div className="flex flex-col text-left">
-                                                <span className="font-medium text-gray-900">{cfop.code}</span>
+                                                <span className="font-medium text-gray-900">{cfop.codigo}</span>
                                             </div>
                                             <span className="ml-2 text-gray-500 truncate text-left flex-1">
-                                                {cfop.description}
+                                                {cfop.descricao}
                                             </span>
                                         </div>
                                     </CommandItem>

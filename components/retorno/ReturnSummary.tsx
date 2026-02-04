@@ -65,7 +65,7 @@ export function ReturnSummary({ route, staging }: ReturnSummaryProps) {
             <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Resumo do Retorno</h3>
                 <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
                         <div className="flex items-center gap-2 mb-1">
                             <CheckCircle2 className="w-5 h-5 text-green-600" />
                             <span className="text-sm font-medium text-green-900">Entregues</span>
@@ -73,7 +73,7 @@ export function ReturnSummary({ route, staging }: ReturnSummaryProps) {
                         <p className="text-3xl font-bold text-green-700">{counters.entregues}</p>
                     </div>
 
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
                         <div className="flex items-center gap-2 mb-1">
                             <XCircle className="w-5 h-5 text-red-600" />
                             <span className="text-sm font-medium text-red-900">Não Entregues</span>
@@ -81,7 +81,7 @@ export function ReturnSummary({ route, staging }: ReturnSummaryProps) {
                         <p className="text-3xl font-bold text-red-700">{counters.naoEntregues}</p>
                     </div>
 
-                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
                         <div className="flex items-center gap-2 mb-1">
                             <AlertTriangle className="w-5 h-5 text-amber-600" />
                             <span className="text-sm font-medium text-amber-900">Devolvidos Parcial</span>
@@ -93,7 +93,7 @@ export function ReturnSummary({ route, staging }: ReturnSummaryProps) {
 
             {/* Validation Alerts */}
             {hasBlockingIssues && (
-                <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                <div className="bg-red-50 border-2 border-red-300 rounded-2xl p-4">
                     <div className="flex items-start gap-2">
                         <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
                         <div>
@@ -128,7 +128,7 @@ export function ReturnSummary({ route, staging }: ReturnSummaryProps) {
                             }
 
                             return (
-                                <div key={idx} className={`border rounded-lg p-3 ${typeColor}`}>
+                                <div key={idx} className={`border rounded-2xl p-3 ${typeColor}`}>
                                     <div className="flex items-start gap-2">
                                         {icon}
                                         <div className="flex-1">
@@ -164,7 +164,7 @@ export function ReturnSummary({ route, staging }: ReturnSummaryProps) {
 
             {/* Success Message */}
             {!hasBlockingIssues && exceptions.length === 0 && counters.entregues > 0 && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-center">
                     <CheckCircle2 className="w-8 h-8 text-green-600 mx-auto mb-2" />
                     <p className="font-semibold text-green-900">Retorno Pronto para Finalizar</p>
                     <p className="text-sm text-green-700 mt-1">

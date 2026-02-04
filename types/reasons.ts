@@ -19,3 +19,4 @@ export const DELIVERY_REASON_GROUPS: { code: DeliveryReasonGroup; label: string 
     { code: 'RETORNO_NAO_ENTREGUE', label: 'Não Entregue / Devolução Total' }, // Mapped from old structure
 ];
 
+export type OccurrenceReason = DeliveryReason;

@@ -143,7 +143,7 @@ export async function getSalesDocumentById(supabase: SupabaseClient, id: string)
             *,
             client:organizations!client_id(trade_name, document_number, sales_channel, payment_terms_id),
             sales_rep:users!sales_rep_id(full_name),
-            items:sales_document_items(*, packaging:item_packaging(label), product:items(name, gtin_ean_base, id, sku, un:uom, net_weight_kg_base, gross_weight_kg_base)),
+            items:sales_document_items(*, packaging:item_packaging(label), product:items!fk_sales_item_product(name, gtin_ean_base, id, sku, un:uom, net_weight_kg_base, gross_weight_kg_base)),
             payments:sales_document_payments(*),
             adjustments:sales_document_adjustments(*),
             route_info:delivery_route_orders(
@@ -209,7 +209,7 @@ export async function upsertSalesDocument(supabase: SupabaseClient, doc: Partial
     if (cleanDoc.price_table_id === '') cleanDoc.price_table_id = null;
 
     // Ensure Defaults (Backend Safety)
-    if (!cleanDoc.financial_status) cleanDoc.financial_status = 'pendente';
+    if (!cleanDoc.financial_status) cleanDoc.financial_status = 'pending';
 
 
     // VALIDATION: Block Edit if locked statuses are met (Fiscal Authorized or Logistic In Route/Finalized)
@@ -225,7 +225,7 @@ export async function upsertSalesDocument(supabase: SupabaseClient, doc: Partial
                 throw new Error("AÇÃO BLOQUEADA: Pedido faturado (NF-e emitida) não pode ser editado.");
             }
 
-            const lockedLogistics = ['em_rota', 'entregue', 'nao_entregue'];
+            const lockedLogistics = ['in_route', 'delivered', 'not_delivered'];
             if (lockedLogistics.includes(current.status_logistic)) {
                 throw new Error(`AÇÃO BLOQUEADA: Pedido com status logístico '${current.status_logistic.replace('_', ' ').toUpperCase()}' não pode ser alterado.`);
             }
@@ -250,7 +250,7 @@ export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<Sa
     });
 
     // Remove frontend-only fields or joins
-    const { product, unit_weight_kg, gross_weight_kg_snapshot, ...cleanItem } = item;
+    const { product, packaging, unit_weight_kg, gross_weight_kg_snapshot, ...cleanItem } = item as any;
 
     // Fix: Remove temp IDs so Supabase generates a real UUID
     if (cleanItem.id && cleanItem.id.startsWith('temp-')) {
@@ -423,7 +423,7 @@ export async function cancelSalesDocument(supabase: SupabaseClient, id: string, 
     // 1. Check status (Safety)
     const { data: order } = await supabase.from('sales_documents').select('status_logistic').eq('id', id).single();
     if (order) {
-        const lockedLogistics = ['em_rota', 'entregue', 'nao_entregue', 'expedition'];
+        const lockedLogistics = ['in_route', 'delivered', 'not_delivered', 'expedition'];
         if (lockedLogistics.includes(order.status_logistic)) {
             throw new Error(`AÇÃO BLOQUEADA: Pedido com status logístico '${order.status_logistic}' não pode ser cancelado.`);
         }
@@ -449,7 +449,7 @@ export async function archiveSalesDocument(supabase: SupabaseClient, id: string,
     // 1. Check status (Safety)
     const { data: order } = await supabase.from('sales_documents').select('status_logistic').eq('id', id).single();
     if (order) {
-        const lockedLogistics = ['em_rota', 'entregue', 'nao_entregue', 'expedition'];
+        const lockedLogistics = ['in_route', 'delivered', 'not_delivered', 'expedition'];
         if (lockedLogistics.includes(order.status_logistic)) {
             throw new Error(`AÇÃO BLOQUEADA: Pedido com status logístico '${order.status_logistic}' não pode ser arquivado.`);
         }
@@ -558,7 +558,7 @@ export async function getLastOrderForClient(supabase: SupabaseClient, clientId: 
         .from('sales_document_items')
         .select(`
             *,
-            product:items(id, name, un:uom, sku)
+            product:items!fk_sales_item_product(id, name, un:uom, sku)
         `)
         .eq('document_id', order.id);
 
@@ -591,7 +591,7 @@ export async function recalculateFiscalForOrder(
         .select(`
             *,
             packaging:item_packaging(gross_weight_kg, net_weight_kg),
-            product:items!inner(
+            product:items!fk_sales_item_product!inner(
                 id,
                 name,
                 net_weight_kg_base,

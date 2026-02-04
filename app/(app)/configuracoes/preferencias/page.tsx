@@ -1,4 +1,5 @@
 "use client"
+// force rebuild
 
 import { useState, useEffect, useMemo } from "react"
 import { createClient } from "@/lib/supabaseBrowser"
@@ -127,7 +128,7 @@ export default function SystemPreferencesPage() {
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                     <TabsList className="bg-white/50 border border-gray-200 p-1 h-11">
                         <TabsTrigger value="comercial" disabled className="text-gray-400">Comercial</TabsTrigger>
-                        <TabsTrigger value="logistica" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Logística</TabsTrigger>
+                        <TabsTrigger value="logistica" className="data-[state=active]:bg-white data-[state=active]:shadow-card">Logística</TabsTrigger>
                         <TabsTrigger value="financeiro" disabled className="text-gray-400">Financeiro</TabsTrigger>
                         <TabsTrigger value="compras" disabled className="text-gray-400">Compras</TabsTrigger>
                         <TabsTrigger value="fiscal" disabled className="text-gray-400">Fiscal</TabsTrigger>
@@ -145,7 +146,7 @@ export default function SystemPreferencesPage() {
                                     const typeReasons = reasons.filter(r => r.type_code === type.code)
 
                                     return (
-                                        <Card key={type.id} className="border-gray-200 shadow-sm overflow-hidden">
+                                        <Card key={type.id} className="border-gray-200 shadow-card overflow-hidden">
                                             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/30">
                                                 <div>
                                                     <h3 className="font-semibold text-gray-900">{type.label}</h3>

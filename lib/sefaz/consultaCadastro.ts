@@ -99,7 +99,7 @@ async function parseResponse(xmlResponse: string): Promise<Partial<ConsultaCadas
         const parsed = await parseStringPromise(xmlResponse, {
             explicitArray: false,
             ignoreAttrs: false,
-            tagNameProcessors: [(name) => name.replace(/^.*:/, '')] // Remove namespaces
+            tagNameProcessors: [(name: string) => name.replace(/^.*:/, '')] // Remove namespaces
         });
 
         // Navigate response structure

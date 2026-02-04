@@ -30,7 +30,7 @@ CREATE INDEX IF NOT EXISTS idx_fin_event_allocations_source ON financial_event_a
 CREATE INDEX IF NOT EXISTS idx_fin_event_allocations_target ON financial_event_allocations(target_title_id);
 
 -- 2. Function to Process Compensation on Approval
--- Called by the application layer or trigger when event status -> 'aprovado'
+-- Called by the application layer or trigger when event status -> 'approved'
 CREATE OR REPLACE FUNCTION process_financial_compensation(
     p_event_id UUID,
     p_credit_title_id UUID, -- The newly created AP Title (Credit Note) from the event

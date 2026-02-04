@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { X, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/Input";
 import { DecimalInput } from "@/components/ui/DecimalInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Label } from "@/components/ui/Label";
+import { Card } from "@/components/ui/Card";
 import { ItemPackaging } from "@/types/product";
 import { cn } from "@/lib/utils";
 import { PackagingTypeManagerModal } from "./PackagingTypeManagerModal";
@@ -37,109 +38,84 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
     const [types, setTypes] = useState<{ value: string, label: string }[]>(DEFAULT_TYPES);
     const [manageTypesOpen, setManageTypesOpen] = useState(false);
 
-    const [formData, setFormData] = useState<Partial<ItemPackaging>>({
-        type: 'BOX',
-        label: '',
-        qty_in_base: 1,
-        gtin_ean: '',
-        net_weight_kg: 0,
-        gross_weight_kg: 0,
-        height_cm: 0,
-        width_cm: 0,
-        length_cm: 0,
-        is_active: true,
-        is_default_sales_unit: false
+    // Initialize formData from initialData or defaults
+    const [formData, setFormData] = useState<Partial<ItemPackaging>>(() => {
+        if (initialData) {
+            return {
+                ...initialData,
+                net_weight_kg: initialData.net_weight_kg || 0,
+                gross_weight_kg: initialData.gross_weight_kg || 0,
+                height_cm: initialData.height_cm || 0,
+                width_cm: initialData.width_cm || 0,
+                length_cm: initialData.length_cm || 0
+            };
+        }
+        return {
+            type: 'BOX',
+            label: '',
+            qty_in_base: 1,
+            gtin_ean: '',
+            net_weight_kg: 0,
+            gross_weight_kg: 0,
+            height_cm: 0,
+            width_cm: 0,
+            length_cm: 0,
+            is_active: true,
+            is_default_sales_unit: false
+        };
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
+    // If editing existing packaging, weights/labels are considered manual
+    const [manualWeightOverride, setManualWeightOverride] = useState(!!initialData);
+    const [manualLabelOverride, setManualLabelOverride] = useState(!!initialData);
 
+    // Load types when modal opens
     useEffect(() => {
         if (isOpen && selectedCompany?.id) {
-            // Load types
             getPackagingTypes(selectedCompany.id).then(data => {
                 if (data && data.length > 0) {
                     setTypes(data.map(t => ({ value: t.code, label: t.name })));
                 }
             }).catch(console.error);
-
-            if (initialData) {
-                setFormData({
-                    ...initialData,
-                    net_weight_kg: initialData.net_weight_kg || 0,
-                    gross_weight_kg: initialData.gross_weight_kg || 0,
-                    height_cm: initialData.height_cm || 0,
-                    width_cm: initialData.width_cm || 0,
-                    length_cm: initialData.length_cm || 0
-                });
-            } else {
-                setFormData({
-                    type: types[0]?.value || 'BOX',
-                    label: '',
-                    qty_in_base: 1,
-                    gtin_ean: '',
-                    net_weight_kg: 0,
-                    gross_weight_kg: 0,
-                    height_cm: 0,
-                    width_cm: 0,
-                    length_cm: 0,
-                    is_active: true,
-                    is_default_sales_unit: false
-                });
-            }
-            setErrors({});
         }
-    }, [isOpen, initialData, selectedCompany, manageTypesOpen]); // Reload when management modal closes
+    }, [isOpen, selectedCompany, manageTypesOpen]);
 
-    // Auto-calculate weights when Qty changes (only if it matches base unit * qty roughly)
-    useEffect(() => {
-        if (isOpen && formData.qty_in_base) {
-            // Only calc if we are CREATING or if user specifically changed qty (hard to track "user changed qty" in simple effect, but we can check if it deviates)
-            // Ideally: If I change Qty, Recalc.
-            // But if I load an existing item, don't overwrite unless I change qty.
-            // We can just rely on the user seeing the update.
-            // Simple approach: When qty changes, update weights.
+    // Derive calculated weights
+    const calculatedWeights = useMemo(() => {
+        const qty = formData.qty_in_base || 0;
+        return {
+            net: (baseNetWeight || 0) * qty,
+            gross: (baseGrossWeight || 0) * qty
+        };
+    }, [formData.qty_in_base, baseNetWeight, baseGrossWeight]);
 
-            // However, we must avoid overwriting manual edits if qty didn't change (initial load).
-            // Initial load sets formData.
+    // Derive suggested label  
+    const suggestedLabel = useMemo(() => {
+        if (!formData.type || !formData.qty_in_base || !baseUom) return '';
+        const typeLabel = types.find(t => t.value === formData.type)?.label;
+        return typeLabel ? `${typeLabel} ${formData.qty_in_base}x${baseUom}` : '';
+    }, [formData.type, formData.qty_in_base, baseUom, types]);
 
-            // Use a ref to track previous qty? Or just let it be reactive.
-            // Reactivity: Qty changes -> we update weights.
-            // Problem: On initial load (editing), Qty is set. We shouldn't overwrite saved weights.
-            // Solution: only run this effect if `initialData` didn't already provide weights OR if user changes Qty diff from initial.
+    // Use effective values: manual override takes precedence, otherwise use calculated
+    const effectiveWeights = {
+        net: manualWeightOverride ? (formData.net_weight_kg ?? 0) : calculatedWeights.net,
+        gross: manualWeightOverride ? (formData.gross_weight_kg ?? 0) : calculatedWeights.gross
+    };
 
-            // Better: We track if qty matches initial. If so, do nothing. If not, calc.
-
-            const isInitialQty = initialData && initialData.qty_in_base === formData.qty_in_base;
-
-            if (!isInitialQty) {
-                const calculatedNet = (baseNetWeight || 0) * (formData.qty_in_base || 0);
-                const calculatedGross = (baseGrossWeight || 0) * (formData.qty_in_base || 0);
-
-                setFormData(prev => ({
-                    ...prev,
-                    net_weight_kg: calculatedNet,
-                    gross_weight_kg: calculatedGross
-                }));
-            }
-        }
-    }, [formData.qty_in_base, baseNetWeight, baseGrossWeight, isOpen]); // removed initialData from dep to avoid loops, handled in logic
-
-
-    // Auto-suggest label
-    useEffect(() => {
-        if (!initialData && formData.type && formData.qty_in_base && baseUom) {
-            const typeLabel = types.find(t => t.value === formData.type)?.label;
-            if (typeLabel && (!formData.label || formData.label.includes(typeLabel))) {
-                setFormData(prev => ({
-                    ...prev,
-                    label: `${typeLabel} ${formData.qty_in_base}x${baseUom}`
-                }));
-            }
-        }
-    }, [formData.type, formData.qty_in_base, baseUom, initialData]);
+    const effectiveLabel = manualLabelOverride || initialData ? (formData.label || '') : (suggestedLabel || formData.label || '');
 
     const handleChange = (field: keyof ItemPackaging, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
+
+        // Mark as manually overridden if user edits weights or label
+        if (field === 'net_weight_kg' || field === 'gross_weight_kg') {
+            setManualWeightOverride(true);
+        }
+        if (field === 'label') {
+            setManualLabelOverride(true);
+        }
+
         if (errors[field]) {
             setErrors(prev => {
                 const newErrors = { ...prev };
@@ -173,9 +149,9 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-[500px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-2xl">
+            <DialogContent className="max-w-lg w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-float flex flex-col max-h-screen">
                 {/* Header Compact */}
-                <div className="bg-white px-6 py-3 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
+                <div className="bg-white px-6 py-3 border-b border-gray-100 flex justify-between items-center">
                     <div>
                         <DialogTitle className="text-lg font-bold text-gray-900 leading-tight">
                             {initialData ? 'Editar Embalagem' : 'Nova Embalagem'}
@@ -194,7 +170,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                     </Button>
                 </div>
 
-                <div className="p-5 overflow-y-auto max-h-[80vh]">
+                <div className="flex-1 p-5 overflow-y-auto">
                     <div className="grid grid-cols-12 gap-4">
                         {/* Row 1: Tipo + Quantidade */}
                         <div className="col-span-12 md:col-span-8 space-y-1">
@@ -204,7 +180,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                                     value={formData.type}
                                     onValueChange={(val) => handleChange('type', val)}
                                 >
-                                    <SelectTrigger className="flex-1 h-9 rounded-xl bg-white border-gray-200">
+                                    <SelectTrigger className="flex-1 h-9 rounded-2xl bg-white border-gray-200">
                                         <SelectValue placeholder="Selecione..." />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -217,7 +193,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                                     variant="ghost"
                                     size="icon"
                                     onClick={() => setManageTypesOpen(true)}
-                                    className="shrink-0 h-9 w-9 rounded-lg text-gray-400 hover:text-gray-900 hover:bg-gray-100"
+                                    className="shrink-0 h-9 w-9 rounded-2xl text-gray-400 hover:text-gray-900 hover:bg-gray-100"
                                     title="Gerenciar Tipos de Embalagem"
                                 >
                                     <Settings className="w-4 h-4" />
@@ -237,7 +213,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                                     handleChange('qty_in_base', val);
                                 }}
                                 className={cn(
-                                    "h-9 rounded-xl bg-white border-gray-200 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                                    "h-9 rounded-2xl bg-white border-gray-200 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                                     errors.qty_in_base && "border-red-500 ring-red-500/10"
                                 )}
                             />
@@ -247,11 +223,11 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                         <div className="col-span-12 space-y-1">
                             <Label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Rótulo / Descrição *</Label>
                             <Input
-                                value={formData.label}
+                                value={effectiveLabel}
                                 onChange={(e) => handleChange('label', e.target.value)}
                                 placeholder="Ex: Caixa 12x1kg"
                                 className={cn(
-                                    "h-9 rounded-xl bg-white border-gray-200",
+                                    "h-9 rounded-2xl bg-white border-gray-200",
                                     errors.label && "border-red-500 ring-red-500/10"
                                 )}
                             />
@@ -267,7 +243,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                                 placeholder="8, 12, 13 ou 14 dígitos"
                                 maxLength={14}
                                 className={cn(
-                                    "h-9 rounded-xl bg-white border-gray-200",
+                                    "h-9 rounded-2xl bg-white border-gray-200",
                                     errors.gtin_ean && "border-red-500 ring-red-500/10"
                                 )}
                             />
@@ -280,7 +256,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                                     type="checkbox"
                                     checked={formData.is_default_sales_unit}
                                     onChange={(e) => handleChange('is_default_sales_unit', e.target.checked)}
-                                    className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300 transition-all cursor-pointer"
+                                    className="w-4 h-4 rounded-none text-brand-600 focus:ring-brand-500 border-gray-300 transition-all cursor-pointer"
                                 />
                                 <span className="text-[11px] font-bold text-gray-600 uppercase tracking-tight group-hover:text-gray-900 transition-colors">Padrão</span>
                             </label>
@@ -289,7 +265,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                                     type="checkbox"
                                     checked={formData.is_active}
                                     onChange={(e) => handleChange('is_active', e.target.checked)}
-                                    className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500 border-gray-300 transition-all cursor-pointer"
+                                    className="w-4 h-4 rounded-none text-brand-600 focus:ring-brand-500 border-gray-300 transition-all cursor-pointer"
                                 />
                                 <span className="text-[11px] font-bold text-gray-600 uppercase tracking-tight group-hover:text-gray-900 transition-colors">Ativo</span>
                             </label>
@@ -314,7 +290,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                                 minPrecision={0}
                                 disableDecimalShift={true}
                                 placeholder="0"
-                                className="h-9 rounded-xl bg-white border-gray-200 text-right"
+                                className="h-9 rounded-2xl bg-white border-gray-200 text-right"
                             />
                         </div>
 
@@ -327,7 +303,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                                 minPrecision={0}
                                 disableDecimalShift={true}
                                 placeholder="0"
-                                className="h-9 rounded-xl bg-white border-gray-200 text-right"
+                                className="h-9 rounded-2xl bg-white border-gray-200 text-right"
                             />
                         </div>
 
@@ -340,7 +316,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                                 minPrecision={0}
                                 disableDecimalShift={true}
                                 placeholder="0"
-                                className="h-9 rounded-xl bg-white border-gray-200 text-right"
+                                className="h-9 rounded-2xl bg-white border-gray-200 text-right"
                             />
                         </div>
 
@@ -348,43 +324,43 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                         <div className="col-span-6 space-y-1">
                             <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">P. Líquido (KG)</Label>
                             <DecimalInput
-                                value={formData.net_weight_kg}
+                                value={effectiveWeights.net}
                                 onChange={(val) => handleChange('net_weight_kg', val)}
                                 precision={2}
                                 minPrecision={0}
                                 disableDecimalShift={true}
                                 placeholder="0"
-                                className="h-9 rounded-xl bg-white border-gray-200 text-right font-medium"
+                                className="h-9 rounded-2xl bg-white border-gray-200 text-right font-medium"
                             />
                         </div>
 
                         <div className="col-span-6 space-y-1">
                             <Label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">P. Bruto (KG)</Label>
                             <DecimalInput
-                                value={formData.gross_weight_kg}
+                                value={effectiveWeights.gross}
                                 onChange={(val) => handleChange('gross_weight_kg', val)}
                                 precision={2}
                                 minPrecision={0}
                                 disableDecimalShift={true}
                                 placeholder="0"
-                                className="h-9 rounded-xl bg-white border-gray-200 text-right font-medium"
+                                className="h-9 rounded-2xl bg-white border-gray-200 text-right font-medium"
                             />
                         </div>
                     </div>
                 </div>
 
                 {/* Footer Sticky Compact */}
-                <div className="bg-white px-6 py-3 border-t border-gray-100 flex gap-3 sticky bottom-0 z-10">
+                <div className="bg-white px-6 py-3 border-t border-gray-100 flex gap-3">
                     <Button
                         variant="ghost"
                         onClick={onClose}
-                        className="flex-1 h-10 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
+                        className="flex-1 h-10 bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
                     >
                         Cancelar
                     </Button>
                     <Button
                         onClick={handleSave}
-                        className="flex-[2] h-10 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-lg shadow-brand-500/20 active:scale-[0.98] transition-all"
+                        className="flex-[2] h-10 bg-brand-600 hover:bg-brand-700 text-white font-bold active:scale-[0.98] transition-all"
                     >
                         Salvar Embalagem
                     </Button>

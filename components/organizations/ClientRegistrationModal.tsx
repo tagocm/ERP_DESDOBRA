@@ -400,7 +400,14 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                 status: "active",
             });
 
-            // ... (Roles logic same)
+            // 2. Set Organization Roles
+            const selectedRoles = Object.entries(roles)
+                .filter(([_, isSelected]) => isSelected)
+                .map(([role]) => role);
+
+            if (selectedRoles.length > 0) {
+                await setOrganizationRoles(supabase, selectedCompany.id, newOrg.id, selectedRoles);
+            }
 
             // 3. Create Address (Include IBGE)
             if (sanitizedAddress.zip || sanitizedAddress.city) {
@@ -414,7 +421,19 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                 });
             }
 
-            // ... (Contacts logic same)
+            // 4. Create Contacts
+            for (const contact of sanitizedContacts) {
+                await upsertPerson(supabase, {
+                    company_id: selectedCompany.id,
+                    organization_id: newOrg.id,
+                    full_name: contact.full_name,
+                    email: contact.email || null,
+                    phone: contact.phone || null,
+                    departments: contact.departments || null,
+                    notes: contact.notes || null,
+                    is_primary: contact.is_primary || false
+                });
+            }
 
             if (saveAndNew) {
                 resetForm();
@@ -444,7 +463,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                 variant="secondary"
                 onClick={() => handleSubmit(true)}
                 disabled={isLoading}
-                className="rounded-full px-5 h-8 text-sm"
+                className="rounded-2xl px-5 h-8 text-sm"
             >
                 {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Salvar e Novo
@@ -453,7 +472,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                 type="button"
                 onClick={() => handleSubmit(false)}
                 disabled={isLoading}
-                className="rounded-full px-5 h-8 text-sm"
+                className="rounded-2xl px-5 h-8 text-sm"
             >
                 {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 <Save className="w-4 h-4 mr-2" />
@@ -464,7 +483,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-            <DialogContent className="max-w-[90vw] w-full h-[90vh] p-0 flex flex-col gap-0 bg-white border-none sm:rounded-xl">
+            <DialogContent className="max-w-screen-2xl w-full h-screen p-0 flex flex-col gap-0 bg-white border-none sm:rounded-2xl">
                 <DialogHeader className="px-6 py-4 border-b flex-shrink-0 bg-gray-50 flex flex-row items-center justify-between space-y-0">
                     <DialogTitle className="text-xl font-bold text-gray-900">Novo Cadastro</DialogTitle>
                     <div className="flex items-center gap-2">
@@ -473,13 +492,13 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                 </DialogHeader>
                 <div className="flex-1 overflow-y-auto p-0">
                     {error && (
-                        <div className="mx-6 mt-4 p-3 bg-red-50 text-red-700 rounded-lg border border-red-200 text-sm">
+                        <div className="mx-6 mt-4 p-3 bg-red-50 text-red-700 rounded-2xl border border-red-200 text-sm">
                             {error}
                         </div>
                     )}
 
                     {success && (
-                        <div className="mx-6 mt-4 p-3 bg-green-50 text-green-700 rounded-lg border border-green-200 flex items-center gap-2 text-sm">
+                        <div className="mx-6 mt-4 p-3 bg-green-50 text-green-700 rounded-2xl border border-green-200 flex items-center gap-2 text-sm">
                             <CheckCircle2 className="w-4 h-4" />
                             {success}
                         </div>
@@ -811,7 +830,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                                         value={commercialData.notes_commercial}
                                         onChange={handleCommercialChange}
                                         rows={3}
-                                        className="flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 transition-all shadow-sm"
+                                        className="flex w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 transition-all"
                                         placeholder="Condições especiais, descontos, etc."
                                     />
                                 </div>
@@ -821,7 +840,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                         {/* TAB 3: FISCAL - Compacted */}
                         <TabsContent value="fiscal" className="p-6 focus-visible:outline-none">
                             <div className="space-y-4">
-                                <div className="flex flex-wrap gap-6 p-3 bg-gray-50 border border-gray-100 rounded-lg">
+                                <div className="flex flex-wrap gap-6 p-3 bg-gray-50 border border-gray-100 rounded-2xl">
                                     <label className="flex items-center gap-2 cursor-pointer">
                                         <input
                                             type="checkbox"
@@ -871,7 +890,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                                             name="ie_indicator"
                                             value={fiscalData.ie_indicator}
                                             onChange={handleFiscalChange}
-                                            className="flex h-9 w-full rounded-md border border-gray-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
+                                            className="flex h-9 w-full rounded-2xl border border-gray-200 bg-white px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
                                         >
                                             <option value="contributor">Contribuinte</option>
                                             <option value="exempt">Isento</option>

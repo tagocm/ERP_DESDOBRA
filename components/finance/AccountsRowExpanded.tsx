@@ -1,7 +1,7 @@
 "use client";
 
 import { ArTitle, ArInstallment } from "@/types/financial";
-import { Card } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { formatCurrency } from "@/lib/utils";
@@ -32,16 +32,18 @@ export function AccountsRowExpanded({ title, onRefresh }: AccountsRowExpandedPro
 
             {/* Attention Banner if needed */}
             {title.attention_status === 'EM_ATENCAO' && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
-                    <div>
-                        <h4 className="text-sm font-bold text-yellow-800">Este título requer atenção</h4>
-                        <p className="text-sm text-yellow-700">{title.attention_reason}</p>
-                        {title.attention_at && (
-                            <span className="text-xs text-yellow-600/80 mt-1 block">Marcado em: {new Date(title.attention_at).toLocaleString('pt-BR')}</span>
-                        )}
-                    </div>
-                </div>
+                <Card className="bg-yellow-50 border-yellow-200">
+                    <CardContent className="p-3 flex items-start gap-3">
+                        <AlertTriangle className="w-5 h-5 text-yellow-600 mt-0.5" />
+                        <div>
+                            <h4 className="text-sm font-bold text-yellow-800">Este título requer atenção</h4>
+                            <p className="text-sm text-yellow-700">{title.attention_reason}</p>
+                            {title.attention_at && (
+                                <span className="text-xs text-yellow-600/80 mt-1 block">Marcado em: {new Date(title.attention_at).toLocaleString('pt-BR')}</span>
+                            )}
+                        </div>
+                    </CardContent>
+                </Card>
             )}
 
             {/* Summary Cards */}
@@ -54,14 +56,14 @@ export function AccountsRowExpanded({ title, onRefresh }: AccountsRowExpandedPro
                     <span className="text-xs font-medium text-green-600 uppercase tracking-wider">Valor Pago</span>
                     <span className="text-xl font-black text-green-700">{formatCurrency(title.amount_paid)}</span>
                 </Card>
-                <Card className="p-4 bg-white border-blue-100 shadow-sm flex flex-col justify-between ring-1 ring-blue-50">
+                <Card className="p-4 bg-white border-blue-100 shadow-card flex flex-col justify-between ring-1 ring-blue-50">
                     <span className="text-xs font-medium text-blue-600 uppercase tracking-wider">Saldo em Aberto</span>
                     <span className="text-xl font-black text-blue-700">{formatCurrency(title.amount_open)}</span>
                 </Card>
             </div>
 
             {/* Installments Table */}
-            <div className="border border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+            <Card className="overflow-hidden">
                 <table className="w-full text-sm">
                     <thead className="bg-gray-50/50 border-b border-gray-100 text-xs text-gray-500 uppercase font-medium">
                         <tr>
@@ -115,7 +117,7 @@ export function AccountsRowExpanded({ title, onRefresh }: AccountsRowExpandedPro
                         ))}
                     </tbody>
                 </table>
-            </div>
+            </Card>
         </div>
     );
 }

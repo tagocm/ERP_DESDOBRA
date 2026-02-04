@@ -20,6 +20,7 @@ export interface PurchasesFiltersType {
     dateTo?: string;
     supplierId?: string;
     showCancelled?: boolean;
+    showArchived?: boolean;
 }
 
 interface PurchasesFiltersProps {
@@ -173,7 +174,7 @@ export function PurchasesFilters({ filters, onChange }: PurchasesFiltersProps) {
                                 <Button
                                     variant={"secondary"}
                                     className={cn(
-                                        "w-full justify-start text-left font-normal rounded-2xl border-gray-200 bg-white h-10 shadow-sm",
+                                        "w-full justify-start text-left font-normal rounded-2xl border-gray-200 bg-white h-10 shadow-card",
                                         !localFilters.dateFrom && "text-muted-foreground"
                                     )}
                                 >
@@ -202,7 +203,7 @@ export function PurchasesFilters({ filters, onChange }: PurchasesFiltersProps) {
                                 <Button
                                     variant={"secondary"}
                                     className={cn(
-                                        "w-full justify-start text-left font-normal rounded-2xl border-gray-200 bg-white h-10 shadow-sm",
+                                        "w-full justify-start text-left font-normal rounded-2xl border-gray-200 bg-white h-10 shadow-card",
                                         !localFilters.dateTo && "text-muted-foreground"
                                     )}
                                 >

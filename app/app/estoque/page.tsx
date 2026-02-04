@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Plus, Loader2, X } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -154,43 +155,35 @@ export default function StockPage() {
             />
 
             <div className="mb-6 flex gap-4">
-                <Select
-                    value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value)}
-                    className="w-64"
-                >
-                    <option value="all">Todos os tipos</option>
-                    {ITEM_TYPES.map(type => (
-                        <option key={type.value} value={type.value}>{type.label}</option>
-                    ))}
-                </Select>
+                <div className="w-64">
+                    <Select
+                        value={typeFilter}
+                        onValueChange={(val: string) => setTypeFilter(val)}
+                    >
+                        <SelectTrigger>
+                            <SelectValue placeholder="Todos os tipos" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">Todos os tipos</SelectItem>
+                            {ITEM_TYPES.map(type => (
+                                <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <Card className="overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                SKU
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Item
-                            </th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Tipo
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Estoque Atual
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Custo Médio
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Valor Total
-                            </th>
-                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Ações
-                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Estoque Atual</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Custo Médio</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Total</th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -202,42 +195,23 @@ export default function StockPage() {
                             </tr>
                         ) : stock.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                                    Nenhum item encontrado
-                                </td>
+                                <td colSpan={7} className="px-6 py-12 text-center text-gray-500">Nenhum item encontrado</td>
                             </tr>
                         ) : (
                             stock.map((item) => (
                                 <tr key={item.item_id} className="hover:bg-gray-50">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">
-                                        {item.item_sku || '-'}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="text-sm font-medium text-gray-900">{item.item_name}</div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                        {getTypeLabel(item.item_type)}
-                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-600">{item.item_sku || '-'}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{item.item_name}</div></td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{getTypeLabel(item.item_type)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                                        <span className="font-medium text-gray-900">
-                                            {item.current_stock.toFixed(2)}
-                                        </span>
+                                        <span className="font-medium text-gray-900">{item.current_stock.toFixed(2)}</span>
                                         <span className="text-gray-500 ml-1">{item.uom}</span>
                                     </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
-                                        R$ {item.avg_cost.toFixed(2)}
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
-                                        R$ {(item.current_stock * item.avg_cost).toFixed(2)}
-                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">R$ {item.avg_cost.toFixed(2)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">R$ {(item.current_stock * item.avg_cost).toFixed(2)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                                        <Button
-                                            size="sm"
-                                            variant="secondary"
-                                            onClick={() => handlePurchaseIn(item)}
-                                        >
-                                            <Plus className="w-4 h-4 mr-1" />
-                                            Entrada
+                                        <Button size="sm" variant="secondary" onClick={() => handlePurchaseIn(item)}>
+                                            <Plus className="w-4 h-4 mr-1" /> Entrada
                                         </Button>
                                     </td>
                                 </tr>
@@ -245,87 +219,52 @@ export default function StockPage() {
                         )}
                     </tbody>
                 </table>
-            </div>
+            </Card>
 
-            {/* Purchase In Modal */}
             {showPurchaseModal && selectedItem && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                    <Card className="max-w-md w-full mx-4">
+                        <CardContent className="p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold">Entrada de Compra</h2>
-                            <button
-                                onClick={() => setShowPurchaseModal(false)}
-                                className="text-gray-400 hover:text-gray-600"
-                            >
+                            <button onClick={() => setShowPurchaseModal(false)} className="text-gray-400 hover:text-gray-600">
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
 
-                        <div className="mb-4 p-3 bg-gray-50 rounded">
+                        <div className="mb-4 p-3 bg-gray-50 rounded-2xl">
                             <p className="text-sm text-gray-600">Item</p>
                             <p className="font-medium">{selectedItem.item_name}</p>
-                            <p className="text-xs text-gray-500 mt-1">
-                                Estoque atual: {selectedItem.current_stock.toFixed(2)} {selectedItem.uom}
-                            </p>
+                            <p className="text-xs text-gray-500 mt-1">Estoque atual: {selectedItem.current_stock.toFixed(2)} {selectedItem.uom}</p>
                         </div>
 
                         <form onSubmit={handleSubmitPurchase} className="space-y-4">
                             <div className="space-y-2">
                                 <label className="text-sm font-medium">Quantidade *</label>
-                                <Input
-                                    type="number"
-                                    step="0.01"
-                                    value={purchaseForm.qty}
-                                    onChange={(e) => setPurchaseForm(prev => ({ ...prev, qty: e.target.value }))}
-                                    required
-                                    placeholder="0.00"
-                                />
+                                <Input type="number" step="0.01" value={purchaseForm.qty} onChange={(e) => setPurchaseForm(prev => ({ ...prev, qty: e.target.value }))} required placeholder="0.00" />
                             </div>
-
                             <div className="space-y-2">
                                 <label className="text-sm font-medium">Custo Unitário (R$) *</label>
-                                <Input
-                                    type="number"
-                                    step="0.01"
-                                    value={purchaseForm.unit_cost}
-                                    onChange={(e) => setPurchaseForm(prev => ({ ...prev, unit_cost: e.target.value }))}
-                                    required
-                                    placeholder="0.00"
-                                />
+                                <Input type="number" step="0.01" value={purchaseForm.unit_cost} onChange={(e) => setPurchaseForm(prev => ({ ...prev, unit_cost: e.target.value }))} required placeholder="0.00" />
                             </div>
-
                             <div className="space-y-2">
                                 <label className="text-sm font-medium">Observações</label>
-                                <Input
-                                    value={purchaseForm.notes}
-                                    onChange={(e) => setPurchaseForm(prev => ({ ...prev, notes: e.target.value }))}
-                                    placeholder="Ex: Compra fornecedor X"
-                                />
+                                <Input value={purchaseForm.notes} onChange={(e) => setPurchaseForm(prev => ({ ...prev, notes: e.target.value }))} placeholder="Ex: Compra fornecedor X" />
                             </div>
-
                             {purchaseForm.qty && purchaseForm.unit_cost && (
-                                <div className="p-3 bg-blue-50 rounded">
-                                    <p className="text-sm text-blue-900">
-                                        <strong>Custo Total:</strong> R$ {(parseFloat(purchaseForm.qty) * parseFloat(purchaseForm.unit_cost)).toFixed(2)}
-                                    </p>
+                                <div className="p-3 bg-blue-50 rounded-2xl">
+                                    <p className="text-sm text-blue-900"><strong>Custo Total:</strong> R$ {(parseFloat(purchaseForm.qty) * parseFloat(purchaseForm.unit_cost)).toFixed(2)}</p>
                                 </div>
                             )}
-
                             <div className="flex gap-3 justify-end pt-4">
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    onClick={() => setShowPurchaseModal(false)}
-                                >
-                                    Cancelar
-                                </Button>
+                                <Button type="button" variant="ghost" onClick={() => setShowPurchaseModal(false)}>Cancelar</Button>
                                 <Button type="submit" disabled={isSaving}>
-                                    {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                    Registrar Entrada
+                                    {isSaving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Registrar Entrada
                                 </Button>
                             </div>
                         </form>
-                    </div>
+                        </CardContent>
+                    </Card>
                 </div>
             )}
         </div>

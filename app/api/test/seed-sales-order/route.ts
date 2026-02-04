@@ -1,8 +1,12 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { requireInternalApiAccess } from "@/lib/api/internal";
 
 export async function POST(request: Request) {
+    const gate = requireInternalApiAccess(request);
+    if (gate) return gate;
+
     const supabase = await createClient();
 
     try {
@@ -67,7 +71,7 @@ export async function POST(request: Request) {
                     company_id: companyId,
                     code: 'TEST-DEL-001',
                     name: 'Produto Teste Delivery',
-                    uom_id: uom.id,
+                    uom_id: uom!.id,
                     type: 'product'
                 })
                 .select()
@@ -81,10 +85,10 @@ export async function POST(request: Request) {
             .from('sales_documents')
             .insert({
                 company_id: companyId,
-                client_id: client.id,
+                client_id: client!.id,
                 doc_type: 'order',
                 status_commercial: 'approved',
-                status_logistic: 'pendente',
+                status_logistic: 'pending',
                 date_issued: new Date().toISOString(),
                 total_amount: 100.00,
                 sales_rep_id: user.id
@@ -100,7 +104,7 @@ export async function POST(request: Request) {
             .insert({
                 company_id: companyId,
                 document_id: order.id,
-                item_id: item.id,
+                item_id: (item as any).id,
                 quantity: 10,
                 unit_price: 10.00,
                 total_amount: 100.00

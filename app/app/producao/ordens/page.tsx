@@ -137,7 +137,7 @@ export default function WorkOrdersPage() {
             cancelled: "Cancelada"
         };
         return (
-            <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${styles[status]}`}>
+            <span className={`inline-flex items-center rounded-2xl px-2 py-1 text-xs font-medium ring-1 ring-inset ${styles[status]}`}>
                 {labels[status] || status}
             </span>
         );
@@ -452,8 +452,13 @@ export default function WorkOrdersPage() {
 function StatusChangeModal({ isOpen, onClose, onConfirm, requireReason, newStatus }: any) {
     const [reason, setReason] = useState("");
 
-    // Reset when opening
-    useEffect(() => { if (isOpen) setReason(""); }, [isOpen]);
+    const handleOpenChange = (open: boolean) => {
+        if (!open) {
+            onClose();
+            // Reset reason when closing
+            setReason("");
+        }
+    };
 
     const handleSubmit = () => {
         if (requireReason && !reason.trim()) {
@@ -469,7 +474,7 @@ function StatusChangeModal({ isOpen, onClose, onConfirm, requireReason, newStatu
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle>{getTitle()}</DialogTitle>
@@ -506,15 +511,21 @@ function StatusChangeModal({ isOpen, onClose, onConfirm, requireReason, newStatu
 function NegativeStockModal({ isOpen, onClose, items, onConfirm }: any) {
     const [reason, setReason] = useState("");
 
-    useEffect(() => { if (isOpen) setReason(""); }, [isOpen]);
+    const handleOpenChange = (open: boolean) => {
+        if (!open) {
+            onClose();
+            // Reset reason when closing
+            setReason("");
+        }
+    };
 
     const handleSubmit = () => {
         if (!reason.trim()) return;
         onConfirm(reason);
-    }
+    };
 
     return (
-        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <Dialog open={isOpen} onOpenChange={handleOpenChange}>
             <DialogContent className="max-w-lg">
                 <DialogHeader>
                     <DialogTitle className="text-amber-600 flex items-center gap-2">
@@ -527,7 +538,7 @@ function NegativeStockModal({ isOpen, onClose, items, onConfirm }: any) {
                 </DialogHeader>
 
                 <div className="py-2">
-                    <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mb-4">
+                    <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 mb-4">
                         <ul className="space-y-2 text-sm text-amber-900">
                             {items.map((item: any) => (
                                 <li key={item.item_id} className="flex justify-between border-b border-amber-200/50 pb-1 last:border-0 last:pb-0">

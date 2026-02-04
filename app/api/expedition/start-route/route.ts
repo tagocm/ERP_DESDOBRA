@@ -2,6 +2,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { createDeliveryFromSalesOrder, updateDeliveryItemQuantities, setDeliveryStatus } from '@/lib/services/deliveries';
+import { normalizeLoadingStatus } from '@/lib/constants/status';
 
 export async function POST(request: Request) {
     try {
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
             if (!originalOrder) continue;
 
             const companyId = originalOrder.company_id;
-            const loadingStatus = ro.loading_status || 'pending';
+            const loadingStatus = normalizeLoadingStatus(ro.loading_status) || 'pending';
 
             const now = new Date();
             const noteTimestamp = `[${now.toLocaleDateString()}]`;
@@ -54,13 +55,13 @@ export async function POST(request: Request) {
             if (loadingStatus === 'not_loaded' || loadingStatus === 'pending') {
                 if (loadingStatus === 'not_loaded') {
                     const { reason, text_other } = ro.partial_payload || {};
-                    let note = `\n${noteTimestamp} NÃO CARREGADO na rota ${routeName}. Motivo: ${reason || 'Não informado'}. ${text_other || ''}. Pedido mantido no BACKLOG.`;
+                    const note = `\n${noteTimestamp} NÃO CARREGADO na rota ${routeName}. Motivo: ${reason || 'Não informado'}. ${text_other || ''}. Pedido mantido no BACKLOG.`;
 
                     await supabase.from('sales_documents')
                         .update({
                             internal_notes: (originalOrder.internal_notes || '') + note,
                             loading_checked: false,
-                            status_logistic: 'pendente'
+                            status_logistic: 'pending'
                         })
                         .eq('id', originalOrder.id);
                 }
@@ -161,7 +162,7 @@ export async function POST(request: Request) {
                 // E. Update Sales Document
                 await supabase.from('sales_documents')
                     .update({
-                        status_logistic: 'em_rota',
+                        status_logistic: 'in_route',
                         loading_checked: true,
                         loading_checked_at: new Date().toISOString(),
                         loading_checked_by: session.user.id
@@ -170,18 +171,18 @@ export async function POST(request: Request) {
             }
         }
 
-        // 4. Update Status of all processed orders to 'em_rota' (Bulk safety check)
+        // 4. Update Status of all processed orders to 'in_route' (Bulk safety check)
         if (ordersToUpdateStatus.length > 0) {
             const { error: updateError } = await supabase
                 .from('sales_documents')
-                .update({ status_logistic: 'em_rota' })
+                .update({ status_logistic: 'in_route' })
                 .in('id', ordersToUpdateStatus);
 
             if (updateError) throw updateError;
         }
 
         // 5. Update Route Status
-        const newRouteStatus = ordersToUpdateStatus.length === 0 ? 'cancelada' : 'em_rota';
+        const newRouteStatus = ordersToUpdateStatus.length === 0 ? 'cancelled' : 'in_route';
 
         await supabase
             .from('delivery_routes')

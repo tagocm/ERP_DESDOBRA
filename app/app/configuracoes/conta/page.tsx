@@ -120,13 +120,13 @@ export default function AccountSettingsPage() {
                 subtitle="Gerencie suas informações pessoais e segurança."
             />
 
-            <div className="max-w-[1600px] mx-auto px-6 space-y-6">
+            <div className="max-w-screen-2xl mx-auto px-6 space-y-6">
 
                 {/* Global Message */}
                 {/* Global Message - Floating */}
                 {message && (
                     <div className={cn(
-                        "fixed top-24 right-6 z-50 p-4 rounded-md flex items-center gap-2 text-sm font-medium animate-in fade-in slide-in-from-right-5 shadow-lg max-w-md",
+                        "fixed top-24 right-6 z-50 p-4 rounded-2xl flex items-center gap-2 text-sm font-medium animate-in fade-in slide-in-from-right-5 shadow-float max-w-md",
                         message.type === 'success' ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"
                     )}>
                         {message.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -145,7 +145,7 @@ export default function AccountSettingsPage() {
                             <CardHeaderStandard
                                 title="Minha Conta"
                                 actions={
-                                    <Button onClick={handleSaveProfile} disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white shadow-sm">
+                                    <Button onClick={handleSaveProfile} disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white">
                                         {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                                         Salvar Alterações
                                     </Button>
@@ -200,7 +200,7 @@ export default function AccountSettingsPage() {
                                 actions={<ChangePasswordDialog />}
                             />
                             <CardContent className="pb-8">
-                                <div className="text-sm text-gray-500 bg-gray-50 p-4 rounded-xl border border-gray-100">
+                                <div className="text-sm text-gray-500 bg-gray-50 p-4 rounded-2xl border border-gray-100">
                                     Sua senha foi alterada pela última vez recentemente. Recomendamos o uso de senhas fortes.
                                 </div>
                             </CardContent>
@@ -290,9 +290,9 @@ function ChangePasswordDialog() {
             <DialogTrigger asChild>
                 <Button variant="outline">Alterar Senha</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-[400px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-2xl">
+            <DialogContent className="max-w-sm w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-float flex flex-col max-h-screen">
                 {/* Header: White Background with Title, Description and Close Button */}
-                <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
+                <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center">
                     <div>
                         <DialogTitle className="text-xl font-bold text-gray-900 leading-tight">Alterar Senha</DialogTitle>
                         <DialogDescription className="text-xs text-gray-500 mt-0.5 font-normal">
@@ -301,10 +301,10 @@ function ChangePasswordDialog() {
                     </div>
                 </div>
 
-                <div className="p-6 overflow-y-auto max-h-[70vh]">
+                <div className="flex-1 p-6 overflow-y-auto">
                     {success ? (
                         <div className="py-6 flex flex-col items-center justify-center text-center space-y-4 animate-in fade-in zoom-in duration-500">
-                            <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mb-2 shadow-inner">
+                            <div className="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mb-2">
                                 <CheckCircle className="w-10 h-10 text-green-500" />
                             </div>
                             <div>
@@ -315,7 +315,7 @@ function ChangePasswordDialog() {
                     ) : (
                         <div className="space-y-6">
                             {error && (
-                                <Alert variant="destructive" className="rounded-xl border-red-100 bg-red-50 text-red-800 animate-in shake duration-300 py-3">
+                                <Alert variant="destructive" className="rounded-2xl border-red-100 bg-red-50 text-red-800 animate-in shake duration-300 py-3">
                                     <AlertCircle className="w-4 h-4 mr-2" />
                                     <span className="text-xs font-bold">{error}</span>
                                 </Alert>
@@ -327,7 +327,7 @@ function ChangePasswordDialog() {
                                     type="password"
                                     value={currentPassword}
                                     onChange={e => setCurrentPassword(e.target.value)}
-                                    className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                    className="h-9 rounded-2xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
                                     placeholder="••••••••"
                                 />
                             </div>
@@ -338,7 +338,7 @@ function ChangePasswordDialog() {
                                     value={newPassword}
                                     onChange={e => setNewPassword(e.target.value)}
                                     placeholder="Mínimo 8 caracteres"
-                                    className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                    className="h-9 rounded-2xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
                                 />
                             </div>
                             <div className="space-y-1">
@@ -347,7 +347,7 @@ function ChangePasswordDialog() {
                                     type="password"
                                     value={confirmPassword}
                                     onChange={e => setConfirmPassword(e.target.value)}
-                                    className="h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                    className="h-9 rounded-2xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
                                     placeholder="Repita a nova senha"
                                 />
                             </div>
@@ -356,7 +356,7 @@ function ChangePasswordDialog() {
                 </div>
 
                 {/* Footer Sticky Compact */}
-                <div className="bg-white px-6 py-3 border-t border-gray-100 flex gap-3 sticky bottom-0 z-10">
+                <div className="bg-white px-6 py-3 border-t border-gray-100 flex gap-3">
                     {!success ? (
                         <>
                             <Button
@@ -364,14 +364,14 @@ function ChangePasswordDialog() {
                                 variant="ghost"
                                 onClick={() => setIsOpen(false)}
                                 disabled={loading}
-                                className="flex-1 h-10 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
+                                className="flex-1 h-10 bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
                             >
                                 Cancelar
                             </Button>
                             <Button
                                 onClick={handleChangePassword}
                                 disabled={loading}
-                                className="flex-[2] h-10 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-lg shadow-brand-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                                className="flex-[2] h-10 bg-brand-600 hover:bg-brand-700 text-white font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                             >
                                 {loading ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -382,13 +382,13 @@ function ChangePasswordDialog() {
                             </Button>
                         </>
                     ) : (
-                        <Button
-                            variant="ghost"
-                            onClick={() => setIsOpen(false)}
-                            className="flex-1 h-10 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
-                        >
-                            Fechar
-                        </Button>
+                            <Button
+                                variant="ghost"
+                                onClick={() => setIsOpen(false)}
+                                className="flex-1 h-10 bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
+                            >
+                                Fechar
+                            </Button>
                     )}
                 </div>
             </DialogContent>
