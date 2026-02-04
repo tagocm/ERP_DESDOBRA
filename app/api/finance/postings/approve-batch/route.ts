@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 async function createClient() {
     const cookieStore = await cookies();
@@ -49,8 +50,12 @@ export async function POST(req: Request) {
             approved: data.length,
             skipped: ids.length - data.length
         });
-    } catch (e: any) {
-        console.error('Batch approve error:', e);
-        return NextResponse.json({ error: e.message || 'Erro interno' }, { status: 500 });
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : 'Unknown error';
+        logger.error('[finance/postings/approve-batch] Error', { message });
+        return NextResponse.json(
+            { error: process.env.NODE_ENV === 'production' ? 'Erro interno' : message },
+            { status: 500 }
+        );
     }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { logger } from '@/lib/logger';
 
 export async function DELETE(request: NextRequest) {
     try {
@@ -66,7 +67,9 @@ export async function DELETE(request: NextRequest) {
             .remove([settings.logo_path]);
 
         if (deleteError) {
-            console.error('Delete error:', deleteError);
+            logger.error('[logo/delete] Storage remove failed', {
+                message: deleteError.message
+            });
             return NextResponse.json(
                 { error: 'Erro ao deletar arquivo' },
                 { status: 500 }
@@ -83,7 +86,10 @@ export async function DELETE(request: NextRequest) {
             .eq('company_id', companyId);
 
         if (updateError) {
-            console.error('Update error:', updateError);
+            logger.error('[logo/delete] company_settings update failed', {
+                code: updateError.code,
+                message: updateError.message
+            });
             return NextResponse.json(
                 { error: 'Erro ao atualizar configurações' },
                 { status: 500 }
@@ -95,7 +101,8 @@ export async function DELETE(request: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error('Logo delete error:', error);
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[logo/delete] Unexpected error', { message });
         return NextResponse.json(
             { error: 'Erro interno do servidor' },
             { status: 500 }

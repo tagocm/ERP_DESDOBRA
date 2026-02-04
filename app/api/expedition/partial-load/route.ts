@@ -1,14 +1,28 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 export async function POST(req: NextRequest) {
     const supabase = await createClient();
-    const { originalOrderId, routeId, loadedItems, reason, userId } = await req.json();
-
-    // loadedItems: { itemId: string, loadedQty: number }[]
 
     try {
+        const body = await req.json();
+        const { originalOrderId, routeId, loadedItems, reason } = body ?? {};
+
+        // loadedItems: { itemId: string, loadedQty: number }[]
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        if (!originalOrderId || !routeId || !Array.isArray(loadedItems) || !reason) {
+            return NextResponse.json({ error: 'Payload inválido' }, { status: 400 });
+        }
+
+        const userId = user.id;
+
         // 1. Fetch Original Order with Items
         const { data: originalOrder, error: fetchError } = await supabase
             .from('sales_documents')
@@ -86,8 +100,6 @@ export async function POST(req: NextRequest) {
                 internal_notes: (orderData.internal_notes || '') + `\nPEDIDO COMPLEMENTAR do #${originalOrder.document_number} (saldo não carregado em ${new Date().toLocaleDateString()} na rota ${routeName}). Motivo: ${reason}.`
             };
 
-            console.log('Sanitized Payload Keys:', Object.keys(newOrderPayload));
-
             const { data: newOrder, error: createError } = await supabase
                 .from('sales_documents')
                 .insert(newOrderPayload)
@@ -121,8 +133,12 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, message: 'Updated original order, no balance remaining.' });
 
-    } catch (error: any) {
-        console.error('Partial Load Error:', error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[expedition/partial-load] Error', { message });
+        return NextResponse.json(
+            { error: process.env.NODE_ENV === 'production' ? 'Erro ao processar carregamento parcial' : message },
+            { status: 500 }
+        );
     }
 }

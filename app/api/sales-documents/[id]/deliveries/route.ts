@@ -1,6 +1,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
 
 export async function GET(
     request: Request,
@@ -30,8 +31,12 @@ export async function GET(
 
         return NextResponse.json(deliveries);
 
-    } catch (error: any) {
-        console.error("Error fetching deliveries:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        logger.error("[sales-documents/deliveries] Error", { salesDocumentId: id, message });
+        return NextResponse.json(
+            { error: process.env.NODE_ENV === "production" ? "Erro ao buscar entregas" : message },
+            { status: 500 }
+        );
     }
 }

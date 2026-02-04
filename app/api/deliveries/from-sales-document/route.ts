@@ -2,6 +2,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { createDeliveryFromSalesOrder } from "@/lib/services/deliveries";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: Request) {
     const supabase = await createClient();
@@ -39,7 +40,10 @@ export async function POST(request: Request) {
         return NextResponse.json(delivery);
 
     } catch (error: any) {
-        console.error("Error creating delivery:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        const message = error instanceof Error ? error.message : "Unknown error";
+        logger.error("[deliveries/from-sales-document] Error creating delivery", {
+            message
+        });
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

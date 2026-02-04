@@ -1,6 +1,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
 
 export async function GET(request: Request) {
     const supabase = await createClient();
@@ -52,8 +53,12 @@ export async function GET(request: Request) {
 
         return NextResponse.json(reasons);
 
-    } catch (error: any) {
-        console.error("Error fetching reasons:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        logger.error("[logistics/return-reasons] Error", { message });
+        return NextResponse.json(
+            { error: process.env.NODE_ENV === "production" ? "Erro ao buscar motivos" : message },
+            { status: 500 }
+        );
     }
 }

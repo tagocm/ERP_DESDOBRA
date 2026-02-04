@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { updateLoadingChecked } from '@/lib/data/expedition';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
     try {
@@ -21,7 +22,8 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error updating loading check:', error);
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[expedition/loading-check] Error', { message });
         return NextResponse.json(
             { error: 'Failed to update loading check' },
             { status: 500 }

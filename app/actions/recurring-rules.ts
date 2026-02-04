@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getActiveCompanyId } from '@/lib/auth/get-active-company';
 import { RecurringRuleStatus } from '@/types/recurring-rules';
 import { z } from 'zod';
+import { logger } from '@/lib/logger';
 
 const CreateRecurringRuleSchema = z.object({
     name: z.string().min(3, "Nome muito curto"),
@@ -105,9 +106,10 @@ export async function createRecurringRuleAction(input: CreateRecurringRuleInput)
 
         revalidatePath('/app/financeiro/fatos-geradores');
         return { success: true };
-    } catch (error: any) {
-        console.error('Error creating recurring rule:', error);
-        return { error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[recurring-rules/create] Error', { message });
+        return { error: message };
     }
 }
 
@@ -128,9 +130,10 @@ export async function updateRecurringRuleStatusAction(id: string, status: Recurr
 
         revalidatePath('/app/financeiro/fatos-geradores');
         return { success: true };
-    } catch (error: any) {
-        console.error('Error updating recurring rule status:', error);
-        return { error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[recurring-rules/update-status] Error', { message });
+        return { error: message };
     }
 }
 
@@ -154,8 +157,9 @@ export async function deleteRecurringRuleAction(id: string) {
 
         revalidatePath('/app/financeiro/fatos-geradores');
         return { success: true };
-    } catch (error: any) {
-        console.error('Error deleting recurring rule:', error);
-        return { error: error.message };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[recurring-rules/delete] Error', { message });
+        return { error: message };
     }
 }

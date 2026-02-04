@@ -1,6 +1,7 @@
 'use server'
 
 import { getActiveCompanyId } from '@/lib/auth/get-active-company'
+import { logger } from '@/lib/logger'
 import { createClient } from '@/utils/supabase/server'
 import { purchasesRepository } from '@/lib/purchases/purchases-db'
 
@@ -136,8 +137,9 @@ export async function sendPurchaseOrderBatchAction(ids: string[]) {
         try {
             await purchasesRepository.sendPurchaseOrder(companyId, id)
             successCount++
-        } catch (error) {
-            console.error(`Failed to send PO ${id}:`, error)
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Unknown error'
+            logger.warn('[purchases] Failed to send PO', { id, message })
             failureCount++
         }
     }
@@ -165,8 +167,9 @@ export async function receivePurchaseOrderBatchAction(ids: string[]) {
         try {
             await purchasesRepository.receivePurchaseOrder(companyId, user.id, id)
             successCount++
-        } catch (error) {
-            console.error(`Failed to receive PO ${id}:`, error)
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Unknown error'
+            logger.warn('[purchases] Failed to receive PO', { id, message })
             failureCount++
         }
     }
@@ -189,8 +192,9 @@ export async function deletePurchaseOrderBatchAction(ids: string[]) {
         try {
             await purchasesRepository.archivePurchaseOrder(companyId, 'SYSTEM_BATCH', id, 'Batch Archive')
             successCount++
-        } catch (error) {
-            console.error(`Failed to delete PO ${id}:`, error)
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Unknown error'
+            logger.warn('[purchases] Failed to delete PO', { id, message })
             failureCount++
         }
     }

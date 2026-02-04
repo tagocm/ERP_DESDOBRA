@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { logger } from '@/lib/logger';
 
 interface RejectSalesParams {
     salesDocumentId: string;
@@ -89,7 +90,10 @@ export async function rejectSalesFinancial({ salesDocumentId, reason, eventId }:
                 .eq('sales_document_id', salesDocumentId);
 
             if (updateTitlesError) {
-                console.error('Error updating titles to ON_HOLD', updateTitlesError); // Log but continue
+                logger.warn('[rejectSalesFinancial] Failed to update titles to ON_HOLD (non-blocking)', {
+                    code: updateTitlesError.code,
+                    message: updateTitlesError.message
+                });
             }
         }
 

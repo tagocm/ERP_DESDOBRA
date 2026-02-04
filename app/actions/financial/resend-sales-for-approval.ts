@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { logger } from '@/lib/logger';
 
 interface ResendSalesParams {
     salesDocumentId: string;
@@ -111,7 +112,10 @@ export async function resendSalesForApproval({
             .eq('id', salesDocumentId);
 
         if (updateOrderError) {
-            console.error('[resendSalesForApproval] Order update failed:', updateOrderError);
+            logger.error('[resendSalesForApproval] Order update failed', {
+                code: updateOrderError.code,
+                message: updateOrderError.message
+            });
             throw new Error(`Falha ao atualizar pedido: ${updateOrderError.message}`);
         }
 
@@ -126,7 +130,7 @@ export async function resendSalesForApproval({
 
         if (eventError || !event) {
             // This shouldn't happen if order was previously confirmed
-            console.warn('[resendSalesForApproval] No financial event found, trigger will create one');
+            logger.warn('[resendSalesForApproval] No financial event found, trigger will create one', { salesDocumentId });
         }
 
         // 5. Explicitly reset financial event to pending
@@ -149,7 +153,10 @@ export async function resendSalesForApproval({
                 .eq('id', event.id);
 
             if (resetEventError) {
-                console.error('[resendSalesForApproval] Event reset failed:', resetEventError);
+                logger.warn('[resendSalesForApproval] Event reset failed (non-blocking)', {
+                    code: resetEventError.code,
+                    message: resetEventError.message
+                });
                 // Non-blocking - trigger will handle this
             }
         }
@@ -176,7 +183,10 @@ export async function resendSalesForApproval({
             });
 
         if (historyError) {
-            console.error('[resendSalesForApproval] History insert failed:', historyError);
+            logger.warn('[resendSalesForApproval] History insert failed (non-blocking)', {
+                code: historyError.code,
+                message: historyError.message
+            });
             // Non-blocking - continue
         }
 
@@ -193,11 +203,12 @@ export async function resendSalesForApproval({
             }
         };
 
-    } catch (error: any) {
-        console.error('[resendSalesForApproval] Unexpected error:', error);
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[resendSalesForApproval] Unexpected error', { message });
         return {
             success: false,
-            error: error.message || 'Erro ao reenviar pedido para aprovação'
+            error: process.env.NODE_ENV === 'production' ? 'Erro ao reenviar pedido para aprovação' : message
         };
     }
 }

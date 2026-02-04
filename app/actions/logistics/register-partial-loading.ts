@@ -2,6 +2,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { logger } from "@/lib/logger";
 
 interface RegisterPartialLoadingParams {
     orderId: string;
@@ -55,7 +56,7 @@ export async function registerPartialLoading({
         });
 
     if (eventError) {
-        console.error("Error creating delivery event:", eventError);
+        logger.error("[registerPartialLoading] Error creating delivery event", { code: eventError.code, message: eventError.message });
         throw new Error("Erro ao registrar evento de carregamento parcial.");
     }
 
@@ -77,7 +78,7 @@ export async function registerPartialLoading({
             .insert(pendingInserts);
 
         if (pendingError) {
-            console.error("Error creating pending balances:", pendingError);
+            logger.error("[registerPartialLoading] Error creating pending balances", { code: pendingError.code, message: pendingError.message });
             throw new Error("Erro ao registrar pendências de itens.");
         }
 

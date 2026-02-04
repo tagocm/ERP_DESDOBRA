@@ -1,6 +1,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
 
 export async function POST(
     request: Request,
@@ -100,8 +101,12 @@ export async function POST(
 
         return NextResponse.json(data);
 
-    } catch (error: any) {
-        console.error("Error saving occurrence:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        logger.error("[logistics/routes/occurrences] Error", { routeId, message });
+        return NextResponse.json(
+            { error: process.env.NODE_ENV === "production" ? "Erro ao salvar ocorrência" : message },
+            { status: 500 }
+        );
     }
 }

@@ -2,6 +2,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from "@/utils/supabase/server";
 import { normalizeLogisticsStatus } from '@/lib/constants/status';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
     try {
@@ -26,7 +27,10 @@ export async function POST(request: Request) {
             .in('id', ids);
 
         if (fetchError) {
-            console.error('Error fetching docs for deletion:', fetchError);
+            logger.error('[sales/delete-batch] Error fetching docs', {
+                code: fetchError.code,
+                message: fetchError.message
+            });
             return NextResponse.json({ error: 'Erro ao buscar dados.' }, { status: 500 });
         }
 
@@ -56,7 +60,10 @@ export async function POST(request: Request) {
                 .in('id', validIds);
 
             if (deleteError) {
-                console.error('Error deleting orders:', deleteError);
+                logger.error('[sales/delete-batch] Error deleting orders', {
+                    code: deleteError.code,
+                    message: deleteError.message
+                });
                 return NextResponse.json({ error: 'Erro ao excluir pedidos.' }, { status: 500 });
             }
 
@@ -76,8 +83,9 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ deleted: validIds.length, skipped: skippedCount });
 
-    } catch (error: any) {
-        console.error('Batch delete internal error:', error);
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[sales/delete-batch] Error', { message });
         return NextResponse.json({ error: 'Erro interno ao processar exclusão.' }, { status: 500 });
     }
 }

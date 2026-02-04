@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { normalizeLogisticsStatus, translateLogisticsStatusPt } from '@/lib/constants/status';
+import { logger } from '@/lib/logger';
 
 export async function DELETE(
     request: Request,
@@ -17,12 +18,9 @@ export async function DELETE(
 
         const orderId = params.id;
 
-        console.log('API: Attempting to delete order:', orderId);
-
         // Debug: Validate UUID format
         const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
         if (!uuidRegex.test(orderId)) {
-            console.error('API: Invalid UUID format:', orderId);
             return NextResponse.json({ error: 'ID inválido' }, { status: 400 });
         }
 
@@ -33,19 +31,17 @@ export async function DELETE(
             .eq('id', orderId)
             .maybeSingle();
 
-        console.log('API: Fetch result:', { order, error: fetchError });
-
         if (fetchError) {
-            console.error('API: Database error fetching order:', fetchError);
-            return NextResponse.json({ error: 'Erro ao buscar pedido', details: fetchError.message }, { status: 500 });
+            logger.error('[sales/orders/delete] Error fetching order', {
+                orderId,
+                code: fetchError.code,
+                message: fetchError.message
+            });
+            return NextResponse.json({ error: 'Erro ao buscar pedido' }, { status: 500 });
         }
 
         if (!order) {
-            console.error('API: Order not found (returned null). Possible RLS issue or wrong ID.');
-            return NextResponse.json({
-                error: 'Pedido não encontrado',
-                details: 'O pedido não existe ou você não tem permissão para acessá-lo.'
-            }, { status: 404 });
+            return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
         }
 
         // 2. Validate business rules - cannot delete if in certain states
@@ -65,7 +61,11 @@ export async function DELETE(
             .eq('sales_document_id', orderId);
 
         if (routeError) {
-            console.error('Error checking route links:', routeError);
+            logger.warn('[sales/orders/delete] Failed checking route links (non-blocking)', {
+                orderId,
+                code: routeError.code,
+                message: routeError.message
+            });
         }
 
         let routeToUpdate: any = null;
@@ -82,7 +82,11 @@ export async function DELETE(
                 .eq('sales_document_id', orderId);
 
             if (unlinkError) {
-                console.error('Error unlinking from route:', unlinkError);
+                logger.error('[sales/orders/delete] Failed unlinking from route', {
+                    orderId,
+                    code: unlinkError.code,
+                    message: unlinkError.message
+                });
                 return NextResponse.json({
                     error: 'Erro ao desvincular pedido da rota.'
                 }, { status: 500 });
@@ -96,7 +100,11 @@ export async function DELETE(
             .eq('document_id', orderId);
 
         if (itemsError) {
-            console.error('Error deleting order items:', itemsError);
+            logger.error('[sales/orders/delete] Failed deleting order items', {
+                orderId,
+                code: itemsError.code,
+                message: itemsError.message
+            });
             return NextResponse.json({
                 error: 'Erro ao excluir itens do pedido.'
             }, { status: 500 });
@@ -109,7 +117,11 @@ export async function DELETE(
             .eq('id', orderId);
 
         if (deleteError) {
-            console.error('Error deleting order:', deleteError);
+            logger.error('[sales/orders/delete] Failed deleting order', {
+                orderId,
+                code: deleteError.code,
+                message: deleteError.message
+            });
             return NextResponse.json({
                 error: 'Erro ao excluir pedido.'
             }, { status: 500 });
@@ -155,7 +167,8 @@ export async function DELETE(
                     }
                 });
         } catch (logError) {
-            console.warn('Failed to log deletion (table may not exist):', logError);
+            const message = logError instanceof Error ? logError.message : String(logError);
+            logger.warn('[sales/orders/delete] Failed to write audit log (non-blocking)', { orderId, message });
         }
 
         return NextResponse.json({
@@ -164,10 +177,11 @@ export async function DELETE(
             routeUpdated: !!routeToUpdate
         });
 
-    } catch (error: any) {
-        console.error('Delete Order Error:', error);
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[sales/orders/delete] Error', { message });
         return NextResponse.json(
-            { error: error.message || 'Erro ao excluir pedido' },
+            { error: process.env.NODE_ENV === 'production' ? 'Erro ao excluir pedido' : message },
             { status: 500 }
         );
     }
