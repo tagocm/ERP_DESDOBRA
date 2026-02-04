@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabaseServer';
 import { retrievePassword } from '@/lib/vault-helpers';
 import { parsePfx } from '../../sign/cert';
+import { logger } from "@/lib/logger";
 
 // In-memory cache for certificates
 interface CertificateCache {
@@ -104,16 +105,6 @@ async function loadCertificateFromStorage(companyId: string): Promise<{ pfxBase6
         throw new Error(`Erro ao baixar certificado: ${downloadError?.message || 'Arquivo não encontrado'}`);
     }
 
-    const fs = require('fs');
-    const logMsg = `[Date: ${new Date().toISOString()}] PFX Blob Info - Size: ${pfxBlob.size}, Type: ${pfxBlob.type}, Constructor: ${pfxBlob.constructor.name}\n`;
-    try { fs.appendFileSync('/tmp/cert-loader.log', logMsg); } catch (e) { }
-
-    // Robust emptiness check
-    if (!pfxBlob.size && pfxBlob.size !== 0) {
-        const warn = `[Date: ${new Date().toISOString()}] Warning: pfxBlob.size is undefined/null\n`;
-        try { fs.appendFileSync('/tmp/cert-loader.log', warn); } catch (e) { }
-    }
-
     if (pfxBlob.size === 0) {
         throw new Error('O arquivo do certificado está vazio (0 bytes). Por favor, faça o upload novamente.');
     }
@@ -124,8 +115,6 @@ async function loadCertificateFromStorage(companyId: string): Promise<{ pfxBase6
         throw new Error('O arquivo do certificado resultou em um Buffer vazio.');
     }
     const pfxBase64 = Buffer.from(arrayBuffer).toString('base64');
-
-    try { fs.appendFileSync('/tmp/cert-loader.log', `[Date: ${new Date().toISOString()}] PFX Base64 Length: ${pfxBase64.length}\n`); } catch (e) { }
 
     // 4. Retrieve password from Vault
     let pfxPassword: string;
@@ -156,7 +145,7 @@ async function loadCertificateFromStorage(companyId: string): Promise<{ pfxBase6
         throw new Error(`Certificado inválido: ${error.message}`);
     }
 
-    console.log(`[certificateLoader] Loaded PFX for ${companyId}. Password length: ${pfxPassword.length}`);
+    logger.info(`[certificateLoader] Loaded PFX for ${companyId}.`);
     return { pfxBase64, pfxPassword };
 }
 
