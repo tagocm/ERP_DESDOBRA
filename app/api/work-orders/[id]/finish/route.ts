@@ -4,9 +4,14 @@ import { workOrdersRepo } from '@/lib/data/work-orders'
 import { bomsRepo } from '@/lib/data/boms'
 import { itemsRepo } from '@/lib/data/items'
 import { inventoryRepo } from '@/lib/data/inventory'
+import { getActiveCompanyId } from '@/lib/auth/get-active-company'
+import { errorResponse } from '@/lib/api/response'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 const finishSchema = z.object({
-    companyId: z.string().uuid(),
+    companyId: z.string().uuid().optional(),
     produced_qty: z.number().positive()
 })
 
@@ -19,7 +24,18 @@ export async function POST(
     try {
         const body = await request.json()
         const parsed = finishSchema.parse(body)
-        const { companyId, produced_qty } = parsed
+        const { produced_qty } = parsed
+
+        let activeCompanyId: string
+        try {
+            activeCompanyId = await getActiveCompanyId()
+        } catch {
+            return errorResponse('Unauthorized', 401)
+        }
+
+        if (parsed.companyId && parsed.companyId !== activeCompanyId) return errorResponse('Forbidden', 403)
+
+        const companyId = activeCompanyId
 
         // 1. Get work order & Validate
         const workOrder = await workOrdersRepo.getById(companyId, id)
@@ -98,9 +114,6 @@ export async function POST(
             return NextResponse.json({ error: error.issues }, { status: 400 })
         }
         console.error('Error finishing work order:', error)
-        return NextResponse.json(
-            { error: error.message || 'Internal Server Error' },
-            { status: 500 }
-        )
+        return errorResponse('Internal Server Error', 500, undefined, error instanceof Error ? error.message : error)
     }
 }

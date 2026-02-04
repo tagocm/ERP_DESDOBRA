@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { organizationsRepo } from '@/lib/data/organizations'
+import { getActiveCompanyId } from '@/lib/auth/get-active-company'
+import { errorResponse } from '@/lib/api/response'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 const updateOrgSchema = z.object({
-    companyId: z.string().uuid(),
+    companyId: z.string().uuid().optional(),
     trade_name: z.string().optional(),
     legal_name: z.string().optional(),
     document: z.string().optional(),
@@ -19,21 +24,20 @@ export async function GET(
     const searchParams = request.nextUrl.searchParams
     const companyId = searchParams.get('companyId')
 
-    if (!companyId) {
-        return NextResponse.json(
-            { error: 'Missing companyId query parameter' },
-            { status: 400 }
-        )
+    let activeCompanyId: string
+    try {
+        activeCompanyId = await getActiveCompanyId()
+    } catch {
+        return errorResponse('Unauthorized', 401)
     }
 
+    if (companyId && companyId !== activeCompanyId) return errorResponse('Forbidden', 403)
+
     try {
-        const data = await organizationsRepo.getById(companyId, id)
+        const data = await organizationsRepo.getById(activeCompanyId, id)
         return NextResponse.json(data)
     } catch (error: any) {
-        return NextResponse.json(
-            { error: error.message || 'Internal Server Error' },
-            { status: 500 }
-        )
+        return errorResponse('Internal Server Error', 500, undefined, error instanceof Error ? error.message : error)
     }
 }
 
@@ -47,7 +51,16 @@ export async function PATCH(
         const body = await request.json()
         const parsed = updateOrgSchema.parse(body)
 
-        const data = await organizationsRepo.update(parsed.companyId, id, {
+        let activeCompanyId: string
+        try {
+            activeCompanyId = await getActiveCompanyId()
+        } catch {
+            return errorResponse('Unauthorized', 401)
+        }
+
+        if (parsed.companyId && parsed.companyId !== activeCompanyId) return errorResponse('Forbidden', 403)
+
+        const data = await organizationsRepo.update(activeCompanyId, id, {
             trade_name: parsed.trade_name,
             legal_name: parsed.legal_name,
             document_number: parsed.document,
@@ -60,10 +73,7 @@ export async function PATCH(
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.issues }, { status: 400 })
         }
-        return NextResponse.json(
-            { error: error.message || 'Internal Server Error' },
-            { status: 500 }
-        )
+        return errorResponse('Internal Server Error', 500, undefined, error instanceof Error ? error.message : error)
     }
 }
 
@@ -75,20 +85,19 @@ export async function DELETE(
     const searchParams = request.nextUrl.searchParams
     const companyId = searchParams.get('companyId')
 
-    if (!companyId) {
-        return NextResponse.json(
-            { error: 'Missing companyId query parameter' },
-            { status: 400 }
-        )
+    let activeCompanyId: string
+    try {
+        activeCompanyId = await getActiveCompanyId()
+    } catch {
+        return errorResponse('Unauthorized', 401)
     }
 
+    if (companyId && companyId !== activeCompanyId) return errorResponse('Forbidden', 403)
+
     try {
-        await organizationsRepo.softDelete(companyId, id)
+        await organizationsRepo.softDelete(activeCompanyId, id)
         return NextResponse.json({ success: true })
     } catch (error: any) {
-        return NextResponse.json(
-            { error: error.message || 'Internal Server Error' },
-            { status: 500 }
-        )
+        return errorResponse('Internal Server Error', 500, undefined, error instanceof Error ? error.message : error)
     }
 }
