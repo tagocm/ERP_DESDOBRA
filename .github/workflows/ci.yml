@@ -47,6 +47,9 @@ jobs:
     - name: Static RLS audit (non-blocking)
       run: node scripts/check-rls-static.js
 
+    - name: Service-role usage audit (non-blocking)
+      run: node scripts/check-service-role-usage.js
+
     - name: Type Safety Budget Check
       # Enforce baseline - prevent 'any' regression in CORE business logic
       run: node scripts/any-budget-actions.js
