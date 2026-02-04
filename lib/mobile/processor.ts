@@ -138,7 +138,7 @@ export async function processMobileExpenseInbox(options: ProcessorOptions = {}):
         const eventId = row.event_id
 
         try {
-            if (row.event_type !== 'CREATE_EXPENSE') {
+            if (row.event_type !== 'CREATE_EXPENSE' && row.event_type !== 'EXPENSE_CREATED') {
                 throw new Error(`Unsupported event_type: ${row.event_type}`)
             }
 

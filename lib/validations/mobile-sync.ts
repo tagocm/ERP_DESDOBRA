@@ -34,7 +34,7 @@ export const expensePayloadV2 = z.object({
 export const syncRequestSchema = z.object({
     events: z.array(z.object({
         event_id: z.string().uuid(),
-        type: z.enum(['CREATE_EXPENSE']),
+        type: z.enum(['CREATE_EXPENSE', 'EXPENSE_CREATED']),
         payload: z.record(z.string(), z.unknown()) // We validate payload deeply later
     })).min(1).max(50)
 })
@@ -42,10 +42,10 @@ export const syncRequestSchema = z.object({
 // Refined schema to validate payload specific to type
 export const eventItemSchema = z.object({
     event_id: z.string().uuid(),
-    type: z.enum(['CREATE_EXPENSE']),
+    type: z.enum(['CREATE_EXPENSE', 'EXPENSE_CREATED']),
     payload: z.record(z.string(), z.unknown())
 }).transform((data, ctx) => {
-    if (data.type === 'CREATE_EXPENSE') {
+    if (data.type === 'CREATE_EXPENSE' || data.type === 'EXPENSE_CREATED') {
         const resultV2 = expensePayloadV2.safeParse(data.payload)
         if (resultV2.success) {
             return { ...data, payload_version: 'v2' as const }
@@ -58,7 +58,7 @@ export const eventItemSchema = z.object({
 
         ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: 'Invalid payload for CREATE_EXPENSE',
+            message: 'Invalid payload for expense event',
             path: ['payload']
         })
         return z.NEVER
