@@ -338,7 +338,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                                                     <Link
                                                         href={item.href}
                                                         className={cn(
-                                                            "flex items-center rounded-md transition-all duration-300 mb-0.5 group overflow-hidden whitespace-nowrap",
+                                                            "flex items-center rounded-2xl transition-all duration-300 mb-0.5 group overflow-hidden whitespace-nowrap",
                                                             density === 'compact' ? "h-8" : "h-9",
                                                             isActive(item.href)
                                                                 ? "bg-brand-50 text-brand-700 font-medium"
@@ -382,7 +382,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                                 <button
                                     onClick={handleLogout}
                                     className={cn(
-                                        "flex w-full items-center rounded-md transition-all duration-300 mb-0.5 group overflow-hidden whitespace-nowrap text-left",
+                                        "flex w-full items-center rounded-2xl transition-all duration-300 mb-0.5 group overflow-hidden whitespace-nowrap text-left",
                                         density === 'compact' ? "h-8" : "h-9",
                                         "text-red-600 hover:bg-red-50 hover:text-red-700"
                                     )}
