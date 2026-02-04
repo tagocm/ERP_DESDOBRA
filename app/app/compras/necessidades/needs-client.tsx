@@ -148,7 +148,7 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
                             <Button
                                 onClick={handleCreatePO}
                                 disabled={isCreatingPO}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm animate-in fade-in zoom-in-95 duration-200"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white animate-in fade-in zoom-in-95 duration-200"
                             >
                                 {isCreatingPO ? (
                                     <Loader2 className="w-4 h-4 animate-spin mr-2" />
@@ -173,7 +173,7 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
                     </div>
                     <CardContent className="p-6">
                         <div className="flex flex-wrap items-end gap-6">
-                            <div className="space-y-2 min-w-[280px]">
+                            <div className="space-y-2 w-72">
                                 <Label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1.5 mb-1">
                                     <span className="w-1.5 h-1.5 rounded-full bg-brand-500"></span>
                                     Período de Análise
@@ -182,7 +182,7 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
                                     date={dateRange}
                                     onDateChange={setDateRange}
                                     placeholder="Selecione o período"
-                                    className="w-full h-11 border-gray-200 focus:ring-brand-500 focus:border-brand-500 rounded-lg shadow-sm"
+                                    className="w-full h-11 border-gray-200 focus:ring-brand-500 focus:border-brand-500"
                                 />
                             </div>
 
@@ -191,7 +191,7 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
                                     <span className="w-1.5 h-1.5 rounded-full bg-brand-500"></span>
                                     Tipos de Item
                                 </Label>
-                                <div className="flex items-center gap-2 h-11 px-4 rounded-lg border border-gray-200 bg-gray-50/30 hover:bg-gray-50/80 transition-colors shadow-sm">
+                                <div className="flex items-center gap-2 h-11 px-4 rounded-2xl border border-gray-200 bg-gray-50/30 hover:bg-gray-50/80 transition-colors">
                                     <div className="flex items-center gap-2">
                                         <Checkbox
                                             id="chk-raw"
@@ -217,7 +217,7 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
                             <div className="flex-1" />
 
                             <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
+                                <div className="flex items-center gap-2 px-3 py-2 rounded-2xl bg-gray-50 border border-transparent hover:border-gray-200 transition-all">
                                     <Checkbox
                                         id="chk-hide"
                                         checked={hideFulfilled}
@@ -232,7 +232,7 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
                                 <Button
                                     onClick={handleCalculate}
                                     disabled={loading}
-                                    className="h-11 px-8 font-bold shadow-sm"
+                                    className="h-11 px-8 font-bold"
                                 >
                                     {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Factory className="w-4 h-4 mr-2" />}
                                     CALCULAR
@@ -244,15 +244,15 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
 
                 {/* RESULTS AREA */}
                 {!hasSearched ? (
-                    <div className="flex flex-col items-center justify-center py-24 bg-white rounded-2xl border border-dashed border-gray-300 shadow-sm animate-in fade-in zoom-in-95 duration-500">
-                        <div className="bg-brand-50 p-4 rounded-full shadow-inner mb-4">
+                    <Card className="flex flex-col items-center justify-center py-24 border border-dashed border-gray-300 animate-in fade-in zoom-in-95 duration-500">
+                        <div className="bg-brand-50 p-4 rounded-full mb-4">
                             <Search className="w-8 h-8 text-brand-400" />
                         </div>
                         <h3 className="text-lg font-semibold text-gray-900">Aguardando Cálculo</h3>
                         <p className="text-gray-500 max-w-sm text-center mt-2 leading-relaxed">
                             Defina os parâmetros acima e clique em <strong>Calcular</strong> para visualizar as sugestões de compra baseadas na demanda.
                         </p>
-                    </div>
+                    </Card>
                 ) : (
                     <Card className="rounded-2xl border-0 shadow-card ring-1 ring-gray-100/70 overflow-hidden bg-white animate-in slide-in-from-bottom-4 duration-500">
                         <div className="overflow-x-auto">
@@ -317,7 +317,7 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
                                                             className="border-gray-300 data-[state=checked]:bg-brand-600"
                                                         />
                                                     </td>
-                                                    <td className="px-6 py-3 max-w-[320px]">
+                                                    <td className="px-6 py-3 max-w-xs">
                                                         <div className="font-semibold text-gray-800 truncate" title={item.item_name}>
                                                             {item.item_name}
                                                         </div>
@@ -331,9 +331,9 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
                                                     </td>
                                                     <td className="px-6 py-3 text-center">
                                                         {item.item_type === 'raw_material' ? (
-                                                            <Badge variant="secondary" className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 font-semibold shadow-sm">Matéria-prima</Badge>
+                                                            <Badge variant="secondary" className="px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 font-semibold">Matéria-prima</Badge>
                                                         ) : item.item_type === 'packaging' ? (
-                                                            <Badge variant="secondary" className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100 font-semibold shadow-sm">Embalagem</Badge>
+                                                            <Badge variant="secondary" className="px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-100 font-semibold">Embalagem</Badge>
                                                         ) : (
                                                             <Badge variant="outline" className="px-2 py-0.5 font-medium">{item.item_type}</Badge>
                                                         )}
@@ -348,7 +348,7 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
                                                     </td>
                                                     <td className="px-6 py-3 text-right">
                                                         <div className={cn(
-                                                            "font-bold inline-flex items-center justify-end px-2 py-0.5 rounded-md min-w-[60px]",
+                                                            "font-bold inline-flex items-center justify-end px-2 py-0.5 rounded-full w-16",
                                                             isStockNegative ? "bg-red-50 text-red-700" : "text-gray-700"
                                                         )}>
                                                             {item.stock_projected.toLocaleString('pt-BR', { maximumFractionDigits: 3 })}
@@ -387,4 +387,3 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
         </div>
     );
 }
-
