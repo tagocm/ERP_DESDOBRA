@@ -492,7 +492,6 @@ function DroppableDay({ dateObj, dateStr, orders, onCreate, onOrderClick, onDele
 
     // Formatting from PlanningCalendar: 
     // const isToday = new Date().toISOString().split('T')[0] === dateStr
-    // className={cn("border rounded-lg p-3 min-h-[160px] cursor-pointer transition-all hover:shadow-md hover:border-primary flex flex-col justify-between" ...)}
 
     const isToday = new Date().toISOString().split('T')[0] === dateStr
 
