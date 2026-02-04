@@ -6,6 +6,10 @@ type ErrorPayload = {
     details?: unknown;
 };
 
+function shouldExposeErrorDetails() {
+    return process.env.NODE_ENV !== "production" || process.env.EXPOSE_ERROR_DETAILS === "true";
+}
+
 export function errorResponse(
     message: string,
     status = 400,
@@ -16,7 +20,7 @@ export function errorResponse(
         error: { message }
     };
     if (code) payload.error.code = code;
-    if (details !== undefined) payload.error.details = details;
+    if (details !== undefined && shouldExposeErrorDetails()) payload.error.details = details;
     return NextResponse.json(payload, { status });
 }
 
