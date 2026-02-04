@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabaseServer';
 import { createClient } from '@/utils/supabase/server';
 import { validateCertFile, generateFilePath } from '@/lib/upload-helpers';
 
@@ -8,9 +7,6 @@ export async function POST(request: NextRequest) {
         // Get authenticated user
         const supabaseUser = await createClient();
         const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-
-        // Admin client for privileged operations
-        const supabaseAdmin = createAdminClient();
 
         if (authError || !user) {
             return NextResponse.json(
@@ -77,7 +73,7 @@ export async function POST(request: NextRequest) {
         const buffer = Buffer.from(arrayBuffer);
 
         // Upload to Storage
-        const { error: uploadError } = await supabaseAdmin.storage
+        const { error: uploadError } = await supabaseUser.storage
             .from('company-assets')
             .upload(filePath, buffer, {
                 contentType: 'application/x-pkcs12',
@@ -96,7 +92,7 @@ export async function POST(request: NextRequest) {
         if (existingSettings?.cert_a1_storage_path) {
             const expectedPrefixes = [`companies/${companyId}/`, `${companyId}/`];
             if (expectedPrefixes.some((p) => existingSettings.cert_a1_storage_path.startsWith(p))) {
-                await supabaseAdmin.storage
+                await supabaseUser.storage
                     .from('company-assets')
                     .remove([existingSettings.cert_a1_storage_path]);
             }
@@ -124,7 +120,7 @@ export async function POST(request: NextRequest) {
         if (updateError) {
             console.error('Update error:', updateError);
             // Try to clean up uploaded file
-            await supabaseAdmin.storage.from('company-assets').remove([filePath]);
+            await supabaseUser.storage.from('company-assets').remove([filePath]);
             return NextResponse.json(
                 { error: 'Erro ao atualizar configurações' },
                 { status: 500 }
