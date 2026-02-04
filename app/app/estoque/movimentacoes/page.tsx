@@ -121,21 +121,21 @@ export default function InventoryMovementsPage() {
                     <div className="flex gap-3">
                         <Button
                             onClick={() => handleOpenModal('ENTRADA')}
-                            className="bg-green-600 hover:bg-green-700 text-white shadow-md shadow-green-600/20 rounded-2xl font-semibold"
+                            className="bg-green-600 hover:bg-green-700 text-white shadow-card rounded-2xl font-semibold"
                         >
                             <ArrowUpCircle className="mr-2 h-4 w-4" />
                             Nova Entrada
                         </Button>
                         <Button
                             onClick={() => handleOpenModal('SAIDA')}
-                            className="bg-red-600 hover:bg-red-700 text-white shadow-md shadow-red-600/20 rounded-2xl font-semibold"
+                            className="bg-red-600 hover:bg-red-700 text-white shadow-card rounded-2xl font-semibold"
                         >
                             <ArrowDownCircle className="mr-2 h-4 w-4" />
                             Nova Saída
                         </Button>
                         <Button
                             onClick={() => handleOpenModal('AJUSTE')}
-                            className="bg-sky-600 hover:bg-sky-700 text-white shadow-md shadow-sky-600/20 rounded-2xl font-semibold"
+                            className="bg-sky-600 hover:bg-sky-700 text-white shadow-card rounded-2xl font-semibold"
                         >
                             <AlertCircle className="mr-2 h-4 w-4" />
                             Ajuste
@@ -147,7 +147,7 @@ export default function InventoryMovementsPage() {
             <div className="px-6 pb-8 space-y-6">
 
                 {/* Filters Card */}
-                <Card className="border-gray-100 shadow-sm bg-white">
+                <Card className="border-gray-100 bg-white">
                     <div className="p-4 flex flex-col md:flex-row gap-4 items-center">
                         <div className="relative w-full max-w-sm">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -208,7 +208,7 @@ export default function InventoryMovementsPage() {
                 </Card>
 
                 {/* Table Card */}
-                <Card className="border-gray-100 shadow-sm overflow-hidden bg-white">
+                <Card className="border-gray-100 overflow-hidden bg-white">
                     <Table>
                         <TableHeader className="bg-gray-50/50 border-b border-gray-100">
                             <TableRow className="hover:bg-transparent border-none">
@@ -250,7 +250,7 @@ export default function InventoryMovementsPage() {
                                             <TableCell>
                                                 <div className="flex items-center justify-center">
                                                     <div className={cn(
-                                                        "w-6 h-6 rounded-md flex items-center justify-center transition-all duration-200",
+                                                        "w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-200",
                                                         expandedRows.has(mov.id) ? "bg-blue-100 text-blue-600 rotate-90" : "text-gray-300"
                                                     )}>
                                                         <ChevronRight className="h-4 w-4" />
@@ -300,7 +300,7 @@ export default function InventoryMovementsPage() {
                                                     <div className="p-4 pl-16 bg-blue-50/10 border-b border-gray-100 grid grid-cols-1 md:grid-cols-3 gap-8 animate-in slide-in-from-top-1">
                                                         <div>
                                                             <h4 className="text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-wider">Conversão</h4>
-                                                            <div className="text-xs text-gray-700 bg-white border border-gray-200 rounded-md p-2 inline-block">
+                                                            <div className="text-xs text-gray-700 bg-white border border-gray-200 rounded-lg p-2 inline-block">
                                                                 <span className="text-gray-500">Input:</span> <span className="font-mono font-bold">{mov.qty_display} {mov.uom_label}</span>
                                                                 {mov.conversion_factor && mov.conversion_factor !== 1 && (
                                                                     <span className="ml-2 pl-2 border-l border-gray-200 text-gray-400">
@@ -325,7 +325,7 @@ export default function InventoryMovementsPage() {
                                                         </div>
                                                         <div>
                                                             <h4 className="text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-wider">Observações</h4>
-                                                            <p className="text-xs text-gray-600 italic bg-gray-50 p-2 rounded-md border border-gray-100">
+                                                            <p className="text-xs text-gray-600 italic bg-gray-50 p-2 rounded-lg border border-gray-100">
                                                                 {mov.notes || "Sem observações registradas."}
                                                             </p>
                                                         </div>
