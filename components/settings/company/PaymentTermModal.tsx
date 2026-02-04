@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
@@ -117,9 +118,9 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-[550px] w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-2xl">
+            <DialogContent className="max-w-xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-float flex flex-col max-h-screen">
                 {/* Header: White Background with Title, Description and Close Button */}
-                <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center sticky top-0 z-10">
+                <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center">
                     <div>
                         <DialogTitle className="text-xl font-bold text-gray-900 leading-tight">
                             {termToEdit ? "Editar Prazo" : "Novo Prazo"}
@@ -130,7 +131,7 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
                     </div>
                 </div>
 
-                <div className="p-6 overflow-y-auto max-h-[70vh]">
+                <div className="flex-1 p-6 overflow-y-auto">
                     <div className="space-y-6">
                         <FormErrorSummary errors={Object.values(errors)} visible={Object.keys(errors).length > 0} />
 
@@ -149,7 +150,7 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
                                     }}
                                     onFocus={(e) => e.target.select()}
                                     onClick={(e) => e.currentTarget.select()}
-                                    className="text-center h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                    className="text-center h-9 rounded-2xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                             </div>
                             <div className="col-span-12 md:col-span-2 space-y-1">
@@ -162,7 +163,7 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
                                     onChange={(e) => setFirstDueDays(parseInt(e.target.value) || 0)}
                                     onFocus={(e) => e.target.select()}
                                     onClick={(e) => e.currentTarget.select()}
-                                    className="text-center h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                    className="text-center h-9 rounded-2xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                             </div>
 
@@ -176,7 +177,7 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
                                     onValueChange={(v) => setCadenceDays(parseInt(v))}
                                     disabled={installments === 1}
                                 >
-                                    <SelectTrigger error={!!errors.cadence} className="h-9 rounded-xl border-gray-200 bg-white">
+                                    <SelectTrigger error={!!errors.cadence} className="h-9 rounded-2xl border-gray-200 bg-white">
                                         <SelectValue placeholder="Selecione..." />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -199,7 +200,7 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
                                 <DecimalInput
                                     value={minAmount || 0}
                                     onChange={(v) => setMinAmount(v || null)}
-                                    className="text-right h-9 rounded-xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
+                                    className="text-right h-9 rounded-2xl border-gray-200 bg-white focus:border-brand-500 focus:ring-brand-500 transition-all font-medium"
                                     precision={2}
                                 />
                             </div>
@@ -217,19 +218,19 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
                         </div>
 
                         {/* Preview Area - White Card */}
-                        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
+                        <Card className="p-4 border-gray-200 shadow-none space-y-3">
                             <div className="flex justify-between items-center">
                                 <Label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider flex items-center gap-2">
                                     Vencimentos Previstos
                                 </Label>
-                                <div className="text-[10px] font-bold text-brand-600 bg-brand-50 px-2 py-1 rounded-md border border-brand-100">
+                                <div className="text-[10px] font-bold text-brand-600 bg-brand-50 px-2 py-1 rounded-2xl border border-brand-100">
                                     {installments} parcela(s)
                                 </div>
                             </div>
 
-                            <div className="flex flex-wrap gap-2 max-h-[100px] overflow-y-auto p-1">
+                            <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto p-1">
                                 {previewDates.map((d, i) => (
-                                    <div key={i} className="flex flex-col items-center bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5 min-w-[50px]">
+                                    <div key={i} className="flex flex-col items-center bg-gray-50 border border-gray-100 rounded-2xl px-2.5 py-1.5 min-w-12">
                                         <span className="text-[9px] text-gray-400 font-bold uppercase">{i + 1}ª</span>
                                         <span className="text-xs text-gray-700 font-bold font-mono">+{d}d</span>
                                     </div>
@@ -242,23 +243,23 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
                                     <span className="font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded">{generatedName}</span>
                                 </div>
                             </div>
-                        </div>
+                        </Card>
                     </div>
                 </div>
 
                 {/* Footer Sticky Compact */}
-                <div className="bg-white px-6 py-3 border-t border-gray-100 flex gap-3 sticky bottom-0 z-10">
+                <div className="bg-white px-6 py-3 border-t border-gray-100 flex gap-3">
                     <Button
                         variant="ghost"
                         onClick={() => onOpenChange(false)}
-                        className="flex-1 h-10 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
+                        className="flex-1 h-10 bg-gray-50 hover:bg-gray-100 text-gray-600 font-semibold transition-all"
                     >
                         Cancelar
                     </Button>
                     <Button
                         onClick={handleSave}
                         disabled={isLoading}
-                        className="flex-[2] h-10 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold shadow-lg shadow-brand-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                        className="flex-[2] h-10 bg-brand-600 hover:bg-brand-700 text-white font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                     >
                         {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                         Salvar Prazo
