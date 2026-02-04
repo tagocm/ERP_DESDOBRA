@@ -1,5 +1,6 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
+import { logger } from '@/lib/logger';
 import { SalesOrder, SalesOrderItem, SalesOrderPayment, SalesOrderNfe, SalesOrderAdjustment, SalesStatus, LogisticStatus, FiscalStatus, DocType } from '@/types/sales';
 import { resolveFiscalRulesForOrder } from './fiscal-engine';
 
@@ -243,7 +244,7 @@ export async function upsertSalesDocument(supabase: SupabaseClient, doc: Partial
 }
 
 export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<SalesOrderItem>) {
-    console.log('🔵 upsertSalesItem CALLED with:', {
+    logger.debug('[upsertSalesItem] called', {
         id: item.id,
         packaging_id: item.packaging_id,
         has_snapshot: !!item.sales_uom_abbrev_snapshot
@@ -263,14 +264,14 @@ export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<Sa
     }
 
     // Populate NFe description snapshots for packaging integrity
-    console.log('🟡 Checking snapshot condition:', {
+    logger.debug('[NFe Snapshot] condition', {
         has_packaging: !!cleanItem.packaging_id,
         has_snapshot: !!cleanItem.sales_uom_abbrev_snapshot,
         should_populate: !!(cleanItem.packaging_id && !cleanItem.sales_uom_abbrev_snapshot)
     });
 
     if (cleanItem.packaging_id && !cleanItem.sales_uom_abbrev_snapshot) {
-        console.log('[NFe Snapshot] Starting populate for packaging_id:', cleanItem.packaging_id);
+        logger.debug('[NFe Snapshot] populate start', { packaging_id: cleanItem.packaging_id });
         try {
             // Fetch packaging data (WITHOUT UOM join - causes multi-relationship error)
             const { data: packaging, error: pkgError } = await supabase
@@ -280,11 +281,15 @@ export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<Sa
                 .single();
 
             if (pkgError) {
-                console.error('[NFe Snapshot] Packaging fetch error:', pkgError);
+                logger.warn('[NFe Snapshot] packaging fetch error', { message: pkgError.message, code: pkgError.code });
                 throw pkgError;
             }
 
-            console.log('[NFe Snapshot] Packaging data:', packaging);
+            logger.debug('[NFe Snapshot] packaging fetched', {
+                has_packaging: !!packaging,
+                type: packaging?.type,
+                qty_in_base: packaging?.qty_in_base,
+            });
             if (packaging) {
                 // Derive sales UOM from packaging type (no need for UOM table join)
                 const salesUomAbbrev = deriveUomFromPackagingType(packaging.type);
@@ -297,11 +302,11 @@ export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<Sa
                     .single();
 
                 if (itemError) {
-                    console.error('[NFe Snapshot] Item fetch error:', itemError);
+                    logger.warn('[NFe Snapshot] item fetch error', { message: itemError.message, code: itemError.code });
                     throw itemError;
                 }
 
-                console.log('[NFe Snapshot] Item UOM data:', item);
+                logger.debug('[NFe Snapshot] item UOM fetched', { uom: item?.uom });
                 if (item) {
                     const baseUomAbbrev = item.uom || 'UN';
 
@@ -313,12 +318,12 @@ export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<Sa
                     // Build short label: "CX 12xPC"
                     cleanItem.sales_unit_label_snapshot =
                         `${salesUomAbbrev} ${packaging.qty_in_base}x${baseUomAbbrev}`;
-                    console.log('[NFe Snapshot] ✅ Populated successfully:', cleanItem.sales_unit_label_snapshot);
+                    logger.debug('[NFe Snapshot] populated', { sales_unit_label_snapshot: cleanItem.sales_unit_label_snapshot });
                 }
             }
         } catch (err) {
             // Non-critical: snapshots are optional, don't fail the save
-            console.error('[NFe Snapshot] ❌ Failed to populate:', err);
+            logger.warn('[NFe Snapshot] populate failed', { message: err instanceof Error ? err.message : String(err) });
         }
     }
 
@@ -545,7 +550,7 @@ export async function getLastOrderForClient(supabase: SupabaseClient, clientId: 
         .maybeSingle();
 
     if (orderError) {
-        console.error('Error fetching last order:', orderError);
+        logger.error('[getLastOrderForClient] fetch last order failed', { message: orderError.message, code: orderError.code });
         throw orderError;
     }
 
@@ -563,7 +568,7 @@ export async function getLastOrderForClient(supabase: SupabaseClient, clientId: 
         .eq('document_id', order.id);
 
     if (itemsError) {
-        console.error('Error fetching order items:', itemsError);
+        logger.warn('[getLastOrderForClient] fetch order items failed', { message: itemsError.message, code: itemsError.code });
         // Don't throw, just return order without items
         return { ...order, items: [] };
     }
@@ -609,7 +614,9 @@ export async function recalculateFiscalForOrder(
         .eq('document_id', orderId);
 
     if (error || !items || items.length === 0) {
-        console.error('Error fetching items for fiscal recalc:', error);
+        if (error) {
+            logger.warn('[recalculateFiscalForOrder] fetch items failed', { message: error.message, code: error.code });
+        }
         return;
     }
 
