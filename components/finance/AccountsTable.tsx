@@ -319,15 +319,15 @@ export function AccountsTable({ companyId }: { companyId: string }) {
 
             {/* Top Controls: Type + Status */}
             <div className="flex flex-col items-center gap-4">
-                <div className="flex items-center gap-8 bg-gray-100/50 p-1.5 rounded-2xl border border-gray-100 shadow-sm">
+                <div className="flex items-center gap-8 bg-gray-100/50 p-1.5 rounded-2xl border border-gray-100">
                     {/* Direction Buttons */}
                     <div className="flex gap-1">
                         <button
                             onClick={() => setDirection('IN')}
                             className={cn(
-                                "px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                                "px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2",
                                 direction === 'IN'
-                                    ? "bg-white text-emerald-700 shadow-sm ring-1 ring-black/5"
+                                    ? "bg-white text-emerald-700 ring-1 ring-black/5"
                                     : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
                             )}
                         >
@@ -336,9 +336,9 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                         <button
                             onClick={() => setDirection('OUT')}
                             className={cn(
-                                "px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                                "px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2",
                                 direction === 'OUT'
-                                    ? "bg-white text-rose-700 shadow-sm ring-1 ring-black/5"
+                                    ? "bg-white text-rose-700 ring-1 ring-black/5"
                                     : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
                             )}
                         >
@@ -347,9 +347,9 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                         <button
                             onClick={() => setDirection('ALL')}
                             className={cn(
-                                "px-5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2",
+                                "px-5 py-2 rounded-full text-xs font-bold transition-all flex items-center gap-2",
                                 direction === 'ALL'
-                                    ? "bg-white text-blue-700 shadow-sm ring-1 ring-black/5"
+                                    ? "bg-white text-blue-700 ring-1 ring-black/5"
                                     : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
                             )}
                         >
@@ -364,9 +364,9 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                         <button
                             onClick={() => setStatusFilter('OPEN')}
                             className={cn(
-                                "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                                "px-4 py-2 rounded-full text-xs font-bold transition-all",
                                 statusFilter === 'OPEN'
-                                    ? "bg-blue-100 text-blue-700 shadow-inner"
+                                    ? "bg-blue-100 text-blue-700"
                                     : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
                             )}
                         >
@@ -375,9 +375,9 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                         <button
                             onClick={() => setStatusFilter('PAID')}
                             className={cn(
-                                "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                                "px-4 py-2 rounded-full text-xs font-bold transition-all",
                                 statusFilter === 'PAID'
-                                    ? "bg-green-100 text-green-700 shadow-inner"
+                                    ? "bg-green-100 text-green-700"
                                     : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
                             )}
                         >
@@ -386,9 +386,9 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                         <button
                             onClick={() => setStatusFilter('ALL')}
                             className={cn(
-                                "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                                "px-4 py-2 rounded-full text-xs font-bold transition-all",
                                 statusFilter === 'ALL'
-                                    ? "bg-gray-200 text-gray-700 shadow-inner"
+                                    ? "bg-gray-200 text-gray-700"
                                     : "text-gray-500 hover:text-gray-900 hover:bg-white/50"
                             )}
                         >
@@ -399,10 +399,10 @@ export function AccountsTable({ companyId }: { companyId: string }) {
             </div>
 
             {/* Main Content */}
-            <Card className="min-h-[500px]">
+            <Card>
                 {/* Filters Header w/ Toggle */}
                 <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-4 justify-between items-center bg-gray-50/30">
-                    <div className="relative w-full md:w-[250px] lg:w-[300px]">
+                    <div className="relative w-full md:w-64 lg:w-72">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                             placeholder="Buscar cliente, documento..."
@@ -414,14 +414,14 @@ export function AccountsTable({ companyId }: { companyId: string }) {
 
                     <div className="flex flex-wrap items-center gap-4">
                         {/* View Mode Toggle */}
-                        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
+                        <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-full">
                             <Label className="text-[10px] font-bold text-gray-500 uppercase px-2">Visualização:</Label>
                             <button
                                 onClick={() => handleViewModeChange('INSTALLMENT')}
                                 className={cn(
-                                    "px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5",
+                                    "px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5",
                                     viewMode === 'INSTALLMENT'
-                                        ? "bg-white text-gray-900 shadow-sm"
+                                        ? "bg-white text-gray-900 ring-1 ring-black/5"
                                         : "text-gray-500 hover:text-gray-900"
                                 )}
                             >
@@ -430,9 +430,9 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                             <button
                                 onClick={() => handleViewModeChange('ORDER')}
                                 className={cn(
-                                    "px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5",
+                                    "px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5",
                                     viewMode === 'ORDER'
-                                        ? "bg-white text-gray-900 shadow-sm"
+                                        ? "bg-white text-gray-900 ring-1 ring-black/5"
                                         : "text-gray-500 hover:text-gray-900"
                                 )}
                             >
@@ -445,7 +445,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                         <div className="flex gap-2">
                             {/* Date Type Selector (Replaces Status Selector) */}
                             <Select value={dateTypeFilter} onValueChange={(v: any) => setDateTypeFilter(v)}>
-                                <SelectTrigger className="w-[140px] bg-white">
+                                <SelectTrigger className="w-36 bg-white">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -464,9 +464,9 @@ export function AccountsTable({ companyId }: { companyId: string }) {
 
                 {/* Selection Bar */}
                 {selectedIds.size > 0 && (
-                    <div className="mx-4 mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                    <div className="mx-4 mt-4 p-3 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-between animate-in fade-in slide-in-from-top-2">
                         <div className="flex items-center gap-3">
-                            <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-md text-xs font-semibold">
+                            <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
                                 {selectedIds.size} {selectedIds.size === 1 ? 'lançamento selecionado' : 'lançamentos selecionados'}
                             </div>
 
@@ -475,7 +475,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                             <Button
                                 size="sm"
                                 onClick={() => setShowBulkSettleModal(true)}
-                                className="bg-green-600 hover:bg-green-700 text-white shadow-sm h-8 font-bold gap-2 text-xs rounded-full px-4"
+                                className="bg-green-600 hover:bg-green-700 text-white h-8 font-bold gap-2 text-xs rounded-full px-4"
                             >
                                 <CheckCircle className="w-3.5 h-3.5" />
                                 BAIXAR SELECIONADOS
@@ -512,8 +512,8 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                             <TableHeader>
                                 {viewMode === 'INSTALLMENT' ? (
                                     <TableRow className="bg-gray-50/40 hover:bg-gray-50/40">
-                                        <TableHead className="w-[50px]"></TableHead>
-                                        <TableHead className="w-[50px]">
+                                        <TableHead className="w-12"></TableHead>
+                                        <TableHead className="w-12">
                                             <Checkbox
                                                 checked={isAllSelected ? true : isIndeterminate ? "indeterminate" : false}
                                                 onCheckedChange={handleSelectAll}
@@ -531,8 +531,8 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                                     </TableRow>
                                 ) : (
                                     <TableRow className="bg-gray-50/40 hover:bg-gray-50/40">
-                                        <TableHead className="w-[50px]"></TableHead>
-                                        <TableHead className="w-[50px]">
+                                        <TableHead className="w-12"></TableHead>
+                                        <TableHead className="w-12">
                                             <Checkbox
                                                 checked={isAllSelected ? true : isIndeterminate ? "indeterminate" : false}
                                                 onCheckedChange={handleSelectAll}
@@ -585,7 +585,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                                                             </TableCell>
                                                             <TableCell>
                                                                 <div className="flex flex-col">
-                                                                    <span className="font-medium truncate max-w-[200px]">
+                                                                    <span className="font-medium truncate inline-block w-48">
                                                                         {toTitleCase(inst.ar_title?.organization?.trade_name || inst.ar_title?.organization?.legal_name || 'Desconhecido')}
                                                                     </span>
                                                                 </div>
