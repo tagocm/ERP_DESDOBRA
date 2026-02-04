@@ -392,7 +392,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                                 </div>
                                 <div className="space-y-1">
                                     <Label>Status</Label>
-                                    <div className="h-10 flex items-center px-3 border rounded-md bg-gray-50 text-sm font-medium">
+                                    <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium">
                                         {selectedOrder.status === 'planned' && "Planejada"}
                                         {selectedOrder.status === 'in_progress' && "Em Produção"}
                                         {selectedOrder.status === 'done' && "Concluída"}
