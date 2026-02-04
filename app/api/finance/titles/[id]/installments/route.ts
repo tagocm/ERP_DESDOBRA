@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
 
 async function createClient() {
     const cookieStore = await cookies();
@@ -145,8 +146,12 @@ export async function PUT(
 
         return NextResponse.json({ success: true });
 
-    } catch (error: any) {
-        console.error("Update installments error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[finance/titles/installments] Error', { titleId: id, message });
+        return NextResponse.json(
+            { error: process.env.NODE_ENV === 'production' ? 'Erro ao atualizar parcelas' : message },
+            { status: 500 }
+        );
     }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
     try {
@@ -66,7 +67,9 @@ export async function POST(request: NextRequest) {
             .createSignedUrl(settings.logo_path, 3600); // 1 hour
 
         if (signedUrlError || !signedUrlData) {
-            console.error('Signed URL error:', signedUrlError);
+            logger.error('[logo/signed-url] createSignedUrl failed', {
+                message: signedUrlError?.message
+            });
             return NextResponse.json(
                 { error: 'Erro ao gerar URL do logo' },
                 { status: 500 }
@@ -78,7 +81,8 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error('Signed URL generation error:', error);
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[logo/signed-url] Unexpected error', { message });
         return NextResponse.json(
             { error: 'Erro interno do servidor' },
             { status: 500 }

@@ -6,6 +6,7 @@ import { itemsRepo } from '@/lib/data/items'
 import { inventoryRepo } from '@/lib/data/inventory'
 import { getActiveCompanyId } from '@/lib/auth/get-active-company'
 import { errorResponse } from '@/lib/api/response'
+import { logger } from '@/lib/logger'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -86,8 +87,9 @@ export async function POST(
                 }
             })
 
-        } catch (applyError: any) {
-            console.error('Error applying stock movements, reverting status:', applyError)
+        } catch (applyError: unknown) {
+            const applyMessage = applyError instanceof Error ? applyError.message : 'Unknown error'
+            logger.error('[work-orders/finish] Error applying stock movements, reverting status', { id, message: applyMessage })
 
             // Revert status
             await workOrdersRepo.updateStatus(
@@ -106,14 +108,15 @@ export async function POST(
             // Yes, restore original produced_qty (likely 0 or partial)
             await workOrdersRepo.update(companyId, id, { produced_qty: workOrder.produced_qty })
 
-            throw new Error(`Falha ao gerar movimentações de estoque: ${applyError.message}`)
+            throw new Error(`Falha ao gerar movimentações de estoque: ${applyMessage}`)
         }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         if (error instanceof z.ZodError) {
             return NextResponse.json({ error: error.issues }, { status: 400 })
         }
-        console.error('Error finishing work order:', error)
+        const message = error instanceof Error ? error.message : 'Unknown error'
+        logger.error('[work-orders/finish] Error', { id, message })
         return errorResponse('Internal Server Error', 500, undefined, error instanceof Error ? error.message : error)
     }
 }

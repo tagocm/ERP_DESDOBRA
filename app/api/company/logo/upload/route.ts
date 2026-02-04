@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { validateLogoFile, generateFilePath } from '@/lib/upload-helpers';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
     try {
@@ -81,7 +82,9 @@ export async function POST(request: NextRequest) {
             });
 
         if (uploadError) {
-            console.error('Upload error:', uploadError);
+            logger.error('[logo/upload] Storage upload failed', {
+                message: uploadError.message
+            });
             return NextResponse.json(
                 { error: 'Erro ao fazer upload do arquivo' },
                 { status: 500 }
@@ -110,7 +113,10 @@ export async function POST(request: NextRequest) {
             });
 
         if (updateError) {
-            console.error('Update error:', updateError);
+            logger.error('[logo/upload] company_settings upsert failed', {
+                code: updateError.code,
+                message: updateError.message
+            });
             // Try to clean up uploaded file
             await supabaseUser.storage.from('company-assets').remove([filePath]);
             return NextResponse.json(
@@ -125,7 +131,8 @@ export async function POST(request: NextRequest) {
         });
 
     } catch (error: any) {
-        console.error('Logo upload error:', error);
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[logo/upload] Unexpected error', { message });
         return NextResponse.json(
             { error: 'Erro interno do servidor' },
             { status: 500 }

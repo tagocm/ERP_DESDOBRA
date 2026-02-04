@@ -2,6 +2,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { requireInternalApiAccess } from "@/lib/api/internal";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: Request) {
     const gate = requireInternalApiAccess(request);
@@ -67,8 +68,12 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true, routeId: route.id, orderId });
 
-    } catch (error: any) {
-        console.error("Test Setup Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        logger.error("[test/setup-delivery-test] Error", { message });
+        return NextResponse.json(
+            { error: process.env.NODE_ENV === "production" ? "Erro ao configurar teste" : message },
+            { status: 500 }
+        );
     }
 }

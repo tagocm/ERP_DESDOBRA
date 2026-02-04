@@ -6,6 +6,7 @@
 'use server';
 
 import { createClient } from '@/utils/supabase/server';
+import { logger } from '@/lib/logger';
 import {
     listPendingEvents,
     getEventWithDetails,
@@ -75,8 +76,8 @@ export async function listBankAccountsAction(companyId: string): Promise<ActionR
 
         return { success: true, data: options };
     } catch (error: unknown) {
-        console.error('[listBankAccountsAction] Error:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[listBankAccountsAction] Error', { message });
         return { success: false, error: message };
     }
 }
@@ -97,8 +98,8 @@ export async function listGLAccountsAction(companyId: string): Promise<ActionRes
         if (error) throw error;
         return { success: true, data: data || [] };
     } catch (error: unknown) {
-        console.error('[listGLAccountsAction] Error:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[listGLAccountsAction] Error', { message });
         return { success: false, error: message };
     }
 }
@@ -119,8 +120,8 @@ export async function listCostCentersAction(companyId: string): Promise<ActionRe
         if (error) throw error;
         return { success: true, data: data || [] };
     } catch (error: unknown) {
-        console.error('[listCostCentersAction] Error:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[listCostCentersAction] Error', { message });
         return { success: false, error: message };
     }
 }
@@ -141,8 +142,8 @@ export async function listPaymentTermsAction(companyId: string): Promise<ActionR
         if (error) throw error;
         return { success: true, data: data || [] };
     } catch (error: unknown) {
-        console.error('[listPaymentTermsAction] Error:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[listPaymentTermsAction] Error', { message });
         return { success: false, error: message };
     }
 }
@@ -155,8 +156,8 @@ export async function listPendingEventsAction(companyId: string): Promise<Action
         const events = await listPendingEvents(companyId);
         return { success: true, data: events };
     } catch (error: unknown) {
-        console.error('[listPendingEventsAction] Error:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[listPendingEventsAction] Error', { message });
         return { success: false, error: message };
     }
 }
@@ -172,8 +173,8 @@ export async function getEventDetailsAction(eventId: string): Promise<ActionResu
         }
         return { success: true, data: event };
     } catch (error: unknown) {
-        console.error('[getEventDetailsAction] Error:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[getEventDetailsAction] Error', { message });
         return { success: false, error: message };
     }
 }
@@ -191,8 +192,8 @@ export async function validateEventAction(eventId: string): Promise<ActionResult
         const pendencies = validateFinancialEvent(event);
         return { success: true, data: pendencies };
     } catch (error: unknown) {
-        console.error('[validateEventAction] Error:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[validateEventAction] Error', { message });
         return { success: false, error: message };
     }
 }
@@ -229,8 +230,8 @@ export async function updateInstallmentsAction(
 
         return { success: true };
     } catch (error: unknown) {
-        console.error('[updateInstallmentsAction] Error:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[updateInstallmentsAction] Error', { message });
         return { success: false, error: message };
     }
 }
@@ -250,8 +251,8 @@ export async function autoFixInstallmentsAction(eventId: string): Promise<Action
 
         return { success: true, data: fixedInstallments };
     } catch (error: unknown) {
-        console.error('[autoFixInstallmentsAction] Error:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[autoFixInstallmentsAction] Error', { message });
         return { success: false, error: message };
     }
 }
@@ -271,8 +272,8 @@ export async function markAttentionAction(eventId: string, reason: string): Prom
         await markEventAttention(eventId, user.id, reason);
         return { success: true };
     } catch (error: unknown) {
-        console.error('[markAttentionAction] Error:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[markAttentionAction] Error', { message });
         return { success: false, error: message };
     }
 }
@@ -381,7 +382,10 @@ export async function approveEventAction(eventId: string): Promise<ActionResult<
                             .eq('id', event.origin_id);
 
                         if (clearBlockError) {
-                            console.error('[Approve] Failed to clear block:', clearBlockError);
+                            logger.warn('[Approve] Failed to clear block (non-blocking)', {
+                                code: clearBlockError.code,
+                                message: clearBlockError.message
+                            });
                             // Non-blocking - approval already succeeded
                         }
 
@@ -403,15 +407,16 @@ export async function approveEventAction(eventId: string): Promise<ActionResult<
                                 }
                             });
 
-                        console.log(`[Approve] Order ${salesDoc.document_number} unblocked and sent to sandbox`);
+                        logger.info('[Approve] Order unblocked and sent to sandbox', { documentNumber: salesDoc.document_number });
                     }
                 } catch (sandboxError: unknown) {
-                    console.error('[Approve] Sandbox logic failed (non-blocking):', sandboxError);
+                    const message = sandboxError instanceof Error ? sandboxError.message : 'Unknown error';
+                    logger.warn('[Approve] Sandbox logic failed (non-blocking)', { message });
                     // Don't fail the approval - this is a post-approval operation
                 }
             }
 
-            console.log(`[Approve] Event ${eventId} approved → ${direction} Title ${titleId}`);
+            logger.info('[Approve] Event approved', { eventId, direction, titleId });
 
             return {
                 success: true,
@@ -420,10 +425,10 @@ export async function approveEventAction(eventId: string): Promise<ActionResult<
 
         } catch (titleError: unknown) {
             // Rollback on failure
-            console.error('[Approve] Title generation failed, rolling back:', titleError);
+            const message = titleError instanceof Error ? titleError.message : 'Unknown error';
+            logger.error('[Approve] Title generation failed, rolling back', { message });
             await rollbackApproval(eventId);
 
-            const message = titleError instanceof Error ? titleError.message : 'Unknown error';
             return {
                 success: false,
                 error: `Falha ao criar título: ${message}`
@@ -431,8 +436,8 @@ export async function approveEventAction(eventId: string): Promise<ActionResult<
         }
 
     } catch (error: unknown) {
-        console.error('[approveEventAction] Error:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[approveEventAction] Error', { message });
         return { success: false, error: message };
     }
 }
@@ -485,8 +490,8 @@ export async function rejectEventAction(eventId: string, reason: string): Promis
         await rejectEvent(eventId, user.id, reason);
         return { success: true };
     } catch (error: unknown) {
-        console.error('[rejectEventAction] Error:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[rejectEventAction] Error', { message });
         return { success: false, error: message };
     }
 }
@@ -577,8 +582,8 @@ export async function recalculateInstallmentsAction(
 
         return { success: true, data: installments as EventInstallment[] };
     } catch (error: unknown) {
-        console.error('[recalculateInstallments] Error:', error);
         const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[recalculateInstallments] Error', { message });
         return { success: false, error: message };
     }
 }

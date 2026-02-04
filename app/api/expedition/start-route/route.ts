@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import { createDeliveryFromSalesOrder, updateDeliveryItemQuantities, setDeliveryStatus } from '@/lib/services/deliveries';
 import { normalizeLoadingStatus } from '@/lib/constants/status';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
     try {
@@ -215,22 +216,29 @@ export async function POST(request: Request) {
         });
 
         if (stockError) {
-            console.error('Stock Deduction Error:', stockError);
+            const stockMessage = typeof stockError?.message === 'string' ? stockError.message : 'Unknown error';
+            const stockCode = typeof stockError?.code === 'string' ? stockError.code : undefined;
+            logger.error('[expedition/start-route] Stock deduction failed', {
+                routeId,
+                code: stockCode,
+                message: stockMessage
+            });
             // Log error but don't fail the request since route is already started
             await supabase.from('route_event_logs').insert({
                 route_id: routeId,
                 event_code: 'STOCK_ERROR',
-                payload: { error: stockError, message: 'Failed to deduct stock' },
+                payload: { code: stockCode, message: stockMessage },
                 created_by_user_id: session.user.id
             });
         }
 
         return NextResponse.json({ success: true, processed: ordersToUpdateStatus.length });
 
-    } catch (error: any) {
-        console.error('Start Route Error:', error);
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[expedition/start-route] Error', { message });
         return NextResponse.json(
-            { error: error.message || 'Failed to start route' },
+            { error: process.env.NODE_ENV === 'production' ? 'Failed to start route' : message },
             { status: 500 }
         );
     }

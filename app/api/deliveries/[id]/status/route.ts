@@ -2,6 +2,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { setDeliveryStatus } from "@/lib/services/deliveries";
+import { logger } from "@/lib/logger";
 
 export async function PATCH(
     request: Request,
@@ -27,7 +28,8 @@ export async function PATCH(
         return NextResponse.json({ success: true });
 
     } catch (error: any) {
-        console.error("Error updating delivery status:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        const message = error instanceof Error ? error.message : "Unknown error";
+        logger.error("[deliveries/status] Error updating delivery status", { deliveryId: id, message });
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

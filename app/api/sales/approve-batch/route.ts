@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from "@/utils/supabase/server";
+import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
     try {
@@ -12,6 +13,10 @@ export async function POST(request: Request) {
         }
 
         const supabase = await createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Não autorizado.' }, { status: 401 });
+        }
 
         // 1. Identify valid budgets
         // We select fields to determine if it is a budget
@@ -21,7 +26,10 @@ export async function POST(request: Request) {
             .in('id', ids);
 
         if (fetchError) {
-            console.error('Error fetching docs for approval:', fetchError);
+            logger.error('[sales/approve-batch] Error fetching docs', {
+                code: fetchError.code,
+                message: fetchError.message
+            });
             return NextResponse.json({ error: 'Erro ao buscar dados.' }, { status: 500 });
         }
 
@@ -50,7 +58,10 @@ export async function POST(request: Request) {
                 .in('sales_document_id', validIds);
 
             if (routeError) {
-                console.error('Error clearing routes:', routeError);
+                logger.warn('[sales/approve-batch] Failed clearing routes (non-blocking)', {
+                    code: routeError.code,
+                    message: routeError.message
+                });
                 // We continue, as this might just mean no rows affected or permission issue, 
                 // but we really want to approve.
             }
@@ -65,7 +76,10 @@ export async function POST(request: Request) {
                 .eq('status', 'pending');
 
             if (cleanupError) {
-                console.error('Error cleaning up pending events:', cleanupError);
+                logger.warn('[sales/approve-batch] Failed cleaning pending events (non-blocking)', {
+                    code: cleanupError.code,
+                    message: cleanupError.message
+                });
             }
 
             // 4. Update Status and clear dispatch blocks
@@ -85,7 +99,10 @@ export async function POST(request: Request) {
                 .in('id', validIds);
 
             if (updateError) {
-                console.error('Error updating status:', updateError);
+                logger.error('[sales/approve-batch] Error updating status', {
+                    code: updateError.code,
+                    message: updateError.message
+                });
                 return NextResponse.json({ error: 'Erro ao atualizar status.' }, { status: 500 });
             }
 
@@ -96,7 +113,10 @@ export async function POST(request: Request) {
                 .in('id', validIds);
 
             if (fetchOrdersError) {
-                console.error('Error fetching orders for events:', fetchOrdersError);
+                logger.warn('[sales/approve-batch] Failed fetching orders for events (non-blocking)', {
+                    code: fetchOrdersError.code,
+                    message: fetchOrdersError.message
+                });
             } else if (ordersForEvents && ordersForEvents.length > 0) {
                 // Get partner names
                 const clientIds = [...new Set(ordersForEvents.map(o => o.client_id).filter(Boolean))];
@@ -127,7 +147,10 @@ export async function POST(request: Request) {
                     .select('id, total_amount, issue_date');
 
                 if (eventsError) {
-                    console.error('Error creating financial events:', eventsError);
+                    logger.error('[sales/approve-batch] Error creating financial events', {
+                        code: eventsError.code,
+                        message: eventsError.message
+                    });
                 } else if (insertedEvents && insertedEvents.length > 0) {
                     // Create default installments (single payment, 30 days)
                     const installmentsToCreate = insertedEvents.map(event => ({
@@ -144,7 +167,10 @@ export async function POST(request: Request) {
                         .insert(installmentsToCreate);
 
                     if (installmentsError) {
-                        console.error('Error creating installments:', installmentsError);
+                        logger.error('[sales/approve-batch] Error creating installments', {
+                            code: installmentsError.code,
+                            message: installmentsError.message
+                        });
                     }
                 }
             }
@@ -152,8 +178,9 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ approved: validIds.length, skipped: skippedCount });
 
-    } catch (error: any) {
-        console.error('Batch approve internal error:', error);
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[sales/approve-batch] Error', { message });
         return NextResponse.json({ error: 'Erro interno ao processar aprovação.' }, { status: 500 });
     }
 }

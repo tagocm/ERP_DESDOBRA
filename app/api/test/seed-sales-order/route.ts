@@ -2,6 +2,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { requireInternalApiAccess } from "@/lib/api/internal";
+import { logger } from "@/lib/logger";
 
 export async function POST(request: Request) {
     const gate = requireInternalApiAccess(request);
@@ -114,8 +115,12 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ success: true, orderId: order.id });
 
-    } catch (error: any) {
-        console.error("Seed Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Unknown error";
+        logger.error("[test/seed-sales-order] Error", { message });
+        return NextResponse.json(
+            { error: process.env.NODE_ENV === "production" ? "Erro ao executar seed" : message },
+            { status: 500 }
+        );
     }
 }

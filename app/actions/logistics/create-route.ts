@@ -1,6 +1,7 @@
 'use server'
 
 import { getActiveCompanyId } from "@/lib/auth/get-active-company"
+import { logger } from "@/lib/logger"
 import { createClient } from "@/utils/supabase/server"
 import { revalidatePath } from "next/cache"
 
@@ -33,7 +34,7 @@ export async function createRouteAction(payload: CreateRoutePayload) {
         .single()
 
     if (error) {
-        console.error("Create Route Error:", error)
+        logger.error("[createRouteAction] Error creating route", { code: error.code, message: error.message })
         throw new Error("Failed to create route")
     }
 
@@ -48,7 +49,8 @@ export async function createRouteAction(payload: CreateRoutePayload) {
             details: { name: payload.name, date: payload.route_date }
         })
     } catch (auditError) {
-        console.error("Audit Log Failed:", auditError)
+        const message = auditError instanceof Error ? auditError.message : String(auditError)
+        logger.warn("[createRouteAction] Audit log failed (non-blocking)", { message })
         // Non-blocking
     }
 

@@ -1,6 +1,7 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
 
 export async function GET(
     request: Request,
@@ -35,7 +36,8 @@ export async function GET(
         return NextResponse.json(delivery);
 
     } catch (error: any) {
-        console.error("Error fetching delivery:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        const message = error instanceof Error ? error.message : "Unknown error";
+        logger.error("[deliveries] Error fetching delivery", { deliveryId: id, message });
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }

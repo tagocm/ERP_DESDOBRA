@@ -2,6 +2,7 @@
 import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { setDeliveryStatus, updateDeliveryItemQuantities } from '@/lib/services/deliveries';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
     const supabase = await createClient();
@@ -147,8 +148,11 @@ export async function POST(request: NextRequest) {
                         }
                     }
                 } else if (outcome === 'partial') {
-                    console.log('[DEBUG] Processing PARTIAL return for order:', order.id);
-                    console.log('[DEBUG] Payload:', JSON.stringify(payload, null, 2));
+                    logger.debug('[expedition/finish-return] Processing partial return', {
+                        orderId: order.id,
+                        routeId,
+                        deliveredItemsCount: Array.isArray(payload.deliveredItems) ? payload.deliveredItems.length : 0
+                    });
 
                     await setDeliveryStatus(supabase, deliveryId, 'returned_partial');
 
@@ -167,6 +171,7 @@ export async function POST(request: NextRequest) {
 
                     if (deliveryItems) {
                         const updates = [];
+                        let returnedItemsCount = 0;
                         for (const di of deliveryItems) {
                             const deliveredQty = deliveredMap.has(di.sales_document_item_id)
                                 ? Number(deliveredMap.get(di.sales_document_item_id))
@@ -174,8 +179,7 @@ export async function POST(request: NextRequest) {
 
                             const loaded = Number(di.qty_loaded || 0);
                             const returned = Math.max(0, loaded - deliveredQty);
-
-                            console.log(`[DEBUG] Item ${di.sales_document_item_id}: delivered=${deliveredQty}, loaded=${loaded}, returned=${returned}`);
+                            if (returned > 0) returnedItemsCount++;
 
                             updates.push({
                                 itemId: di.id,
@@ -192,7 +196,11 @@ export async function POST(request: NextRequest) {
                                 }
                             }
                         }
-                        console.log('[DEBUG] Calling updateDeliveryItemQuantities with:', JSON.stringify(updates, null, 2));
+                        logger.debug('[expedition/finish-return] Updating delivery item quantities', {
+                            deliveryId,
+                            updatesCount: updates.length,
+                            returnedItemsCount
+                        });
                         await updateDeliveryItemQuantities(supabase, deliveryId, updates);
                     }
                 }
@@ -376,8 +384,12 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true });
 
-    } catch (e: any) {
-        console.error('Finish Return Error:', e);
-        return NextResponse.json({ error: e.message || 'Erro ao finalizar retorno' }, { status: 500 });
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : 'Unknown error';
+        logger.error('[expedition/finish-return] Error', { message });
+        return NextResponse.json(
+            { error: process.env.NODE_ENV === 'production' ? 'Erro ao finalizar retorno' : message },
+            { status: 500 }
+        );
     }
 }

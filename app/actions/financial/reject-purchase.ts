@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { logger } from '@/lib/logger';
 
 interface RejectPurchaseParams {
     purchaseOrderId: string;
@@ -82,7 +83,10 @@ export async function rejectPurchaseFinancial({ purchaseOrderId, reason, eventId
                 .eq('purchase_order_id', purchaseOrderId);
 
             if (updateTitlesError) {
-                console.error('Error updating AP titles to ON_HOLD', updateTitlesError);
+                logger.warn('[rejectPurchaseFinancial] Failed to update AP titles to ON_HOLD (non-blocking)', {
+                    code: updateTitlesError.code,
+                    message: updateTitlesError.message
+                });
                 // Log but continue
             }
         }
