@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabaseServer';
+import { createClient } from '@/utils/supabase/server';
 
 export async function DELETE(request: NextRequest) {
     try {
-        // Get authenticated user
-        const supabase = createAdminClient();
-        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        const supabaseUser = await createClient();
+        const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
+
+        // Admin client only for Storage ops (temporary until Storage RLS matches path convention)
+        const supabaseAdmin = createAdminClient();
 
         if (authError || !user) {
             return NextResponse.json(
@@ -25,12 +28,12 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Verify user is member of the company
-        const { data: membership, error: membershipError } = await supabase
+        const { data: membership, error: membershipError } = await supabaseUser
             .from('company_members')
             .select('company_id')
             .eq('company_id', companyId)
-            .eq('user_id', user.id)
-            .single();
+            .eq('auth_user_id', user.id)
+            .maybeSingle();
 
         if (membershipError || !membership) {
             return NextResponse.json(
@@ -40,11 +43,11 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Get logo path from settings
-        const { data: settings, error: settingsError } = await supabase
+        const { data: settings, error: settingsError } = await supabaseUser
             .from('company_settings')
             .select('logo_path')
             .eq('company_id', companyId)
-            .single();
+            .maybeSingle();
 
         if (settingsError || !settings?.logo_path) {
             return NextResponse.json(
@@ -53,8 +56,16 @@ export async function DELETE(request: NextRequest) {
             );
         }
 
+        const expectedPrefixes = [`companies/${companyId}/`, `${companyId}/`];
+        if (!expectedPrefixes.some((p) => settings.logo_path.startsWith(p))) {
+            return NextResponse.json(
+                { error: 'Nenhum logo encontrado' },
+                { status: 404 }
+            );
+        }
+
         // Delete file from Storage
-        const { error: deleteError } = await supabase.storage
+        const { error: deleteError } = await supabaseAdmin.storage
             .from('company-assets')
             .remove([settings.logo_path]);
 
@@ -67,7 +78,7 @@ export async function DELETE(request: NextRequest) {
         }
 
         // Update company_settings to remove logo_path
-        const { error: updateError } = await supabase
+        const { error: updateError } = await supabaseUser
             .from('company_settings')
             .update({
                 logo_path: null,
