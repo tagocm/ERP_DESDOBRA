@@ -51,7 +51,7 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                             <TableRow key={originalIndex} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
                                 <TableCell className="px-6 py-4">
                                     <div className="flex items-center">
-                                        <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 shadow-card border border-brand-100/50">
+                                        <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-2xl flex items-center justify-center text-brand-600 shadow-card border border-brand-100/50">
                                             <Package className="w-5 h-5" />
                                         </div>
                                         <div className="ml-4">
@@ -61,7 +61,7 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                                     </div>
                                 </TableCell>
                                 <TableCell className="px-6 py-4 text-center">
-                                    <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-50 text-slate-600 text-xs font-bold border border-slate-100">
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-2xl bg-slate-50 text-slate-600 text-xs font-bold border border-slate-100">
                                         {pkg.qty_in_base} <span className="mx-1 opacity-40">×</span> {baseUom}
                                     </span>
                                 </TableCell>
@@ -99,7 +99,7 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => onEdit(originalIndex)}
-                                            className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
+                                            className="h-8 w-8 rounded-2xl hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
                                         >
                                             <Edit2 className="w-4 h-4" />
                                         </Button>
@@ -107,7 +107,7 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => onDelete(originalIndex)}
-                                            className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+                                            className="h-8 w-8 rounded-2xl hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </Button>
