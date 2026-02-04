@@ -51,7 +51,7 @@
 - [ ] Padronizar validação de payload (Zod) nas rotas críticas
 
 ## 7) Operação (mínimo para produção)
-- [ ] Healthcheck interno (DB + storage) protegido por `INTERNAL_API_TOKEN`
+- [x] Healthcheck interno (DB + storage) protegido por `INTERNAL_API_TOKEN` (`GET /api/internal/health`)
 - [ ] Error tracking (Sentry ou equivalente) + alertas básicos
 - [ ] Política de backup/restore (Supabase) + teste periódico
 - [ ] Rotação de segredos (service role, internal token) + checklist de incident response
