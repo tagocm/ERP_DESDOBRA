@@ -1,18 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { validateCertFile, generateFilePath } from '@/lib/upload-helpers';
+import { rateLimit } from '@/lib/rate-limit';
+import { errorResponse } from '@/lib/api/response';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
     try {
+        const limitConfig = process.env.NODE_ENV === 'production'
+            ? { limit: 20, windowMs: 60_000 }
+            : { limit: 200, windowMs: 60_000 };
+        const limit = rateLimit(request, { key: "cert-a1-upload", ...limitConfig });
+        if (!limit.ok) {
+            return errorResponse("Too many requests", 429, "RATE_LIMIT");
+        }
+
         // Get authenticated user
         const supabaseUser = await createClient();
         const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
 
         if (authError || !user) {
-            return NextResponse.json(
-                { error: 'Não autenticado' },
-                { status: 401 }
-            );
+            return errorResponse("Não autenticado", 401, "UNAUTHORIZED");
         }
 
         // Get form data
@@ -21,17 +29,11 @@ export async function POST(request: NextRequest) {
         const companyId = formData.get('companyId') as string;
 
         if (!file) {
-            return NextResponse.json(
-                { error: 'Nenhum arquivo enviado' },
-                { status: 400 }
-            );
+            return errorResponse("Nenhum arquivo enviado", 400, "INVALID_PAYLOAD");
         }
 
         if (!companyId) {
-            return NextResponse.json(
-                { error: 'ID da empresa não fornecido' },
-                { status: 400 }
-            );
+            return errorResponse("ID da empresa não fornecido", 400, "INVALID_PAYLOAD");
         }
 
         // Verify user is member of the company
@@ -43,19 +45,13 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
 
         if (membershipError || !membership) {
-            return NextResponse.json(
-                { error: 'Você não tem permissão para acessar esta empresa' },
-                { status: 403 }
-            );
+            return errorResponse("Você não tem permissão para acessar esta empresa", 403, "FORBIDDEN");
         }
 
         // Validate file
         const validation = validateCertFile(file);
         if (!validation.valid) {
-            return NextResponse.json(
-                { error: validation.error },
-                { status: 400 }
-            );
+            return errorResponse(validation.error || "Arquivo inválido", 400, "INVALID_CERT");
         }
 
         // Generate file path
@@ -81,11 +77,8 @@ export async function POST(request: NextRequest) {
             });
 
         if (uploadError) {
-            console.error('Upload error:', uploadError);
-            return NextResponse.json(
-                { error: 'Erro ao fazer upload do certificado' },
-                { status: 500 }
-            );
+            logger.error('[CertUpload] Upload error', { message: uploadError.message });
+            return errorResponse("Erro ao fazer upload do certificado", 500, "STORAGE_ERROR");
         }
 
         // Delete old certificate if exists
@@ -118,13 +111,10 @@ export async function POST(request: NextRequest) {
             });
 
         if (updateError) {
-            console.error('Update error:', updateError);
+            logger.error('[CertUpload] company_settings upsert error', { code: updateError.code, message: updateError.message });
             // Try to clean up uploaded file
             await supabaseUser.storage.from('company-assets').remove([filePath]);
-            return NextResponse.json(
-                { error: 'Erro ao atualizar configurações' },
-                { status: 500 }
-            );
+            return errorResponse("Erro ao atualizar configurações", 500, "DB_ERROR");
         }
 
         return NextResponse.json({
@@ -133,11 +123,9 @@ export async function POST(request: NextRequest) {
             uploadedAt
         });
 
-    } catch (error: any) {
-        console.error('Certificate upload error:', error);
-        return NextResponse.json(
-            { error: 'Erro interno do servidor' },
-            { status: 500 }
-        );
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[CertUpload] Unexpected error', { message });
+        return errorResponse("Erro interno do servidor", 500, "INTERNAL_ERROR");
     }
 }

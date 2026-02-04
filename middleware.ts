@@ -2,6 +2,26 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+function applySecurityHeaders(response: NextResponse, request: NextRequest) {
+    const enabled =
+        process.env.SECURITY_HEADERS === "true" || process.env.NODE_ENV === "production";
+    if (!enabled) return;
+
+    response.headers.set("X-Content-Type-Options", "nosniff");
+    response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    response.headers.set("X-Frame-Options", "SAMEORIGIN");
+    response.headers.set("Content-Security-Policy", "frame-ancestors 'self';");
+
+    const forwardedProto = request.headers.get("x-forwarded-proto");
+    const isHttps = forwardedProto === "https" || request.nextUrl.protocol === "https:";
+    if (isHttps) {
+        response.headers.set(
+            "Strict-Transport-Security",
+            "max-age=15552000; includeSubDomains"
+        );
+    }
+}
+
 export async function middleware(request: NextRequest) {
     // 1. Guard clause: CI/E2E bypass when Supabase envs are missing OR explicitly in E2E mode
     if (
@@ -50,12 +70,15 @@ export async function middleware(request: NextRequest) {
         } = await supabase.auth.getUser();
 
         if (request.nextUrl.pathname.startsWith("/app") && !user) {
-            return NextResponse.redirect(new URL("/login", request.url));
+            const redirectResponse = NextResponse.redirect(new URL("/login", request.url));
+            applySecurityHeaders(redirectResponse, request);
+            return redirectResponse;
         }
-    } catch (_e) {
+    } catch {
         // Error handling can be added here if needed
     }
 
+    applySecurityHeaders(response, request);
     return response;
 }
 
