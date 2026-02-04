@@ -6,32 +6,50 @@ import { createAdminClient } from '@/lib/supabaseServer';
 import { consultarRecibo } from '@/lib/nfe/sefaz/services/retAutorizacao';
 import { upsertNfeEmission, buildNfeProc } from '@/lib/nfe/sefaz/services/persistence';
 import { loadCompanyCertificate } from '@/lib/nfe/sefaz/services/certificateLoader';
+import { rateLimit } from "@/lib/rate-limit";
+import { errorResponse } from "@/lib/api/response";
+import { logger } from "@/lib/logger";
+import { NfeSefazError } from "@/lib/nfe/sefaz/errors";
 
 export async function POST(request: NextRequest) {
     try {
+        const limitConfig = process.env.NODE_ENV === 'production'
+            ? { limit: 20, windowMs: 60_000 }
+            : { limit: 200, windowMs: 60_000 };
+
+        const limit = rateLimit(request, { key: "nfe-query-receipt", ...limitConfig });
+        if (!limit.ok) {
+            return errorResponse("Too many requests", 429, "RATE_LIMIT");
+        }
+
         // 1. Authenticate
         const supabaseUser = await createClient();
         const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
 
         if (authError || !user) {
-            console.error('[QueryReceipt] Auth failed:', authError);
-            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+            logger.warn('[QueryReceipt] Auth failed', {
+                hasError: !!authError
+            });
+            return errorResponse("Não autenticado", 401, "UNAUTHORIZED");
         }
 
-        console.log('[QueryReceipt] User authenticated:', user.id);
-
         // 2. Parse request
-        const { accessKey, companyId } = await request.json();
+        let body: unknown;
+        try {
+            body = await request.json();
+        } catch {
+            return errorResponse("JSON inválido", 400, "BAD_JSON");
+        }
+
+        const { accessKey, companyId } = (body || {}) as { accessKey?: string; companyId?: string };
 
         if (!accessKey || !companyId) {
-            return NextResponse.json({ error: 'accessKey e companyId obrigatórios' }, { status: 400 });
+            return errorResponse("accessKey e companyId obrigatórios", 400, "INVALID_PAYLOAD");
         }
 
         // 3. Verify membership
         const supabaseAdmin = createAdminClient();
 
-        console.log(`[QueryReceipt] Checking membership for User: ${user.id}, Company: ${companyId}`);
-        // const supabaseAdmin = createAdminClient(); // Moved up
         const { data: membership, error: membershipError } = await supabaseAdmin
             .from('company_members')
             .select('company_id')
@@ -40,8 +58,11 @@ export async function POST(request: NextRequest) {
             .single();
 
         if (membershipError || !membership) {
-            console.error('[QueryReceipt] Membership check failed:', membershipError);
-            return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+            logger.warn('[QueryReceipt] Membership check failed', {
+                code: membershipError?.code,
+                message: membershipError?.message
+            });
+            return errorResponse("Sem permissão", 403, "FORBIDDEN");
         }
 
 
@@ -66,7 +87,6 @@ export async function POST(request: NextRequest) {
         // 6. Decide Query Method
         if (emission?.n_recibo) {
             // Standard Flow: We have a receipt number
-            console.log(`[QueryReceipt] Querying by Receipt: ${emission.n_recibo}`);
             method = 'receipt';
             result = await consultarRecibo(emission.n_recibo, {
                 uf: emission.uf || 'SP',
@@ -79,7 +99,6 @@ export async function POST(request: NextRequest) {
 
         } else {
             // Fallback Flow: Query by Access Key (Protocol)
-            console.log(`[QueryReceipt] Fallback: Querying by Access Key: ${accessKey}`);
             method = 'protocol';
 
             // Dynamic import to avoid circular dep if any (optional, but safe)
@@ -141,25 +160,32 @@ export async function POST(request: NextRequest) {
             ...updates
         });
 
+        const exposeXml = process.env.NODE_ENV !== 'production' || process.env.EXPOSE_NFE_XML === 'true';
         return NextResponse.json({
             success: status === 'authorized',
             status,
             cStat: result.cStat,
             xMotivo: result.xMotivo,
-            xmlNfeProc: updates.xml_nfe_proc
+            method,
+            ...(exposeXml ? { xmlNfeProc: updates.xml_nfe_proc } : {})
         });
 
-    } catch (error: any) {
-        console.error('Query receipt error:', error);
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[QueryReceipt] Error', {
+            message,
+            code: (error as { code?: unknown })?.code
+        });
 
-        // Return full diagnostic details if available
-        if (error.details) {
-            return NextResponse.json(error.details, { status: 500 });
+        if (error instanceof NfeSefazError) {
+            const safeDetails = {
+                code: error.code,
+                hint: (error.details as { hint?: unknown })?.hint,
+                status: (error.details as { status?: unknown })?.status
+            };
+            return errorResponse("Erro ao consultar SEFAZ", 500, "SEFAZ_ERROR", safeDetails);
         }
 
-        return NextResponse.json(
-            { error: error.message || 'Erro ao consultar recibo' },
-            { status: 500 }
-        );
+        return errorResponse(message || "Erro ao consultar recibo", 500, "INTERNAL_ERROR");
     }
 }

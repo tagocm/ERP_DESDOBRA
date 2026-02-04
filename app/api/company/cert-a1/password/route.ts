@@ -1,39 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { storePassword, deletePassword } from '@/lib/vault-helpers';
+import { rateLimit } from '@/lib/rate-limit';
+import { errorResponse } from '@/lib/api/response';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
     try {
+        const limitConfig = process.env.NODE_ENV === 'production'
+            ? { limit: 30, windowMs: 60_000 }
+            : { limit: 300, windowMs: 60_000 };
+        const limit = rateLimit(request, { key: "cert-a1-password", ...limitConfig });
+        if (!limit.ok) {
+            return errorResponse("Too many requests", 429, "RATE_LIMIT");
+        }
+
         // Get authenticated user
         const supabaseUser = await createClient();
         const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
 
         if (authError || !user) {
-            return NextResponse.json(
-                { error: 'Não autenticado' },
-                { status: 401 }
-            );
+            return errorResponse("Não autenticado", 401, "UNAUTHORIZED");
         }
 
         // Get request data
-        const { companyId, password } = await request.json();
+        let body: unknown;
+        try {
+            body = await request.json();
+        } catch {
+            return errorResponse("JSON inválido", 400, "BAD_JSON");
+        }
+        const { companyId, password } = (body || {}) as { companyId?: string; password?: unknown };
 
         if (!companyId) {
-            return NextResponse.json(
-                { error: 'ID da empresa não fornecido' },
-                { status: 400 }
-            );
+            return errorResponse("ID da empresa não fornecido", 400, "INVALID_PAYLOAD");
         }
 
         if (!password || typeof password !== 'string') {
-            return NextResponse.json(
-                { error: 'Senha não fornecida' },
-                { status: 400 }
-            );
+            return errorResponse("Senha não fornecida", 400, "INVALID_PAYLOAD");
         }
 
         // Verify user is member of the company
-        console.log(`[CertPassword] Checking membership for User ${user.id} in Company ${companyId}`);
         const { data: membership, error: membershipError } = await supabaseUser
             .from('company_members')
             .select('company_id')
@@ -41,16 +48,12 @@ export async function POST(request: NextRequest) {
             .eq('auth_user_id', user.id) // Fixed: user_id -> auth_user_id
             .single();
 
-        if (membershipError) {
-            console.error('[CertPassword] Membership check error:', membershipError);
-        }
-
         if (membershipError || !membership) {
-            console.error('[CertPassword] Permission denied: Member not found or error');
-            return NextResponse.json(
-                { error: 'Você não tem permissão para acessar esta empresa' },
-                { status: 403 }
-            );
+            logger.warn('[CertPassword] Membership check failed', {
+                code: membershipError?.code,
+                message: membershipError?.message
+            });
+            return errorResponse("Você não tem permissão para acessar esta empresa", 403, "FORBIDDEN");
         }
 
         // Get existing password secret ID (if any)
@@ -64,8 +67,8 @@ export async function POST(request: NextRequest) {
         if (existingSettings?.cert_password_encrypted) {
             try {
                 await deletePassword(existingSettings.cert_password_encrypted);
-            } catch (error) {
-                console.error('Error deleting old password:', error);
+            } catch {
+                logger.warn('[CertPassword] Failed deleting old password, continuing');
                 // Continue anyway, we'll overwrite
             }
         }
@@ -92,8 +95,8 @@ export async function POST(request: NextRequest) {
                         expiresAt = pfxData.certInfo.notAfter;
                     }
                 }
-            } catch (err) {
-                console.error('Error parsing PFX for expiration:', err);
+            } catch {
+                logger.warn('[CertPassword] Failed parsing PFX for expiration, continuing');
                 // Don't fail the request, just don't date update
             }
         }
@@ -117,14 +120,14 @@ export async function POST(request: NextRequest) {
             });
 
         if (updateError) {
-            console.error('Update error details:', JSON.stringify(updateError, null, 2));
-            return NextResponse.json(
-                {
-                    error: 'Erro ao salvar senha',
-                    details: updateError.message || updateError.details || JSON.stringify(updateError)
-                },
-                { status: 500 }
-            );
+            logger.error('[CertPassword] Failed to upsert company_settings', {
+                code: updateError.code,
+                message: updateError.message
+            });
+            return errorResponse("Erro ao salvar senha", 500, "DB_ERROR", {
+                code: updateError.code,
+                message: updateError.message
+            });
         }
 
         return NextResponse.json({
@@ -133,36 +136,42 @@ export async function POST(request: NextRequest) {
             expiresAt
         });
 
-    } catch (error: any) {
-        console.error('Password save error:', error);
-        return NextResponse.json(
-            { error: error.message || 'Erro interno do servidor' },
-            { status: 500 }
-        );
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[CertPassword] Save error', { message });
+        return errorResponse(message || "Erro interno do servidor", 500, "INTERNAL_ERROR");
     }
 }
 
 export async function DELETE(request: NextRequest) {
     try {
+        const limitConfig = process.env.NODE_ENV === 'production'
+            ? { limit: 30, windowMs: 60_000 }
+            : { limit: 300, windowMs: 60_000 };
+        const limit = rateLimit(request, { key: "cert-a1-password-delete", ...limitConfig });
+        if (!limit.ok) {
+            return errorResponse("Too many requests", 429, "RATE_LIMIT");
+        }
+
         // Get authenticated user
         const supabaseUser = await createClient();
         const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
 
         if (authError || !user) {
-            return NextResponse.json(
-                { error: 'Não autenticado' },
-                { status: 401 }
-            );
+            return errorResponse("Não autenticado", 401, "UNAUTHORIZED");
         }
 
         // Get company ID from request
-        const { companyId } = await request.json();
+        let body: unknown;
+        try {
+            body = await request.json();
+        } catch {
+            return errorResponse("JSON inválido", 400, "BAD_JSON");
+        }
+        const { companyId } = (body || {}) as { companyId?: string };
 
         if (!companyId) {
-            return NextResponse.json(
-                { error: 'ID da empresa não fornecido' },
-                { status: 400 }
-            );
+            return errorResponse("ID da empresa não fornecido", 400, "INVALID_PAYLOAD");
         }
 
         // Verify user is member of the company
@@ -174,10 +183,11 @@ export async function DELETE(request: NextRequest) {
             .single();
 
         if (membershipError || !membership) {
-            return NextResponse.json(
-                { error: 'Você não tem permissão para acessar esta empresa' },
-                { status: 403 }
-            );
+            logger.warn('[CertPassword] Membership check failed (delete)', {
+                code: membershipError?.code,
+                message: membershipError?.message
+            });
+            return errorResponse("Você não tem permissão para acessar esta empresa", 403, "FORBIDDEN");
         }
 
         // Get password secret ID
@@ -188,10 +198,7 @@ export async function DELETE(request: NextRequest) {
             .single();
 
         if (settingsError || !settings?.cert_password_encrypted) {
-            return NextResponse.json(
-                { error: 'Nenhuma senha encontrada' },
-                { status: 404 }
-            );
+            return errorResponse("Nenhuma senha encontrada", 404, "NOT_FOUND");
         }
 
         // Delete password
@@ -207,11 +214,14 @@ export async function DELETE(request: NextRequest) {
             .eq('company_id', companyId);
 
         if (updateError) {
-            console.error('Update error:', updateError);
-            return NextResponse.json(
-                { error: 'Erro ao remover senha' },
-                { status: 500 }
-            );
+            logger.error('[CertPassword] Failed updating company_settings (delete)', {
+                code: updateError.code,
+                message: updateError.message
+            });
+            return errorResponse("Erro ao remover senha", 500, "DB_ERROR", {
+                code: updateError.code,
+                message: updateError.message
+            });
         }
 
         return NextResponse.json({
@@ -219,11 +229,9 @@ export async function DELETE(request: NextRequest) {
             message: 'Senha removida'
         });
 
-    } catch (error: any) {
-        console.error('Password delete error:', error);
-        return NextResponse.json(
-            { error: 'Erro interno do servidor' },
-            { status: 500 }
-        );
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[CertPassword] Delete error', { message });
+        return errorResponse("Erro interno do servidor", 500, "INTERNAL_ERROR");
     }
 }
