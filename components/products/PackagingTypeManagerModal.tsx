@@ -293,7 +293,7 @@ export function PackagingTypeManagerModal({ open: controlledOpen, onOpenChange, 
                                                         <>
                                                             <Button
                                                                 variant="ghost"
-                                                                className="h-7 w-7 p-0 rounded-lg hover:bg-blue-50 hover:text-blue-600"
+                                                                className="h-7 w-7 p-0 rounded-2xl hover:bg-blue-50 hover:text-blue-600"
                                                                 onClick={() => startEdit(type)}
                                                                 disabled={loading}
                                                             >
@@ -301,7 +301,7 @@ export function PackagingTypeManagerModal({ open: controlledOpen, onOpenChange, 
                                                             </Button>
                                                             <Button
                                                                 variant="ghost"
-                                                                className="h-7 w-7 p-0 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400"
+                                                                className="h-7 w-7 p-0 rounded-2xl hover:bg-red-50 hover:text-red-600 text-gray-400"
                                                                 onClick={() => setDeletingId(type.id)}
                                                             >
                                                                 <Trash2 className="w-3.5 h-3.5" />

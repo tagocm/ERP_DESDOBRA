@@ -161,7 +161,7 @@ export default function InventoryMovementsPage() {
                         </div>
 
                         <Select value={typeFilter} onValueChange={setTypeFilter}>
-                            <SelectTrigger className="w-[180px] h-10 bg-white border-gray-200">
+                            <SelectTrigger className="w-44 h-10 bg-white border-gray-200">
                                 <SelectValue placeholder="Tipo" />
                             </SelectTrigger>
                             <SelectContent>
@@ -212,9 +212,9 @@ export default function InventoryMovementsPage() {
                     <Table>
                         <TableHeader className="bg-gray-50/50 border-b border-gray-100">
                             <TableRow className="hover:bg-transparent border-none">
-                                <TableHead className="w-[50px]"></TableHead>
-                                <TableHead className="w-[160px] font-semibold text-gray-600">Data/Hora</TableHead>
-                                <TableHead className="w-[120px] font-semibold text-gray-600">Type</TableHead>
+                                <TableHead className="w-12"></TableHead>
+                                <TableHead className="w-40 font-semibold text-gray-600">Data/Hora</TableHead>
+                                <TableHead className="w-32 font-semibold text-gray-600">Type</TableHead>
                                 <TableHead className="font-semibold text-gray-600">Produto</TableHead>
                                 <TableHead className="text-right font-semibold text-gray-600">Quantidade</TableHead>
                                 <TableHead className="font-semibold text-gray-600">Origem</TableHead>
@@ -300,14 +300,16 @@ export default function InventoryMovementsPage() {
                                                     <div className="p-4 pl-16 bg-blue-50/10 border-b border-gray-100 grid grid-cols-1 md:grid-cols-3 gap-8 animate-in slide-in-from-top-1">
                                                         <div>
                                                             <h4 className="text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-wider">Conversão</h4>
-                                                            <div className="text-xs text-gray-700 bg-white border border-gray-200 rounded-2xl p-2 inline-block">
-                                                                <span className="text-gray-500">Input:</span> <span className="font-mono font-bold">{mov.qty_display} {mov.uom_label}</span>
-                                                                {mov.conversion_factor && mov.conversion_factor !== 1 && (
-                                                                    <span className="ml-2 pl-2 border-l border-gray-200 text-gray-400">
-                                                                        Fator: x{mov.conversion_factor}
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                                                            <Card className="inline-block text-xs text-gray-700">
+                                                                <CardContent className="p-2">
+                                                                    <span className="text-gray-500">Input:</span> <span className="font-mono font-bold">{mov.qty_display} {mov.uom_label}</span>
+                                                                    {mov.conversion_factor && mov.conversion_factor !== 1 && (
+                                                                        <span className="ml-2 pl-2 border-l border-gray-200 text-gray-400">
+                                                                            Fator: x{mov.conversion_factor}
+                                                                        </span>
+                                                                    )}
+                                                                </CardContent>
+                                                            </Card>
                                                         </div>
                                                         <div>
                                                             <h4 className="text-[10px] font-bold text-gray-400 uppercase mb-1 tracking-wider">Referência Completa</h4>

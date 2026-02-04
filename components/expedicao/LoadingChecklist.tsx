@@ -161,7 +161,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                                         disabled={isLoading}
                                         title="Carregado (Completo)"
                                         className={`w-6 h-6 rounded flex items-center justify-center border transition-all duration-200 ${status === 'loaded'
-                                            ? 'bg-green-500 border-green-500 shadow-sm'
+                                            ? 'bg-green-500 border-green-500 shadow-card'
                                             : 'bg-white border-green-200 hover:border-green-400'
                                             }`}
                                     >
@@ -174,7 +174,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                                         disabled={isLoading}
                                         title="Carregamento Parcial"
                                         className={`w-6 h-6 rounded flex items-center justify-center border transition-all duration-200 ${status === 'partial'
-                                            ? 'bg-amber-400 border-amber-400 shadow-sm' // Using amber/yellow
+                                            ? 'bg-amber-400 border-amber-400 shadow-card' // Using amber/yellow
                                             : 'bg-white border-amber-200 hover:border-amber-400'
                                             }`}
                                     >
@@ -187,7 +187,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                                         disabled={isLoading}
                                         title="Não Carregado"
                                         className={`w-6 h-6 rounded flex items-center justify-center border transition-all duration-200 ${status === 'not_loaded'
-                                            ? 'bg-red-500 border-red-500 shadow-sm'
+                                            ? 'bg-red-500 border-red-500 shadow-card'
                                             : 'bg-white border-red-200 hover:border-red-400'
                                             }`}
                                     >

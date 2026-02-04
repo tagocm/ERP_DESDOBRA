@@ -199,7 +199,7 @@ export const RouteCardCompact = memo(function RouteCardCompact({ route, onClick,
                     </div>
 
                     {/* Orders List */}
-                    <div className="max-h-[200px] overflow-y-auto">
+                    <div className="max-h-48 overflow-y-auto">
                         {route.orders && route.orders.length > 0 ? (
                             route.orders.map((ro) => {
                                 const order = ro.sales_order;

@@ -5,6 +5,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Plus, Loader2, CheckCircle, X } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -169,7 +170,7 @@ export default function OrdensPage() {
                 </Select>
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <Card className="overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
@@ -262,12 +263,13 @@ export default function OrdensPage() {
                         )}
                     </tbody>
                 </table>
-            </div>
+            </Card>
 
             {/* Finish Modal */}
             {showFinishModal && selectedWO && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                    <Card className="max-w-md w-full mx-4">
+                        <CardContent className="p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold">Finalizar Ordem de Produção</h2>
                             <button
@@ -278,7 +280,7 @@ export default function OrdensPage() {
                             </button>
                         </div>
 
-                        <div className="mb-4 p-3 bg-gray-50 rounded">
+                        <div className="mb-4 p-3 bg-gray-50 rounded-2xl">
                             <p className="text-sm text-gray-600">Produto</p>
                             <p className="font-medium">{selectedWO.item?.name}</p>
                             <p className="text-xs text-gray-500 mt-1">
@@ -299,7 +301,7 @@ export default function OrdensPage() {
                                 />
                             </div>
 
-                            <div className="p-3 bg-yellow-50 rounded text-sm text-yellow-900">
+                            <div className="p-3 bg-yellow-50 rounded-2xl text-sm text-yellow-900">
                                 <strong>Atenção:</strong> Ao finalizar, os componentes serão consumidos do estoque e o produto acabado será adicionado.
                             </div>
 
@@ -317,7 +319,8 @@ export default function OrdensPage() {
                                 </Button>
                             </div>
                         </form>
-                    </div>
+                        </CardContent>
+                    </Card>
                 </div>
             )}
         </div>

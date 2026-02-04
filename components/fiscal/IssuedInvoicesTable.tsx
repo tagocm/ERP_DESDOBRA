@@ -217,7 +217,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
     }
 
     return (
-        <div className="overflow-x-auto rounded-lg border border-gray-200">
+        <div className="overflow-x-auto rounded-2xl border border-gray-200">
             <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                     <tr>

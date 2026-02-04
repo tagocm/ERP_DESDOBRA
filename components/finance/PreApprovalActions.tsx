@@ -141,7 +141,7 @@ export function PreApprovalActions({ isOpen, onClose, title, onSuccess }: PreApp
                             </div>
                         </div>
                         {title.status === 'attention' && (
-                            <div className="bg-amber-50 text-amber-900 p-3 rounded-md text-sm flex gap-2 items-start">
+                            <div className="bg-amber-50 text-amber-900 p-3 rounded-2xl text-sm flex gap-2 items-start">
                                 <AlertTriangle className="w-4 h-4 mt-0.5 text-amber-600" />
                                 <div>
                                     <div className="font-bold">Atenção Necessária</div>
@@ -154,7 +154,7 @@ export function PreApprovalActions({ isOpen, onClose, title, onSuccess }: PreApp
                     {/* PREVIEW */}
                     <div className="space-y-4">
                         <Label className="font-semibold">Simulação de Parcelas</Label>
-                        <div className="space-y-2 max-h-[300px] overflow-auto pr-2">
+                        <div className="space-y-2 max-h-72 overflow-auto pr-2">
                             {installments.map((inst, idx) => (
                                 <div key={idx} className="flex gap-2 items-center bg-gray-50 p-2 rounded text-sm">
                                     <div className="w-8 font-bold text-gray-500">#{inst.installment_number}</div>

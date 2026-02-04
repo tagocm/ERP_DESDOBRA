@@ -80,7 +80,7 @@ export function InvoiceModal({ isOpen, onClose, order, onConfirm, isSubmitting }
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-screen overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <FileText className="w-5 h-5" />
@@ -95,7 +95,7 @@ export function InvoiceModal({ isOpen, onClose, order, onConfirm, isSubmitting }
                 ) : (
                     <div className="space-y-6">
                         {/* Emitente */}
-                        <div className="bg-blue-50 rounded-lg p-4">
+                        <div className="bg-blue-50 rounded-2xl p-4">
                             <h3 className="font-semibold text-sm text-blue-900 mb-3 flex items-center gap-2">
                                 <Building2 className="w-4 h-4" />
                                 Emitente
@@ -115,7 +115,7 @@ export function InvoiceModal({ isOpen, onClose, order, onConfirm, isSubmitting }
                         </div>
 
                         {/* Destinatário */}
-                        <div className="bg-green-50 rounded-lg p-4">
+                        <div className="bg-green-50 rounded-2xl p-4">
                             <h3 className="font-semibold text-sm text-green-900 mb-3 flex items-center gap-2">
                                 <User className="w-4 h-4" />
                                 Destinatário
@@ -148,7 +148,7 @@ export function InvoiceModal({ isOpen, onClose, order, onConfirm, isSubmitting }
                                 <Package className="w-4 h-4" />
                                 Itens da Nota
                             </h3>
-                            <div className="overflow-x-auto rounded-lg border border-gray-200">
+                            <div className="overflow-x-auto rounded-2xl border border-gray-200">
                                 <table className="min-w-full divide-y divide-gray-200 text-sm">
                                     <thead className="bg-gray-50">
                                         <tr>
@@ -201,7 +201,7 @@ export function InvoiceModal({ isOpen, onClose, order, onConfirm, isSubmitting }
                         </div>
 
                         {/* Totais */}
-                        <div className="bg-gray-50 rounded-lg p-4">
+                        <div className="bg-gray-50 rounded-2xl p-4">
                             <div className="flex justify-between items-center text-lg font-bold">
                                 <span className="text-gray-700">Total da Nota:</span>
                                 <span className="text-gray-900">

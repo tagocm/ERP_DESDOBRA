@@ -140,7 +140,7 @@ export function VendasFlyoutPanel({ isOpen, onClose, anchorRef }: VendasFlyoutPa
             ref={panelRef}
             className={cn(
                 "fixed bg-white border border-gray-100 shadow-float rounded-2xl overflow-hidden flex flex-col transition-all duration-200 ease-out z-50",
-                "w-[240px] h-auto",
+                "w-60 h-auto",
                 isOpen
                     ? "opacity-100 scale-100 visible"
                     : "opacity-0 scale-95 invisible pointer-events-none"
@@ -161,7 +161,7 @@ export function VendasFlyoutPanel({ isOpen, onClose, anchorRef }: VendasFlyoutPa
                         <button
                             onClick={() => handleNavigation(item.href)}
                             className={cn(
-                                "flex w-full items-center rounded-md transition-colors mb-0.5 group text-left px-2 py-2 hover:bg-gray-50",
+                                "flex w-full items-center rounded-2xl transition-colors mb-0.5 group text-left px-2 py-2 hover:bg-gray-50",
                             )}
                         >
                             <item.icon className="w-5 h-5 text-gray-500 group-hover:text-gray-900 transition-colors mr-3 shrink-0" />
@@ -175,10 +175,10 @@ export function VendasFlyoutPanel({ isOpen, onClose, anchorRef }: VendasFlyoutPa
                             <button
                                 onClick={() => handleNavigation(item.newItem!.href)}
                                 className={cn(
-                                    "flex w-full items-center rounded-md transition-colors mb-2 group/sub text-left px-2 py-1 hover:bg-gray-50",
+                                    "flex w-full items-center rounded-2xl transition-colors mb-2 group/sub text-left px-2 py-1 hover:bg-gray-50",
                                 )}
                             >
-                                <div className="w-[1.25rem] shrink-0" />
+                                <div className="w-5 shrink-0" />
                                 <CornerDownRight className="w-3.5 h-3.5 mr-2 text-gray-300 group-hover/sub:text-gray-500 transition-colors shrink-0" />
                                 <span className="text-[13px] text-gray-500 group-hover/sub:text-gray-800 font-normal truncate">
                                     {item.newItem.name}

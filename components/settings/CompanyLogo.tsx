@@ -119,7 +119,7 @@ export function CompanyLogo({ companyId, onMessage }: CompanyLogoProps) {
         <Card className="overflow-hidden">
             <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                    <div className="p-2 bg-blue-100 rounded-lg">
+                    <div className="p-2 bg-blue-100 rounded-2xl">
                         <ImageIcon className="w-5 h-5 text-blue-600" />
                     </div>
                     Logo da Empresa
@@ -128,7 +128,7 @@ export function CompanyLogo({ companyId, onMessage }: CompanyLogoProps) {
             <CardContent className="p-6">
                 {/* Logo Preview */}
                 <div className="mb-6">
-                    <div className="relative w-full aspect-video bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden group">
+                    <div className="relative w-full aspect-video bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden group">
                         {(logoUrl || logoPreview) ? (
                             <>
                                 <img
@@ -140,7 +140,7 @@ export function CompanyLogo({ companyId, onMessage }: CompanyLogoProps) {
                                     <button
                                         type="button"
                                         onClick={handleLogoDelete}
-                                        className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                                        className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
                                         title="Remover logo"
                                     >
                                         <X className="w-4 h-4" />

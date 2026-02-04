@@ -242,7 +242,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                                             <option key={term.id} value={term.id}>{term.name}</option>
                                         ))}
                                     </select>
-        </Card>
+                                </div>
                                 <div className="flex flex-col gap-1 flex-1">
                                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Forma de Pagto (Todos)</span>
                                     <select
@@ -581,15 +581,15 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                             </TableRow>
                         )
                     }
-                </TableBody >
-            </Table >
+                </TableBody>
+            </Table>
 
             <RecalculateDialog
                 open={recalculateOpen}
                 onOpenChange={setRecalculateOpen}
                 onConfirm={handleRecalculate}
             />
-        </div >
+        </Card>
     );
 }
 

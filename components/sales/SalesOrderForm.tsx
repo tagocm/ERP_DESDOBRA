@@ -10,7 +10,7 @@ import { getSalesDocumentById, upsertSalesDocument, upsertSalesItem, deleteSales
 import { SalesOrder } from "@/types/sales";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Tabs, TabsContent } from "@/components/ui/Tabs";
 import { FormTabsList, FormTabsTrigger } from "@/components/ui/FormTabs";
 import { useToast } from "@/components/ui/use-toast";
@@ -242,12 +242,14 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
 
             <div className="px-6 pb-0">
                 {isLocked && (
-                    <div className="bg-amber-50 border border-amber-200 p-4 rounded-2xl flex items-center gap-3 text-amber-800 mb-6 shadow-card">
-                        <Ban className="w-5 h-5" />
-                        <div className="text-sm font-medium">
-                            Este pedido está com status logístico <strong>{translateLogisticsStatusPt(data.status_logistic).toUpperCase()}</strong> e não pode mais ser alterado.
-                        </div>
-                    </div>
+                    <Card className="bg-amber-50 border-amber-200 text-amber-800 mb-6">
+                        <CardContent className="p-4 flex items-center gap-3">
+                            <Ban className="w-5 h-5" />
+                            <div className="text-sm font-medium">
+                                Este pedido está com status logístico <strong>{translateLogisticsStatusPt(data.status_logistic).toUpperCase()}</strong> e não pode mais ser alterado.
+                            </div>
+                        </CardContent>
+                    </Card>
                 )}
             </div>
 

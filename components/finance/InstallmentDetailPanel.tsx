@@ -6,6 +6,7 @@ import { type GLAccountOption, type CostCenterOption } from "@/app/actions/finan
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Split, Trash2 } from "lucide-react";
@@ -24,8 +25,9 @@ export function InstallmentDetailPanel({ installment, isEditing, onChange, glAcc
     };
 
     return (
-        <div className="p-4 bg-gray-50 border border-t-0 rounded-b-lg shadow-inner animate-in slide-in-from-top-2 duration-300">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+        <Card className="bg-gray-50 border-t-0 animate-in slide-in-from-top-2 duration-300">
+            <CardContent className="p-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 {/* Vencimento */}
                 <div>
                     <Label className="text-[10px] text-gray-500 mb-1 block uppercase tracking-wide">Vencimento</Label>
@@ -124,20 +126,21 @@ export function InstallmentDetailPanel({ installment, isEditing, onChange, glAcc
                         placeholder="Observações adicionais..."
                     />
                 </div>
-            </div>
-
-            {isEditing && (
-                <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-dashed border-gray-200">
-                    <Button variant="outline" size="sm" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200">
-                        <Trash2 className="w-3 h-3 mr-1.5" />
-                        Excluir
-                    </Button>
-                    <Button variant="outline" size="sm" className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200">
-                        <Split className="w-3 h-3 mr-1.5" />
-                        Dividir
-                    </Button>
                 </div>
-            )}
-        </div>
+
+                {isEditing && (
+                    <div className="flex justify-end gap-2 mt-4 pt-3 border-t border-dashed border-gray-200">
+                        <Button variant="outline" size="sm" className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200">
+                            <Trash2 className="w-3 h-3 mr-1.5" />
+                            Excluir
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-7 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 border-blue-200">
+                            <Split className="w-3 h-3 mr-1.5" />
+                            Dividir
+                        </Button>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
     );
 }

@@ -170,7 +170,7 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
         <div className="animate-in slide-in-from-top-2">
 
             {/* Compact Summary Strip */}
-            <div className="flex items-center gap-6 mb-4 px-1 text-sm bg-gray-50/50 p-2 rounded-lg border border-gray-100 w-fit">
+            <div className="flex items-center gap-6 mb-4 px-1 text-sm bg-gray-50/50 p-2 rounded-2xl border border-gray-100 w-fit">
                 <div className="flex items-baseline gap-2">
                     <span className="text-[10px] font-bold text-gray-400 uppercase">Original:</span>
                     <span className="font-bold text-gray-900">{formatCurrency(installment.amount_original)}</span>
@@ -196,7 +196,7 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
                             <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Histórico de Pagamentos</h4>
                         </div>
                         {allocations.length === 0 ? (
-                            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 min-h-[200px]">
+                            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 min-h-52">
                                 <span className="text-xs italic">Nenhum pagamento registrado</span>
                             </div>
                         ) : (
@@ -233,7 +233,7 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
                                 </table>
                             </div>
                         )}
-                    </div>
+                    </Card>
                 </div>
 
                 {/* Right Column (1/3): Payment Form */}
@@ -342,7 +342,7 @@ export function AccountsInstallmentRowExpanded({ installment, onRefresh }: Accou
                                 </div>
                             </div>
                         )}
-                    </div>
+                    </Card>
                 </div>
 
             </div>

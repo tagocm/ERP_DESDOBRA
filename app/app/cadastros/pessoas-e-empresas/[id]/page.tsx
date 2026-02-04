@@ -626,7 +626,7 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
 
                                     <div className="col-span-12 md:col-span-4 lg:col-span-5 space-y-1.5 flex flex-col items-start">
                                         <label className="text-sm font-medium text-gray-700 block">Papéis</label>
-                                        <div className="flex flex-wrap items-center justify-start gap-2 min-h-[40px] px-3 bg-gray-50 rounded-md border border-gray-200">
+                                        <div className="flex flex-wrap items-center justify-start gap-2 min-h-10 px-3 bg-gray-50 rounded-2xl border border-gray-200">
                                             {Object.entries(roles).map(([role, checked]) => (
                                                 <label key={role} className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 px-2 py-1 rounded transition-colors">
                                                     <input
@@ -1020,7 +1020,7 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                                     value={commercialData.notes_commercial}
                                     onChange={handleCommercialChange}
                                     rows={4}
-                                    className="flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                                    className="flex w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                                     placeholder="Informações adicionais sobre negociações..."
                                 />
                             </CardContent>
@@ -1309,7 +1309,7 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                                                     value={fiscalData.notes_fiscal}
                                                     onChange={handleFiscalChange}
                                                     rows={3}
-                                                    className="flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                                                    className="flex w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                                                 />
                                             </div>
                                         </CardContent>

@@ -115,7 +115,7 @@ export function RecurringRulesTable({ rules, loading }: RecurringRulesTableProps
             <Badge
                 variant="outline"
                 className={cn(
-                    "font-bold px-2 py-0.5 rounded-full text-[10px] tracking-wider uppercase whitespace-nowrap",
+                    "font-bold px-2 py-0.5 rounded-2xl text-[10px] tracking-wider uppercase whitespace-nowrap",
                     styles[status]
                 )}
             >
@@ -194,7 +194,7 @@ export function RecurringRulesTable({ rules, loading }: RecurringRulesTableProps
                             <TableCell className="py-4">
                                 <div className="flex flex-col">
                                     <span className={cn(
-                                        "text-[10px] font-bold px-1.5 py-0.5 rounded-md w-fit mb-1",
+                                        "text-[10px] font-bold px-1.5 py-0.5 rounded-2xl w-fit mb-1",
                                         rule.amount_type === 'FIXO' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-purple-50 text-purple-600 border border-purple-100"
                                     )}>
                                         {rule.amount_type === 'FIXO' ? 'FIXO' : 'VARIÁVEL'}
@@ -291,7 +291,7 @@ export function RecurringRulesTable({ rules, loading }: RecurringRulesTableProps
             </Table>
 
             <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}>
-                <AlertDialogContent className="rounded-2xl border-none shadow-xl">
+                <AlertDialogContent className="rounded-2xl border-none shadow-float">
                     <AlertDialogHeader>
                         <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -299,10 +299,10 @@ export function RecurringRulesTable({ rules, loading }: RecurringRulesTableProps
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel className="rounded-xl">Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel className="rounded-2xl">Cancelar</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={confirmDialog.action}
-                            className="bg-blue-600 hover:bg-blue-700 rounded-xl"
+                            className="bg-blue-600 hover:bg-blue-700 rounded-2xl"
                         >
                             Confirmar
                         </AlertDialogAction>

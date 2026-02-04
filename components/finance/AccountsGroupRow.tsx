@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { formatCurrency, cn, toTitleCase } from "@/lib/utils";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import Link from "next/link";
+import { Card } from "@/components/ui/Card";
 import { AccountsInstallmentRowExpanded } from "./AccountsInstallmentRowExpanded";
 import { Checkbox } from "@/components/ui/Checkbox";
 
@@ -87,14 +88,14 @@ export function AccountsGroupRow({ group, selectedIds, onToggleGroup, onToggleIn
                     <Checkbox
                         checked={isAllSelected ? true : isIndeterminate ? "indeterminate" : false}
                         onCheckedChange={handleGroupCheckboxChange}
-                        className="translate-y-[2px]"
+                        className="translate-y-0.5"
                     />
                 </TableCell>
                 <TableCell className="font-bold text-gray-900">
                     Pedido #{group.document_number}
                 </TableCell>
                 <TableCell>
-                    <span className="font-medium text-gray-700 truncate block max-w-[250px]">
+                    <span className="font-medium text-gray-700 truncate block max-w-64">
                         {toTitleCase(group.organization_name)}
                     </span>
                 </TableCell>
@@ -123,7 +124,7 @@ export function AccountsGroupRow({ group, selectedIds, onToggleGroup, onToggleIn
                     <TableCell colSpan={10} className="p-0 border-none">
                         <div className="pl-12 pr-4 py-4 space-y-2">
                             {/* Inner Table of Installments */}
-                            <div className="rounded-lg border border-gray-200 bg-white overflow-hidden shadow-sm">
+                            <Card className="overflow-hidden">
                                 <table className="w-full text-sm">
                                     <thead className="bg-gray-50 border-b border-gray-100 text-xs text-gray-500 uppercase font-bold">
                                         <tr>
@@ -181,7 +182,7 @@ export function AccountsGroupRow({ group, selectedIds, onToggleGroup, onToggleIn
                                                     {/* Inline Expansion of the Installment */}
                                                     {isInstExpanded && (
                                                         <tr>
-                                                            <td colSpan={9} className="p-4 bg-blue-50/10 border-t border-blue-100 shadow-inner">
+                                                            <td colSpan={9} className="p-4 bg-blue-50/10 border-t border-blue-100">
                                                                 <AccountsInstallmentRowExpanded installment={inst} onRefresh={onRefresh} />
                                                             </td>
                                                         </tr>
@@ -191,7 +192,7 @@ export function AccountsGroupRow({ group, selectedIds, onToggleGroup, onToggleIn
                                         })}
                                     </tbody>
                                 </table>
-                            </div>
+                            </Card>
                         </div>
                     </TableCell>
                 </TableRow>

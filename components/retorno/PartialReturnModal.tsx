@@ -214,7 +214,7 @@ export function PartialReturnModal({ isOpen, onClose, onConfirm, order }: Partia
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col">
+            <DialogContent className="max-w-3xl max-h-screen flex flex-col">
                 <DialogHeader>
                     <DialogTitle>Registrar Entrega Parcial</DialogTitle>
                     <p className="text-sm text-gray-500">
@@ -257,7 +257,7 @@ export function PartialReturnModal({ isOpen, onClose, onConfirm, order }: Partia
                     {/* Items List */}
                     <div>
                         <h3 className="text-sm font-semibold text-gray-700 mb-2">Itens do Pedido</h3>
-                        <div className="border rounded-lg overflow-hidden">
+                        <div className="border rounded-2xl overflow-hidden">
                             {isLoadingDelivery ? (
                                 <div className="p-8 flex justify-center">
                                     <Loader2 className="w-6 h-6 animate-spin text-gray-400" />

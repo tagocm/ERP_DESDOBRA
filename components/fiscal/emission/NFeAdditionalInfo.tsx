@@ -26,7 +26,7 @@ export function NFeAdditionalInfo({ fisco, taxpayer, onChange }: Props) {
                     </Label>
                     <Textarea
                         placeholder="Observações que serão impressas no campo de dados adicionais da DANFE..."
-                        className="min-h-[80px]"
+                        className="min-h-20"
                         value={taxpayer || ''}
                         onChange={(e) => onChange('taxpayer', e.target.value)}
                     />
@@ -41,7 +41,7 @@ export function NFeAdditionalInfo({ fisco, taxpayer, onChange }: Props) {
                     </Label>
                     <Textarea
                         placeholder="Observações de interesse exclusivo do Fisco..."
-                        className="min-h-[80px]"
+                        className="min-h-20"
                         value={fisco || ''}
                         onChange={(e) => onChange('fisco', e.target.value)}
                     />

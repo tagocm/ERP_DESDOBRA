@@ -9,7 +9,7 @@ import Link from "next/link";
 
 export default function PersonTypesPage() {
     return (
-        <div className="max-w-[1600px] mx-auto px-6">
+        <div className="max-w-screen-2xl mx-auto px-6">
             <Link
                 href="/app/settings/master-data"
                 className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6"
@@ -43,7 +43,7 @@ export default function PersonTypesPage() {
                         <p className="text-gray-600 mb-6">
                             Os tipos de pessoa ajudam a categorizar e organizar seus contatos.
                         </p>
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto">
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 max-w-md mx-auto">
                             <p className="text-sm text-yellow-800">
                                 <strong>Em desenvolvimento:</strong> A funcionalidade de cadastro de tipos
                                 de pessoa será implementada em breve.

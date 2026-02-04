@@ -89,7 +89,7 @@ export default function AccountSheet() {
     return (
         <div className="space-y-6">
             {message && (
-                <div className={`p-4 rounded-lg ${message.type === 'success'
+                <div className={`p-4 rounded-2xl ${message.type === 'success'
                         ? 'bg-green-50 text-green-700 border border-green-200'
                         : 'bg-red-50 text-red-700 border border-red-200'
                     }`}>

@@ -1,0 +1,3 @@
+-- Placeholder migration.
+-- This version exists in remote migration history but the SQL is not present in the repo.
+-- Created to align local migrations with remote state.

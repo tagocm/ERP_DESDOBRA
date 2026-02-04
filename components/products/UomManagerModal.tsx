@@ -261,7 +261,7 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
                                                 <div className="flex justify-end gap-1 opacity-100 transition-opacity">
                                                     <Button
                                                         variant="ghost"
-                                                        className="h-7 w-7 p-0 rounded-lg hover:bg-blue-50 hover:text-blue-600"
+                                                        className="h-7 w-7 p-0 rounded-2xl hover:bg-blue-50 hover:text-blue-600"
                                                         onClick={() => startEdit(uom)}
                                                         disabled={loading}
                                                     >
@@ -270,7 +270,7 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
                                                     <Button
                                                         variant="ghost"
                                                         className={cn(
-                                                            "h-7 w-7 p-0 rounded-lg",
+                                                            "h-7 w-7 p-0 rounded-2xl",
                                                             (uom.usage_count || 0) > 0
                                                                 ? "text-gray-300 cursor-not-allowed hover:bg-transparent"
                                                                 : "hover:bg-red-50 hover:text-red-600 text-gray-400"

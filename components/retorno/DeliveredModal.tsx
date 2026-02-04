@@ -84,7 +84,7 @@ export function DeliveredModal({ isOpen, onClose, onConfirm, order }: DeliveredM
                     )}
 
                     {/* Toggle */}
-                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 flex items-center justify-between gap-2 mt-2">
+                    <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 flex items-center justify-between gap-2 mt-2">
                         <Label className="text-xs text-gray-700 font-medium">Confirmar entrega no pedido</Label>
                         <Switch checked={true} disabled aria-readonly />
                     </div>

@@ -52,7 +52,7 @@ export function ItemsBelowMinCard() {
 
     if (loading) {
         return (
-            <Card className="bg-white shadow-sm border-gray-100">
+            <Card className="bg-white shadow-card border-gray-100">
                 <CardHeader className="pb-2">
                     <Skeleton className="h-6 w-48 mb-1" />
                     <Skeleton className="h-4 w-32" />
@@ -70,10 +70,10 @@ export function ItemsBelowMinCard() {
 
     if (items.length === 0) {
         return (
-            <Card className="bg-white shadow-sm border-gray-100 border-l-4 border-l-green-500">
+            <Card className="bg-white shadow-card border-gray-100 border-l-4 border-l-green-500">
                 <CardHeader>
                     <div className="flex items-center gap-2">
-                        <div className="p-2 bg-green-50 rounded-full">
+                        <div className="p-2 bg-green-50 rounded-2xl">
                             <Package className="w-5 h-5 text-green-600" />
                         </div>
                         <div>
@@ -87,11 +87,11 @@ export function ItemsBelowMinCard() {
     }
 
     return (
-        <Card className="bg-white shadow-sm border-gray-100 border-l-4 border-l-amber-500">
+        <Card className="bg-white shadow-card border-gray-100 border-l-4 border-l-amber-500">
             <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <div className="p-2 bg-amber-50 rounded-full">
+                        <div className="p-2 bg-amber-50 rounded-2xl">
                             <AlertTriangle className="w-5 h-5 text-amber-600" />
                         </div>
                         <div>
@@ -120,7 +120,7 @@ export function ItemsBelowMinCard() {
                     {items.slice(0, 5).map((item) => (
                         <div
                             key={item.id}
-                            className="grid grid-cols-12 gap-4 items-center px-3 py-3 hover:bg-gray-50 rounded-lg transition-colors border border-transparent hover:border-gray-100 group"
+                            className="grid grid-cols-12 gap-4 items-center px-3 py-3 hover:bg-gray-50 rounded-2xl transition-colors border border-transparent hover:border-gray-100 group"
                         >
                             <div className="col-span-5">
                                 <div className="font-semibold text-gray-900 text-sm truncate" title={item.name}>

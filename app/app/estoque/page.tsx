@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Plus, Loader2, X } from "lucide-react";
@@ -172,7 +173,7 @@ export default function StockPage() {
                 </div>
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <Card className="overflow-hidden">
                 <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                         <tr>
@@ -218,11 +219,12 @@ export default function StockPage() {
                         )}
                     </tbody>
                 </table>
-            </div>
+            </Card>
 
             {showPurchaseModal && selectedItem && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+                    <Card className="max-w-md w-full mx-4">
+                        <CardContent className="p-6">
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-xl font-bold">Entrada de Compra</h2>
                             <button onClick={() => setShowPurchaseModal(false)} className="text-gray-400 hover:text-gray-600">
@@ -230,7 +232,7 @@ export default function StockPage() {
                             </button>
                         </div>
 
-                        <div className="mb-4 p-3 bg-gray-50 rounded">
+                        <div className="mb-4 p-3 bg-gray-50 rounded-2xl">
                             <p className="text-sm text-gray-600">Item</p>
                             <p className="font-medium">{selectedItem.item_name}</p>
                             <p className="text-xs text-gray-500 mt-1">Estoque atual: {selectedItem.current_stock.toFixed(2)} {selectedItem.uom}</p>
@@ -250,7 +252,7 @@ export default function StockPage() {
                                 <Input value={purchaseForm.notes} onChange={(e) => setPurchaseForm(prev => ({ ...prev, notes: e.target.value }))} placeholder="Ex: Compra fornecedor X" />
                             </div>
                             {purchaseForm.qty && purchaseForm.unit_cost && (
-                                <div className="p-3 bg-blue-50 rounded">
+                                <div className="p-3 bg-blue-50 rounded-2xl">
                                     <p className="text-sm text-blue-900"><strong>Custo Total:</strong> R$ {(parseFloat(purchaseForm.qty) * parseFloat(purchaseForm.unit_cost)).toFixed(2)}</p>
                                 </div>
                             )}
@@ -261,7 +263,8 @@ export default function StockPage() {
                                 </Button>
                             </div>
                         </form>
-                    </div>
+                        </CardContent>
+                    </Card>
                 </div>
             )}
         </div>

@@ -38,7 +38,7 @@ export default function MasterDataPage() {
     // HeaderContext removed
 
     return (
-        <div className="max-w-[1600px] mx-auto px-6">
+        <div className="max-w-screen-2xl mx-auto px-6">
             <PageHeader
                 title="Cadastros Básicos"
                 subtitle="Gerencie tabelas auxiliares e configurações básicas do sistema"
@@ -47,9 +47,9 @@ export default function MasterDataPage() {
                 {masterDataSections.map((section) => {
                     const Icon = section.icon;
                     return (
-                        <Card key={section.id} className="hover:shadow-lg transition-shadow">
+                        <Card key={section.id} className="hover:shadow-float transition-shadow">
                             <CardHeader>
-                                <div className={`w-12 h-12 rounded-xl ${section.color} flex items-center justify-center mb-4`}>
+                                <div className={`w-12 h-12 rounded-2xl ${section.color} flex items-center justify-center mb-4`}>
                                     <Icon className="w-6 h-6" />
                                 </div>
                                 <CardTitle className="text-lg">{section.title}</CardTitle>

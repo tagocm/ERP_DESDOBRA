@@ -90,7 +90,7 @@ export function TabFiscal({ order }: TabFiscalProps) {
                 </Dialog>
             </div>
 
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border rounded-2xl overflow-hidden">
                 <div className="grid grid-cols-12 gap-4 p-3 bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase tracking-wider">
                     <div className="col-span-2">Número/Série</div>
                     <div className="col-span-3">Chave de Acesso</div>

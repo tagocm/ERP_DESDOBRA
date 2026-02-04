@@ -83,7 +83,7 @@ export default function PlanningPage() {
             <div className="flex-none px-6 py-3 border-b border-gray-200 bg-white">
                 <div className="flex items-end justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-50 rounded-lg">
+                        <div className="p-2 bg-blue-50 rounded-2xl">
                             <CalendarIcon className="w-5 h-5 text-blue-600" />
                         </div>
                         <div>
@@ -116,7 +116,7 @@ export default function PlanningPage() {
                                     value={demandSource}
                                     onValueChange={(value: 'scheduled_routes' | 'confirmed_orders') => setDemandSource(value)}
                                 >
-                                    <SelectTrigger id="demand-source" className="h-7 w-[160px] text-xs">
+                                    <SelectTrigger id="demand-source" className="h-7 w-40 text-xs">
                                         <SelectValue placeholder="Selecione a fonte" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -147,7 +147,7 @@ export default function PlanningPage() {
                                 Hoje
                             </Button>
 
-                            <div className="flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                            <div className="flex items-center border border-gray-200 rounded-2xl overflow-hidden">
                                 <button
                                     onClick={() => {
                                         const d = new Date(weekStart)
@@ -160,7 +160,7 @@ export default function PlanningPage() {
                                     <ChevronLeft className="w-4 h-4 text-gray-600" />
                                 </button>
 
-                                <div className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-50/50 min-w-[140px] text-center">
+                                <div className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-50/50 min-w-36 text-center">
                                     {weekStart.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })} - {weekEnd.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                                 </div>
 

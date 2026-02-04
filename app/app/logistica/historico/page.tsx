@@ -32,7 +32,7 @@ export default async function RouteHistoryPage({ searchParams }: { searchParams:
                 description="Consulta de rotas, entregas e ocorrências finalizadas"
             />
             <div className="w-full">
-                <Suspense fallback={<div className="h-14 bg-gray-50 rounded-lg animate-pulse" />}>
+                <Suspense fallback={<div className="h-14 bg-gray-50 rounded-2xl animate-pulse" />}>
                     <RouteHistoryFilters />
                 </Suspense>
             </div>

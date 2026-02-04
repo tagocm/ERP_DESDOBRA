@@ -21,7 +21,7 @@ export function TabFiscal({ data, onChange, isAdmin }: TabFiscalProps) {
 
     return (
         <div className="space-y-6">
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <Card className="overflow-hidden">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <FileText className="w-4 h-4 text-gray-500" />
@@ -48,7 +48,7 @@ export function TabFiscal({ data, onChange, isAdmin }: TabFiscalProps) {
                                 onValueChange={v => onChange('nfe_environment', v)}
                                 disabled={!isAdmin}
                             >
-                                <SelectTrigger className="w-[180px]">
+                                <SelectTrigger className="w-44">
                                     <SelectValue placeholder="Selecione..." />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -122,7 +122,7 @@ export function TabFiscal({ data, onChange, isAdmin }: TabFiscalProps) {
 
 
                 </div>
-            </div>
+            </Card>
 
             <NumberingAdjustmentModal
                 open={showAdjustModal}

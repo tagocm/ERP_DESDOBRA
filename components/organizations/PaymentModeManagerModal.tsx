@@ -118,7 +118,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                         setEditingId(null);
                         setAddBoxOpen(!addBoxOpen);
                     }}
-                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-full px-4 text-xs h-8 shadow-card transition-all"
+                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-2xl px-4 text-xs h-8 shadow-card transition-all"
                 >
                     <Plus className="w-3.5 h-3.5 mr-1.5" />
                     Nova Modalidade
@@ -141,7 +141,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                                     value={editingId ? editName : newItemName}
                                     onChange={(e) => editingId ? setEditName(e.target.value) : setNewItemName(e.target.value)}
                                     placeholder="Ex: Pix, Boleto 30 Dias..."
-                                    className="h-9 text-sm rounded-lg"
+                                    className="h-9 text-sm rounded-2xl"
                                     autoFocus
                                     onKeyDown={(e) => e.key === 'Enter' && (editingId ? handleUpdate(editingId) : handleCreate())}
                                 />
@@ -152,7 +152,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                             <Button
                                 onClick={() => editingId ? handleUpdate(editingId) : handleCreate()}
                                 disabled={isCreating || isUpdating || !(editingId ? editName : newItemName).trim()}
-                                className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition-all"
+                                className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-medium transition-all"
                             >
                                 {(isCreating || isUpdating) ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -166,7 +166,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                                     setEditingId(null);
                                     setAddBoxOpen(false);
                                 }}
-                                className="h-9 w-9 p-0 bg-gray-50 hover:bg-white text-gray-500 rounded-lg border-gray-200"
+                                className="h-9 w-9 p-0 bg-gray-50 hover:bg-white text-gray-500 rounded-2xl border-gray-200"
                             >
                                 <X className="w-4 h-4" />
                             </Button>
@@ -205,7 +205,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                                         </TableCell>
                                         <TableCell className="py-3 text-center">
                                             {mode.usage_count! > 0 ? (
-                                                <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium">
+                                                <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-2xl font-medium">
                                                     {mode.usage_count} usos
                                                 </span>
                                             ) : (
@@ -222,7 +222,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                                                         setEditingId(mode.id);
                                                         setEditName(mode.name);
                                                     }}
-                                                    className="h-7 w-7 p-0 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
+                                                    className="h-7 w-7 p-0 rounded-2xl hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
                                                 >
                                                     <Edit className="h-3.5 w-3.5" />
                                                 </Button>
@@ -233,7 +233,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                                                     onClick={() => setItemToDelete(mode.id)}
                                                     disabled={mode.usage_count! > 0}
                                                     className={cn(
-                                                        "h-7 w-7 p-0 rounded-lg transition-colors border-none bg-transparent",
+                                                        "h-7 w-7 p-0 rounded-2xl transition-colors border-none bg-transparent",
                                                         mode.usage_count! > 0
                                                             ? "opacity-20 cursor-not-allowed"
                                                             : "hover:bg-red-50 hover:text-red-600 text-gray-400"

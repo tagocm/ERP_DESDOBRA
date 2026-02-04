@@ -160,7 +160,7 @@ export function CertificatesSection({ companyId, onMessage }: CertificatesSectio
                 {certUploadedAt ? (
                     <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
                         <div className="flex items-start gap-4">
-                            <div className="p-2 bg-green-100 rounded-full flex-shrink-0">
+                            <div className="p-2 bg-green-100 rounded-2xl flex-shrink-0">
                                 <Shield className="w-6 h-6 text-green-600" />
                             </div>
                             <div className="flex-1">
@@ -204,9 +204,9 @@ export function CertificatesSection({ companyId, onMessage }: CertificatesSectio
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                             />
 
-                            <div className="w-12 h-12 bg-white border border-gray-200 rounded-2xl flex items-center justify-center mb-4 shadow-card">
+                            <Card className="w-12 h-12 flex items-center justify-center mb-4">
                                 <Upload className={`w-6 h-6 ${certFile ? 'text-blue-600' : 'text-gray-400'}`} />
-                            </div>
+                            </Card>
 
                             {certFile ? (
                                 <>
@@ -258,7 +258,7 @@ export function CertificatesSection({ companyId, onMessage }: CertificatesSectio
                     </p>
                 </div>
 
-                <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <Card className="overflow-hidden">
                     <div className="bg-gray-50 p-4 border-b border-gray-200">
                         <div className="flex items-center gap-2">
                             <Lock className="w-5 h-5 text-gray-500" />
@@ -268,7 +268,7 @@ export function CertificatesSection({ companyId, onMessage }: CertificatesSectio
 
                     <div className="p-6 space-y-6">
                         {hasSavedPassword ? (
-                            <div className="flex items-center justify-between p-4 bg-green-50 border border-green-100 rounded-lg">
+                            <div className="flex items-center justify-between p-4 bg-green-50 border border-green-100 rounded-2xl">
                                 <div className="flex items-center gap-3">
                                     <CheckCircle2 className="w-5 h-5 text-green-600" />
                                     <div>
@@ -287,7 +287,7 @@ export function CertificatesSection({ companyId, onMessage }: CertificatesSectio
                                 </Button>
                             </div>
                         ) : (
-                            <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-lg flex gap-3">
+                            <div className="p-4 bg-yellow-50 border border-yellow-100 rounded-2xl flex gap-3">
                                 <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                                 <div className="text-sm text-yellow-800">
                                     <p className="font-medium">Senha não configurada</p>
@@ -346,7 +346,7 @@ export function CertificatesSection({ companyId, onMessage }: CertificatesSectio
                             </Button>
                         </div>
                     </div>
-                </div>
+                </Card>
             </div>
         </div>
     );
