@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { Plus, ArrowLeft, Calendar, Edit2, Trash2, CreditCard } from "lucide-react";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -119,7 +120,7 @@ export default function PaymentTermsPage() {
                     <p className="text-xs text-gray-400 mt-1">Crie opções de parcelamento para seus clientes.</p>
                 </div>
             ) : (
-                <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white shadow-sm">
+                <Card className="overflow-hidden">
                     <Table>
                         <TableHeader className="bg-gray-50/50">
                             <TableRow className="hover:bg-transparent border-gray-100">
@@ -133,7 +134,7 @@ export default function PaymentTermsPage() {
                                 <TableRow key={term.id} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
                                     <TableCell className="px-6 py-4">
                                         <div className="flex items-center">
-                                            <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 shadow-sm border border-brand-100/50">
+                                            <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 shadow-card border border-brand-100/50">
                                                 <CreditCard className="w-5 h-5" />
                                             </div>
                                             <div className="ml-4">
@@ -174,7 +175,7 @@ export default function PaymentTermsPage() {
                             ))}
                         </TableBody>
                     </Table>
-                </div>
+                </Card>
             )}
 
             <PaymentTermModal

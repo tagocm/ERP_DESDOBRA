@@ -27,7 +27,7 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
 
     if (!route) {
         return (
-            <div className="bg-white border border-gray-200 rounded-lg p-12 text-center text-gray-500">
+            <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center text-gray-500">
                 <Package className="w-12 h-12 mx-auto mb-4 opacity-20" />
                 <p>Selecione uma rota para ver os detalhes</p>
             </div>
@@ -84,7 +84,7 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
             />
 
             {/* Header */}
-            <div className="bg-white border border-gray-200 rounded-lg p-4">
+            <div className="bg-white border border-gray-200 rounded-2xl p-4">
                 <div className="flex items-start justify-between mb-4">
                     <div>
                         <h2 className="text-lg font-semibold mb-2">{route.name}</h2>
@@ -143,7 +143,7 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
                 </div>
 
                 {isReady && !hasInRouteOrders && (
-                    <div className={`border rounded-lg p-3 mb-4 ${hasPartials || hasNotLoaded ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+                    <div className={`border rounded-2xl p-3 mb-4 ${hasPartials || hasNotLoaded ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
                         <p className={`text-sm ${hasPartials || hasNotLoaded ? 'text-amber-800' : 'text-green-800'}`}>
                             {hasPartials || hasNotLoaded
                                 ? `✓ Conferência concluída (com ${hasPartials && hasNotLoaded ? "parciais e não carregados" : hasPartials ? "parciais" : "não carregados"}). Pronto para iniciar a rota!`
@@ -153,10 +153,10 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
                     </div>
                 )}
 
-                <div className="flex bg-gray-100 p-1 rounded-lg">
+                <div className="flex bg-gray-100 p-1 rounded-2xl">
                     <button
                         onClick={() => setActiveTab('separation')}
-                        className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'separation'
+                        className={`flex-1 py-2 text-sm font-medium rounded-2xl transition-all ${activeTab === 'separation'
                             ? 'bg-white text-gray-900 ring-1 ring-gray-200'
                             : 'text-gray-500 hover:text-gray-900'
                             }`}
@@ -165,7 +165,7 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
                     </button>
                     <button
                         onClick={() => setActiveTab('checklist')}
-                        className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${activeTab === 'checklist'
+                        className={`flex-1 py-2 text-sm font-medium rounded-2xl transition-all ${activeTab === 'checklist'
                             ? 'bg-white text-gray-900 ring-1 ring-gray-200'
                             : 'text-gray-500 hover:text-gray-900'
                             }`}
@@ -176,7 +176,7 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
             </div>
 
             {/* Content */}
-            <div className="bg-white border border-gray-200 rounded-lg">
+            <div className="bg-white border border-gray-200 rounded-2xl">
                 {activeTab === 'separation' ? (
                     <ProductSeparationList routeId={route.id} />
                 ) : (
