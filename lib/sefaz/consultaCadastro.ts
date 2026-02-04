@@ -1,8 +1,9 @@
 import https from 'https';
 import http from 'http';
 import { parseStringPromise } from 'xml2js';
+import { logger } from '@/lib/logger';
 
-const CAD_DEBUG = process.env.CAD_DEBUG === '1';
+const CAD_DEBUG = process.env.CAD_DEBUG === '1' && process.env.NODE_ENV !== 'production';
 
 interface ConsultaCadastroParams {
     uf: string;
@@ -165,7 +166,7 @@ async function retryWithBackoff<T>(
             if (i < retries - 1) {
                 const delay = initialDelayMs * Math.pow(2, i);
                 if (CAD_DEBUG) {
-                    console.log(`[CAD_DEBUG] Retry ${i + 1}/${retries} after ${delay}ms...`);
+                    logger.debug(`[CAD_DEBUG] Retry ${i + 1}/${retries} after ${delay}ms...`);
                 }
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
@@ -183,7 +184,7 @@ export async function consultaCadastroSefaz(
     const startTime = Date.now();
 
     if (CAD_DEBUG) {
-        console.log('[CAD_DEBUG] ==> SEFAZ Consulta Cadastro Request', {
+        logger.debug('[CAD_DEBUG] ==> SEFAZ Consulta Cadastro Request', {
             uf,
             cnpj: cnpj.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.***.***/****-$5'),
             environment,
@@ -204,8 +205,8 @@ export async function consultaCadastroSefaz(
     const soapRequest = buildSoapRequest(cnpj, uf);
 
     if (CAD_DEBUG) {
-        console.log('[CAD_DEBUG] Endpoint:', endpoint);
-        console.log('[CAD_DEBUG] SOAP Request:', soapRequest);
+        logger.debug('[CAD_DEBUG] Endpoint:', endpoint);
+        logger.debug('[CAD_DEBUG] SOAP Request prepared', { length: soapRequest.length });
     }
 
     try {
@@ -217,7 +218,7 @@ export async function consultaCadastroSefaz(
         );
 
         if (CAD_DEBUG) {
-            console.log('[CAD_DEBUG] SOAP Response:', xmlResponse);
+            logger.debug('[CAD_DEBUG] SOAP Response received', { length: xmlResponse.length });
         }
 
         // Parse response
@@ -225,7 +226,7 @@ export async function consultaCadastroSefaz(
         const duration = Date.now() - startTime;
 
         if (CAD_DEBUG) {
-            console.log('[CAD_DEBUG] <== Result', {
+            logger.debug('[CAD_DEBUG] <== Result', {
                 ...result,
                 durationMs: duration
             });
@@ -241,7 +242,7 @@ export async function consultaCadastroSefaz(
         const errorMsg = error instanceof Error ? error.message : String(error);
 
         if (CAD_DEBUG) {
-            console.error('[CAD_DEBUG] <== Error', {
+            logger.debug('[CAD_DEBUG] <== Error', {
                 error: errorMsg,
                 durationMs: duration
             });
