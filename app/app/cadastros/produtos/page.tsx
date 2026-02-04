@@ -181,7 +181,7 @@ export default function ItemsPage() {
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <Input
                             placeholder="Buscar por nome ou SKU..."
-                            className="pl-10 h-10 rounded-lg bg-white border-gray-200"
+                            className="pl-10 h-10 rounded-2xl bg-white border-gray-200"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
@@ -190,7 +190,7 @@ export default function ItemsPage() {
                         value={typeFilter}
                         onValueChange={(val) => setTypeFilter(val)}
                     >
-                        <SelectTrigger className="w-48 h-10 rounded-lg bg-white border-gray-200">
+                        <SelectTrigger className="w-48 h-10 rounded-2xl bg-white border-gray-200">
                             <SelectValue placeholder="Todos os tipos" />
                         </SelectTrigger>
                         <SelectContent>
@@ -249,7 +249,7 @@ export default function ItemsPage() {
                                         </TableCell>
                                         <TableCell className="px-6 py-4">
                                             <div className="flex items-center">
-                                                <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 shadow-card border border-brand-100/50 mr-3">
+                                                <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-2xl flex items-center justify-center text-brand-600 shadow-card border border-brand-100/50 mr-3">
                                                     {getTypeIcon(item.type)}
                                                 </div>
                                                 <div className="text-sm font-bold text-gray-900 leading-tight">
@@ -262,7 +262,7 @@ export default function ItemsPage() {
                                         </TableCell>
                                         <TableCell className="px-6 py-4">
                                             <div className="flex flex-col gap-1">
-                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100 w-fit">
+                                                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider bg-gray-50 px-1.5 py-0.5 rounded-2xl border border-gray-100 w-fit">
                                                     {item.uoms?.abbrev || item.uom}
                                                 </span>
                                                 {/* Dev-Only Inconsistency Warning */}
@@ -299,7 +299,7 @@ export default function ItemsPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 rounded-lg hover:bg-brand-50 hover:text-brand-600 text-gray-400 transition-colors"
+                                                    className="h-8 w-8 rounded-2xl hover:bg-brand-50 hover:text-brand-600 text-gray-400 transition-colors"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         router.push(`/app/cadastros/produtos/${item.id}`);
@@ -310,7 +310,7 @@ export default function ItemsPage() {
                                                 <Button
                                                     variant="ghost"
                                                     size="icon"
-                                                    className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+                                                    className="h-8 w-8 rounded-2xl hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
                                                     onClick={(e) => handleDelete(item.id, e)}
                                                 >
                                                     <Trash2 className="w-4 h-4" />
