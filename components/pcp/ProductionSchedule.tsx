@@ -562,8 +562,8 @@ function DraggableOrder({ order, onClick, onDelete, isInconsistent }: { order: W
 
 function OrderCard({ order, isOverlay, onClick, onDelete, isInconsistent }: { order: WorkOrder, isOverlay?: boolean, onClick?: () => void, onDelete?: () => void, isInconsistent?: boolean }) {
     const statusColor = {
-        planned: "bg-white border-l-4 border-l-blue-400 shadow-sm",
-        in_progress: "bg-blue-50 border-l-4 border-l-blue-600 shadow-sm",
+        planned: "bg-white border-l-4 border-l-blue-400 shadow-card",
+        in_progress: "bg-blue-50 border-l-4 border-l-blue-600 shadow-card",
         done: "bg-green-50 border-1 border-green-200 opacity-60 grayscale",
         cancelled: "bg-gray-50 border-1 border-gray-200 opacity-50 line-through"
     }[order.status]
@@ -572,9 +572,9 @@ function OrderCard({ order, isOverlay, onClick, onDelete, isInconsistent }: { or
         <div
             onClick={onClick}
             className={cn(
-                "p-2 rounded text-xs border cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow relative overflow-hidden",
+                "p-2 rounded-lg text-xs border cursor-grab active:cursor-grabbing hover:shadow-card transition-shadow relative overflow-hidden",
                 statusColor,
-                isOverlay ? "shadow-xl scale-105 rotate-2" : ""
+                isOverlay ? "shadow-float scale-105 rotate-2" : ""
             )}
         >
             <div className="font-semibold truncate pr-4">{order.item.name}</div>

@@ -5,6 +5,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { Card } from "@/components/ui/Card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Plus, Search, Trash2, Edit2, Package, Layers, Wheat, Box } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -174,13 +175,13 @@ export default function ItemsPage() {
                 }
             />
 
-            <div className="max-w-[1600px] mx-auto px-6 h-full">
+            <div className="max-w-screen-2xl mx-auto px-6 h-full">
                 <div className="mb-6 flex gap-4">
                     <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                         <Input
                             placeholder="Buscar por nome ou SKU..."
-                            className="pl-10 h-10 rounded-xl bg-white border-gray-200"
+                            className="pl-10 h-10 rounded-lg bg-white border-gray-200"
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
@@ -189,7 +190,7 @@ export default function ItemsPage() {
                         value={typeFilter}
                         onValueChange={(val) => setTypeFilter(val)}
                     >
-                        <SelectTrigger className="w-48 h-10 rounded-xl bg-white border-gray-200">
+                        <SelectTrigger className="w-48 h-10 rounded-lg bg-white border-gray-200">
                             <SelectValue placeholder="Todos os tipos" />
                         </SelectTrigger>
                         <SelectContent>
@@ -201,7 +202,7 @@ export default function ItemsPage() {
                     </Select>
                 </div>
 
-                <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white shadow-sm">
+                <Card className="overflow-hidden">
                     <Table>
                         <TableHeader className="bg-gray-50/50">
                             <TableRow className="hover:bg-transparent border-gray-100">
@@ -248,7 +249,7 @@ export default function ItemsPage() {
                                         </TableCell>
                                         <TableCell className="px-6 py-4">
                                             <div className="flex items-center">
-                                                <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 shadow-sm border border-brand-100/50 mr-3">
+                                                <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 shadow-card border border-brand-100/50 mr-3">
                                                     {getTypeIcon(item.type)}
                                                 </div>
                                                 <div className="text-sm font-bold text-gray-900 leading-tight">
@@ -321,7 +322,7 @@ export default function ItemsPage() {
                             )}
                         </TableBody>
                     </Table>
-                </div>
+                </Card>
             </div>
         </div>
     );

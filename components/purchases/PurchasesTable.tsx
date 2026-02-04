@@ -4,6 +4,7 @@ import { format } from "date-fns";
 import { Eye, FileText, Trash2, Edit2, Calendar, Building2, CheckCircle, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
@@ -264,26 +265,26 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
                 </div>
             )}
 
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+            <Card className="bg-white overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-200">
                             <tr>
-                                <th className="px-6 py-4 w-[40px]">
+                                <th className="px-6 py-4 w-10">
                                     <Checkbox
                                         checked={data.length > 0 && selectedIds.size === data.length}
                                         onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
                                         aria-label="Select all"
                                     />
                                 </th>
-                                <th className="px-6 py-4 w-[120px] text-xs uppercase tracking-wider">Número</th>
+                                <th className="px-6 py-4 w-28 text-xs uppercase tracking-wider">Número</th>
                                 <th className="px-6 py-4 text-xs uppercase tracking-wider">Fornecedor</th>
-                                <th className="px-6 py-4 w-[140px] text-xs uppercase tracking-wider">Data</th>
+                                <th className="px-6 py-4 w-36 text-xs uppercase tracking-wider">Data</th>
                                 <th className="px-6 py-4 text-xs uppercase tracking-wider">Condição</th>
                                 <th className="px-6 py-4 text-xs uppercase tracking-wider">Modalidade</th>
                                 <th className="px-6 py-4 text-right text-xs uppercase tracking-wider">Total</th>
                                 <th className="px-6 py-4 text-center text-xs uppercase tracking-wider">Status</th>
-                                <th className="px-6 py-4 w-[160px] text-right">Ações</th>
+                                <th className="px-6 py-4 w-40 text-right">Ações</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -430,7 +431,7 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
                 />
 
 
-            </div>
+            </Card>
         </>
     );
 }

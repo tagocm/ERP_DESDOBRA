@@ -830,7 +830,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                                         value={commercialData.notes_commercial}
                                         onChange={handleCommercialChange}
                                         rows={3}
-                                        className="flex w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 transition-all shadow-sm"
+                                        className="flex w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 transition-all"
                                         placeholder="Condições especiais, descontos, etc."
                                     />
                                 </div>
@@ -890,7 +890,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                                             name="ie_indicator"
                                             value={fiscalData.ie_indicator}
                                             onChange={handleFiscalChange}
-                                            className="flex h-9 w-full rounded-md border border-gray-200 bg-white px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
+                                            className="flex h-9 w-full rounded-lg border border-gray-200 bg-white px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
                                         >
                                             <option value="contributor">Contribuinte</option>
                                             <option value="exempt">Isento</option>
