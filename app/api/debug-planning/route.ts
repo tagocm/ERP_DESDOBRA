@@ -1,9 +1,13 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { NextResponse } from 'next/server';
+import { requireInternalApiAccess } from '@/lib/api/internal';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
+        const gate = requireInternalApiAccess(request);
+        if (gate) return gate;
+
         const supabase = await createClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
