@@ -44,6 +44,7 @@
 - [ ] Checks adicionais: RLS audit, service-role audit, segredo/PII audit (regex/gitleaks-like)
 
 ## 6) Qualidade / padronização (sem travar)
+- [x] Visibilidade em CI: relatório de `any` por área (`node scripts/any-report.js`)
 - [ ] Budget de `any` por área (começar por `app/api`, `lib/finance`) sem regressão
 - [ ] Budget de warnings por área (reduzir por sprint; não aumentar)
 - [ ] Plano de redução (top 10 arquivos por warnings/any) com metas semanais pequenas
