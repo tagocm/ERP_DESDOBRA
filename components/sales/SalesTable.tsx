@@ -601,7 +601,7 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
                                     <>
                                         <p>Você selecionou <span className="font-bold">{stats.total}</span> itens no total.</p>
 
-                                        <div className="bg-gray-50 p-3 rounded-md border border-gray-100 space-y-2">
+                                        <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 space-y-2">
                                             <div className="flex justify-between items-center text-green-700 font-medium">
                                                 <span>Confirmar Orçamentos:</span>
                                                 <span className="bg-green-100 px-2 py-0.5 rounded text-xs">{stats.toApprove} itens</span>
@@ -657,7 +657,7 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
                                     <>
                                         <p>Você selecionou <span className="font-bold">{stats.total}</span> itens no total.</p>
 
-                                        <div className="bg-gray-50 p-3 rounded-md border border-gray-100 space-y-2">
+                                        <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 space-y-2">
                                             <div className="flex justify-between items-center text-red-700 font-medium">
                                                 <span>A Excluir:</span>
                                                 <span className="bg-red-100 px-2 py-0.5 rounded text-xs">{stats.toDelete} itens</span>

@@ -79,7 +79,7 @@ export function CarrierSelector({
 
     if (loading) {
         return (
-            <div className="flex items-center gap-2 h-9 px-3 border border-gray-200 rounded-md bg-gray-50">
+            <div className="flex items-center gap-2 h-9 px-3 border border-gray-200 rounded-2xl bg-gray-50">
                 <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
                 <span className="text-sm text-gray-500">Carregando transportadoras...</span>
             </div>
@@ -88,7 +88,7 @@ export function CarrierSelector({
 
     if (carriers.length === 0) {
         return (
-            <div className="h-9 px-3 border border-gray-200 rounded-md bg-gray-50 flex items-center">
+            <div className="h-9 px-3 border border-gray-200 rounded-2xl bg-gray-50 flex items-center">
                 <span className="text-sm text-gray-500">Nenhuma transportadora cadastrada</span>
             </div>
         );

@@ -83,7 +83,7 @@ export function TabDelivery({ data, onChange, disabled, useDeliveriesModel }: Ta
         <div className="space-y-6">
 
             {useDeliveriesModel && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 flex items-start gap-3">
                     <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
                     <div>
                         <h4 className="font-semibold text-blue-800 text-sm">Modo de Entregas Ativo</h4>
@@ -96,7 +96,7 @@ export function TabDelivery({ data, onChange, disabled, useDeliveriesModel }: Ta
             )}
 
             {/* CARD FRETE / LOGÍSTICA */}
-            <Card className="bg-white shadow-sm border-gray-200">
+            <Card className="bg-white shadow-card border-gray-200">
                 <CardHeader className="pag-4 pb-2 border-b border-gray-50 bg-gray-50/50">
                     <CardTitle className="text-sm font-semibold uppercase tracking-wider text-gray-700 flex items-center gap-2">
                         <Truck className="w-4 h-4" /> Frete / Logística
@@ -163,7 +163,7 @@ export function TabDelivery({ data, onChange, disabled, useDeliveriesModel }: Ta
                             value={data.shipping_notes || ''}
                             onChange={(e) => onChange('shipping_notes', e.target.value)}
                             placeholder="Instruções para motorista, horários, restrições..."
-                            className="h-[38px] min-h-[38px] resize-none py-2 leading-tight bg-white"
+                            className="h-10 min-h-10 resize-none py-2 leading-tight bg-white"
                             disabled={disabled}
                         />
                         {/* Start small (1 line equiv) but expandable? Or just fix height. User said 'textarea curta'. */}
@@ -295,4 +295,3 @@ export function TabDelivery({ data, onChange, disabled, useDeliveriesModel }: Ta
         </div>
     );
 }
-

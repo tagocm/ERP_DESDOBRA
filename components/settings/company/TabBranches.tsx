@@ -64,14 +64,14 @@ export function TabBranches({ isAdmin }: TabBranchesProps) {
                 <CardContent>
 
                     {error && (
-                        <div className="bg-red-50 text-red-700 p-3 rounded-md text-sm border border-red-100 flex items-center">
+                        <div className="bg-red-50 text-red-700 p-3 rounded-2xl text-sm border border-red-100 flex items-center">
                             {error}
                         </div>
                     )}
 
                     <div className="space-y-4">
                         {branches.length === 0 && !loading && !error && (
-                            <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                            <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
                                 <Store className="w-10 h-10 mx-auto mb-3 opacity-20" />
                                 <p>Nenhuma filial cadastrada.</p>
                             </div>
@@ -85,33 +85,35 @@ export function TabBranches({ isAdmin }: TabBranchesProps) {
                         )}
 
                         {branches.map(branch => (
-                            <div key={branch.id} className="flex items-center justify-between p-4 border rounded-lg bg-white hover:bg-gray-50 transition-colors">
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-full bg-brand-50 flex items-center justify-center text-brand-600 border border-brand-100">
-                                        <Building2 className="w-5 h-5" />
-                                    </div>
-                                    <div>
-                                        <p className="font-medium text-gray-900">{branch.name}</p>
-                                        <div className="flex items-center gap-2 text-sm text-gray-500 mt-0.5">
-                                            <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-xs font-mono">
-                                                {branch.settings?.cnpj || "CNPJ N/A"}
-                                            </span>
-                                            <span>•</span>
-                                            <span>{branch.settings?.address_city}/{branch.settings?.address_state}</span>
+                            <Card key={branch.id} className="hover:bg-gray-50 transition-colors">
+                                <CardContent className="p-4 flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <Card className="w-10 h-10 bg-brand-50 flex items-center justify-center text-brand-600 border-brand-100">
+                                            <Building2 className="w-5 h-5" />
+                                        </Card>
+                                        <div>
+                                            <p className="font-medium text-gray-900">{branch.name}</p>
+                                            <div className="flex items-center gap-2 text-sm text-gray-500 mt-0.5">
+                                                <span className="bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded text-xs font-mono">
+                                                    {branch.settings?.cnpj || "CNPJ N/A"}
+                                                </span>
+                                                <span>•</span>
+                                                <span>{branch.settings?.address_city}/{branch.settings?.address_state}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-100">
-                                        Ativa
-                                    </span>
-                                    {isAdmin && (
-                                        <Button variant="ghost" size="sm" onClick={() => alert("Edição de filial em breve.")}>
-                                            Editar
-                                        </Button>
-                                    )}
-                                </div>
-                            </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded-2xl text-xs font-medium bg-green-50 text-green-700 border border-green-100">
+                                            Ativa
+                                        </span>
+                                        {isAdmin && (
+                                            <Button variant="ghost" size="sm" onClick={() => alert("Edição de filial em breve.")}>
+                                                Editar
+                                            </Button>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
                         ))}
                     </div>
                 </CardContent>

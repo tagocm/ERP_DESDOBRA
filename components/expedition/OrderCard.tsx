@@ -25,8 +25,8 @@ export const OrderCard = memo(function OrderCard({ order, type, routeId, isSelec
                 {...listeners}
                 {...attributes}
                 className={cn(
-                    "p-2 bg-white rounded-lg shadow-sm border border-gray-200 transition-all",
-                    !isLocked && "cursor-grab active:cursor-grabbing hover:shadow-md",
+                    "p-2 bg-white rounded-2xl shadow-card border border-gray-200 transition-all",
+                    !isLocked && "cursor-grab active:cursor-grabbing hover:shadow-float",
                     isLocked && "cursor-not-allowed opacity-80 bg-gray-50/50",
                     (isDragging || isDragOverlay) && "opacity-50 ring-2 ring-primary"
                 )}

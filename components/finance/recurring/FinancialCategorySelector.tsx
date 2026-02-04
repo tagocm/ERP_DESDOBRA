@@ -102,7 +102,7 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                         aria-expanded={open}
                         disabled={disabled}
                         className={cn(
-                            "flex h-10 w-full items-center justify-between rounded-md border bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500",
+                            "flex h-10 w-full items-center justify-between rounded-2xl border bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500",
                             "focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2",
                             "disabled:cursor-not-allowed disabled:opacity-50",
                             "shadow-none transition-all border-gray-200", // Standard input style

@@ -72,7 +72,7 @@ export function RecurringRulesToolbar() {
                     value={searchParams.get("status") || "ALL"}
                     onValueChange={(val) => updateFilters({ status: val })}
                 >
-                    <SelectTrigger className="w-[160px] h-10 bg-white border-gray-200">
+                    <SelectTrigger className="w-40 h-10 bg-white border-gray-200">
                         <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent align="end">
@@ -87,7 +87,7 @@ export function RecurringRulesToolbar() {
                     value={searchParams.get("type") || "ALL"}
                     onValueChange={(val) => updateFilters({ type: val })}
                 >
-                    <SelectTrigger className="w-[160px] h-10 bg-white border-gray-200">
+                    <SelectTrigger className="w-40 h-10 bg-white border-gray-200">
                         <SelectValue placeholder="Tipo" />
                     </SelectTrigger>
                     <SelectContent align="end">
@@ -101,7 +101,7 @@ export function RecurringRulesToolbar() {
                     value={searchParams.get("sort") || "recent"}
                     onValueChange={(val) => updateFilters({ sort: val })}
                 >
-                    <SelectTrigger className="w-[160px] h-10 bg-white border-gray-200">
+                    <SelectTrigger className="w-40 h-10 bg-white border-gray-200">
                         <SelectValue placeholder="Ordenar por" />
                     </SelectTrigger>
                     <SelectContent align="end">

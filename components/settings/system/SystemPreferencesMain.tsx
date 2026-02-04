@@ -26,7 +26,7 @@ export function SystemPreferencesMain() {
                 </Tabs>
             </PageHeader>
 
-            <div className="p-6 max-w-[1600px] mx-auto w-full">
+            <div className="p-6 max-w-screen-2xl mx-auto w-full">
                 <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                     <TabsContent value="logistics" className="mt-0 focus-visible:outline-none">
                         <LogisticsTab />
@@ -52,7 +52,7 @@ export function SystemPreferencesMain() {
 
 function PlaceholderTab({ title }: { title: string }) {
     return (
-        <div className="border-2 border-dashed border-gray-200 rounded-lg p-12 text-center">
+        <div className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center">
             <h3 className="text-lg font-medium text-gray-900">Módulo {title}</h3>
             <p className="text-gray-500 mt-2">Configurações globais para este módulo serão implementadas em breve.</p>
         </div>

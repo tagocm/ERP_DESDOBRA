@@ -463,7 +463,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                 variant="secondary"
                 onClick={() => handleSubmit(true)}
                 disabled={isLoading}
-                className="rounded-full px-5 h-8 text-sm"
+                className="rounded-2xl px-5 h-8 text-sm"
             >
                 {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Salvar e Novo
@@ -472,7 +472,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                 type="button"
                 onClick={() => handleSubmit(false)}
                 disabled={isLoading}
-                className="rounded-full px-5 h-8 text-sm"
+                className="rounded-2xl px-5 h-8 text-sm"
             >
                 {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 <Save className="w-4 h-4 mr-2" />
@@ -483,7 +483,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-            <DialogContent className="max-w-[90vw] w-full h-[90vh] p-0 flex flex-col gap-0 bg-white border-none sm:rounded-2xl">
+            <DialogContent className="max-w-screen-2xl w-full h-screen p-0 flex flex-col gap-0 bg-white border-none sm:rounded-2xl">
                 <DialogHeader className="px-6 py-4 border-b flex-shrink-0 bg-gray-50 flex flex-row items-center justify-between space-y-0">
                     <DialogTitle className="text-xl font-bold text-gray-900">Novo Cadastro</DialogTitle>
                     <div className="flex items-center gap-2">
@@ -830,7 +830,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                                         value={commercialData.notes_commercial}
                                         onChange={handleCommercialChange}
                                         rows={3}
-                                        className="flex w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 transition-all"
+                                        className="flex w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 transition-all"
                                         placeholder="Condições especiais, descontos, etc."
                                     />
                                 </div>
@@ -890,7 +890,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                                             name="ie_indicator"
                                             value={fiscalData.ie_indicator}
                                             onChange={handleFiscalChange}
-                                            className="flex h-9 w-full rounded-lg border border-gray-200 bg-white px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
+                                            className="flex h-9 w-full rounded-2xl border border-gray-200 bg-white px-3 py-1 text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-500"
                                         >
                                             <option value="contributor">Contribuinte</option>
                                             <option value="exempt">Isento</option>

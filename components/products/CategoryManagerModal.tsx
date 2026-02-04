@@ -123,7 +123,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                         setEditingId(null);
                         setAddBoxOpen(!addBoxOpen);
                     }}
-                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-full px-4 text-xs h-8 shadow-card transition-all"
+                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-2xl px-4 text-xs h-8 shadow-card transition-all"
                 >
                     <Plus className="w-3.5 h-3.5 mr-1.5" />
                     Nova Categoria
@@ -146,7 +146,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                                     value={editingId ? editName : newItemName}
                                     onChange={(e) => editingId ? setEditName(e.target.value) : setNewItemName(e.target.value)}
                                     placeholder="Ex: Alimentos, Bebidas..."
-                                    className="h-9 text-sm rounded-lg"
+                                    className="h-9 text-sm rounded-2xl"
                                     autoFocus
                                     onKeyDown={(e) => e.key === 'Enter' && (editingId ? handleUpdate(editingId) : handleCreate())}
                                 />
@@ -157,7 +157,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                             <Button
                                 onClick={() => editingId ? handleUpdate(editingId) : handleCreate()}
                                 disabled={isCreating || isUpdating || !(editingId ? editName : newItemName).trim()}
-                                className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-lg font-medium transition-all"
+                                className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-medium transition-all"
                             >
                                 {(isCreating || isUpdating) ? (
                                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -171,7 +171,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                                     setEditingId(null);
                                     setAddBoxOpen(false);
                                 }}
-                                className="h-9 w-9 p-0 bg-gray-50 hover:bg-white text-gray-500 rounded-lg border-gray-200"
+                                className="h-9 w-9 p-0 bg-gray-50 hover:bg-white text-gray-500 rounded-2xl border-gray-200"
                             >
                                 <X className="w-4 h-4" />
                             </Button>
@@ -218,7 +218,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                                         </TableCell>
                                         <TableCell className="py-3 text-center">
                                             {cat.product_count! > 0 ? (
-                                                <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full font-medium">
+                                                <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-2xl font-medium">
                                                     {cat.product_count} itens
                                                 </span>
                                             ) : (
@@ -237,7 +237,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                                                     }}
                                                     disabled={!cat.company_id} // Disable edit for global
                                                     className={cn(
-                                                        "h-7 w-7 p-0 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors",
+                                                        "h-7 w-7 p-0 rounded-2xl hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors",
                                                         !cat.company_id && "opacity-30 cursor-not-allowed hover:bg-transparent hover:text-gray-400"
                                                     )}
                                                     title={!cat.company_id ? "Categorias globais não podem ser editadas" : "Editar"}
@@ -251,7 +251,7 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
                                                     onClick={() => setCategoryToDelete(cat.id)}
                                                     disabled={cat.product_count! > 0 || !cat.company_id}
                                                     className={cn(
-                                                        "h-7 w-7 p-0 rounded-lg transition-colors border-none bg-transparent",
+                                                        "h-7 w-7 p-0 rounded-2xl transition-colors border-none bg-transparent",
                                                         cat.product_count! > 0 || !cat.company_id
                                                             ? "opacity-20 cursor-not-allowed"
                                                             : "hover:bg-red-50 hover:text-red-600 text-gray-400"

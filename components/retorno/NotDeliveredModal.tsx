@@ -152,7 +152,7 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-3xl h-[80vh] flex flex-col">
+            <DialogContent className="max-w-3xl h-screen flex flex-col">
                 <DialogHeader>
                     <DialogTitle>Não Entregue (Rascunho)</DialogTitle>
                     <p className="text-sm text-gray-500">

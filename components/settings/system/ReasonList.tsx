@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabaseBrowser";
 import { getDeliveryReasons, deleteDeliveryReason } from "@/lib/data/reasons";
 import { DeliveryReason, DELIVERY_REASON_GROUPS } from "@/types/reasons";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { Edit2, Trash2, Plus, GripVertical, CheckCircle2 } from "lucide-react";
 import { ReasonModal } from "./ReasonModal";
 import { useToast } from "@/components/ui/use-toast";
@@ -90,7 +91,7 @@ export function ReasonList({ typeCode, typeLabel }: ReasonListProps) {
                 </Button>
             </div>
 
-            <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100">
+            <Card className="divide-y divide-gray-100">
                 {reasons.length === 0 ? (
                     <div className="p-8 text-center text-gray-500 text-sm">
                         Nenhum motivo cadastrado para {typeLabel}.
@@ -140,7 +141,7 @@ export function ReasonList({ typeCode, typeLabel }: ReasonListProps) {
                         );
                     })
                 )}
-            </div>
+            </Card>
 
             <ReasonModal
                 isOpen={isModalOpen}

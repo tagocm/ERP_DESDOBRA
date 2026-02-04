@@ -19,7 +19,7 @@ const SECTIONS = [
 export function LogisticsTab() {
     return (
         <div className="space-y-8">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6">
                 <h4 className="font-semibold text-blue-900 mb-1">Como funcionam as Ocorrências Logísticas?</h4>
                 <p className="text-sm text-blue-800">
                     Ao definir um motivo, você configura exigências e sinalizações que o sistema utilizará para registrar a ocorrência e gerar pendências para outras áreas.
@@ -40,7 +40,7 @@ export function LogisticsTab() {
                             <Accordion type="single" collapsible className="w-full">
                                 {section.types.map((type) => (
                                     <AccordionItem key={type.code} value={type.code}>
-                                        <AccordionTrigger className="hover:no-underline hover:bg-gray-50 px-4 rounded-lg">
+                                        <AccordionTrigger className="hover:no-underline hover:bg-gray-50 px-4 rounded-2xl">
                                             <div className="flex items-center gap-2 text-left">
                                                 <span className="font-medium text-gray-800">{type.label}</span>
                                                 <span className="text-xs text-gray-400 font-mono hidden xl:inline-block">({type.code})</span>

@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Calendar, Truck, Package, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { Card, CardContent } from '@/components/ui/Card';
 import { ProductSeparationList } from './ProductSeparationList';
 import { LoadingChecklist } from './LoadingChecklist';
 import { useQZPrinter } from '@/hooks/useQZPrinter';
@@ -27,10 +28,12 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
 
     if (!route) {
         return (
-            <div className="bg-white border border-gray-200 rounded-2xl p-12 text-center text-gray-500">
-                <Package className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                <p>Selecione uma rota para ver os detalhes</p>
-            </div>
+            <Card className="border-gray-200">
+                <CardContent className="p-12 text-center text-gray-500">
+                    <Package className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                    <p>Selecione uma rota para ver os detalhes</p>
+                </CardContent>
+            </Card>
         );
     }
 
@@ -84,7 +87,8 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
             />
 
             {/* Header */}
-            <div className="bg-white border border-gray-200 rounded-2xl p-4">
+            <Card className="border-gray-200">
+                <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-4">
                     <div>
                         <h2 className="text-lg font-semibold mb-2">{route.name}</h2>
@@ -173,16 +177,17 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
                         Romaneio / Checklist
                     </button>
                 </div>
-            </div>
+                </CardContent>
+            </Card>
 
             {/* Content */}
-            <div className="bg-white border border-gray-200 rounded-2xl">
+            <Card className="border-gray-200">
                 {activeTab === 'separation' ? (
                     <ProductSeparationList routeId={route.id} />
                 ) : (
                     <LoadingChecklist route={route} printer={printer} />
                 )}
-            </div>
+            </Card>
         </div>
     );
 }

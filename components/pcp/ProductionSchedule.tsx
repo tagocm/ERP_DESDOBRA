@@ -446,7 +446,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
 
             {/* Custom Delete Confirmation Modal */}
             <Dialog open={!!orderToDelete} onOpenChange={(open) => !open && setOrderToDelete(null)}>
-                <DialogContent className="max-w-[400px]">
+                <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle className="text-red-600 flex items-center gap-2">
                             <AlertTriangle className="w-5 h-5" /> Confirmar Exclusão
@@ -499,7 +499,7 @@ function DroppableDay({ dateObj, dateStr, orders, onCreate, onOrderClick, onDele
         <div
             ref={setNodeRef}
             className={cn(
-                "bg-white p-2 min-h-[160px] cursor-pointer transition-all flex flex-col justify-between group",
+                "bg-white p-2 min-h-40 cursor-pointer transition-all flex flex-col justify-between group",
                 isOver ? "bg-blue-50 ring-inset ring-2 ring-blue-300" : "",
                 isToday ? "bg-slate-50/50" : ""
             )}
@@ -571,7 +571,7 @@ function OrderCard({ order, isOverlay, onClick, onDelete, isInconsistent }: { or
         <div
             onClick={onClick}
             className={cn(
-                "p-2 rounded-lg text-xs border cursor-grab active:cursor-grabbing hover:shadow-card transition-shadow relative overflow-hidden",
+                "p-2 rounded-2xl text-xs border cursor-grab active:cursor-grabbing hover:shadow-card transition-shadow relative overflow-hidden",
                 statusColor,
                 isOverlay ? "shadow-float scale-105 rotate-2" : ""
             )}
@@ -586,7 +586,7 @@ function OrderCard({ order, isOverlay, onClick, onDelete, isInconsistent }: { or
                         </Badge>
                     )}
                     <button
-                        className="bg-transparent text-slate-400 hover:text-blue-500 rounded-full p-0.5 hover:bg-slate-100 transition-colors z-10"
+                        className="bg-transparent text-slate-400 hover:text-blue-500 rounded-2xl p-0.5 hover:bg-slate-100 transition-colors z-10"
                         onPointerDown={e => e.stopPropagation()}
                         onClick={(e) => {
                             e.stopPropagation()
@@ -597,7 +597,7 @@ function OrderCard({ order, isOverlay, onClick, onDelete, isInconsistent }: { or
                     </button>
                     {order.status === 'planned' && onDelete && (
                         <button
-                            className="bg-transparent text-slate-400 hover:text-red-500 rounded-full p-0.5 hover:bg-slate-100 transition-colors z-10"
+                            className="bg-transparent text-slate-400 hover:text-red-500 rounded-2xl p-0.5 hover:bg-slate-100 transition-colors z-10"
                             onPointerDown={e => e.stopPropagation()}
                             onClick={(e) => {
                                 e.stopPropagation()

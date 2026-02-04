@@ -19,7 +19,7 @@ export function Topbar({ collapsed, onToggle }: TopbarProps) {
 
                 <button
                     onClick={onToggle}
-                    className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500"
+                    className="p-1.5 rounded-2xl hover:bg-gray-100 text-gray-500"
                 >
                     <Menu className="w-5 h-5" />
                 </button>

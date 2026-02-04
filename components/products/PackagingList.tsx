@@ -9,6 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ItemPackaging } from "@/types/product";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Edit2, Trash2, Package, Star } from "lucide-react";
 
@@ -51,9 +52,9 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                             <TableRow key={originalIndex} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
                                 <TableCell className="px-6 py-4">
                                     <div className="flex items-center">
-                                        <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-2xl flex items-center justify-center text-brand-600 shadow-card border border-brand-100/50">
+                                        <Card className="flex-shrink-0 h-9 w-9 bg-brand-50 flex items-center justify-center text-brand-600 border-brand-100/50">
                                             <Package className="w-5 h-5" />
-                                        </div>
+                                        </Card>
                                         <div className="ml-4">
                                             <div className="text-sm font-bold text-gray-900 leading-tight">{pkg.label}</div>
                                             <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">{pkg.type}</div>
@@ -76,10 +77,10 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                                 </TableCell>
                                 <TableCell className="px-6 py-4 text-center">
                                     {pkg.is_default_sales_unit ? (
-                                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100 text-[10px] font-bold uppercase tracking-wider shadow-card">
+                                        <Badge className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 border border-amber-100 text-[10px] font-bold uppercase tracking-wider">
                                             <Star className="w-3 h-3 fill-amber-500 text-amber-500" />
                                             Principal
-                                        </div>
+                                        </Badge>
                                     ) : null}
                                 </TableCell>
                                 <TableCell className="px-6 py-4 text-center">

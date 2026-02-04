@@ -148,7 +148,7 @@ function PessoasEmpresasContent() {
             className: "text-center",
             cell: (row) => (
                 <span
-                    className={`inline-flex px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full border ${row.status === "active"
+                    className={`inline-flex px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-2xl border ${row.status === "active"
                         ? "bg-green-50 text-green-700 border-green-100"
                         : "bg-gray-50 text-gray-400 border-gray-100"
                         }`}
@@ -165,7 +165,7 @@ function PessoasEmpresasContent() {
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
+                        className="h-8 w-8 rounded-2xl hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
                         onClick={(e) => {
                             e.stopPropagation();
                             router.push(`/app/cadastros/pessoas-e-empresas/${row.id}`);
@@ -177,7 +177,7 @@ function PessoasEmpresasContent() {
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+                        className="h-8 w-8 rounded-2xl hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
                         onClick={(e) => {
                             e.stopPropagation();
                             if (confirm("Tem certeza que deseja excluir?")) {
@@ -219,7 +219,7 @@ function PessoasEmpresasContent() {
                 }
             />
 
-            <div className="space-y-6 px-6 pb-6 max-w-[1600px] mx-auto">
+            <div className="space-y-6 px-6 pb-6 max-w-screen-2xl mx-auto">
                 <div className="flex gap-4">
                     <div className="relative flex-1 max-w-sm">
                         <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />

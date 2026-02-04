@@ -187,7 +187,7 @@ export default function DealDetailPage() {
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Notas</label>
                             <textarea
-                                className="w-full min-h-[100px] px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full min-h-24 px-3 py-2 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 value={deal.notes || ''}
                                 onChange={(e) => setDeal({ ...deal, notes: e.target.value })}
                                 placeholder="Observações sobre este negócio..."

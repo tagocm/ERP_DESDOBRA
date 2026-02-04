@@ -91,7 +91,7 @@ export default function PaymentTermsPage() {
     };
 
     return (
-        <div className="max-w-[1600px] mx-auto px-6">
+        <div className="max-w-screen-2xl mx-auto px-6">
             <Link
                 href="/app/settings/master-data"
                 className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-6"
@@ -134,9 +134,9 @@ export default function PaymentTermsPage() {
                                 <TableRow key={term.id} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
                                     <TableCell className="px-6 py-4">
                                         <div className="flex items-center">
-                                            <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600 shadow-card border border-brand-100/50">
+                                            <Card className="flex-shrink-0 h-9 w-9 bg-brand-50 flex items-center justify-center text-brand-600 border-brand-100/50">
                                                 <CreditCard className="w-5 h-5" />
-                                            </div>
+                                            </Card>
                                             <div className="ml-4">
                                                 <div className="text-sm font-bold text-gray-900 leading-tight">
                                                     {term.name}
@@ -156,7 +156,7 @@ export default function PaymentTermsPage() {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 rounded-lg hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
+                                                className="h-8 w-8 rounded-2xl hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
                                                 onClick={() => openEdit(term)}
                                             >
                                                 <Edit2 className="w-4 h-4" />
@@ -164,7 +164,7 @@ export default function PaymentTermsPage() {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 rounded-lg hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+                                                className="h-8 w-8 rounded-2xl hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
                                                 onClick={() => handleDelete(term.id)}
                                             >
                                                 <Trash2 className="w-4 h-4" />

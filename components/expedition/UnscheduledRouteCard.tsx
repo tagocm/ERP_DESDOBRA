@@ -106,7 +106,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                     <div
                         ref={setDropRef}
                         className={cn(
-                            "transition-colors rounded-lg",
+                            "transition-colors rounded-2xl",
                             isOver && !isRouteLocked && "ring-2 ring-blue-300 bg-blue-50"
                         )}
                         onMouseEnter={handleMouseEnter}
@@ -162,7 +162,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                                     <button
                                         onClick={handleDeleteClick}
                                         disabled={isDeleting}
-                                        className="w-6 h-6 flex items-center justify-center rounded-sm hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors flex-shrink-0 disabled:opacity-50"
+                                        className="w-6 h-6 flex items-center justify-center rounded-2xl hover:bg-red-50 text-gray-400 hover:text-red-600 transition-colors flex-shrink-0 disabled:opacity-50"
                                         title="Excluir rota"
                                     >
                                         <X className="w-3.5 h-3.5" />
@@ -190,7 +190,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                                         })}
                                     </div>
                                 ) : (
-                                    <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 gap-1 py-4 border-2 border-dashed border-gray-200/50 rounded-lg">
+                                    <div className="h-full flex flex-col items-center justify-center text-center text-gray-400 gap-1 py-4 border-2 border-dashed border-gray-200/50 rounded-2xl">
                                         <Package className="w-4 h-4 opacity-50" />
                                         <span className="text-[10px]">Arraste pedidos aqui</span>
                                     </div>
@@ -318,7 +318,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
                     <div>
                         <p>Deseja realmente excluir a rota <span className="font-semibold text-gray-900">"{route.name}"</span>?</p>
                         {route.orders && route.orders.length > 0 && (
-                            <div className="mt-3 p-3 bg-red-50 border-l-4 border-red-500 rounded-r text-red-700 text-sm">
+                            <div className="mt-3 p-3 bg-red-50 border-l-4 border-red-500 rounded-2xl text-red-700 text-sm">
                                 <p className="font-semibold">⚠️ Ação irreversível para a rota</p>
                                 <p>Esta rota possui {route.orders.length} pedidos. Eles voltarão para o Sandbox.</p>
                             </div>

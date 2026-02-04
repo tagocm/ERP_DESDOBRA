@@ -9,6 +9,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabaseBrowser";
 import { useToast } from "@/components/ui/use-toast";
+import { Card } from "@/components/ui/Card";
 
 interface Props {
     installment: ArInstallment;
@@ -159,7 +160,7 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose, trig
     };
 
     const content = (
-        <div className="w-96 flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-float">
+        <Card className="w-96 flex flex-col overflow-hidden shadow-float">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
                 <h4 className="font-bold text-sm text-gray-700">Gerenciar Pagamentos</h4>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onClose}>
@@ -167,7 +168,7 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose, trig
                 </Button>
             </div>
             {/* ... rest of the content ... */}
-            <div className="max-h-[300px] overflow-y-auto">
+            <div className="max-h-72 overflow-y-auto">
                 {/* ... existing table code ... */}
                 {loading ? (
                     <div className="p-4 text-center"><Loader2 className="animate-spin w-4 h-4 mx-auto" /></div>
@@ -191,7 +192,7 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose, trig
                                     </td>
                                     <td className="px-4 py-2 text-xs text-gray-600">
                                         {p.payment?.method}
-                                        {p.payment?.notes && <span className="block text-[9px] text-gray-400 truncate max-w-[100px]">{p.payment.notes}</span>}
+                                        {p.payment?.notes && <span className="block text-[9px] text-gray-400 truncate max-w-28">{p.payment.notes}</span>}
                                     </td>
                                     <td className="px-4 py-2 text-xs font-bold text-gray-900 text-right">
                                         {formatCurrency(p.amount)}
@@ -289,7 +290,7 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose, trig
                     </Button>
                 </div>
             </div>
-        </div>
+        </Card>
     );
 
     if (trigger) {

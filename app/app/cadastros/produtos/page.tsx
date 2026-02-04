@@ -249,9 +249,9 @@ export default function ItemsPage() {
                                         </TableCell>
                                         <TableCell className="px-6 py-4">
                                             <div className="flex items-center">
-                                                <div className="flex-shrink-0 h-9 w-9 bg-brand-50 rounded-2xl flex items-center justify-center text-brand-600 shadow-card border border-brand-100/50 mr-3">
+                                                <Card className="flex-shrink-0 h-9 w-9 bg-brand-50 flex items-center justify-center text-brand-600 border-brand-100/50 mr-3">
                                                     {getTypeIcon(item.type)}
-                                                </div>
+                                                </Card>
                                                 <div className="text-sm font-bold text-gray-900 leading-tight">
                                                     {item.name}
                                                 </div>

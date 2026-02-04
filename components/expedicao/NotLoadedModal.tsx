@@ -166,7 +166,7 @@ export function NotLoadedModal({ isOpen, onClose, onSuccess, order, routeId, ini
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-lg max-h-screen overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Pedido Não Carregado</DialogTitle>
                     <DialogDescription>
@@ -212,7 +212,7 @@ export function NotLoadedModal({ isOpen, onClose, onSuccess, order, routeId, ini
                             </Label>
                         </div>
 
-                        <div className="bg-amber-50 p-3 rounded-md flex gap-3 text-xs text-amber-800 border border-amber-100">
+                        <div className="bg-amber-50 p-3 rounded-2xl flex gap-3 text-xs text-amber-800 border border-amber-100">
                             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                             <div>
                                 <p className="font-semibold mb-0.5">Atenção</p>

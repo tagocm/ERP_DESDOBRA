@@ -82,10 +82,10 @@ export function PreApprovalList({ data, isLoading, onRefresh }: PreApprovalListP
                         <tr>
                             <th className="px-6 py-4 w-12">Tipo</th>
                             <th className="px-6 py-4">Parceiro / Entidade</th>
-                            <th className="px-6 py-4 w-[140px]">Emissão</th>
+                            <th className="px-6 py-4 w-36">Emissão</th>
                             <th className="px-6 py-4">Detalhes / Termos</th>
                             <th className="px-6 py-4 text-right">Valor</th>
-                            <th className="px-6 py-4 w-[140px] text-right">Ação</th>
+                            <th className="px-6 py-4 w-36 text-right">Ação</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
