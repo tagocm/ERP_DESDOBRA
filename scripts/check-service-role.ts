@@ -15,8 +15,8 @@ const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!key) {
     console.error("❌ SUPABASE_SERVICE_ROLE_KEY is MISSING in process.env");
 } else {
-    console.log(`✅ SUPABASE_SERVICE_ROLE_KEY is present (Length: ${key.length})`);
-    console.log(`Prefix: ${key.substring(0, 10)}...`);
+    // Never print secrets (even prefix/length) to avoid accidental leakage in terminals/CI logs.
+    console.log("✅ SUPABASE_SERVICE_ROLE_KEY is present");
 }
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
