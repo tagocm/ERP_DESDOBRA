@@ -65,6 +65,21 @@ USING (
     ) IN (
         SELECT company_id FROM public.company_members WHERE auth_user_id = auth.uid()
     )
+)
+WITH CHECK (
+    bucket_id = 'company-assets' AND
+    (
+        CASE
+            WHEN (storage.foldername(name))[1] = 'companies'
+                 AND (storage.foldername(name))[2] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                THEN (storage.foldername(name))[2]::uuid
+            WHEN (storage.foldername(name))[1] ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+                THEN (storage.foldername(name))[1]::uuid
+            ELSE NULL
+        END
+    ) IN (
+        SELECT company_id FROM public.company_members WHERE auth_user_id = auth.uid()
+    )
 );
 
 CREATE POLICY "Allow authenticated delete from company folder"
@@ -84,4 +99,3 @@ USING (
         SELECT company_id FROM public.company_members WHERE auth_user_id = auth.uid()
     )
 );
-
