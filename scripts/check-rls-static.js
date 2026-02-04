@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Static RLS audit (best-effort) based on `supabase/migrations/**/*.sql`.
+ * Static RLS audit (best-effort) based on all `.sql` files in `supabase/migrations/`.
  *
  * Limitations:
  * - This is NOT a source-of-truth for the live database.
@@ -54,6 +54,12 @@ function readAllMigrationSqlFiles() {
         });
 }
 
+function stripSqlComments(sql) {
+    // Remove /* ... */ blocks first, then -- line comments.
+    // This is best-effort and not a full SQL parser, but it reduces false positives a lot.
+    return sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--.*$/gm, ' ');
+}
+
 function collectTablesAndRlsSignals(files) {
     const createdTables = new Set();
     const rlsEnabled = new Set();
@@ -64,15 +70,16 @@ function collectTablesAndRlsSignals(files) {
     const createPolicyRe = /\bcreate\s+policy\s+[\s\S]*?\bon\s+((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)/gi;
 
     for (const { sql } of files) {
-        for (const match of sql.matchAll(createTableRe)) {
+        const normalizedSql = stripSqlComments(sql);
+        for (const match of normalizedSql.matchAll(createTableRe)) {
             const table = normalizeTableName(match[1]);
             if (table) createdTables.add(table);
         }
-        for (const match of sql.matchAll(enableRlsRe)) {
+        for (const match of normalizedSql.matchAll(enableRlsRe)) {
             const table = normalizeTableName(match[1]);
             if (table) rlsEnabled.add(table);
         }
-        for (const match of sql.matchAll(createPolicyRe)) {
+        for (const match of normalizedSql.matchAll(createPolicyRe)) {
             const table = normalizeTableName(match[1]);
             if (table) policyOnTable.add(table);
         }
