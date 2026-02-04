@@ -1,8 +1,12 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { requireInternalApiAccess } from '@/lib/api/internal';
 
 export async function GET(request: Request) {
+    const gate = requireInternalApiAccess(request);
+    if (gate) return gate;
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id'); // Order ID or Document Number
 
