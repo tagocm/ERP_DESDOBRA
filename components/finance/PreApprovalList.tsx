@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import { FileText, ArrowUpRight, ArrowDownLeft, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { PreApprovalActions } from './PreApprovalActions'
 import { FinancialEvent } from '@/lib/finance/events-db'
@@ -65,7 +66,7 @@ export function PreApprovalList({ data, isLoading, onRefresh }: PreApprovalListP
 
     if (!data || data.length === 0) {
         return (
-            <div className="p-12 text-center border border-gray-200 rounded-lg bg-gray-50 text-gray-500">
+            <div className="p-12 text-center border border-gray-200 rounded-2xl bg-gray-50 text-gray-500">
                 <FileText className="w-12 h-12 mx-auto mb-4 opacity-20" />
                 <h3 className="text-lg font-medium">Tudo Aprovado!</h3>
                 <p>Não há lançamentos pendentes de aprovação.</p>
@@ -74,7 +75,7 @@ export function PreApprovalList({ data, isLoading, onRefresh }: PreApprovalListP
     }
 
     return (
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+        <Card className="bg-white overflow-hidden">
             <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
                     <thead className="bg-gray-50 text-gray-500 font-semibold border-b">
@@ -140,6 +141,6 @@ export function PreApprovalList({ data, isLoading, onRefresh }: PreApprovalListP
                 title={selectedTitle ? mapTitleToEvent(selectedTitle) : null}
                 onSuccess={onRefresh}
             />
-        </div>
+        </Card>
     )
 }

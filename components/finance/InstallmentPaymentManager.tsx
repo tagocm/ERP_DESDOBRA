@@ -159,7 +159,7 @@ export function InstallmentPaymentManager({ installment, onUpdate, onClose, trig
     };
 
     const content = (
-        <div className="w-[400px] flex flex-col bg-white rounded-xl overflow-hidden border border-gray-100 shadow-2xl">
+        <div className="w-96 flex flex-col bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-float">
             <div className="px-4 py-3 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
                 <h4 className="font-bold text-sm text-gray-700">Gerenciar Pagamentos</h4>
                 <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={onClose}>

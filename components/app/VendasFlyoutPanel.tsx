@@ -139,7 +139,7 @@ export function VendasFlyoutPanel({ isOpen, onClose, anchorRef }: VendasFlyoutPa
         <div
             ref={panelRef}
             className={cn(
-                "fixed bg-white border border-gray-100 shadow-lg rounded-lg overflow-hidden flex flex-col transition-all duration-200 ease-out z-[50]",
+                "fixed bg-white border border-gray-100 shadow-float rounded-2xl overflow-hidden flex flex-col transition-all duration-200 ease-out z-50",
                 "w-[240px] h-auto",
                 isOpen
                     ? "opacity-100 scale-100 visible"
