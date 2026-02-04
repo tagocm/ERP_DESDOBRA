@@ -1,6 +1,8 @@
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
+import { logger } from '@/lib/logger';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
     const supabase = await createClient();
@@ -8,6 +10,14 @@ export async function POST(request: Request) {
 
     if (authError || !user) {
         return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+    }
+
+    const limitConfig = process.env.NODE_ENV === 'production'
+        ? { limit: 60, windowMs: 60_000 }
+        : { limit: 300, windowMs: 60_000 };
+    const limit = rateLimit(request, { key: 'finance-bulk-settle', ...limitConfig });
+    if (!limit.ok) {
+        return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
     const { installmentIds, date, accountId } = await request.json();
@@ -90,7 +100,11 @@ export async function POST(request: Request) {
                 .single();
 
             if (payError) {
-                console.error('Payment Error', payError);
+                logger.error('[finance/bulk-settle] Payment create failed', {
+                    installmentId: id,
+                    code: payError.code,
+                    message: payError.message
+                });
                 errors.push({ id, reason: 'Erro ao criar pagamento' });
                 continue;
             }
@@ -105,7 +119,11 @@ export async function POST(request: Request) {
                 });
 
             if (allocError) {
-                console.error('Allocation Error', allocError);
+                logger.error('[finance/bulk-settle] Allocation create failed', {
+                    installmentId: id,
+                    code: allocError.code,
+                    message: allocError.message
+                });
                 // Rollback payment? (Hard without transaction).
                 // Log critical error.
                 errors.push({ id, reason: 'Erro ao vincular pagamento' });
@@ -131,15 +149,21 @@ export async function POST(request: Request) {
                 .eq('id', inst.id);
 
             if (updateError) {
-                console.error('Update Error', updateError);
+                logger.error('[finance/bulk-settle] Installment update failed', {
+                    installmentId: id,
+                    code: updateError.code,
+                    message: updateError.message
+                });
                 errors.push({ id, reason: 'Erro ao atualizar status' });
                 continue;
             }
 
             successCount++;
 
-        } catch (e: any) {
-            errors.push({ id, reason: e.message });
+        } catch (e: unknown) {
+            const message = e instanceof Error ? e.message : 'Unknown error';
+            logger.error('[finance/bulk-settle] Unexpected error', { installmentId: id, message });
+            errors.push({ id, reason: process.env.NODE_ENV === 'production' ? 'Erro inesperado' : message });
         }
     }
 

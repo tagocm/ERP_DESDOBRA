@@ -3,9 +3,19 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabaseServer'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { logger } from '@/lib/logger'
+import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
     try {
+        const limitConfig = process.env.NODE_ENV === 'production'
+            ? { limit: 10, windowMs: 60_000 }
+            : { limit: 100, windowMs: 60_000 }
+        const limit = rateLimit(req, { key: 'onboarding', ...limitConfig })
+        if (!limit.ok) {
+            return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
+        }
+
         const { company_name, slug, full_name } = await req.json()
 
         if (!company_name) {
@@ -107,10 +117,11 @@ export async function POST(req: NextRequest) {
             )
         }
 
-    } catch (error: any) {
-        console.error('Erro no onboarding:', error)
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error'
+        logger.error('[onboarding] Error', { message })
         return NextResponse.json(
-            { error: error.message || 'Erro interno no servidor' },
+            { error: process.env.NODE_ENV === 'production' ? 'Erro interno no servidor' : message },
             { status: 500 }
         )
     }

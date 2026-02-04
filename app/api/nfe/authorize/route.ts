@@ -6,9 +6,19 @@ import { emitirNfeHomolog } from '@/lib/nfe/sefaz/services/emitir';
 import { checkIdempotency, upsertNfeEmission, buildNfeProc } from '@/lib/nfe/sefaz/services/persistence';
 import { loadCompanyCertificate } from '@/lib/nfe/sefaz/services/certificateLoader';
 import { NfeDraft } from '@/lib/nfe/domain/types';
+import { logger } from '@/lib/logger';
+import { rateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: NextRequest) {
     try {
+        const limitConfig = process.env.NODE_ENV === 'production'
+            ? { limit: 10, windowMs: 60_000 }
+            : { limit: 100, windowMs: 60_000 };
+        const limit = rateLimit(request, { key: "nfe-authorize", ...limitConfig });
+        if (!limit.ok) {
+            return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+        }
+
         // 1. Authenticate user
         const supabaseUser = await createClient();
         const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
@@ -72,8 +82,9 @@ export async function POST(request: NextRequest) {
         try {
             certConfig = await loadCompanyCertificate(companyId);
         } catch (error: any) {
+            const message = error instanceof Error ? error.message : 'Unknown error';
             return NextResponse.json(
-                { error: `Erro ao carregar certificado: ${error.message}` },
+                { error: process.env.NODE_ENV === 'production' ? 'Erro ao carregar certificado' : `Erro ao carregar certificado: ${message}` },
                 { status: 400 }
             );
         }
@@ -138,18 +149,22 @@ export async function POST(request: NextRequest) {
             ...updates
         });
 
+        const exposeXml = process.env.NODE_ENV !== 'production' || process.env.EXPOSE_NFE_XML === 'true';
+        const exposeLogs = process.env.NODE_ENV !== 'production' || process.env.EXPOSE_NFE_LOGS === 'true';
         return NextResponse.json({
             success: result.success,
+            status,
             cStat: result.cStat,
             xMotivo: result.xMotivo,
-            logs: result.logs,
-            xmlNfeProc: updates.xml_nfe_proc
+            ...(exposeLogs ? { logs: result.logs } : {}),
+            ...(exposeXml ? { xmlNfeProc: updates.xml_nfe_proc } : {})
         });
 
-    } catch (error: any) {
-        console.error('NF-e authorization error:', error);
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[nfe/authorize] Error', { message });
         return NextResponse.json(
-            { error: error.message || 'Erro ao autorizar NF-e' },
+            { error: process.env.NODE_ENV === 'production' ? 'Erro ao autorizar NF-e' : message },
             { status: 500 }
         );
     }

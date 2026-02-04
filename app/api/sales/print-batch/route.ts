@@ -4,6 +4,8 @@ import { createClient } from "@/utils/supabase/server";
 import { renderOrderA4Html } from "@/lib/templates/print/order-a4";
 import { generatePdfFromHtml } from "@/lib/print/pdf-generator";
 import archiver from 'archiver';
+import { logger } from '@/lib/logger';
+import { rateLimit } from '@/lib/rate-limit';
 
 // Helper to zip buffers
 function zipPdfs(files: { filename: string, buffer: Buffer }[]): Promise<Buffer> {
@@ -26,6 +28,14 @@ function zipPdfs(files: { filename: string, buffer: Buffer }[]): Promise<Buffer>
 
 export async function POST(request: Request) {
     try {
+        const limitConfig = process.env.NODE_ENV === 'production'
+            ? { limit: 10, windowMs: 60_000 }
+            : { limit: 100, windowMs: 60_000 };
+        const limit = rateLimit(request, { key: 'sales-print-batch', ...limitConfig });
+        if (!limit.ok) {
+            return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+        }
+
         const { searchParams } = new URL(request.url);
         const mode = searchParams.get('mode') || 'pdf'; // 'zip' or 'pdf'
 
@@ -59,7 +69,10 @@ export async function POST(request: Request) {
             .in('id', ids);
 
         if (fetchError || !orders || orders.length === 0) {
-            console.error('Error fetching orders:', fetchError);
+            logger.error('[sales/print-batch] Error fetching orders', {
+                code: fetchError?.code,
+                message: fetchError?.message
+            });
             return NextResponse.json({ error: 'Erro ao buscar dados dos pedidos.' }, { status: 500 });
         }
 
@@ -113,7 +126,8 @@ export async function POST(request: Request) {
                             // logoDataUri = data.publicUrl;
                         }
                     } catch (e) {
-                        console.error("Failed to process logo for PDF:", e);
+                        const message = e instanceof Error ? e.message : 'Unknown error';
+                        logger.warn('[sales/print-batch] Failed processing logo for PDF (non-blocking)', { message });
                     }
                 }
 
@@ -127,7 +141,7 @@ export async function POST(request: Request) {
             }
         }
 
-        console.log(`Generating files for ${orders.length} orders. Mode: ${mode}`);
+        logger.info('[sales/print-batch] Generating batch files', { count: orders.length, mode });
 
         if (mode === 'zip') {
             // Generate individual PDFs
@@ -241,11 +255,12 @@ export async function POST(request: Request) {
             });
         }
 
-    } catch (error: any) {
-        console.error('Batch print error:', error);
-        return NextResponse.json({
-            error: 'Falha durante geração dos arquivos.',
-            details: error.message
-        }, { status: 500 });
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[sales/print-batch] Error', { message });
+        return NextResponse.json(
+            { error: process.env.NODE_ENV === 'production' ? 'Falha durante geração dos arquivos.' : message },
+            { status: 500 }
+        );
     }
 }
