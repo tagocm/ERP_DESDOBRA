@@ -79,11 +79,22 @@ Drop FK referencing `auth.users` (if present) and ensure FK to `public.users`.
   - Recreates `sales_document_nfes` policies to use `company_members` via `sales_documents`.
 - `supabase/migrations/20260203104000_fix_sales_rep_fk.sql`
   - Drops FK to `auth.users` (if any) and ensures FK to `public.users`.
+- `supabase/migrations/20260204110000_harden_public_function_exec_grants.sql`
+  - Revokes default `PUBLIC/anon` EXECUTE on `public` functions.
+  - Re-grants allowlisted RPCs for `authenticated` and all functions for `service_role`.
+- `supabase/migrations/20260204111000_revoke_unaccent_anon.sql`
+  - Attempts to revoke `PUBLIC/anon` EXECUTE on `unaccent*` extension functions (requires owner privileges).
 
 ## Risk Assessment
 - Storage policy changes may affect any client writing to legacy paths. Mitigation: helper accepts both `companies/<uuid>/...` and `<uuid>/...`.
 - `user_notifications` insertion policy allows authenticated users to insert their own notifications. If we want only service_role to create notifications, remove the INSERT policy (follow-up decision).
 - Changing `sales_rep_id` FK can affect PostgREST relationships; ensure `public.users` contains matching IDs for reps.
+- Public function hardening can break any RPC not in the allowlist. Mitigation: we allowlisted all RPCs used by the app; any external integrations need to be added explicitly.
+
+## Exception: `unaccent*` grants
+- `unaccent`, `unaccent_init`, `unaccent_lexize` are owned by `supabase_admin` and still show `anon` EXECUTE grants.
+- SQL Editor runs as `postgres` and cannot revoke those grants; `SET ROLE supabase_admin` is denied.
+- Risk is low (text normalization only, no data access). Removal requires support or owner-level execution.
 
 ## Rollout Plan
 1) Apply migrations in staging.
@@ -148,6 +159,32 @@ Sales NF-e RLS + sales_rep_id FK:
    from pg_policies
    where schemaname = 'public' and tablename = 'sales_document_nfes'
    order by policyname;
+   ```
+
+Public function grants:
+1) Confirm `anon` has no EXECUTE on `public` functions (except `unaccent*`):
+   ```sql
+   select routine_schema, routine_name
+   from information_schema.role_routine_grants
+   where grantee = 'anon' and routine_schema = 'public';
+   ```
+2) Confirm allowlisted functions for `authenticated`:
+   ```sql
+   select routine_name
+   from information_schema.role_routine_grants
+   where grantee = 'authenticated'
+     and routine_schema = 'public'
+     and routine_name in (
+       'get_route_product_aggregation',
+       'register_production_entry',
+       'cleanup_user_drafts',
+       'deduct_stock_from_route',
+       'get_next_sku',
+       'is_member_of',
+       'has_company_role',
+       'is_company_member_for_path'
+     )
+   order by routine_name;
    ```
 2) Confirm `sales_rep_id` FK targets `public.users`:
    ```sql
