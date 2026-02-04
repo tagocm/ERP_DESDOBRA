@@ -4,6 +4,7 @@ import { SalesOrder } from "@/types/sales";
 import { format } from "date-fns";
 import { Eye, FileText, Trash2, X, Printer, Loader2, Download, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import Link from "next/link";
 import {
     getCommercialBadgeStyle,
@@ -346,7 +347,7 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
 
     if (!data || data.length === 0) {
         return (
-            <div className="p-12 text-center border border-gray-200 rounded-lg bg-gray-50 text-gray-500">
+            <div className="p-12 text-center border border-gray-200 rounded-2xl bg-gray-50 text-gray-500">
                 <FileText className="w-12 h-12 mx-auto mb-4 opacity-20" />
                 <h3 className="text-lg font-medium">Nenhum pedido encontrado</h3>
                 <p>Ajuste os filtros ou crie um novo pedido.</p>
@@ -357,9 +358,9 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
     return (
         <>
             {selectedIds.size > 0 && (
-                <div className="mb-4 p-4 bg-brand-50 border border-brand-100 rounded-lg flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                <div className="mb-4 p-4 bg-brand-50 border border-brand-100 rounded-2xl flex items-center justify-between animate-in fade-in slide-in-from-top-2">
                     <div className="flex items-center gap-3">
-                        <div className="bg-brand-100 text-brand-700 px-3 py-1 rounded-md text-sm font-semibold">
+                        <div className="bg-brand-100 text-brand-700 px-3 py-1 rounded-2xl text-sm font-semibold">
                             {selectedIds.size} {selectedIds.size === 1 ? 'pedido selecionado' : 'pedidos selecionados'}
                         </div>
 
@@ -441,7 +442,7 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
                 </div>
             )}
 
-            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+            <Card className="bg-white overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
                         <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
@@ -452,14 +453,14 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
                                         onCheckedChange={handleSelectAll}
                                     />
                                 </th>
-                                <th className="px-6 py-4 w-[100px] text-xs uppercase tracking-wider">Número</th>
+                                <th className="px-6 py-4 w-24 text-xs uppercase tracking-wider">Número</th>
                                 <th className="px-6 py-4 text-xs uppercase tracking-wider">Cliente</th>
-                                <th className="px-6 py-4 w-[140px] text-xs uppercase tracking-wider">Data</th>
+                                <th className="px-6 py-4 w-36 text-xs uppercase tracking-wider">Data</th>
                                 <th className="px-6 py-4 text-right text-xs uppercase tracking-wider">Total</th>
                                 <th className="px-6 py-4 text-center text-xs uppercase tracking-wider">Comercial</th>
                                 <th className="px-6 py-4 text-center text-xs uppercase tracking-wider">Logístico</th>
                                 <th className="px-6 py-4 text-center text-xs uppercase tracking-wider">Financeiro</th>
-                                <th className="px-6 py-4 w-[100px]"></th>
+                                <th className="px-6 py-4 w-24"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -545,7 +546,7 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
                     </table>
                 </div>
                 {/* Pagination Footer would go here - implemented in parent usually or passed props */}
-            </div>
+            </Card>
 
             <ConfirmDialogDesdobra
                 open={deleteDialogOpen}
