@@ -9,6 +9,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { OrderItemsPopover } from "./OrderItemsPopover";
 import { getRouteStatusColor, getOrderStatusIndicator } from "@/lib/route-status-helpers";
 import { StatusDots } from "./StatusDots";
@@ -80,11 +81,11 @@ export const RouteCardCompact = memo(function RouteCardCompact({ route, onClick,
     return (
         <Popover open={isHovered} onOpenChange={setIsHovered}>
             <PopoverTrigger asChild>
-                <div
+                <Card
                     ref={setNodeRef}
                     style={style}
                     className={cn(
-                        "border rounded px-2 py-1 shadow-sm hover:shadow-md group",
+                        "px-2 py-1 hover:shadow-float group",
                         "transition-all duration-200 ease-out",
                         // Route status colors
                         routeStatusColor === 'neutral' && "bg-white border-gray-200",
@@ -94,7 +95,7 @@ export const RouteCardCompact = memo(function RouteCardCompact({ route, onClick,
                         // Drag styles
                         !isRouteLocked && "cursor-grab active:cursor-grabbing",
                         isRouteLocked && "cursor-not-allowed opacity-75",
-                        isDragging && "opacity-50 ring-2 ring-blue-400 shadow-lg scale-105"
+                        isDragging && "opacity-50 ring-2 ring-blue-400 shadow-float scale-105"
                     )}
                     onClick={onClick}
                     onMouseEnter={handleMouseEnter}
@@ -126,7 +127,7 @@ export const RouteCardCompact = memo(function RouteCardCompact({ route, onClick,
                             <StatusDots dots={orderStatusDots} maxVisible={5} size="sm" />
                         </div>
                     )}
-                </div>
+                </Card>
             </PopoverTrigger>
 
             <PopoverContent
@@ -137,7 +138,7 @@ export const RouteCardCompact = memo(function RouteCardCompact({ route, onClick,
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
             >
-                <div className="bg-white rounded-lg shadow-lg border border-gray-200 overflow-hidden">
+                <Card className="bg-white shadow-float border border-gray-200/70 overflow-hidden">
                     {/* Header */}
                     <div className="bg-gradient-to-r from-blue-50 to-blue-100 px-3 py-2 border-b border-blue-200">
                         <div className="flex items-center justify-between gap-2 mb-1">
@@ -272,7 +273,7 @@ export const RouteCardCompact = memo(function RouteCardCompact({ route, onClick,
                             </div>
                         )}
                     </div>
-                </div>
+                </Card>
             </PopoverContent>
         </Popover>
     );
