@@ -3,7 +3,8 @@
  * Event-based pre-approval system with installments
  */
 
-import { createAdminClient } from '@/lib/supabaseServer';
+import 'server-only';
+import { createClient } from '@/utils/supabase/server';
 import { type FinancialEventStatus } from '@/lib/constants/status';
 
 export interface FinancialEvent {
@@ -62,7 +63,7 @@ export interface ValidationPendency {
  * List pending events for approval (pending or attention)
  */
 export async function listPendingEvents(companyId: string): Promise<FinancialEvent[]> {
-    const supabase = await createAdminClient();
+    const supabase = await createClient();
 
     const { data, error } = await supabase
         .from('financial_events')
@@ -84,7 +85,7 @@ export async function listPendingEvents(companyId: string): Promise<FinancialEve
  * Get single event with all details
  */
 export async function getEventWithDetails(eventId: string): Promise<FinancialEvent | null> {
-    const supabase = await createAdminClient();
+    const supabase = await createClient();
 
     const { data, error } = await supabase
         .from('financial_events')
@@ -106,7 +107,7 @@ export async function updateEventInstallments(
     eventId: string,
     installments: Omit<EventInstallment, 'id' | 'event_id' | 'created_at' | 'updated_at'>[]
 ): Promise<void> {
-    const supabase = await createAdminClient();
+    const supabase = await createClient();
 
     // Strategy: Upsert based on (event_id, installment_number) unique constraint
     // This updates existing rows and inserts new ones, avoiding unique constraint violations.
@@ -140,7 +141,7 @@ export async function updateEventStatus(
     status: 'pending' | 'attention' | 'approved' | 'rejected',
     updates: Partial<FinancialEvent> = {}
 ): Promise<void> {
-    const supabase = await createAdminClient();
+    const supabase = await createClient();
 
     const { error } = await supabase
         .from('financial_events')
@@ -162,7 +163,7 @@ export async function markEventAttention(
     userId: string,
     reason: string
 ): Promise<void> {
-    const supabase = await createAdminClient();
+    const supabase = await createClient();
 
     const { error } = await supabase
         .from('financial_events')
@@ -211,7 +212,7 @@ export async function approveEventAtomic(
     userId: string,
     snapshot: ApprovalSnapshot
 ): Promise<boolean> {
-    const supabase = await createAdminClient();
+    const supabase = await createClient();
 
     // Atomic update: only if status is pending or attention
     const { data, error } = await supabase
@@ -236,7 +237,7 @@ export async function approveEventAtomic(
  * Mark event as approved after title creation
  */
 export async function finalizeApproval(eventId: string): Promise<void> {
-    const supabase = await createAdminClient();
+    const supabase = await createClient();
 
     const { error } = await supabase
         .from('financial_events')
@@ -251,7 +252,7 @@ export async function finalizeApproval(eventId: string): Promise<void> {
  * Rollback approval if title creation fails
  */
 export async function rollbackApproval(eventId: string): Promise<void> {
-    const supabase = await createAdminClient();
+    const supabase = await createClient();
 
     const { error } = await supabase
         .from('financial_events')
@@ -274,7 +275,7 @@ export async function rejectEvent(
     userId: string,
     reason: string
 ): Promise<void> {
-    const supabase = await createAdminClient();
+    const supabase = await createClient();
 
     const { error } = await supabase
         .from('financial_events')
