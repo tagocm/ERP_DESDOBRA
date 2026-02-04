@@ -132,6 +132,7 @@ E2E tests run automatically in CI (GitHub Actions) on every push/PR. Test report
 
 -   **RLS:** Row Level Security is the primary defense. Ensure policies are correct for every new table.
 -   **Service Role:** Only use `SUPABASE_SERVICE_ROLE_KEY` in secure server contexts (e.g., background jobs, admin actions).
+-   **Internal Routes:** `/api/debug/*` and `/api/test/*` are disabled in production unless `INTERNAL_API_TOKEN` is set and provided via `x-internal-token`.
 -   **Secrets:** Never commit `.pfx` certificates or `.env` files. Use `.gitignore`.
 
 ## 🤝 Contributing
