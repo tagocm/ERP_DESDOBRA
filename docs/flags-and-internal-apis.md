@@ -25,6 +25,18 @@ Este projeto usa algumas flags de ambiente para **segurança** e **debug control
 
 ## Rotas internas
 
+### Healthcheck interno
+
+`GET /api/internal/health`
+
+Headers:
+- `x-internal-token: <INTERNAL_API_TOKEN>` (ou `Authorization: Bearer <INTERNAL_API_TOKEN>`)
+
+Resposta:
+```json
+{ "ok": true, "timestamp": "2026-02-04T00:00:00.000Z", "durationMs": 12, "checks": { "db": { "ok": true }, "storage": { "ok": true } } }
+```
+
 ### Processar inbox do mobile
 
 `POST /api/internal/mobile/process`
