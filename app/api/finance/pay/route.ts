@@ -1,6 +1,8 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { logger } from '@/lib/logger';
+import { rateLimit } from '@/lib/rate-limit';
 
 async function createClient() {
     const cookieStore = await cookies();
@@ -21,17 +23,29 @@ async function createClient() {
 }
 
 export async function POST(req: Request) {
-    const supabase = await createClient();
-    const body = await req.json();
-    const { title_id, amount, method, notes, paid_at } = body;
-    const amountNum = Number(amount);
-
-    if (!title_id || !amount || amountNum <= 0) {
-        return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 });
+    const limitConfig = process.env.NODE_ENV === 'production'
+        ? { limit: 60, windowMs: 60_000 }
+        : { limit: 300, windowMs: 60_000 };
+    const limit = rateLimit(req, { key: 'finance-pay', ...limitConfig });
+    if (!limit.ok) {
+        return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
     }
 
+    const supabase = await createClient();
+
     try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const body = await req.json();
+        const { title_id, amount, method, notes, paid_at } = body;
+        const amountNum = Number(amount);
+
+        if (!title_id || !amount || amountNum <= 0) {
+            return NextResponse.json({ error: 'Dados inválidos' }, { status: 400 });
+        }
+
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+        }
 
         // 1. Fetch Title to get Context (Company, Customer)
         const { data: title, error: titleError } = await supabase
@@ -119,7 +133,12 @@ export async function POST(req: Request) {
                 .from('ar_payment_allocations')
                 .insert(allocations);
 
-            if (allocError) console.error('Error saving allocations:', allocError);
+            if (allocError) {
+                logger.warn('[finance/pay] Failed saving allocations', {
+                    code: allocError.code,
+                    message: allocError.message
+                });
+            }
         }
 
         // 6. Update Title Totals (Re-fetch or calculate)
@@ -149,8 +168,12 @@ export async function POST(req: Request) {
 
         return NextResponse.json({ success: true, allocated: amountNum - remaining });
 
-    } catch (e: any) {
-        console.error('Payment error:', e);
-        return NextResponse.json({ error: e.message || 'Erro interno' }, { status: 500 });
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : 'Unknown error';
+        logger.error('[finance/pay] Error', { message });
+        return NextResponse.json(
+            { error: process.env.NODE_ENV === 'production' ? 'Erro interno' : message },
+            { status: 500 }
+        );
     }
 }

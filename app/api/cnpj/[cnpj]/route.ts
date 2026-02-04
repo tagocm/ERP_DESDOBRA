@@ -1,5 +1,7 @@
 
 import { NextResponse } from "next/server";
+import { logger } from "@/lib/logger";
+import { rateLimit } from "@/lib/rate-limit";
 
 export async function GET(request: Request, props: { params: Promise<{ cnpj: string }> }) {
     const params = await props.params;
@@ -10,6 +12,14 @@ export async function GET(request: Request, props: { params: Promise<{ cnpj: str
     }
 
     try {
+        const limitConfig = process.env.NODE_ENV === 'production'
+            ? { limit: 30, windowMs: 60_000 }
+            : { limit: 300, windowMs: 60_000 };
+        const limit = rateLimit(request, { key: "cnpj-lookup", ...limitConfig });
+        if (!limit.ok) {
+            return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+        }
+
         // Remove non-digits
         const digits = cnpj.replace(/\D/g, '');
 
@@ -57,7 +67,8 @@ export async function GET(request: Request, props: { params: Promise<{ cnpj: str
         return NextResponse.json(result);
 
     } catch (error: any) {
-        console.error("CNPJ Proxy Error:", error);
-        return NextResponse.json({ error: error.message }, { status: 500 });
+        const message = error instanceof Error ? error.message : "Unknown error";
+        logger.error("[CNPJ Proxy] Error", { message });
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }
