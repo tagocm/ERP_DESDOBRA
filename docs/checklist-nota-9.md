@@ -11,9 +11,12 @@
 - [ ] **Operação mínima**: healthcheck, rastreamento de erro, backups/restore e runbook
 
 ## 1) Multi-tenant / RLS (maior impacto)
-- [ ] Auditoria automática: listar tabelas sem RLS + policies “abertas” (ex.: `USING (true)`) e report por PR
+- [x] Auditoria automática: listar tabelas sem RLS + policies “abertas” (ex.: `USING (true)`) e report por PR
+  - Implementado: `node scripts/check-rls-static.js` (warning; modo estrito via `--strict` ou `CI_STRICT_RLS=true`)
 - [x] Check em CI (começar como warning; virar bloqueante quando estabilizar)
   - Implementado: `node scripts/check-rls-static.js` (warning; modo estrito via `--strict` ou `CI_STRICT_RLS=true`)
+- [x] Fechar policies permissivas em logs/parcelas (sem `USING/WITH CHECK (true)` para authenticated)
+  - Implementado: `supabase/migrations/20260204193000_harden_occurrence_logs_and_installments_rls.sql`
 - [ ] “Company context” padronizado em **todas** as rotas/actions (sempre derivado do server: `getActiveCompanyId()` / `resolveCompanyContext()`)
 - [ ] Varredura de código: todo `.from('…')` de tabela de negócio deve ter filtro por `company_id` (ou estar protegido por view/RLS)
 - [ ] Teste negativo automatizado (Playwright ou unit/integration): tenant A não acessa recursos do tenant B
