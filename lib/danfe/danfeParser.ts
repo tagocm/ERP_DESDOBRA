@@ -1,4 +1,7 @@
 import { XMLParser } from 'fast-xml-parser';
+import { logger } from '@/lib/logger';
+
+const DANFE_DEBUG = process.env.DANFE_DEBUG === '1' && process.env.NODE_ENV !== 'production';
 
 export interface DanfeData {
     chaveAcesso?: string; // NEW: 44-digit access key
@@ -168,7 +171,7 @@ export function parseNfe(xml: string): DanfeData {
     // Deal with potentially enveloped XML (nfeProc, enviNFe, or raw NFe)
     const parsed = parser.parse(xml);
 
-    console.log('[parseNfe] Parsed root keys:', Object.keys(parsed).join(', '));
+    if (DANFE_DEBUG) logger.debug('[parseNfe] Parsed root keys:', Object.keys(parsed).join(', '));
 
     // Normalize Root - be extremely flexible to handle various structures
     let NFe = null;
@@ -176,19 +179,19 @@ export function parseNfe(xml: string): DanfeData {
 
     // Try different paths to find the NFe node
     if (nfeProc?.NFe) {
-        console.log('[parseNfe] Found NFe in nfeProc.NFe');
+        if (DANFE_DEBUG) logger.debug('[parseNfe] Found NFe in nfeProc.NFe');
         NFe = nfeProc.NFe;
     } else if (parsed.enviNFe?.NFe) {
-        console.log('[parseNfe] Found NFe in enviNFe.NFe');
+        if (DANFE_DEBUG) logger.debug('[parseNfe] Found NFe in enviNFe.NFe');
         NFe = parsed.enviNFe.NFe;
     } else if (parsed.NFe) {
-        console.log('[parseNfe] Found NFe at root');
+        if (DANFE_DEBUG) logger.debug('[parseNfe] Found NFe at root');
         NFe = parsed.NFe;
     } else {
         // Last resort: maybe it's directly the infNFe? (malformed but try to recover)
-        console.log('[parseNfe] No NFe found, checking if root is infNFe');
+        if (DANFE_DEBUG) logger.debug('[parseNfe] No NFe found, checking if root is infNFe');
         if (parsed.infNFe) {
-            console.log('[parseNfe] Root is directly infNFe (malformed XML)');
+            if (DANFE_DEBUG) logger.debug('[parseNfe] Root is directly infNFe (malformed XML)');
             NFe = { infNFe: parsed.infNFe };
         }
     }
@@ -196,15 +199,15 @@ export function parseNfe(xml: string): DanfeData {
     const infNFe = NFe?.infNFe;
 
     if (!infNFe) {
-        console.error('[parseNfe] Failed to find infNFe. XML structure:', {
+        logger.warn('[parseNfe] Failed to find infNFe (invalid XML structure)', {
             rootKeys: Object.keys(parsed),
             nfeProcKeys: nfeProc ? Object.keys(nfeProc) : 'null',
             NFe: NFe ? Object.keys(NFe) : 'null'
         });
-        throw new Error("Estrutura NFe/infNFe inválida no XML. Verifique o console para detalhes.");
+        throw new Error("Estrutura NFe/infNFe inválida no XML.");
     }
 
-    console.log('[parseNfe] Successfully found infNFe');
+    if (DANFE_DEBUG) logger.debug('[parseNfe] Successfully found infNFe');
     const protNFe = nfeProc?.protNFe?.infProt || parsed.protNFe?.infProt;
 
     // Extract chave de acesso (44 digits) from infNFe/@Id or from protNFe
