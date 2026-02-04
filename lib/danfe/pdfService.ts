@@ -2,6 +2,7 @@ import { chromium } from 'playwright';
 import { renderDanfeHtml } from './danfeRenderer';
 import { parseNfe } from './danfeParser';
 import { createAdminClient } from '@/lib/supabaseServer';
+import { logger } from "@/lib/logger";
 
 /**
  * Fetch logo from URL and convert to base64 data URI
@@ -9,11 +10,11 @@ import { createAdminClient } from '@/lib/supabaseServer';
  */
 async function fetchLogoAsDataUri(logoUrl: string): Promise<string | null> {
     try {
-        console.log('[Logo Pipeline] Fetching logo:', logoUrl);
+        logger.info('[Logo Pipeline] Fetching logo:', logoUrl);
 
         const response = await fetch(logoUrl);
         if (!response.ok) {
-            console.warn('[Logo Pipeline] Failed to fetch logo:', response.status);
+            logger.warn('[Logo Pipeline] Failed to fetch logo:', response.status);
             return null;
         }
 
@@ -25,48 +26,49 @@ async function fetchLogoAsDataUri(logoUrl: string): Promise<string | null> {
         const contentType = response.headers.get('content-type') || 'image/png';
         const dataUri = `data:${contentType};base64,${base64}`;
 
-        console.log('[Logo Pipeline] Logo converted, size:', Math.round(base64.length / 1024), 'KB');
+        logger.info('[Logo Pipeline] Logo converted, size:', Math.round(base64.length / 1024), 'KB');
         return dataUri;
     } catch (error: any) {
-        console.error('[Logo Pipeline] Error converting logo:', error.message);
+        logger.error('[Logo Pipeline] Error converting logo:', error.message);
         return null;
     }
 }
 
 export async function generateDanfePdf(xmlString: string, companyId?: string): Promise<Buffer> {
-    console.log('[PDF Service] Generating DANFE from XML...');
+    logger.info('[PDF Service] Generating DANFE from XML...');
 
     // 1. Parse XML
     const data = parseNfe(xmlString);
-    console.log('[PDF Service] Parsed NFe data');
+    logger.info('[PDF Service] Parsed NFe data');
 
     // 2. Asset Pipeline: Fetch and convert logo if companyId provided
     if (companyId) {
         try {
-            console.log('[PDF Service] Fetching logo for company:', companyId);
+            logger.info('[PDF Service] Fetching logo for company:', companyId);
             const adminSupabase = createAdminClient();
 
             const { data: settings } = await adminSupabase
                 .from('company_settings')
                 .select('logo_path')
-                .single();
+                .eq('company_id', companyId)
+                .maybeSingle();
 
             if (settings?.logo_path) {
-                console.log('[PDF Service] Logo URL found:', settings.logo_path);
+                logger.info('[PDF Service] Logo URL found:', settings.logo_path);
                 const logoDataUri = await fetchLogoAsDataUri(settings.logo_path);
 
                 if (logoDataUri) {
                     // Inject logo data URI into danfeData
                     (data as any).logoUrl = logoDataUri;
-                    console.log('[PDF Service] Logo successfully converted and injected');
+                    logger.info('[PDF Service] Logo successfully converted and injected');
                 } else {
-                    console.log('[PDF Service] Logo conversion failed, using placeholder');
+                    logger.info('[PDF Service] Logo conversion failed, using placeholder');
                 }
             } else {
-                console.log('[PDF Service] No logo configured for company');
+                logger.info('[PDF Service] No logo configured for company');
             }
         } catch (error: any) {
-            console.warn('[PDF Service] Failed to fetch logo:', error.message);
+            logger.warn('[PDF Service] Failed to fetch logo:', error.message);
             // Continue without logo - not critical
         }
     }

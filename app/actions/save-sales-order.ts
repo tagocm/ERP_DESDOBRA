@@ -1,11 +1,12 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
-import { upsertSalesDocument, upsertSalesItem, deleteSalesItem } from "@/lib/data/sales-orders";
+import { upsertSalesDocument, upsertSalesItem } from "@/lib/data/sales-orders";
 import { SalesOrder, SalesItem } from "@/types/sales";
 
 import { getActiveCompanyId } from "@/lib/auth/get-active-company";
 import { createClient as createServerClient } from "@/utils/supabase/server";
+import { logger } from "@/lib/logger";
 
 // Define input types more strictly
 type SalesItemInput = Partial<SalesItem> & {
@@ -47,8 +48,29 @@ export async function saveSalesOrderAction(
             }
         });
 
+        // SECURITY: Since this action uses the Service Role (RLS bypass), we must prevent
+        // cross-tenant updates by validating any user-supplied IDs.
+        if (doc.id) {
+            const { data: existingDoc, error: existingDocError } = await supabaseAdmin
+                .from('sales_documents')
+                .select('id, company_id')
+                .eq('id', doc.id)
+                .maybeSingle();
+
+            if (existingDocError) {
+                throw new Error(existingDocError.message || 'Erro ao validar documento');
+            }
+
+            if (existingDoc && existingDoc.company_id !== companyId) {
+                throw new Error("Forbidden: Documento não pertence à empresa ativa.");
+            }
+        }
+
         // 1. Save Document Header
         const savedDoc = await upsertSalesDocument(supabaseAdmin, doc);
+        if (savedDoc.company_id !== companyId) {
+            throw new Error("Forbidden: Documento salvo fora do escopo da empresa ativa.");
+        }
 
         // 2. Save/Update Items
         const savedItems = [];
@@ -58,6 +80,41 @@ export async function saveSalesOrderAction(
         const safeItems = items as SalesItemInput[];
 
         for (const item of safeItems) {
+            const itemId = item.id;
+            if (itemId && !itemId.startsWith('temp-')) {
+                const { data: existingItem, error: existingItemError } = await supabaseAdmin
+                    .from('sales_document_items')
+                    .select('id, document_id, document:sales_documents(company_id)')
+                    .eq('id', itemId)
+                    .maybeSingle();
+
+                if (existingItemError) {
+                    throw new Error(existingItemError.message || 'Erro ao validar item');
+                }
+
+                // If an ID was provided, it MUST exist and MUST belong to the same company + document.
+                if (!existingItem) {
+                    throw new Error("Item inválido (não encontrado).");
+                }
+
+                type ExistingItemRow = {
+                    id: string;
+                    document_id: string;
+                    document: { company_id: string } | { company_id: string }[] | null;
+                };
+                const typedExistingItem = existingItem as unknown as ExistingItemRow;
+                const rawDoc = typedExistingItem.document;
+                const existingCompanyId = Array.isArray(rawDoc) ? rawDoc[0]?.company_id : rawDoc?.company_id;
+
+                if (existingCompanyId && existingCompanyId !== companyId) {
+                    throw new Error("Forbidden: Item não pertence à empresa ativa.");
+                }
+
+                if (typedExistingItem.document_id !== savedDoc.id) {
+                    throw new Error("Item inválido: não pertence ao documento informado.");
+                }
+            }
+
             // Validate/Resolve Packaging if missing
             if (!item.packaging_id) {
                 const companyId = savedDoc.company_id;
@@ -107,7 +164,7 @@ export async function saveSalesOrderAction(
                     }
                 }
             } catch (snapErr) {
-                console.warn("Failed to generate sales_unit_snapshot:", snapErr);
+                logger.warn("Failed to generate sales_unit_snapshot:", snapErr);
             }
 
             const savedItem = await upsertSalesItem(supabaseAdmin, itemPayload);
@@ -116,15 +173,17 @@ export async function saveSalesOrderAction(
 
         // 3. Delete Removed Items
         if (deletedItemIds && deletedItemIds.length > 0) {
-            for (const id of deletedItemIds) {
-                await deleteSalesItem(supabaseAdmin, id);
-            }
+            await supabaseAdmin
+                .from('sales_document_items')
+                .delete()
+                .eq('document_id', savedDoc.id)
+                .in('id', deletedItemIds);
         }
 
         return { success: true, data: { ...savedDoc, items: savedItems } };
 
     } catch (e: unknown) {
-        console.error("Server Action Error:", e);
+        logger.error("Server Action Error:", e);
 
         const errorMessage = e instanceof Error ? e.message : '';
         const errorCode = (e as Record<string, unknown>)?.code;
