@@ -72,25 +72,25 @@ export default async function RouteHistoryDetailsPage({ params }: { params: Prom
 
             <div className="flex flex-col gap-6 px-6 pb-6">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white p-4 rounded-xl border border-gray-200/60 shadow-sm">
+                    <Card className="p-4 border-gray-200/60 shadow-none">
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Total Pedidos</p>
                         <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-gray-200/60 shadow-sm">
+                    </Card>
+                    <Card className="p-4 border-gray-200/60 shadow-none">
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Peso Total</p>
                         <p className="text-2xl font-bold text-gray-900">{stats.weight.toFixed(1)} <span className="text-sm font-normal text-gray-500">kg</span></p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-gray-200/60 shadow-sm">
+                    </Card>
+                    <Card className="p-4 border-gray-200/60 shadow-none">
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Entregues</p>
                         <p className="text-2xl font-bold text-green-600 flex items-center gap-2">
                             {stats.delivered}
                             <span className="text-xs font-normal bg-green-100 text-green-700 px-2 py-0.5 rounded-full">{(stats.delivered / stats.total * 100).toFixed(0)}%</span>
                         </p>
-                    </div>
-                    <div className="bg-white p-4 rounded-xl border border-gray-200/60 shadow-sm">
+                    </Card>
+                    <Card className="p-4 border-gray-200/60 shadow-none">
                         <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Devoluções</p>
                         <p className="text-2xl font-bold text-red-600">{stats.notDelivered}</p>
-                    </div>
+                    </Card>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -124,7 +124,7 @@ export default async function RouteHistoryDetailsPage({ params }: { params: Prom
                         }
 
                         return (
-                            <Card key={ro.id} className="h-full flex flex-col hover:shadow-lg transition-all duration-300">
+                            <Card key={ro.id} className="h-full flex flex-col hover:shadow-float transition-all duration-300">
                                 <CardHeader className="pb-3 border-b border-gray-100">
                                     <div className="flex justify-between items-start mb-1">
                                         <div className="space-y-1">
@@ -155,7 +155,7 @@ export default async function RouteHistoryDetailsPage({ params }: { params: Prom
                                 </CardContent>
 
                                 {order.internal_notes && (
-                                    <div className="mt-auto p-4 bg-amber-50/50 border-t border-amber-100/50 rounded-b-2xl">
+                                    <div className="mt-auto p-4 bg-amber-50/50 border-t border-amber-100/50">
                                         <div className="flex gap-2">
                                             <FileText className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                                             <div className="space-y-1">
