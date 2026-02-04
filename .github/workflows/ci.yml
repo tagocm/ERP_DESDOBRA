@@ -41,6 +41,9 @@ jobs:
       # Since this is CI, we usually want to block if lint fails.
       run: npm run lint
 
+    - name: Migration sanity check
+      run: node scripts/check-migrations.js
+
     - name: Type Safety Budget Check
       # Enforce baseline - prevent 'any' regression in CORE business logic
       run: node scripts/any-budget-actions.js
