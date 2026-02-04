@@ -158,7 +158,7 @@ export function CertificatesSection({ companyId, onMessage }: CertificatesSectio
 
                 {/* Status Indicator */}
                 {certUploadedAt ? (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <div className="bg-green-50 border border-green-200 rounded-2xl p-4">
                         <div className="flex items-start gap-4">
                             <div className="p-2 bg-green-100 rounded-full flex-shrink-0">
                                 <Shield className="w-6 h-6 text-green-600" />
@@ -181,7 +181,7 @@ export function CertificatesSection({ companyId, onMessage }: CertificatesSectio
                         </div>
                     </div>
                 ) : (
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 flex items-center gap-3">
+                    <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 flex items-center gap-3">
                         <AlertTriangle className="w-5 h-5 text-gray-400" />
                         <p className="text-sm text-gray-600">
                             Nenhum certificado digital configurado.
@@ -193,7 +193,7 @@ export function CertificatesSection({ companyId, onMessage }: CertificatesSectio
                 {!certUploadedAt && (
                     <div className="space-y-4">
                         <label className={`
-                            relative border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors
+                            relative border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition-colors
                             ${certFile ? 'border-blue-300 bg-blue-50' : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'}
                         `}>
                             <input
@@ -204,7 +204,7 @@ export function CertificatesSection({ companyId, onMessage }: CertificatesSectio
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                             />
 
-                            <div className="w-12 h-12 bg-white border border-gray-200 rounded-lg flex items-center justify-center mb-4 shadow-sm">
+                            <div className="w-12 h-12 bg-white border border-gray-200 rounded-2xl flex items-center justify-center mb-4 shadow-card">
                                 <Upload className={`w-6 h-6 ${certFile ? 'text-blue-600' : 'text-gray-400'}`} />
                             </div>
 

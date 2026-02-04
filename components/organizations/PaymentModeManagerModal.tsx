@@ -118,7 +118,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                         setEditingId(null);
                         setAddBoxOpen(!addBoxOpen);
                     }}
-                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-full px-4 text-xs h-8 shadow-sm transition-all"
+                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-full px-4 text-xs h-8 shadow-card transition-all"
                 >
                     <Plus className="w-3.5 h-3.5 mr-1.5" />
                     Nova Modalidade
