@@ -204,7 +204,7 @@ export function PurchaseOrderModal({ isOpen, onClose, onSuccess, order }: Purcha
                                     onChange={(e) => setSearchItem(e.target.value)}
                                 />
                                 {searchItem && filteredItems.length > 0 && (
-                                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                                    <div className="absolute z-10 w-full mt-1 bg-white border rounded-2xl shadow-float max-h-48 overflow-y-auto">
                                         {filteredItems.map(item => (
                                             <button
                                                 key={item.id}

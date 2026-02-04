@@ -215,7 +215,7 @@ export function CadastrosFlyoutPanel({ isOpen, onClose, anchorRef }: CadastrosFl
         <div
             ref={panelRef}
             className={cn(
-                "fixed bg-white border border-gray-100 shadow-lg rounded-lg overflow-hidden flex flex-col transition-all duration-200 ease-out z-[50]",
+                "fixed bg-white border border-gray-100 shadow-float rounded-2xl overflow-hidden flex flex-col transition-all duration-200 ease-out z-50",
                 // "Largura do submenu deve ser MENOR que a atual... permitir largura mínima... truncar"
                 // Width reduced to 260px (from 340px) seems reasonable for a compact popover.
                 "w-[260px] h-auto",
