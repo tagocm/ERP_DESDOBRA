@@ -134,7 +134,7 @@ export function NFeBillingCard({ billing, totalAmount, paymentTerm: initialTerm,
     // Header Actions
     const headerActions = (
         <div className="flex items-center gap-4">
-            <div className="w-[240px]">
+            <div className="w-60">
                 <Select
                     value={effectiveTermId}
                     onValueChange={(val) => {
@@ -186,8 +186,8 @@ export function NFeBillingCard({ billing, totalAmount, paymentTerm: initialTerm,
                     {[1, 2].map(col => (
                         <div key={col} className="hidden md:flex gap-2 text-xs font-medium text-gray-500 pb-2 border-b">
                             <span className="w-8 text-center">Nº</span>
-                            <span className="w-[130px]">Vencimento</span>
-                            <span className="w-[110px]">Forma</span>
+                            <span className="w-32">Vencimento</span>
+                            <span className="w-28">Forma</span>
                             <span className="flex-1 text-right">Valor</span>
                             <span className="w-8"></span>
                         </div>
@@ -200,7 +200,7 @@ export function NFeBillingCard({ billing, totalAmount, paymentTerm: initialTerm,
                             </span>
 
                             {/* Date Input - Now First */}
-                            <div className="w-[130px] shrink-0">
+                            <div className="w-32 shrink-0">
                                 <Input
                                     type="date"
                                     className="h-8 w-full text-xs px-2"
@@ -224,7 +224,7 @@ export function NFeBillingCard({ billing, totalAmount, paymentTerm: initialTerm,
                             </div>
 
                             {/* Method Select - Now Second */}
-                            <div className="w-[110px] shrink-0">
+                            <div className="w-28 shrink-0">
                                 <Select
                                     value={inst.method || 'BOLETO'}
                                     onValueChange={(v) => handleInstChange(idx, 'method', v)}
@@ -243,7 +243,7 @@ export function NFeBillingCard({ billing, totalAmount, paymentTerm: initialTerm,
                             </div>
 
                             {/* Value Input - Last (Flex) */}
-                            <div className="flex-1 min-w-[80px]">
+                            <div className="flex-1 min-w-20">
                                 <DecimalInput
                                     precision={2}
                                     className="h-8 w-full text-right text-xs"
