@@ -64,10 +64,14 @@ function collectTablesAndRlsSignals(files) {
     const createdTables = new Set();
     const rlsEnabled = new Set();
     const policyOnTable = new Set();
+    const openPolicyOnTable = new Set();
 
     const createTableRe = /\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)/gi;
     const enableRlsRe = /\balter\s+table\s+(?:only\s+)?((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)\s+enable\s+row\s+level\s+security\b/gi;
     const createPolicyRe = /\bcreate\s+policy\s+[\s\S]*?\bon\s+((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)/gi;
+    const createPolicyStmtRe = /\bcreate\s+policy\b[\s\S]*?;/gi;
+    const openUsingRe = /\busing\s*\(\s*true\s*\)/i;
+    const openWithCheckRe = /\bwith\s+check\s*\(\s*true\s*\)/i;
 
     for (const { sql } of files) {
         const normalizedSql = stripSqlComments(sql);
@@ -83,9 +87,18 @@ function collectTablesAndRlsSignals(files) {
             const table = normalizeTableName(match[1]);
             if (table) policyOnTable.add(table);
         }
+
+        for (const match of normalizedSql.matchAll(createPolicyStmtRe)) {
+            const stmt = match[0];
+            if (!openUsingRe.test(stmt) && !openWithCheckRe.test(stmt)) continue;
+            const onMatch = /\bon\s+((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)/i.exec(stmt);
+            if (!onMatch) continue;
+            const table = normalizeTableName(onMatch[1]);
+            if (table) openPolicyOnTable.add(table);
+        }
     }
 
-    return { createdTables, rlsEnabled, policyOnTable };
+    return { createdTables, rlsEnabled, policyOnTable, openPolicyOnTable };
 }
 
 function main() {
@@ -95,11 +108,12 @@ function main() {
         process.exit(0);
     }
 
-    const { createdTables, rlsEnabled, policyOnTable } = collectTablesAndRlsSignals(files);
+    const { createdTables, rlsEnabled, policyOnTable, openPolicyOnTable } = collectTablesAndRlsSignals(files);
 
     const created = [...createdTables].sort();
     const withoutRls = created.filter((t) => !rlsEnabled.has(t));
     const rlsWithoutPolicies = created.filter((t) => rlsEnabled.has(t) && !policyOnTable.has(t));
+    const openPolicies = created.filter((t) => openPolicyOnTable.has(t));
 
     console.log(`[rls-static] Tables created in migrations: ${created.length}`);
     console.log(`[rls-static] Tables with RLS enabled: ${[...rlsEnabled].length}`);
@@ -119,6 +133,13 @@ function main() {
         warn(`[rls-static] Findings: ${rlsWithoutPolicies.length} tables with RLS enabled but no policies in migrations.`);
         console.error(`\n[rls-static] Tables with RLS enabled but no policies in migrations:`);
         for (const t of rlsWithoutPolicies) console.error(`- ${t}`);
+    }
+
+    if (openPolicies.length > 0) {
+        ok = false;
+        warn(`[rls-static] Findings: ${openPolicies.length} tables with at least one open policy (USING/WITH CHECK true) in migrations.`);
+        console.error(`\n[rls-static] Tables with at least one open policy (USING/WITH CHECK true) in migrations:`);
+        for (const t of openPolicies) console.error(`- ${t}`);
     }
 
     if (!ok) {
