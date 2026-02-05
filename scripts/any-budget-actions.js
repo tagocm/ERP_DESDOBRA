@@ -15,8 +15,9 @@ const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
-// Baseline from 2026-01-30 audit (updated PR2)
-const BASELINE = 13; // Reduced from 34
+// Baseline from 2026-02-05 audit
+// Goal: keep app/actions free of explicit `any` / `as any` (core business logic layer).
+const BASELINE = 0;
 const TARGET_DIR = 'app/actions';
 
 console.log('🔍 Type Safety Budget Check for app/actions\n');
