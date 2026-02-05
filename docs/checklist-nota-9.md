@@ -17,6 +17,8 @@
   - Implementado: `node scripts/check-rls-static.js` (warning; modo estrito via `--strict` ou `CI_STRICT_RLS=true`)
 - [x] Fechar policies permissivas em logs/parcelas (sem `USING/WITH CHECK (true)` para authenticated)
   - Implementado: `supabase/migrations/20260204193000_harden_occurrence_logs_and_installments_rls.sql`
+- [x] Fechar policies permissivas + habilitar RLS em entregas/usuários/settlements
+  - Implementado: `supabase/migrations/20260204194000_harden_deliveries_users_and_settlements_rls.sql`
 - [ ] “Company context” padronizado em **todas** as rotas/actions (sempre derivado do server: `getActiveCompanyId()` / `resolveCompanyContext()`)
 - [ ] Varredura de código: todo `.from('…')` de tabela de negócio deve ter filtro por `company_id` (ou estar protegido por view/RLS)
 - [ ] Teste negativo automatizado (Playwright ou unit/integration): tenant A não acessa recursos do tenant B
