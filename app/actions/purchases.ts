@@ -4,6 +4,7 @@ import { getActiveCompanyId } from '@/lib/auth/get-active-company'
 import { logger } from '@/lib/logger'
 import { createClient } from '@/utils/supabase/server'
 import { purchasesRepository } from '@/lib/purchases/purchases-db'
+import type { Json } from '@/types/supabase'
 
 export async function listPurchaseOrdersAction(filters?: {
     status?: string
@@ -33,7 +34,7 @@ export async function createPurchaseOrderAction(data: {
     total_amount?: number
     total_weight_kg?: number
     total_gross_weight_kg?: number
-    delivery_address_json?: any
+    delivery_address_json?: Json
     items: Array<{
         item_id: string
         qty_display: number
@@ -67,7 +68,7 @@ export async function updatePurchaseOrderAction(
         total_amount?: number
         total_weight_kg?: number
         total_gross_weight_kg?: number
-        delivery_address_json?: any
+        delivery_address_json?: Json
         items?: Array<{
             id?: string
             item_id: string
