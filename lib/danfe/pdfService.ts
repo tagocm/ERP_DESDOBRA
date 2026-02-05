@@ -1,7 +1,6 @@
 import { chromium } from 'playwright';
 import { renderDanfeHtml } from './danfeRenderer';
 import { parseNfe } from './danfeParser';
-import { createAdminClient } from '@/lib/supabaseServer';
 import { logger } from "@/lib/logger";
 
 /**
@@ -34,42 +33,28 @@ async function fetchLogoAsDataUri(logoUrl: string): Promise<string | null> {
     }
 }
 
-export async function generateDanfePdf(xmlString: string, companyId?: string): Promise<Buffer> {
+export async function generateDanfePdf(xmlString: string, companyId?: string, logoUrl?: string): Promise<Buffer> {
     logger.info('[PDF Service] Generating DANFE from XML...');
 
     // 1. Parse XML
     const data = parseNfe(xmlString);
     logger.info('[PDF Service] Parsed NFe data');
 
-    // 2. Asset Pipeline: Fetch and convert logo if companyId provided
-    if (companyId) {
+    // 2. Asset Pipeline: caller provides a pre-authorized logo URL (e.g., signed URL from storage)
+    // so this function doesn't need DB/service-role access.
+    if (logoUrl) {
         try {
-            logger.info('[PDF Service] Fetching logo for company:', companyId);
-            const adminSupabase = createAdminClient();
-
-            const { data: settings } = await adminSupabase
-                .from('company_settings')
-                .select('logo_path')
-                .eq('company_id', companyId)
-                .maybeSingle();
-
-            if (settings?.logo_path) {
-                logger.info('[PDF Service] Logo URL found:', settings.logo_path);
-                const logoDataUri = await fetchLogoAsDataUri(settings.logo_path);
-
-                if (logoDataUri) {
-                    // Inject logo data URI into danfeData
-                    (data as any).logoUrl = logoDataUri;
-                    logger.info('[PDF Service] Logo successfully converted and injected');
-                } else {
-                    logger.info('[PDF Service] Logo conversion failed, using placeholder');
-                }
+            logger.info('[PDF Service] Fetching logo for DANFE', { hasCompanyId: !!companyId });
+            const logoDataUri = await fetchLogoAsDataUri(logoUrl);
+            if (logoDataUri) {
+                (data as any).logoUrl = logoDataUri;
+                logger.info('[PDF Service] Logo injected');
             } else {
-                logger.info('[PDF Service] No logo configured for company');
+                logger.info('[PDF Service] Logo conversion failed, using placeholder');
             }
-        } catch (error: any) {
-            logger.warn('[PDF Service] Failed to fetch logo:', error.message);
-            // Continue without logo - not critical
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            logger.warn('[PDF Service] Failed to fetch logo', { message });
         }
     }
 

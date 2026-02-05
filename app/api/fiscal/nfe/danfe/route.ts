@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateDanfePdf } from '@/lib/danfe/pdfService';
-import { createAdminClient } from '@/lib/supabaseServer';
 import { logger } from "@/lib/logger";
 import { resolveCompanyContext } from "@/lib/auth/resolve-company";
 import { z } from "zod";
@@ -9,6 +8,11 @@ import { errorResponse } from "@/lib/api/response";
 
 export const maxDuration = 60; // Allow sufficient time for Chromium launch
 
+function isExpectedCompanyAssetPath(path: string, companyId: string): boolean {
+    const prefixes = [`companies/${companyId}/`, `${companyId}/`];
+    return prefixes.some((p) => path.startsWith(p));
+}
+
 export async function POST(req: NextRequest) {
     try {
         const limit = rateLimit(req, { key: "nfe-danfe", limit: 20, windowMs: 60_000 });
@@ -16,7 +20,9 @@ export async function POST(req: NextRequest) {
             return errorResponse("Too many requests", 429, "RATE_LIMIT");
         }
 
-        const { companyId: ctxCompanyId } = await resolveCompanyContext();
+        const ctx = await resolveCompanyContext();
+        const ctxCompanyId = ctx.companyId;
+        const supabase = ctx.supabase;
         let body: unknown;
         try {
             body = await req.json();
@@ -38,7 +44,6 @@ export async function POST(req: NextRequest) {
 
         // Declare companyId at top level for proper scope
         let companyId: string | undefined = ctxCompanyId;
-        const adminSupabase = createAdminClient();
 
         if (!xml && id) {
             logger.info('[DANFE API] Fetching NFe by ID:', id);
@@ -49,10 +54,11 @@ export async function POST(req: NextRequest) {
             let sourceCompanyId: string | null = null;
 
             // Step 1: Try current source (nfe_emissions)
-            const { data: emissionRecord, error: emissionError } = await adminSupabase
+            const { data: emissionRecord, error: emissionError } = await supabase
                 .from('nfe_emissions')
                 .select('id, company_id, sales_document_id, access_key, draft_snapshot, status')
                 .eq('id', id)
+                .eq('company_id', ctxCompanyId)
                 .maybeSingle();
 
             if (emissionError) {
@@ -60,20 +66,18 @@ export async function POST(req: NextRequest) {
             }
 
             if (emissionRecord) {
-                if (emissionRecord.company_id !== ctxCompanyId) {
-                    return errorResponse("Sem permissão", 403, "FORBIDDEN");
-                }
                 details = emissionRecord.draft_snapshot;
                 documentId = emissionRecord.sales_document_id || null;
                 nfeKey = emissionRecord.access_key || null;
                 sourceCompanyId = emissionRecord.company_id || null;
             } else {
                 // Step 2: Legacy source (sales_document_nfes)
-                const { data: nfeRecord, error: nfeError } = await adminSupabase
+                const { data: nfeRecord, error: nfeError } = await supabase
                     .from('sales_document_nfes')
                     .select('document_id, nfe_key, details, status, company_id')
                     .eq('id', id)
-                    .single();
+                    .eq('company_id', ctxCompanyId)
+                    .maybeSingle();
 
                 logger.info('[DANFE API] Legacy record lookup:', { error: nfeError, hasData: !!nfeRecord });
 
@@ -85,9 +89,6 @@ export async function POST(req: NextRequest) {
                         "NOT_FOUND",
                         { details: nfeError?.message || "No record in nfe_emissions or sales_document_nfes", id }
                     );
-                }
-                if (nfeRecord.company_id !== ctxCompanyId) {
-                    return errorResponse("Sem permissão", 403, "FORBIDDEN");
                 }
 
                 details = nfeRecord.details as any;
@@ -101,9 +102,10 @@ export async function POST(req: NextRequest) {
 
             // Fallback: if coming from nfe_emissions without artifacts, try legacy by document_id or access_key
             if (!xmlPath && (documentId || nfeKey)) {
-                const legacyQuery = adminSupabase
+                const legacyQuery = supabase
                     .from('sales_document_nfes')
                     .select('document_id, nfe_key, details, status, company_id')
+                    .eq('company_id', ctxCompanyId)
                     .limit(1);
                 let legacyResult;
                 if (documentId) {
@@ -135,6 +137,10 @@ export async function POST(req: NextRequest) {
                 );
             }
 
+            if (typeof xmlPath === 'string' && !xmlPath.startsWith('http') && !isExpectedCompanyAssetPath(xmlPath, ctxCompanyId)) {
+                return errorResponse("XML not found", 404, "NOT_FOUND");
+            }
+
             // Step 3: Download XML from storage
             try {
                 // Try to get protocol as well to build full nfeProc
@@ -143,7 +149,11 @@ export async function POST(req: NextRequest) {
 
                 if (protocolPath) {
                     try {
-                        const { data: protData, error: protErr } = await adminSupabase
+                        if (typeof protocolPath === 'string' && !protocolPath.startsWith('http') && !isExpectedCompanyAssetPath(protocolPath, ctxCompanyId)) {
+                            throw new Error('Invalid protocol path');
+                        }
+
+                        const { data: protData, error: protErr } = await supabase
                             .storage
                             .from('company-assets')
                             .download(protocolPath);
@@ -157,7 +167,7 @@ export async function POST(req: NextRequest) {
                     }
                 }
 
-                const { data: xmlData, error: xmlError } = await adminSupabase.storage
+                const { data: xmlData, error: xmlError } = await supabase.storage
                     .from('company-assets')
                     .download(xmlPath);
 
@@ -171,13 +181,18 @@ export async function POST(req: NextRequest) {
 
                 // Extract company_id for logo
                 try {
-                    const { data: docRecord } = await adminSupabase
-                        .from('sales_documents')
-                        .select('company_id')
-                        .eq('id', documentId)
-                        .single();
+                    if (documentId) {
+                        const { data: docRecord } = await supabase
+                            .from('sales_documents')
+                            .select('company_id')
+                            .eq('id', documentId)
+                            .eq('company_id', ctxCompanyId)
+                            .single();
 
-                    companyId = docRecord?.company_id || sourceCompanyId || ctxCompanyId;
+                        companyId = docRecord?.company_id || sourceCompanyId || ctxCompanyId;
+                    } else {
+                        companyId = sourceCompanyId || ctxCompanyId;
+                    }
                     logger.info('[DANFE API] Company ID for logo:', companyId);
                 } catch (e) {
                     logger.warn('[DANFE API] Could not fetch company_id:', e);
@@ -225,7 +240,28 @@ ${cleanProtocol}
         // Generate PDF with better error handling
         try {
             logger.info('[DANFE API] Generating PDF with companyId:', companyId);
-            const pdfBuffer = await generateDanfePdf(xmlString, companyId);
+            let logoUrl: string | undefined;
+            if (companyId) {
+                const { data: settings } = await supabase
+                    .from('company_settings')
+                    .select('logo_path')
+                    .eq('company_id', companyId)
+                    .maybeSingle();
+
+                const logoPath = settings?.logo_path;
+                if (logoPath) {
+                    if (logoPath.startsWith('http')) {
+                        logoUrl = logoPath;
+                    } else if (isExpectedCompanyAssetPath(logoPath, companyId)) {
+                        const { data: signedUrlData } = await supabase.storage
+                            .from('company-assets')
+                            .createSignedUrl(logoPath, 3600);
+                        logoUrl = signedUrlData?.signedUrl;
+                    }
+                }
+            }
+
+            const pdfBuffer = await generateDanfePdf(xmlString, companyId, logoUrl);
 
             // Cast to any because NextResponse supports Buffer in Node.js runtime even if types strictly say BodyInit
             return new NextResponse(pdfBuffer as any, {
