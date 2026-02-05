@@ -5,20 +5,20 @@ import { SupabaseClient } from '@supabase/supabase-js';
 export interface APTitle {
     id: string;
     company_id: string;
-    purchase_order_id?: string;
+    purchase_order_id?: string | null;
     supplier_id: string;
-    document_number?: string;
+    document_number?: string | null;
     status: 'PENDING_APPROVAL' | 'OPEN' | 'PAID' | 'CANCELLED';
     amount_total: number;
     amount_paid: number;
     amount_open: number;
-    payment_terms_snapshot?: string;
-    payment_method_snapshot?: string;
-    date_issued?: string;
-    due_date?: string;
-    attention_status?: string;
-    attention_reason?: string;
-    created_at: string;
+    payment_terms_snapshot?: string | null;
+    payment_method_snapshot?: string | null;
+    date_issued?: string | null;
+    due_date?: string | null;
+    attention_status?: string | null;
+    attention_reason?: string | null;
+    created_at: string | null;
 
     supplier?: {
         trade_name: string;
