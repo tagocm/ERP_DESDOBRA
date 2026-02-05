@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { getActiveCompanyId } from '@/lib/auth/get-active-company'
 import {
     listPendingAPTitles,
     approveAPTitle,
@@ -9,22 +10,6 @@ import {
     updateAPTitle,
     APTitle
 } from '@/lib/finance/ap-db'
-
-// We will need AR functions eventually from an 'ar-db.ts' or similar, 
-// for now focusing on AP as per immediate request, but enabling Unified Structure.
-// Assuming we can list AR titles with similar query.
-
-async function getActiveCompanyId() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) throw new Error('Unauthorized')
-
-    // Simplify for now, assuming single company or derived from session/profile
-    // In strict multi-tenant, we should get this from the request context or safe session storage
-    // using the pattern:
-    const { data: profile } = await supabase.from('user_profiles').select('company_id').eq('auth_user_id', user.id).single()
-    return profile?.company_id
-}
 
 // --- Unified Actions ---
 
@@ -134,14 +119,14 @@ export async function rejectTitleAction(id: string, type: 'AP' | 'AR') {
 
 export async function updateTitleAction(id: string, type: 'AP' | 'AR', updates: {
     amount_total: number;
-    payment_terms_snapshot?: any;
-    payment_method_snapshot?: any;
+    payment_terms_snapshot?: string | null;
+    payment_method_snapshot?: string | null;
     due_date?: string;
     [key: string]: unknown;
 }): Promise<{ success: boolean } | { error: string }> {
     const supabase = await createClient()
     try {
-        const payload = {
+        const payload: Partial<APTitle> = {
             amount_total: updates.amount_total,
             payment_terms_snapshot: updates.payment_terms_snapshot,
             payment_method_snapshot: updates.payment_method_snapshot,
@@ -153,7 +138,7 @@ export async function updateTitleAction(id: string, type: 'AP' | 'AR', updates: 
         }
 
         if (type === 'AP') {
-            await updateAPTitle(supabase, id, payload as any)
+            await updateAPTitle(supabase, id, payload)
         } else {
             const { error } = await supabase.from('ar_titles').update(payload).eq('id', id)
             if (error) throw error
