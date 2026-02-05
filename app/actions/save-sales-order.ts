@@ -1,6 +1,5 @@
 "use server";
 
-import { createClient } from "@supabase/supabase-js";
 import { upsertSalesDocument, upsertSalesItem } from "@/lib/data/sales-orders";
 import { SalesOrder, SalesItem } from "@/types/sales";
 
@@ -14,6 +13,11 @@ type SalesItemInput = Partial<SalesItem> & {
     packaging_id?: string;
     [key: string]: unknown
 };
+
+function getRecordValue(record: unknown, key: string): unknown {
+    if (!record || typeof record !== 'object') return undefined;
+    return (record as Record<string, unknown>)[key];
+}
 
 export async function saveSalesOrderAction(
     doc: Partial<SalesOrder>,
@@ -33,25 +37,10 @@ export async function saveSalesOrderAction(
 
         doc.company_id = companyId;
 
-        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-        if (!supabaseUrl || !supabaseServiceRoleKey) {
-            throw new Error("Configuração do servidor incompleta: SUPABASE_URL ou SERVICE_ROLE_KEY faltando.");
-        }
-
-        // Create a fresh Admin client
-        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-            auth: {
-                autoRefreshToken: false,
-                persistSession: false
-            }
-        });
-
-        // SECURITY: Since this action uses the Service Role (RLS bypass), we must prevent
-        // cross-tenant updates by validating any user-supplied IDs.
+        // SECURITY: This action must operate under the user's session (RLS enforced).
+        // Cross-tenant updates should be blocked by RLS, but we also validate IDs to return clearer errors.
         if (doc.id) {
-            const { data: existingDoc, error: existingDocError } = await supabaseAdmin
+            const { data: existingDoc, error: existingDocError } = await supabase
                 .from('sales_documents')
                 .select('id, company_id')
                 .eq('id', doc.id)
@@ -61,13 +50,17 @@ export async function saveSalesOrderAction(
                 throw new Error(existingDocError.message || 'Erro ao validar documento');
             }
 
-            if (existingDoc && existingDoc.company_id !== companyId) {
+            if (!existingDoc) {
+                throw new Error("Documento inválido (não encontrado ou sem permissão).");
+            }
+
+            if (existingDoc.company_id !== companyId) {
                 throw new Error("Forbidden: Documento não pertence à empresa ativa.");
             }
         }
 
         // 1. Save Document Header
-        const savedDoc = await upsertSalesDocument(supabaseAdmin, doc);
+        const savedDoc = await upsertSalesDocument(supabase, doc);
         if (savedDoc.company_id !== companyId) {
             throw new Error("Forbidden: Documento salvo fora do escopo da empresa ativa.");
         }
@@ -82,7 +75,7 @@ export async function saveSalesOrderAction(
         for (const item of safeItems) {
             const itemId = item.id;
             if (itemId && !itemId.startsWith('temp-')) {
-                const { data: existingItem, error: existingItemError } = await supabaseAdmin
+                const { data: existingItem, error: existingItemError } = await supabase
                     .from('sales_document_items')
                     .select('id, document_id, document:sales_documents(company_id)')
                     .eq('id', itemId)
@@ -119,7 +112,7 @@ export async function saveSalesOrderAction(
             if (!item.packaging_id) {
                 const companyId = savedDoc.company_id;
                 if (companyId && item.item_id) {
-                    const resolvedId = await resolveDefaultPackagingId(supabaseAdmin, companyId, item.item_id);
+                    const resolvedId = await resolveDefaultPackagingId(supabase, companyId, item.item_id);
                     if (resolvedId) {
                         item.packaging_id = resolvedId;
                     } else {
@@ -135,13 +128,13 @@ export async function saveSalesOrderAction(
             // --- Snapshot Logic ---
             try {
                 if (item.packaging_id) {
-                    const snapshot = await resolvePackagingSnapshot(supabaseAdmin, item.packaging_id);
+                    const snapshot = await resolvePackagingSnapshot(supabase, item.packaging_id);
                     if (snapshot) {
                         itemPayload.sales_unit_snapshot = snapshot;
                     }
                 } else if (item.item_id) {
                     // Fallback for UN items (no packaging)
-                    const { data: prod } = await supabaseAdmin
+                    const { data: prod } = await supabase
                         .from('items')
                         .select('uom, uom_id, base_uom:uoms!uom_id(abbrev, name)')
                         .eq('id', item.item_id)
@@ -149,9 +142,13 @@ export async function saveSalesOrderAction(
 
                     if (prod) {
                         // Safe usage of prod.base_uom (Supabase can return single or array)
-                        const rawBaseUom = (prod as any).base_uom;
-                        const baseUom = (Array.isArray(rawBaseUom) ? rawBaseUom[0] : rawBaseUom) as unknown as { abbrev: string; name: string } | null;
-                        const abbrev = baseUom?.abbrev || (prod as any).uom || 'Un';
+                        const rawBaseUom = getRecordValue(prod, 'base_uom');
+                        const baseUom = (Array.isArray(rawBaseUom) ? rawBaseUom[0] : rawBaseUom) as unknown as { abbrev?: unknown; name?: unknown } | null;
+                        const abbrevCandidate = typeof baseUom?.abbrev === 'string' ? baseUom.abbrev : undefined;
+                        const prodUom = getRecordValue(prod, 'uom');
+                        const prodUomCandidate = typeof prodUom === 'string' ? prodUom : undefined;
+                        const abbrev = abbrevCandidate || prodUomCandidate || 'Un';
+                        const nameCandidate = typeof baseUom?.name === 'string' ? baseUom.name : undefined;
 
                         itemPayload.sales_unit_snapshot = {
                             sell_uom_id: prod.uom_id,
@@ -159,7 +156,7 @@ export async function saveSalesOrderAction(
                             sell_unit_code: abbrev,
                             base_unit_code: abbrev,
                             factor_in_base: 1,
-                            auto_label: baseUom?.name || 'Unidade'
+                            auto_label: nameCandidate || 'Unidade'
                         };
                     }
                 }
@@ -167,13 +164,13 @@ export async function saveSalesOrderAction(
                 logger.warn("Failed to generate sales_unit_snapshot:", snapErr);
             }
 
-            const savedItem = await upsertSalesItem(supabaseAdmin, itemPayload);
+            const savedItem = await upsertSalesItem(supabase, itemPayload);
             savedItems.push(savedItem);
         }
 
         // 3. Delete Removed Items
         if (deletedItemIds && deletedItemIds.length > 0) {
-            await supabaseAdmin
+            await supabase
                 .from('sales_document_items')
                 .delete()
                 .eq('document_id', savedDoc.id)
