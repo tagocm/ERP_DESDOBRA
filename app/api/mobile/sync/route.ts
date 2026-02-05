@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { validateMobileToken } from '@/lib/mobile/auth'
+import { getMobileTokenHashFromHeader } from '@/lib/mobile/auth'
 import { syncRequestSchema, eventItemSchema } from '@/lib/validations/mobile-sync'
 import { rateLimit } from '@/lib/rate-limit'
 import { logger } from '@/lib/logger'
@@ -13,6 +13,13 @@ type SyncResult = {
     status: 'accepted' | 'duplicate' | 'error'
     payload_version?: 'v1' | 'v2'
     message?: string
+}
+
+type ValidatedEvent = {
+    event_id: string
+    type: 'CREATE_EXPENSE' | 'EXPENSE_CREATED'
+    payload: Record<string, unknown>
+    payload_version: 'v1' | 'v2'
 }
 
 export async function POST(req: NextRequest) {
@@ -29,9 +36,9 @@ export async function POST(req: NextRequest) {
 
     // 1. Authentication
     const authHeader = req.headers.get('Authorization')
-    const companyId = await validateMobileToken(authHeader)
+    const tokenHash = getMobileTokenHashFromHeader(authHeader)
 
-    if (!companyId) {
+    if (!tokenHash) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
@@ -55,93 +62,94 @@ export async function POST(req: NextRequest) {
     }
 
     const { events } = validation.data
-    const results: SyncResult[] = []
-
-    // Initialize Supabase Admin Client (needed for writing to restricted table)
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-    if (!supabaseUrl || !serviceRoleKey) {
-        logger.error('[mobile-sync] Missing Supabase env vars for ingestion')
+    if (!supabaseUrl || !anonKey) {
+        logger.error('[mobile-sync] Missing Supabase env vars (URL/ANON)')
         return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
     }
 
-    const supabase = createClient(
-        supabaseUrl,
-        serviceRoleKey,
-        {
-            auth: { autoRefreshToken: false, persistSession: false }
-        }
-    )
+    // Public client (anon key) calling SECURITY DEFINER RPCs (no service role)
+    const supabase = createClient(supabaseUrl, anonKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+    })
 
-    // 4. Process Loop
+    // 4. Validate events and build payload for RPC
+    const pending: Array<{ kind: 'invalid'; result: SyncResult } | { kind: 'valid'; event: ValidatedEvent }> = []
+    const eventsForDb: Array<{ event_id: string; type: string; payload: Record<string, unknown> }> = []
+
     for (const event of events) {
-        try {
-            // 4.1 Validate Payload content
-            const payloadValidation = eventItemSchema.safeParse(event)
-            if (!payloadValidation.success) {
-                results.push({
+        const payloadValidation = eventItemSchema.safeParse(event)
+        if (!payloadValidation.success) {
+            pending.push({
+                kind: 'invalid',
+                result: {
                     event_id: event.event_id,
                     status: 'error',
                     message: exposeDetails ? payloadValidation.error.message : 'Invalid payload'
-                })
-                continue
-            }
-
-            const validatedEvent = payloadValidation.data as any
-
-            // 4.2 Insert (idempotent via unique constraint)
-            const { error: insertError } = await supabase
-                .from('mobile_expense_events')
-                .insert({
-                    company_id: companyId,
-                    event_id: validatedEvent.event_id,
-                    event_type: validatedEvent.type,
-                    payload: validatedEvent.payload,
-                    status: 'received'
-                })
-
-            if (insertError) {
-                if (insertError.code === '23505') { // unique_violation
-                    results.push({
-                        event_id: validatedEvent.event_id,
-                        status: 'duplicate',
-                        payload_version: validatedEvent.payload_version
-                    })
-                } else {
-                    logger.error('[mobile-sync] Failed to insert mobile event', {
-                        event_id: validatedEvent.event_id,
-                        code: insertError.code,
-                        message: insertError.message
-                    })
-                    results.push({
-                        event_id: validatedEvent.event_id,
-                        status: 'error',
-                        payload_version: validatedEvent.payload_version,
-                        message: 'Database error'
-                    })
                 }
-            } else {
-                results.push({
-                    event_id: validatedEvent.event_id,
-                    status: 'accepted',
-                    payload_version: validatedEvent.payload_version
-                })
+            })
+            continue
+        }
+
+        const validatedEvent = payloadValidation.data as ValidatedEvent
+        pending.push({ kind: 'valid', event: validatedEvent })
+        eventsForDb.push({
+            event_id: validatedEvent.event_id,
+            type: validatedEvent.type,
+            payload: validatedEvent.payload
+        })
+    }
+
+    // 5. Ingest via RPC
+    const statusByEventId = new Map<string, SyncResult['status']>()
+    if (eventsForDb.length > 0) {
+        const { data: rows, error: rpcError } = await supabase.rpc('mobile_ingest_events', {
+            _token_hash: tokenHash,
+            _events: eventsForDb
+        })
+
+        if (rpcError) {
+            logger.error('[mobile-sync] mobile_ingest_events RPC failed', {
+                code: rpcError.code,
+                message: rpcError.message
+            })
+
+            if (rpcError.code === '28000' || rpcError.message?.toLowerCase().includes('unauthorized')) {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
             }
 
-        } catch (err: unknown) {
-            const message = err instanceof Error ? err.message : 'Unknown error'
-            logger.error('[mobile-sync] Unexpected error processing event', {
-                event_id: event.event_id,
-                message
-            })
-            results.push({
-                event_id: event.event_id,
-                status: 'error',
-                message: 'Internal server error'
-            })
+            if (rpcError.code === '22023') {
+                return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
+            }
+
+            return NextResponse.json({ error: 'Server error' }, { status: 500 })
+        }
+
+        const safeRows = Array.isArray(rows) ? rows : []
+        for (const row of safeRows) {
+            const eventId = typeof (row as { event_id?: unknown }).event_id === 'string'
+                ? (row as { event_id: string }).event_id
+                : undefined
+            const status = (row as { status?: unknown }).status
+            if (!eventId) continue
+            if (status === 'accepted' || status === 'duplicate' || status === 'error') {
+                statusByEventId.set(eventId, status)
+            }
         }
     }
+
+    const results: SyncResult[] = pending.map((p) => {
+        if (p.kind === 'invalid') return p.result
+        const status = statusByEventId.get(p.event.event_id) ?? 'error'
+        return {
+            event_id: p.event.event_id,
+            status,
+            payload_version: p.event.payload_version,
+            ...(status === 'error' ? { message: 'Database error' } : {})
+        }
+    })
 
     return NextResponse.json({ results })
 }
