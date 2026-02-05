@@ -1,25 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server';
 import { validateLogoFile, generateFilePath } from '@/lib/upload-helpers';
 import { logger } from '@/lib/logger';
+import { resolveCompanyContext } from '@/lib/auth/resolve-company';
 
 export async function POST(request: NextRequest) {
     try {
-        // Authenticate user via session client (cookies)
-        const supabaseUser = await createClient();
-        const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-
-        if (authError || !user) {
-            return NextResponse.json(
-                { error: 'Não autenticado' },
-                { status: 401 }
-            );
+        let ctx: Awaited<ReturnType<typeof resolveCompanyContext>>;
+        try {
+            ctx = await resolveCompanyContext();
+        } catch {
+            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
         }
 
         // Get form data
         const formData = await request.formData();
-        const file = formData.get('file') as File;
-        const companyId = formData.get('companyId') as string;
+        const file = formData.get('file') as File | null;
+        const requestedCompanyId = formData.get('companyId');
 
         if (!file) {
             return NextResponse.json(
@@ -28,27 +24,15 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        if (!companyId) {
-            return NextResponse.json(
-                { error: 'ID da empresa não fornecido' },
-                { status: 400 }
-            );
-        }
-
-        // Verify user is member of the company
-        const { data: membership, error: membershipError } = await supabaseUser
-            .from('company_members')
-            .select('company_id')
-            .eq('company_id', companyId)
-            .eq('auth_user_id', user.id)
-            .maybeSingle();
-
-        if (membershipError || !membership) {
+        if (typeof requestedCompanyId === 'string' && requestedCompanyId !== ctx.companyId) {
             return NextResponse.json(
                 { error: 'Você não tem permissão para acessar esta empresa' },
                 { status: 403 }
             );
         }
+
+        const supabaseUser = ctx.supabase;
+        const companyId = ctx.companyId;
 
         // Validate file
         const validation = validateLogoFile(file);
@@ -130,7 +114,7 @@ export async function POST(request: NextRequest) {
             logoPath: filePath
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         logger.error('[logo/upload] Unexpected error', { message });
         return NextResponse.json(
