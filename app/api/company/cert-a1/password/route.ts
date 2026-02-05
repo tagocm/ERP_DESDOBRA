@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server';
 import { storePassword, deletePassword } from '@/lib/vault-helpers';
 import { rateLimit } from '@/lib/rate-limit';
 import { errorResponse } from '@/lib/api/response';
 import { logger } from '@/lib/logger';
+import { resolveCompanyContext } from '@/lib/auth/resolve-company';
 
 export async function POST(request: NextRequest) {
     try {
@@ -15,11 +15,10 @@ export async function POST(request: NextRequest) {
             return errorResponse("Too many requests", 429, "RATE_LIMIT");
         }
 
-        // Get authenticated user
-        const supabaseUser = await createClient();
-        const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-
-        if (authError || !user) {
+        let ctx: Awaited<ReturnType<typeof resolveCompanyContext>>;
+        try {
+            ctx = await resolveCompanyContext();
+        } catch {
             return errorResponse("Não autenticado", 401, "UNAUTHORIZED");
         }
 
@@ -32,35 +31,22 @@ export async function POST(request: NextRequest) {
         }
         const { companyId, password } = (body || {}) as { companyId?: string; password?: unknown };
 
-        if (!companyId) {
-            return errorResponse("ID da empresa não fornecido", 400, "INVALID_PAYLOAD");
+        if (companyId && companyId !== ctx.companyId) {
+            return errorResponse("Você não tem permissão para acessar esta empresa", 403, "FORBIDDEN");
         }
 
         if (!password || typeof password !== 'string') {
             return errorResponse("Senha não fornecida", 400, "INVALID_PAYLOAD");
         }
 
-        // Verify user is member of the company
-        const { data: membership, error: membershipError } = await supabaseUser
-            .from('company_members')
-            .select('company_id')
-            .eq('company_id', companyId)
-            .eq('auth_user_id', user.id) // Fixed: user_id -> auth_user_id
-            .single();
-
-        if (membershipError || !membership) {
-            logger.warn('[CertPassword] Membership check failed', {
-                code: membershipError?.code,
-                message: membershipError?.message
-            });
-            return errorResponse("Você não tem permissão para acessar esta empresa", 403, "FORBIDDEN");
-        }
+        const supabaseUser = ctx.supabase;
+        const activeCompanyId = ctx.companyId;
 
         // Get existing password secret ID (if any)
         const { data: existingSettings } = await supabaseUser
             .from('company_settings')
             .select('cert_password_encrypted, cert_a1_storage_path')
-            .eq('company_id', companyId)
+            .eq('company_id', activeCompanyId)
             .single();
 
         // Delete old password if exists
@@ -103,7 +89,7 @@ export async function POST(request: NextRequest) {
 
         // Update company_settings with encrypted password and expiration
         const updatePayload: any = {
-            company_id: companyId,
+            company_id: activeCompanyId,
             cert_password_encrypted: encryptedPassword as any,
             updated_at: new Date().toISOString(),
             is_cert_password_saved: true
@@ -153,11 +139,10 @@ export async function DELETE(request: NextRequest) {
             return errorResponse("Too many requests", 429, "RATE_LIMIT");
         }
 
-        // Get authenticated user
-        const supabaseUser = await createClient();
-        const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-
-        if (authError || !user) {
+        let ctx: Awaited<ReturnType<typeof resolveCompanyContext>>;
+        try {
+            ctx = await resolveCompanyContext();
+        } catch {
             return errorResponse("Não autenticado", 401, "UNAUTHORIZED");
         }
 
@@ -170,31 +155,18 @@ export async function DELETE(request: NextRequest) {
         }
         const { companyId } = (body || {}) as { companyId?: string };
 
-        if (!companyId) {
-            return errorResponse("ID da empresa não fornecido", 400, "INVALID_PAYLOAD");
-        }
-
-        // Verify user is member of the company
-        const { data: membership, error: membershipError } = await supabaseUser
-            .from('company_members')
-            .select('company_id')
-            .eq('company_id', companyId)
-            .eq('auth_user_id', user.id) // Fixed: user_id -> auth_user_id
-            .single();
-
-        if (membershipError || !membership) {
-            logger.warn('[CertPassword] Membership check failed (delete)', {
-                code: membershipError?.code,
-                message: membershipError?.message
-            });
+        if (companyId && companyId !== ctx.companyId) {
             return errorResponse("Você não tem permissão para acessar esta empresa", 403, "FORBIDDEN");
         }
+
+        const supabaseUser = ctx.supabase;
+        const activeCompanyId = ctx.companyId;
 
         // Get password secret ID
         const { data: settings, error: settingsError } = await supabaseUser
             .from('company_settings')
             .select('cert_password_encrypted')
-            .eq('company_id', companyId)
+            .eq('company_id', activeCompanyId)
             .single();
 
         if (settingsError || !settings?.cert_password_encrypted) {
@@ -211,7 +183,7 @@ export async function DELETE(request: NextRequest) {
                 cert_password_encrypted: null,
                 updated_at: new Date().toISOString()
             })
-            .eq('company_id', companyId);
+            .eq('company_id', activeCompanyId);
 
         if (updateError) {
             logger.error('[CertPassword] Failed updating company_settings (delete)', {

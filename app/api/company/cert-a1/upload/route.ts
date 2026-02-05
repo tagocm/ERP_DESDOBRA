@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server';
 import { validateCertFile, generateFilePath } from '@/lib/upload-helpers';
 import { rateLimit } from '@/lib/rate-limit';
 import { errorResponse } from '@/lib/api/response';
 import { logger } from '@/lib/logger';
+import { resolveCompanyContext } from '@/lib/auth/resolve-company';
 
 export async function POST(request: NextRequest) {
     try {
@@ -15,38 +15,28 @@ export async function POST(request: NextRequest) {
             return errorResponse("Too many requests", 429, "RATE_LIMIT");
         }
 
-        // Get authenticated user
-        const supabaseUser = await createClient();
-        const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-
-        if (authError || !user) {
+        let ctx: Awaited<ReturnType<typeof resolveCompanyContext>>;
+        try {
+            ctx = await resolveCompanyContext();
+        } catch {
             return errorResponse("Não autenticado", 401, "UNAUTHORIZED");
         }
 
         // Get form data
         const formData = await request.formData();
-        const file = formData.get('file') as File;
-        const companyId = formData.get('companyId') as string;
+        const file = formData.get('file') as File | null;
+        const requestedCompanyId = formData.get('companyId');
 
         if (!file) {
             return errorResponse("Nenhum arquivo enviado", 400, "INVALID_PAYLOAD");
         }
 
-        if (!companyId) {
-            return errorResponse("ID da empresa não fornecido", 400, "INVALID_PAYLOAD");
-        }
-
-        // Verify user is member of the company
-        const { data: membership, error: membershipError } = await supabaseUser
-            .from('company_members')
-            .select('company_id')
-            .eq('company_id', companyId)
-            .eq('auth_user_id', user.id)
-            .maybeSingle();
-
-        if (membershipError || !membership) {
+        if (typeof requestedCompanyId === 'string' && requestedCompanyId !== ctx.companyId) {
             return errorResponse("Você não tem permissão para acessar esta empresa", 403, "FORBIDDEN");
         }
+
+        const supabaseUser = ctx.supabase;
+        const companyId = ctx.companyId;
 
         // Validate file
         const validation = validateCertFile(file);
