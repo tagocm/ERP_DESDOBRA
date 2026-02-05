@@ -60,15 +60,40 @@ function stripSqlComments(sql) {
     return sql.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/--.*$/gm, ' ');
 }
 
+function normalizeIdentifier(raw) {
+    const cleaned = stripQuotes(raw.trim());
+    return cleaned || null;
+}
+
+function normalizeRoleName(raw) {
+    const cleaned = normalizeIdentifier(raw);
+    return cleaned ? cleaned.toLowerCase() : null;
+}
+
+function parsePolicyRoles(stmt) {
+    const toMatch = /\bto\s+([\s\S]*?)(?=\busing\b|\bwith\b|;)/i.exec(stmt);
+    if (!toMatch) return [];
+    const raw = toMatch[1].trim();
+    if (!raw) return [];
+    return raw
+        .split(',')
+        .map((r) => normalizeRoleName(r))
+        .filter((r) => Boolean(r));
+}
+
+function policyKey(table, name) {
+    return `${table}|${name}`;
+}
+
 function collectTablesAndRlsSignals(files) {
-    const createdTables = new Set();
+    const activeTables = new Set();
     const rlsEnabled = new Set();
-    const policyOnTable = new Set();
-    const openPolicyOnTable = new Set();
+    const policies = new Map();
 
     const createTableRe = /\bcreate\s+table\s+(?:if\s+not\s+exists\s+)?((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)/gi;
+    const dropTableRe = /\bdrop\s+table\s+(?:if\s+exists\s+)?((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)/gi;
     const enableRlsRe = /\balter\s+table\s+(?:only\s+)?((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)\s+enable\s+row\s+level\s+security\b/gi;
-    const createPolicyRe = /\bcreate\s+policy\s+[\s\S]*?\bon\s+((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)/gi;
+    const dropPolicyRe = /\bdrop\s+policy\s+(?:if\s+exists\s+)?(\"[^\"]+\"|\w+)\s+on\s+((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)/gi;
     const createPolicyStmtRe = /\bcreate\s+policy\b[\s\S]*?;/gi;
     const openUsingRe = /\busing\s*\(\s*true\s*\)/i;
     const openWithCheckRe = /\bwith\s+check\s*\(\s*true\s*\)/i;
@@ -77,28 +102,54 @@ function collectTablesAndRlsSignals(files) {
         const normalizedSql = stripSqlComments(sql);
         for (const match of normalizedSql.matchAll(createTableRe)) {
             const table = normalizeTableName(match[1]);
-            if (table) createdTables.add(table);
+            if (table) activeTables.add(table);
+        }
+        for (const match of normalizedSql.matchAll(dropTableRe)) {
+            const table = normalizeTableName(match[1]);
+            if (!table) continue;
+            activeTables.delete(table);
+            // Dropping a table implicitly drops its policies; keep the static model in sync.
+            for (const key of policies.keys()) {
+                if (key.startsWith(`${table}|`)) policies.delete(key);
+            }
         }
         for (const match of normalizedSql.matchAll(enableRlsRe)) {
             const table = normalizeTableName(match[1]);
             if (table) rlsEnabled.add(table);
         }
-        for (const match of normalizedSql.matchAll(createPolicyRe)) {
-            const table = normalizeTableName(match[1]);
-            if (table) policyOnTable.add(table);
+        for (const match of normalizedSql.matchAll(dropPolicyRe)) {
+            const name = normalizeIdentifier(match[1]);
+            const table = normalizeTableName(match[2]);
+            if (!name || !table) continue;
+            policies.delete(policyKey(table, name));
         }
 
         for (const match of normalizedSql.matchAll(createPolicyStmtRe)) {
             const stmt = match[0];
-            if (!openUsingRe.test(stmt) && !openWithCheckRe.test(stmt)) continue;
+            const nameMatch = /\bcreate\s+policy\s+(\"[^\"]+\"|\w+)/i.exec(stmt);
             const onMatch = /\bon\s+((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)/i.exec(stmt);
-            if (!onMatch) continue;
+            if (!nameMatch || !onMatch) continue;
+
+            const name = normalizeIdentifier(nameMatch[1]);
             const table = normalizeTableName(onMatch[1]);
-            if (table) openPolicyOnTable.add(table);
+            if (!name || !table) continue;
+
+            const roles = parsePolicyRoles(stmt);
+            const open = openUsingRe.test(stmt) || openWithCheckRe.test(stmt);
+            const serviceRoleOnly = roles.length > 0 && roles.every((r) => r === 'service_role');
+
+            policies.set(policyKey(table, name), { table, open, serviceRoleOnly });
         }
     }
 
-    return { createdTables, rlsEnabled, policyOnTable, openPolicyOnTable };
+    const policyOnTable = new Set();
+    const openPolicyOnTable = new Set();
+    for (const pol of policies.values()) {
+        policyOnTable.add(pol.table);
+        if (pol.open && !pol.serviceRoleOnly) openPolicyOnTable.add(pol.table);
+    }
+
+    return { activeTables, rlsEnabled, policyOnTable, openPolicyOnTable };
 }
 
 function main() {
@@ -108,14 +159,14 @@ function main() {
         process.exit(0);
     }
 
-    const { createdTables, rlsEnabled, policyOnTable, openPolicyOnTable } = collectTablesAndRlsSignals(files);
+    const { activeTables, rlsEnabled, policyOnTable, openPolicyOnTable } = collectTablesAndRlsSignals(files);
 
-    const created = [...createdTables].sort();
-    const withoutRls = created.filter((t) => !rlsEnabled.has(t));
-    const rlsWithoutPolicies = created.filter((t) => rlsEnabled.has(t) && !policyOnTable.has(t));
-    const openPolicies = created.filter((t) => openPolicyOnTable.has(t));
+    const tables = [...activeTables].sort();
+    const withoutRls = tables.filter((t) => !rlsEnabled.has(t));
+    const rlsWithoutPolicies = tables.filter((t) => rlsEnabled.has(t) && !policyOnTable.has(t));
+    const openPolicies = tables.filter((t) => openPolicyOnTable.has(t));
 
-    console.log(`[rls-static] Tables created in migrations: ${created.length}`);
+    console.log(`[rls-static] Tables (active) created in migrations: ${tables.length}`);
     console.log(`[rls-static] Tables with RLS enabled: ${[...rlsEnabled].length}`);
     console.log(`[rls-static] Tables with at least one policy: ${[...policyOnTable].length}`);
 
