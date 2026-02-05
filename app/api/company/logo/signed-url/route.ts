@@ -1,43 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server';
 import { logger } from '@/lib/logger';
+import { resolveCompanyContext } from '@/lib/auth/resolve-company';
 
 export async function POST(request: NextRequest) {
     try {
-        const supabaseUser = await createClient();
-        const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-
-        if (authError || !user) {
-            return NextResponse.json(
-                { error: 'Não autenticado' },
-                { status: 401 }
-            );
+        let ctx: Awaited<ReturnType<typeof resolveCompanyContext>>;
+        try {
+            ctx = await resolveCompanyContext();
+        } catch {
+            return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
         }
 
         // Get company ID from request
-        const { companyId } = await request.json();
-
-        if (!companyId) {
-            return NextResponse.json(
-                { error: 'ID da empresa não fornecido' },
-                { status: 400 }
-            );
+        let requestedCompanyId: string | undefined;
+        try {
+            const body = (await request.json()) as unknown;
+            if (body && typeof body === 'object') {
+                const raw = (body as Record<string, unknown>).companyId;
+                if (typeof raw === 'string') requestedCompanyId = raw;
+            }
+        } catch {
+            // Ignore invalid/empty body
         }
 
-        // Verify user is member of the company
-        const { data: membership, error: membershipError } = await supabaseUser
-            .from('company_members')
-            .select('company_id')
-            .eq('company_id', companyId)
-            .eq('auth_user_id', user.id)
-            .maybeSingle();
-
-        if (membershipError || !membership) {
-            return NextResponse.json(
-                { error: 'Você não tem permissão para acessar esta empresa' },
-                { status: 403 }
-            );
+        if (requestedCompanyId && requestedCompanyId !== ctx.companyId) {
+            return NextResponse.json({ error: 'Você não tem permissão para acessar esta empresa' }, { status: 403 });
         }
+
+        const supabaseUser = ctx.supabase;
+        const companyId = ctx.companyId;
 
         // Get logo path from settings
         const { data: settings, error: settingsError } = await supabaseUser
@@ -80,7 +71,7 @@ export async function POST(request: NextRequest) {
             signedUrl: signedUrlData.signedUrl
         });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         logger.error('[logo/signed-url] Unexpected error', { message });
         return NextResponse.json(
