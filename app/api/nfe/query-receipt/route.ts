@@ -1,7 +1,6 @@
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseServer';
 import { consultarRecibo } from '@/lib/nfe/sefaz/services/retAutorizacao';
 import { upsertNfeEmission, buildNfeProc } from '@/lib/nfe/sefaz/services/persistence';
@@ -10,6 +9,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { errorResponse } from "@/lib/api/response";
 import { logger } from "@/lib/logger";
 import { NfeSefazError } from "@/lib/nfe/sefaz/errors";
+import { resolveCompanyContext } from "@/lib/auth/resolve-company";
 
 export async function POST(request: NextRequest) {
     try {
@@ -22,14 +22,11 @@ export async function POST(request: NextRequest) {
             return errorResponse("Too many requests", 429, "RATE_LIMIT");
         }
 
-        // 1. Authenticate
-        const supabaseUser = await createClient();
-        const { data: { user }, error: authError } = await supabaseUser.auth.getUser();
-
-        if (authError || !user) {
-            logger.warn('[QueryReceipt] Auth failed', {
-                hasError: !!authError
-            });
+        // 1. Resolve auth + company server-side (never trust companyId from client)
+        let ctx: Awaited<ReturnType<typeof resolveCompanyContext>>;
+        try {
+            ctx = await resolveCompanyContext();
+        } catch {
             return errorResponse("Não autenticado", 401, "UNAUTHORIZED");
         }
 
@@ -41,29 +38,14 @@ export async function POST(request: NextRequest) {
             return errorResponse("JSON inválido", 400, "BAD_JSON");
         }
 
-        const { accessKey, companyId } = (body || {}) as { accessKey?: string; companyId?: string };
+        const { accessKey } = (body || {}) as { accessKey?: string };
 
-        if (!accessKey || !companyId) {
-            return errorResponse("accessKey e companyId obrigatórios", 400, "INVALID_PAYLOAD");
+        if (!accessKey) {
+            return errorResponse("accessKey obrigatório", 400, "INVALID_PAYLOAD");
         }
 
-        // 3. Verify membership
+        const companyId = ctx.companyId;
         const supabaseAdmin = createAdminClient();
-
-        const { data: membership, error: membershipError } = await supabaseAdmin
-            .from('company_members')
-            .select('company_id')
-            .eq('company_id', companyId)
-            .eq('auth_user_id', user.id)
-            .single();
-
-        if (membershipError || !membership) {
-            logger.warn('[QueryReceipt] Membership check failed', {
-                code: membershipError?.code,
-                message: membershipError?.message
-            });
-            return errorResponse("Sem permissão", 403, "FORBIDDEN");
-        }
 
 
         // 4. Get emission record (if exists)
