@@ -22,13 +22,19 @@
 - [x] Restringir escrita de preferências globais (admin-only) + remover policies abertas restantes
   - Implementado: `supabase/migrations/20260204195000_harden_system_preferences_rls.sql`, `supabase/migrations/20260204195500_harden_cfop_rls.sql`
 - [ ] “Company context” padronizado em **todas** as rotas/actions (sempre derivado do server: `getActiveCompanyId()` / `resolveCompanyContext()`)
+  - Progresso: rotas de assets e certificados agora usam `resolveCompanyContext()` e só aceitam `companyId` do client se bater com a empresa ativa:
+    - `app/api/company/logo/*`
+    - `app/api/company/cert-a1/*`
+    - `app/api/nfe/query-receipt`
 - [ ] Varredura de código: todo `.from('…')` de tabela de negócio deve ter filtro por `company_id` (ou estar protegido por view/RLS)
 - [ ] Teste negativo automatizado (Playwright ou unit/integration): tenant A não acessa recursos do tenant B
 
 ## 2) Service role / privilégios
 - [x] Auditoria automática (CI): apontar uso de `SUPABASE_SERVICE_ROLE_KEY`/`createAdminClient()` em `app/api/**` e `app/actions/**` (warning)
   - Implementado: `node scripts/check-service-role-usage.js` (warning; modo estrito via `--strict` ou `CI_STRICT_SERVICE_ROLE=true`)
-- [ ] Remover `SUPABASE_SERVICE_ROLE_KEY` de fluxos de usuário (ex.: `app/actions/save-sales-order.ts`)
+- [x] Remover `SUPABASE_SERVICE_ROLE_KEY` de fluxos de usuário onde RLS cobre (ex.: `app/actions/save-sales-order.ts`)
+- [x] Onboarding sem service-role: criar empresa + membership via RPC `SECURITY DEFINER` (controlado por `auth.uid()`)
+  - Implementado: `supabase/migrations/20260205100000_create_onboarding_rpc.sql`, `app/api/onboarding/route.ts`
 - [ ] Onde precisar privilégio: mover para **RPC security definer** ou **fila interna** com validação de `auth.uid()` + `company_id`
 - [ ] Revisar `createAdminClient()` usages: só em rotas internas/worker/processor, nunca em request de usuário sem validação forte
 
