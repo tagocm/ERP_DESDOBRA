@@ -2,7 +2,7 @@
 
 import { useState, memo, useRef, useMemo } from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { DeliveryRoute } from "@/types/sales";
+import { DeliveryRouteDTO } from "@/lib/types/expedition-dto";
 import { Truck, Package, DollarSign, X, CalendarOff } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -16,7 +16,7 @@ import { StatusDots } from "./StatusDots";
 import { normalizeRouteStatus } from "@/lib/constants/status";
 
 interface RouteCardCompactProps {
-    route: DeliveryRoute;
+    route: DeliveryRouteDTO;
     onClick?: () => void;
     onRemoveOrder?: (orderId: string, routeId: string) => void;
     onUnscheduleRoute?: (routeId: string) => void;

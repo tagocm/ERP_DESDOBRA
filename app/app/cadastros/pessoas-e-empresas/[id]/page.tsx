@@ -4,11 +4,13 @@ import { useState, useEffect, useCallback, useRef, use } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { createClient } from "@/lib/supabaseBrowser";
+import { useToast } from "@/components/ui/use-toast";
 import {
     updateOrganization,
     setOrganizationRoles,
     upsertAddress,
     upsertPerson,
+    getRepresentatives,
     getOrganizationById,
     getOrganizationRoles,
     getAddresses,
@@ -59,6 +61,7 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
 
     const supabase = createClient();
     const router = useRouter();
+    const { toast } = useToast();
 
     // ----------------------------------------------------------------------
     // STATE
@@ -67,8 +70,6 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(true);
     const [cnpjLoading, setCnpjLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
 
     // Form Data
     const [formData, setFormData] = useState({
@@ -132,7 +133,8 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
         prospect: false,
         customer: false,
         supplier: false,
-        carrier: false
+        carrier: false,
+        representative: false
     });
 
     // Lists for Selects
@@ -140,19 +142,22 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
     const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
     const [paymentModes, setPaymentModes] = useState<PaymentMode[]>([]);
     const [manageModesOpen, setManageModesOpen] = useState(false);
+    const [representatives, setRepresentatives] = useState<any[]>([]);
 
     useEffect(() => {
         if (!selectedCompany) return;
         const loadOptions = async () => {
             try {
-                const [pts, terms, modes] = await Promise.all([
+                const [pts, terms, modes, reps] = await Promise.all([
                     getPriceTables(supabase, selectedCompany.id),
                     getPaymentTerms(supabase, selectedCompany.id),
-                    getPaymentModes(selectedCompany.id)
+                    getPaymentModes(selectedCompany.id),
+                    getRepresentatives(supabase, selectedCompany.id)
                 ]);
                 setPriceTables(pts);
                 setPaymentTerms(terms);
                 setPaymentModes(modes);
+                setRepresentatives(reps);
             } catch (err: any) {
                 console.error("Error loading options:", err.message || err);
             }
@@ -175,7 +180,11 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
             setIsFetching(true);
 
             if (!id) {
-                setError("ID do cadastro não encontrado.");
+                toast({
+                    title: "Erro",
+                    description: "ID do cadastro não encontrado.",
+                    variant: "destructive",
+                });
                 setIsFetching(false);
                 return;
             }
@@ -240,7 +249,7 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
 
                 // 2. Roles
                 const orgRoles = await getOrganizationRoles(supabase, selectedCompany.id, id);
-                const newRoles = { prospect: false, customer: false, supplier: false, carrier: false };
+                const newRoles = { prospect: false, customer: false, supplier: false, carrier: false, representative: false };
                 orgRoles.forEach(r => {
                     if (r.role in newRoles) {
                         newRoles[r.role as keyof typeof newRoles] = true;
@@ -279,7 +288,11 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
 
             } catch (err: any) {
                 console.error("Error loading data:", err);
-                setError("Erro ao carregar dados.");
+                toast({
+                    title: "Erro ao carregar",
+                    description: "Não foi possível carregar os dados do cadastro.",
+                    variant: "destructive",
+                });
             } finally {
                 setIsFetching(false);
             }
@@ -339,8 +352,6 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
         if (!selectedCompany) return;
 
         setIsLoading(true);
-        setError(null);
-        setSuccess(null);
 
         try {
             const { roles } = stateRef.current;
@@ -443,7 +454,11 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
 
         } catch (err: any) {
             console.error(err);
-            setError(err.message || "Erro ao atualizar cadastro.");
+            toast({
+                title: "Erro ao atualizar",
+                description: err.message || "Não foi possível salvar as alterações.",
+                variant: "destructive",
+            });
         } finally {
             setIsLoading(false);
         }
@@ -487,7 +502,6 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
         const cnpjDigits = extractDigits(formData.document_number);
         if (cnpjDigits.length !== 14) return;
         setCnpjLoading(true);
-        setError(null);
         try {
             const res = await fetch(`/api/cnpj/${cnpjDigits}`);
             const data = await res.json();
@@ -505,7 +519,11 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                 setBillingAddress(prev => ({ ...prev, ...data.address, country: "BR" }));
             }
         } catch (err) {
-            setError("Erro ao buscar dados do CNPJ.");
+            toast({
+                title: "Erro ao buscar CNPJ",
+                description: "Não foi possível localizar os dados.",
+                variant: "destructive",
+            });
         } finally {
             setCnpjLoading(false);
         }
@@ -532,17 +550,6 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
 
     return (
         <div>
-            {error && (
-                <Alert variant="destructive" onClose={() => setError(null)}>
-                    {error}
-                </Alert>
-            )}
-            {success && (
-                <Alert variant="success" onClose={() => setSuccess(null)}>
-                    {success}
-                </Alert>
-            )}
-
             <Dialog open={manageModesOpen} onOpenChange={setManageModesOpen}>
                 <PaymentModeManagerModal onChange={reloadPaymentModes} />
             </Dialog>
@@ -636,7 +643,11 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                                                         className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
                                                     />
                                                     <span className="text-sm text-gray-700 font-medium capitalize">
-                                                        {role === 'prospect' ? 'Prospect' : role === 'customer' ? 'Cliente' : role === 'supplier' ? 'Fornecedor' : 'Transportadora'}
+                                                        {role === 'prospect' ? 'Prospect' :
+                                                            role === 'customer' ? 'Cliente' :
+                                                                role === 'supplier' ? 'Fornecedor' :
+                                                                    role === 'carrier' ? 'Transportadora' :
+                                                                        role === 'representative' ? 'Representante' : role}
                                                     </span>
                                                 </label>
                                             ))}
@@ -846,7 +857,11 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
                                                         <SelectValue placeholder="Selecione..." />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {/* Items will be populated once users are fetched */}
+                                                        {representatives.map(rep => (
+                                                            <SelectItem key={rep.id} value={rep.id}>
+                                                                {rep.trade_name}
+                                                            </SelectItem>
+                                                        ))}
                                                     </SelectContent>
                                                 </Select>
                                             </div>

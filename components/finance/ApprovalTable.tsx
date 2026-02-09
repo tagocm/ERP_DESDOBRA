@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabaseBrowser";
-import { ArTitle } from "@/types/financial";
+import { ArTitleDTO } from "@/lib/types/financial-dto";
 import { Card } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -36,7 +36,7 @@ import { getFinancialBadgeStyle } from "@/lib/constants/statusColors";
 import { normalizeFinancialStatus } from "@/lib/constants/status";
 
 export function ApprovalTable({ companyId }: { companyId: string }) {
-    const [postings, setPostings] = useState<ArTitle[]>([]);
+    const [titles, setTitles] = useState<ArTitleDTO[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -49,14 +49,14 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
     const supabase = createClient();
 
     // Stats for Cards
-    const totalPending = postings.filter(p => p.status === 'PENDING_APPROVAL').reduce((s, c) => s + Number(c.amount_total), 0);
-    const totalSelected = postings.filter(p => selectedIds.has(p.id)).reduce((s, c) => s + (Number(c.amount_total) || 0), 0);
+    const totalPending = titles.filter(p => p.status === 'PENDING_APPROVAL').reduce((s, c) => s + Number(c.amount_total), 0);
+    const totalSelected = titles.filter(p => selectedIds.has(p.id)).reduce((s, c) => s + (Number(c.amount_total) || 0), 0);
 
     // Batch Action States
     const [isApproving, setIsApproving] = useState(false);
     const [showApproveDialog, setShowApproveDialog] = useState(false);
 
-    const fetchPostings = async () => {
+    const fetchTitles = async () => {
         setLoading(true);
         let query = supabase
             .from('ar_titles')
@@ -81,7 +81,7 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
             console.error('Error fetching AR titles:', JSON.stringify(error, null, 2));
             toast({ title: "Erro ao carregar lançamentos", variant: "destructive" });
         } else {
-            let filtered = data as unknown as ArTitle[];
+            let filtered = data as unknown as ArTitleDTO[];
             if (searchQuery) {
                 const lower = searchQuery.toLowerCase();
                 filtered = filtered.filter(p =>
@@ -91,13 +91,13 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                     String(p.sales_document?.document_number).includes(lower)
                 );
             }
-            setPostings(filtered);
+            setTitles(filtered);
         }
         setLoading(false);
     };
 
     useEffect(() => {
-        fetchPostings();
+        fetchTitles();
     }, [filterStatus, searchQuery]);
 
     // Sorting Logic
@@ -111,18 +111,18 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
     };
 
     // Helper to get raw first due date for sorting
-    const getFirstDueDate = (p: ArTitle) => {
+    const getFirstDueDate = (p: ArTitleDTO) => {
         if (!p.ar_installments || p.ar_installments.length === 0) return 0;
         const dates = p.ar_installments.map(i => new Date(i.due_date).getTime());
         return Math.min(...dates);
     };
 
-    const sortedPostings = useMemo(() => {
-        if (!sortConfig) return postings;
+    const sortedTitles = useMemo(() => {
+        if (!sortConfig) return titles;
 
-        return [...postings].sort((a, b) => {
-            let aVal: any = '';
-            let bVal: any = '';
+        return [...titles].sort((a, b) => {
+            let aVal: string | number = '';
+            let bVal: string | number = '';
 
             switch (sortConfig.key) {
                 case 'document':
@@ -169,11 +169,11 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
             if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [postings, sortConfig]);
+    }, [titles, sortConfig]);
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            setSelectedIds(new Set(postings.filter(p => p.status === 'PENDING_APPROVAL').map(p => p.id)));
+            setSelectedIds(new Set(titles.filter(p => p.status === 'PENDING_APPROVAL').map(p => p.id)));
         } else {
             setSelectedIds(new Set());
         }
@@ -213,9 +213,10 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
             toast({ title: "Aprovação concluída", description: `${result.approved} itens aprovados.` });
             setSelectedIds(new Set());
             setShowApproveDialog(false);
-            fetchPostings();
-        } catch (error: any) {
-            toast({ title: "Erro na aprovação", description: error.message, variant: "destructive" });
+            fetchTitles();
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            toast({ title: "Erro na aprovação", description: message, variant: "destructive" });
         } finally {
             setIsApproving(false);
         }
@@ -230,8 +231,8 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
             });
             if (!response.ok) throw new Error('Erro ao aprovar');
             toast({ title: "Lançamento aprovado com sucesso!" });
-            fetchPostings();
-        } catch (e) {
+            fetchTitles();
+        } catch (e: unknown) {
             toast({ title: "Erro na aprovação", variant: "destructive" });
         }
     };
@@ -246,21 +247,22 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                 throw new Error(err.error || 'Erro ao excluir');
             }
             toast({ title: "Lançamento excluído com sucesso." });
-            fetchPostings();
-        } catch (error: any) {
-            toast({ title: "Erro na exclusão", description: error.message, variant: "destructive" });
+            fetchTitles();
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            toast({ title: "Erro na exclusão", description: message, variant: "destructive" });
         }
     };
 
     const getStatusBadge = (status: string) => {
-        const styles: any = {
+        const styles: Record<string, string> = {
             PENDING_APPROVAL: "bg-amber-50 text-amber-700 border-amber-200",
             OPEN: "bg-blue-50 text-blue-700 border-blue-200",
             PAID: "bg-emerald-50 text-emerald-700 border-emerald-200",
             CANCELLED: "bg-gray-50 text-gray-700 border-gray-200",
             PARTIAL: "bg-indigo-50 text-indigo-700 border-indigo-200",
         };
-        const labels: any = {
+        const labels: Record<string, string> = {
             PENDING_APPROVAL: "Pendente",
             OPEN: "Aberto",
             PAID: "Liquidado",
@@ -272,10 +274,10 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
         </Badge>;
     };
 
-    const getInstallmentInfo = (posting: any) => {
+    const getInstallmentInfo = (posting: ArTitleDTO) => {
         const insts = posting.ar_installments || [];
         if (insts.length === 0) return { count: 0, first: '-' };
-        const sorted = [...insts].sort((a: any, b: any) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+        const sorted = [...insts].sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
         const first = new Date(sorted[0].due_date).toLocaleDateString('pt-BR');
         return { count: insts.length, first };
     };
@@ -303,9 +305,9 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
     };
 
     return (
-            <div className="space-y-6 animate-in fade-in duration-700">
-                {/* Top Stats Row */}
-                <div className="flex flex-col sm:flex-row gap-4">
+        <div className="space-y-6 animate-in fade-in duration-700">
+            {/* Top Stats Row */}
+            <div className="flex flex-col sm:flex-row gap-4">
                 <Card className="flex-1 p-4 border-gray-100 flex flex-col gap-1 relative overflow-hidden group hover:border-blue-200 transition-all">
                     <span className="text-[10px] uppercase font-black text-gray-400 tracking-widest pl-1">Total Pendente</span>
                     <div className="text-2xl font-black text-gray-900 tabular-nums">
@@ -320,7 +322,7 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                     </div>
                     <div className="absolute -right-6 -top-6 bg-blue-50 w-24 h-24 rounded-full opacity-50 group-hover:scale-110 transition-transform" />
                 </Card>
-                </div>
+            </div>
 
             <Card>
                 <CardHeaderStandard
@@ -376,7 +378,7 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                                 <TableHead className="w-12 text-center"></TableHead>
                                 <TableHead className="w-12">
                                     <Checkbox
-                                        checked={postings.length > 0 && selectedIds.size === postings.filter(p => p.status === 'PENDING_APPROVAL').length}
+                                        checked={titles.length > 0 && selectedIds.size === titles.filter(p => p.status === 'PENDING_APPROVAL').length}
                                         onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
                                         className="translate-y-[2px]"
                                     />
@@ -403,7 +405,7 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                                         </div>
                                     </TableCell>
                                 </TableRow>
-                            ) : sortedPostings.length === 0 ? (
+                            ) : sortedTitles.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={12} className="h-64 text-center">
                                         <div className="flex flex-col items-center gap-2 opacity-50">
@@ -413,7 +415,7 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                sortedPostings.map((posting) => {
+                                sortedTitles.map((posting) => {
                                     const isExpanded = expandedIds.has(posting.id);
                                     const instInfo = getInstallmentInfo(posting);
                                     const isPending = posting.status === 'PENDING_APPROVAL';
@@ -507,7 +509,7 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                                                         <div className="px-4 pb-6 pt-2 animate-in slide-in-from-top-2 duration-300">
                                                             <ApprovalRowExpanded
                                                                 title={posting}
-                                                                onRefresh={fetchPostings}
+                                                                onRefresh={fetchTitles}
                                                                 onApprove={handleSingleApprove}
                                                                 onDeleteTitle={handleDeleteTitle}
                                                             />

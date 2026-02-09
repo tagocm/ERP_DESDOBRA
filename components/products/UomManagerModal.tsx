@@ -22,13 +22,18 @@ import {
 } from "@/components/ui/table";
 import { Edit, Trash2, Plus, Loader2, Save, X, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { Uom } from "@/types/product";
-import { createUom, deleteUom, getAllUomsIncludingInactive, updateUom } from "@/lib/data/uoms";
 import { useCompany } from "@/contexts/CompanyContext";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/Alert";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { Card } from "@/components/ui/Card";
+import {
+    listUomsAction,
+    createUomAction,
+    updateUomAction,
+    deleteUomAction,
+} from "@/app/actions/uom-actions";
+import type { UomDTO } from "@/lib/types/products-dto";
 
 interface UomManagerModalProps {
     open?: boolean;
@@ -46,7 +51,7 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
 
     const { selectedCompany } = useCompany();
     const { toast } = useToast();
-    const [uoms, setUoms] = useState<Uom[]>([]);
+    const [uoms, setUoms] = useState<UomDTO[]>([]);
     const [loading, setLoading] = useState(false);
 
     // Edit/Create State
@@ -72,8 +77,12 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
         if (!selectedCompany?.id) return;
         setLoading(true);
         try {
-            const data = await getAllUomsIncludingInactive(selectedCompany.id);
-            setUoms(data);
+            const result = await listUomsAction({ includeInactive: true });
+            if (result.success) {
+                setUoms(result.data);
+            } else {
+                toast({ title: "Erro ao carregar unidades", description: result.error, variant: "destructive" });
+            }
         } catch (error) {
             console.error(error);
             toast({ title: "Erro ao carregar unidades", variant: "destructive" });
@@ -90,54 +99,61 @@ export function UomManagerModal({ open: controlledOpen, onOpenChange, trigger }:
         }
 
         try {
+            let result;
             if (isCreating) {
-                await createUom({
-                    company_id: selectedCompany.id,
+                result = await createUomAction({
                     name: editForm.name.trim(),
                     abbrev: editForm.abbrev.trim(),
                     is_active: true,
                 });
-                toast({ title: "Unidade criada com sucesso!" });
+                if (result.success) {
+                    toast({ title: "Unidade criada com sucesso!" });
+                }
             } else if (editingId) {
-                await updateUom(editingId, {
+                result = await updateUomAction({
+                    id: editingId,
                     name: editForm.name.trim(),
                     abbrev: editForm.abbrev.trim(),
                 });
-                toast({ title: "Unidade atualizada!" });
+                if (result.success) {
+                    toast({ title: "Unidade atualizada!" });
+                }
+            }
+
+            if (result && !result.success) {
+                toast({ title: "Erro ao salvar", description: result.error, variant: "destructive" });
+                return;
             }
 
             setEditingId(null);
             setIsCreating(false);
             setEditForm({ name: "", abbrev: "" });
             loadUoms();
-        } catch (error: any) {
+        } catch (error) {
             console.error(error);
-            // Handle unique constraint violation
-            if (error.message?.includes("uoms_name_company_unique")) {
-                toast({ title: "Já existe uma unidade com este nome.", variant: "destructive" });
-            } else if (error.message?.includes("uoms_abbrev_company_unique")) {
-                toast({ title: "Já existe uma unidade com esta abreviação.", variant: "destructive" });
-            } else {
-                toast({ title: "Erro ao salvar", variant: "destructive" });
-            }
+            toast({ title: "Erro ao salvar", variant: "destructive" });
         }
     };
 
     const confirmDelete = async () => {
         if (!deletingId) return;
         try {
-            await deleteUom(deletingId);
-            toast({ title: "Unidade excluída." });
-            loadUoms();
-        } catch (error: any) {
+            const result = await deleteUomAction({ id: deletingId });
+            if (result.success) {
+                toast({ title: "Unidade excluída." });
+                loadUoms();
+            } else {
+                toast({ title: "Erro ao excluir", description: result.error, variant: "destructive" });
+            }
+        } catch (error) {
             console.error(error);
-            toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
+            toast({ title: "Erro ao excluir", variant: "destructive" });
         } finally {
             setDeletingId(null);
         }
     };
 
-    const startEdit = (uom: Uom) => {
+    const startEdit = (uom: UomDTO) => {
         setEditingId(uom.id);
         setIsCreating(false);
         setEditForm({ name: uom.name, abbrev: uom.abbrev });

@@ -12,8 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from 'next/navigation';
 import { ConfirmDialogDesdobra } from '@/components/ui/ConfirmDialogDesdobra';
 import { ReturnStaging } from '@/components/retorno/ReturnChecklist';
-import { updateReturnStaging } from '@/lib/data/expedition';
-import { createClient } from '@/utils/supabase/client';
+import { updateReturnStagingAction } from '@/app/actions/expedition/return-actions';
 
 interface RetornoClientProps {
     initialRoutes: any[];
@@ -46,9 +45,6 @@ export function RetornoClient({ initialRoutes }: RetornoClientProps) {
     useEffect(() => {
         setStaging({});
     }, [selectedRoute?.id]);
-
-    // Supabase client for staging updates
-    const supabase = createClient();
 
     // Map DB enum to UI enum
     const mapDbToUi = (dbValue: string): 'ENTREGUE' | 'NAO_ENTREGUE' | 'DEVOLVIDO_PARCIAL' | undefined => {
@@ -101,8 +97,9 @@ export function RetornoClient({ initialRoutes }: RetornoClientProps) {
             };
 
             try {
-                // Update DB via lib
-                await updateReturnStaging(supabase, routeOrder.id, dbOutcome, finalPayload);
+                // Update DB via server action
+                const result = await updateReturnStagingAction(routeOrder.id, dbOutcome, finalPayload);
+                if (!result.ok) throw new Error(result.error?.message);
 
                 // Update Local Route State to reflect persistence (so switching tabs works)
                 setRoutes(prev => prev.map(r => {

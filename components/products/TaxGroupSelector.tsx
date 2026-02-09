@@ -17,12 +17,12 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover"
-import { getTaxGroups, TaxGroup, createTaxGroup } from "@/lib/data/tax-groups"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/Dialog"
 import { TaxGroupManagerModal } from "./TaxGroupManagerModal"
 import { useToast } from "@/components/ui/use-toast"
-import { createClient } from "@/lib/supabaseBrowser"
 import { useCompany } from "@/contexts/CompanyContext"
+import { listTaxGroupsAction, createTaxGroupAction } from "@/app/actions/tax-group-actions"
+import type { TaxGroupDTO } from "@/lib/types/products-dto"
 
 interface TaxGroupSelectorProps {
     value?: string; // ID
@@ -35,10 +35,9 @@ interface TaxGroupSelectorProps {
 export function TaxGroupSelector({ value, onChange, className, disabled, onGroupUpdated }: TaxGroupSelectorProps) {
     const { toast } = useToast()
     const { selectedCompany } = useCompany();
-    const supabase = createClient();
 
     const [open, setOpen] = React.useState(false)
-    const [groups, setGroups] = React.useState<TaxGroup[]>([])
+    const [groups, setGroups] = React.useState<TaxGroupDTO[]>([])
     const [searchValue, setSearchValue] = React.useState("")
     const [manageOpen, setManageOpen] = React.useState(false)
 
@@ -46,9 +45,11 @@ export function TaxGroupSelector({ value, onChange, className, disabled, onGroup
     const fetchGroups = async () => {
         if (!selectedCompany?.id) return;
         try {
-            const data = await getTaxGroups(supabase, selectedCompany.id);
-            setGroups(data);
-            onGroupUpdated?.();
+            const result = await listTaxGroupsAction();
+            if (result.success) {
+                setGroups(result.data);
+                onGroupUpdated?.();
+            }
         } catch (e) {
             console.error(e);
         }
@@ -61,21 +62,27 @@ export function TaxGroupSelector({ value, onChange, className, disabled, onGroup
     const handleCreateOption = async () => {
         if (!searchValue || !selectedCompany?.id) return;
         try {
-            const newGroup = await createTaxGroup(supabase, {
-                company_id: selectedCompany.id,
+            const result = await createTaxGroupAction({
                 name: searchValue,
+                is_active: true,
                 ncm: undefined,
                 cest: undefined,
                 origin_default: 0
             });
-            setGroups(prev => [...prev, newGroup]);
-            onChange(newGroup.id);
-            setOpen(false);
-            setSearchValue("");
-            onGroupUpdated?.();
-            toast({ title: "Grupo criado e selecionado!", description: "Edite-o para adicionar NCM/CEST.", variant: "default" });
-        } catch (error: any) {
-            toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
+            if (result.success) {
+                const newGroup = result.data;
+                setGroups(prev => [...prev, newGroup]);
+                onChange(newGroup.id);
+                setOpen(false);
+                setSearchValue("");
+                onGroupUpdated?.();
+                toast({ title: "Grupo criado e selecionado!", description: "Edite-o para adicionar NCM/CEST.", variant: "default" });
+            } else {
+                toast({ title: "Erro ao criar", description: result.error, variant: "destructive" });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Erro ao criar", variant: "destructive" });
         }
     }
 

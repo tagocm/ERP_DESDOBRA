@@ -1,19 +1,10 @@
 
 import { SupabaseClient } from '@supabase/supabase-js';
 
-export interface TaxGroup {
-    id: string;
-    company_id: string;
-    name: string;
-    description?: string;
-    ncm?: string | null;
-    cest?: string | null;
-    origin_default?: number;
-    is_active: boolean;
-    observation?: string | null;
-}
+import { TaxGroupDTO } from "@/lib/types/fiscal-types";
+export type { TaxGroupDTO };
 
-export async function getTaxGroups(supabase: SupabaseClient, companyId: string, onlyActive = true): Promise<TaxGroup[]> {
+export async function getTaxGroups(supabase: SupabaseClient, companyId: string, onlyActive = true): Promise<TaxGroupDTO[]> {
     let query = supabase
         .from('tax_groups')
         .select('*')
@@ -35,7 +26,7 @@ export async function getTaxGroups(supabase: SupabaseClient, companyId: string, 
     return data || [];
 }
 
-export async function createTaxGroup(supabase: SupabaseClient, taxGroup: Partial<TaxGroup>) {
+export async function createTaxGroup(supabase: SupabaseClient, taxGroup: Partial<TaxGroupDTO>) {
     const { data, error } = await supabase
         .from('tax_groups')
         .insert(taxGroup)
@@ -43,10 +34,10 @@ export async function createTaxGroup(supabase: SupabaseClient, taxGroup: Partial
         .single();
 
     if (error) throw error;
-    return data as TaxGroup;
+    return data as TaxGroupDTO;
 }
 
-export async function updateTaxGroup(supabase: SupabaseClient, id: string, updates: Partial<TaxGroup>) {
+export async function updateTaxGroup(supabase: SupabaseClient, id: string, updates: Partial<TaxGroupDTO>) {
     const { data, error } = await supabase
         .from('tax_groups')
         .update(updates)
@@ -55,7 +46,7 @@ export async function updateTaxGroup(supabase: SupabaseClient, id: string, updat
         .single();
 
     if (error) throw error;
-    return data as TaxGroup;
+    return data as TaxGroupDTO;
 }
 
 export async function deleteTaxGroup(supabase: SupabaseClient, id: string) {

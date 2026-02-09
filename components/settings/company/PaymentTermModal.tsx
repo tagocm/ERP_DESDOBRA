@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { DecimalInput } from "@/components/ui/DecimalInput";
-import { PaymentTerm } from "@/lib/data/company-settings";
+import { upsertPaymentTermAction } from "@/app/actions/settings/payment-terms-actions";
+import { PaymentTerm } from "@/lib/types/settings-types";
 import { Loader2, Save, X, CalendarClock } from "lucide-react";
 import { FormErrorSummary } from "@/components/ui/FormErrorSummary";
 import { FieldError } from "@/components/ui/FieldError";
@@ -65,23 +66,25 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
 
         setIsLoading(true);
         try {
-            const success = await onSave({
+            const payload = {
                 id: termToEdit?.id, // undefined if new
                 installments_count: installments,
                 first_due_days: firstDueDays,
                 cadence_days: installments === 1 ? null : (cadenceDays || 0),
                 min_installment_amount: minAmount,
                 name: generatedName, // Always auto-generated
+                is_custom_name: false,
                 is_active: true // Always active
+            };
+
+            const res = await upsertPaymentTermAction(payload);
+            if (!res.success) throw new Error(res.error);
+
+            toast({
+                title: "Sucesso",
+                description: "Prazo de pagamento salvo.",
             });
-            if (success) {
-                toast({
-                    title: "Sucesso",
-                    description: "Prazo de pagamento salvo.",
-                    // variant: "default" by default
-                });
-                onOpenChange(false);
-            }
+            onOpenChange(false);
         } catch (e: any) {
             console.error(e);
             toast({

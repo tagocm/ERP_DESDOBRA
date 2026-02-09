@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArInstallment } from "@/types/financial";
+import { ArInstallmentDTO } from "@/lib/types/financial-dto";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/Badge";
 import { formatCurrency, cn, toTitleCase } from "@/lib/utils";
@@ -21,7 +21,7 @@ export interface GroupedOrder {
     amount_open: number;
     next_due_date?: string;
     status: 'OPEN' | 'PARTIAL' | 'PAID';
-    installments: ArInstallment[];
+    installments: ArInstallmentDTO[];
 }
 
 interface AccountsGroupRowProps {

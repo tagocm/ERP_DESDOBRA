@@ -12,7 +12,7 @@ import { useQZPrinter } from '@/hooks/useQZPrinter';
 import { PrinterConfigDialog } from '@/components/print/PrinterConfigDialog';
 import { generateVolumeLabelZPL, downloadZpl } from '@/lib/zpl-generator';
 import { useToast } from "@/components/ui/use-toast";
-import { DeliveryRoute } from '@/types/sales';
+import { DeliveryRouteDTO } from '@/lib/types/sales-dto';
 import { normalizeLoadingStatus, normalizeLogisticsStatus } from '@/lib/constants/status';
 
 interface RouteDetailsProps {
@@ -89,94 +89,94 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
             {/* Header */}
             <Card className="border-gray-200">
                 <CardContent className="p-4">
-                <div className="flex items-start justify-between mb-4">
-                    <div>
-                        <h2 className="text-lg font-semibold mb-2">{route.name}</h2>
-                        <div className="flex items-center gap-4 text-sm text-gray-600">
-                            <span className="flex items-center gap-1">
-                                <Calendar className="w-4 h-4" />
-                                {format(new Date(route.scheduled_date), "dd/MM/yyyy", { locale: ptBR })}
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <Truck className="w-4 h-4" />
-                                {totalCount} {totalCount === 1 ? 'pedido' : 'pedidos'}
-                            </span>
-                            <span className="font-medium text-gray-900">
-                                {new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(totalWeight)} kg
-                            </span>
+                    <div className="flex items-start justify-between mb-4">
+                        <div>
+                            <h2 className="text-lg font-semibold mb-2">{route.name}</h2>
+                            <div className="flex items-center gap-4 text-sm text-gray-600">
+                                <span className="flex items-center gap-1">
+                                    <Calendar className="w-4 h-4" />
+                                    {format(new Date(route.scheduled_date), "dd/MM/yyyy", { locale: ptBR })}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                    <Truck className="w-4 h-4" />
+                                    {totalCount} {totalCount === 1 ? 'pedido' : 'pedidos'}
+                                </span>
+                                <span className="font-medium text-gray-900">
+                                    {new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 }).format(totalWeight)} kg
+                                </span>
+                            </div>
+
+                            {/* Breakdown Counters */}
+                            <div className="flex items-center gap-3 mt-3 text-xs font-medium">
+                                <span className="text-green-700 bg-green-50 px-2 py-0.5 rounded">
+                                    Completos: {countLoaded}
+                                </span>
+                                <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
+                                    Parciais: {countPartial}
+                                </span>
+                                <span className="text-red-700 bg-red-50 px-2 py-0.5 rounded">
+                                    Não Carregados: {countNotLoaded}
+                                </span>
+                                <span className="text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
+                                    Pendentes: {countPending}
+                                </span>
+                            </div>
                         </div>
 
-                        {/* Breakdown Counters */}
-                        <div className="flex items-center gap-3 mt-3 text-xs font-medium">
-                            <span className="text-green-700 bg-green-50 px-2 py-0.5 rounded">
-                                Completos: {countLoaded}
-                            </span>
-                            <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
-                                Parciais: {countPartial}
-                            </span>
-                            <span className="text-red-700 bg-red-50 px-2 py-0.5 rounded">
-                                Não Carregados: {countNotLoaded}
-                            </span>
-                            <span className="text-gray-600 bg-gray-100 px-2 py-0.5 rounded">
-                                Pendentes: {countPending}
-                            </span>
-                        </div>
-                    </div>
+                        <div className="flex flex-col items-end gap-3">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 text-xs gap-2"
+                                onClick={handlePrintRoute}
+                            >
+                                <Printer className="w-3 h-3" />
+                                Etiquetas ({totalCount})
+                            </Button>
 
-                    <div className="flex flex-col items-end gap-3">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs gap-2"
-                            onClick={handlePrintRoute}
-                        >
-                            <Printer className="w-3 h-3" />
-                            Etiquetas ({totalCount})
-                        </Button>
-
-                        <div className="text-right">
-                            <div className="text-sm text-gray-600">Carregamento</div>
-                            <div className={`text-2xl font-bold ${isReady
-                                ? (hasPartials || hasNotLoaded ? 'text-amber-600' : 'text-green-600')
-                                : 'text-gray-900'
-                                }`}>
-                                {countProcessed} / {totalCount}
+                            <div className="text-right">
+                                <div className="text-sm text-gray-600">Carregamento</div>
+                                <div className={`text-2xl font-bold ${isReady
+                                    ? (hasPartials || hasNotLoaded ? 'text-amber-600' : 'text-green-600')
+                                    : 'text-gray-900'
+                                    }`}>
+                                    {countProcessed} / {totalCount}
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                {isReady && !hasInRouteOrders && (
-                    <div className={`border rounded-2xl p-3 mb-4 ${hasPartials || hasNotLoaded ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
-                        <p className={`text-sm ${hasPartials || hasNotLoaded ? 'text-amber-800' : 'text-green-800'}`}>
-                            {hasPartials || hasNotLoaded
-                                ? `✓ Conferência concluída (com ${hasPartials && hasNotLoaded ? "parciais e não carregados" : hasPartials ? "parciais" : "não carregados"}). Pronto para iniciar a rota!`
-                                : "✓ Todos os pedidos foram conferidos e carregados. Pronto para iniciar a rota!"
-                            }
-                        </p>
+                    {isReady && !hasInRouteOrders && (
+                        <div className={`border rounded-2xl p-3 mb-4 ${hasPartials || hasNotLoaded ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+                            <p className={`text-sm ${hasPartials || hasNotLoaded ? 'text-amber-800' : 'text-green-800'}`}>
+                                {hasPartials || hasNotLoaded
+                                    ? `✓ Conferência concluída (com ${hasPartials && hasNotLoaded ? "parciais e não carregados" : hasPartials ? "parciais" : "não carregados"}). Pronto para iniciar a rota!`
+                                    : "✓ Todos os pedidos foram conferidos e carregados. Pronto para iniciar a rota!"
+                                }
+                            </p>
+                        </div>
+                    )}
+
+                    <div className="flex bg-gray-100 p-1 rounded-2xl">
+                        <button
+                            onClick={() => setActiveTab('separation')}
+                            className={`flex-1 py-2 text-sm font-medium rounded-2xl transition-all ${activeTab === 'separation'
+                                ? 'bg-white text-gray-900 ring-1 ring-gray-200'
+                                : 'text-gray-500 hover:text-gray-900'
+                                }`}
+                        >
+                            Lista de Separação
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('checklist')}
+                            className={`flex-1 py-2 text-sm font-medium rounded-2xl transition-all ${activeTab === 'checklist'
+                                ? 'bg-white text-gray-900 ring-1 ring-gray-200'
+                                : 'text-gray-500 hover:text-gray-900'
+                                }`}
+                        >
+                            Romaneio / Checklist
+                        </button>
                     </div>
-                )}
-
-                <div className="flex bg-gray-100 p-1 rounded-2xl">
-                    <button
-                        onClick={() => setActiveTab('separation')}
-                        className={`flex-1 py-2 text-sm font-medium rounded-2xl transition-all ${activeTab === 'separation'
-                            ? 'bg-white text-gray-900 ring-1 ring-gray-200'
-                            : 'text-gray-500 hover:text-gray-900'
-                            }`}
-                    >
-                        Lista de Separação
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('checklist')}
-                        className={`flex-1 py-2 text-sm font-medium rounded-2xl transition-all ${activeTab === 'checklist'
-                            ? 'bg-white text-gray-900 ring-1 ring-gray-200'
-                            : 'text-gray-500 hover:text-gray-900'
-                            }`}
-                    >
-                        Romaneio / Checklist
-                    </button>
-                </div>
                 </CardContent>
             </Card>
 

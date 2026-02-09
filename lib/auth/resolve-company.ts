@@ -4,6 +4,7 @@ type CompanyContext = {
     supabase: Awaited<ReturnType<typeof createClient>>;
     companyId: string;
     userId: string;
+    role: string;
 };
 
 export async function resolveCompanyContext(): Promise<CompanyContext> {
@@ -16,7 +17,7 @@ export async function resolveCompanyContext(): Promise<CompanyContext> {
 
     const { data: members, error: membersError } = await supabase
         .from("company_members")
-        .select("company_id")
+        .select("company_id, role")
         .eq("auth_user_id", user.id);
 
     if (membersError) {
@@ -28,9 +29,12 @@ export async function resolveCompanyContext(): Promise<CompanyContext> {
     }
 
     const devId = process.env.NEXT_PUBLIC_DEV_COMPANY_ID;
-    if (devId && members.some(member => member.company_id === devId)) {
-        return { supabase, companyId: devId, userId: user.id };
+    if (devId) {
+        const devMembership = members.find((member) => member.company_id === devId);
+        if (devMembership) {
+            return { supabase, companyId: devId, userId: user.id, role: devMembership.role };
+        }
     }
 
-    return { supabase, companyId: members[0].company_id, userId: user.id };
+    return { supabase, companyId: members[0].company_id, userId: user.id, role: members[0].role };
 }

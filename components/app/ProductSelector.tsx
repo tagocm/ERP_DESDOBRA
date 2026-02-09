@@ -63,35 +63,41 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
         }
     }, [value, selectedProduct]);
 
-    // Fetch products based on search
+    // Fetch products based on search (LAZY LOADING)
     useEffect(() => {
         if (!selectedCompany) {
             setOptions([]);
+            setOpen(false);
+            return;
+        }
+
+        // LAZY LOADING: Only fetch if user has typed at least 2 characters
+        if (search.length < 2) {
+            setOptions([]);
+            setLoading(false);
+            setOpen(false); // Close dropdown when search is too short
             return;
         }
 
         const fetchProducts = async () => {
             setLoading(true);
+            setOpen(true); // Open dropdown when starting to fetch
             try {
-                let query = supabase
+                const query = supabase
                     .from('items')
                     .select('id, name, sku, uom')
                     .eq('company_id', selectedCompany.id)
+                    .or(`name.ilike.%${search}%,sku.ilike.%${search}%`)
                     .limit(20);
-
-                if (search.length >= 1) {
-                    query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%`);
-                }
 
                 const { data } = await query;
                 setOptions(data ? data.map((d: any) => ({ ...d, un: d.uom, price: 0 })) : []);
-
-                // Open dropdown if we have items and user is searching or just focused (logic handled in onFocus)
             } finally {
                 setLoading(false);
             }
         };
 
+        // Debounce: wait 300ms after user stops typing
         const timer = setTimeout(fetchProducts, 300);
         return () => clearTimeout(timer);
     }, [search, selectedCompany, supabase]);
@@ -155,9 +161,7 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
                     placeholder="Digite nome ou SKU..."
                     value={search}
                     onChange={handleInputChange}
-                    onFocus={() => {
-                        if (!disabled) setOpen(true);
-                    }}
+                    // Dropdown opens automatically when search results are available (controlled by useEffect)
                     disabled={disabled}
                 />
                 {selectedProduct && !disabled && (
@@ -178,7 +182,7 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
                     className="absolute z-50 mt-1 max-h-60 w-full min-w-72 overflow-auto rounded-2xl border border-gray-100 bg-white py-1 text-base shadow-float focus:outline-none sm:text-sm"
                 >
                     {loading && (
-                        <div className="py-6 text-center text-xs text-gray-500 flex flex-col items-center gap-2">
+                        <div className="py-6 text-center text-xs text-gray-500 flex flex-col items-center gap-2" data-testid="product-selector-loading">
                             <Loader2 className="w-4 h-4 animate-spin" />
                             Buscando...
                         </div>
@@ -186,7 +190,11 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
 
                     {!loading && options.length === 0 && (
                         <div className="py-6 text-center text-sm text-gray-500">
-                            {search.length >= 2 ? "Nenhum produto encontrado." : "Nenhum produto disponível."}
+                            {search.length === 0
+                                ? "Digite pelo menos 2 caracteres para buscar..."
+                                : search.length < 2
+                                    ? "Digite mais 1 caractere para buscar..."
+                                    : "Nenhum produto encontrado."}
                         </div>
                     )}
 

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseBrowser";
-import { getDeliveryReasons, deleteDeliveryReason } from "@/lib/data/reasons";
-import { DeliveryReason, DELIVERY_REASON_GROUPS } from "@/types/reasons";
+import { getDeliveryReasonsAction, deleteDeliveryReasonAction } from "@/app/actions/settings/reasons-actions";
+import { DeliveryReasonDTO, DELIVERY_REASON_GROUPS } from "@/lib/types/reasons-dto";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Edit2, Trash2, Plus, GripVertical, CheckCircle2 } from "lucide-react";
@@ -18,10 +18,10 @@ interface ReasonListProps {
 export function ReasonList({ typeCode, typeLabel }: ReasonListProps) {
     const { toast } = useToast();
     const { selectedCompany } = useCompany();
-    const [reasons, setReasons] = useState<DeliveryReason[]>([]);
+    const [reasons, setReasons] = useState<DeliveryReasonDTO[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingReason, setEditingReason] = useState<DeliveryReason | null>(null);
+    const [editingReason, setEditingReason] = useState<DeliveryReasonDTO | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
     const supabase = createClient();
@@ -32,8 +32,9 @@ export function ReasonList({ typeCode, typeLabel }: ReasonListProps) {
         try {
             // We cast typeCode to any because logic mapping is done in parent or here if needed.
             // But logicTab passes 'NOT_DELIVERED_TOTAL' etc which matches DeliveryReasonGroup
-            const data = await getDeliveryReasons(supabase, selectedCompany.id, typeCode as any);
-            setReasons(data);
+            const res = await getDeliveryReasonsAction(typeCode as any);
+            if (res.success) setReasons((res.data || []) as unknown as DeliveryReasonDTO[]);
+            else toast({ title: "Erro", description: res.error, variant: "destructive" });
         } catch (error) {
             console.error(error);
             toast({ title: "Erro", description: "Falha ao carregar motivos.", variant: "destructive" });
@@ -51,7 +52,7 @@ export function ReasonList({ typeCode, typeLabel }: ReasonListProps) {
         setIsModalOpen(true);
     };
 
-    const handleEdit = (reason: DeliveryReason) => {
+    const handleEdit = (reason: DeliveryReasonDTO) => {
         setEditingReason(reason);
         setIsModalOpen(true);
     };
@@ -59,14 +60,18 @@ export function ReasonList({ typeCode, typeLabel }: ReasonListProps) {
     const handleDelete = async () => {
         if (!deleteId) return;
         try {
-            await deleteDeliveryReason(supabase, deleteId);
-            toast({ title: "Sucesso", description: "Motivo removido." });
-            fetchReasons();
+            const res = await deleteDeliveryReasonAction(deleteId);
+            if (res.success) {
+                toast({ title: "Sucesso", description: "Motivo removido." });
+                fetchReasons();
+            } else {
+                toast({ title: "Erro ao excluir", description: res.error, variant: "destructive" });
+            }
         } catch (error: any) {
             console.error(error);
             toast({
                 title: "Erro ao excluir",
-                description: error.message || "Ocorreu um erro inesperado.",
+                description: "Ocorreu um erro inesperado.",
                 variant: "destructive"
             });
         } finally {

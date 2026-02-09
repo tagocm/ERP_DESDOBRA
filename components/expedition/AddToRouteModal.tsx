@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { DeliveryRoute } from "@/types/sales";
+import { DeliveryRouteDTO } from "@/lib/types/expedition-dto";
 import { Package, DollarSign, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -13,7 +13,7 @@ interface AddToRouteModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     date: string; // yyyy-MM-dd format
-    availableRoutes: DeliveryRoute[];
+    availableRoutes: DeliveryRouteDTO[];
     onSelectRoute: (routeId: string) => void;
     onCreateRoute: (routeName: string) => void;
 }

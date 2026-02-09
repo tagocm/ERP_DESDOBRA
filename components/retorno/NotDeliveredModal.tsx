@@ -8,10 +8,10 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select-shadcn';
 import { Label } from '@/components/ui/Label';
-import { createClient } from "@/utils/supabase/client";
 // import { getSystemReasons } from "@/lib/data/system-preferences";
 // import { SystemOccurrenceReasonWithDefaults } from "@/types/system-preferences";
 import { OccurrenceActionsPanel, OperationAction } from "@/components/settings/system/OccurrenceActionsPanel";
+import { listDeliveryReasonsAction } from "@/app/actions/expedition/reason-actions";
 
 interface NotDeliveredModalProps {
     isOpen: boolean;
@@ -21,7 +21,6 @@ interface NotDeliveredModalProps {
 }
 
 export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeliveredModalProps) {
-    const [supabase] = useState(() => createClient());
     const { toast } = useToast();
 
     // Data State
@@ -61,9 +60,8 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
                         return;
                     }
 
-                    // Import dynamically to avoid top-level issues if needed, or just use the imported one.
-                    const { getDeliveryReasons } = await import("@/lib/data/reasons");
-                    const data = await getDeliveryReasons(supabase, companyId, 'RETORNO_NAO_ENTREGUE');
+                    const res = await listDeliveryReasonsAction('RETORNO_NAO_ENTREGUE');
+                    const data = res.ok ? res.data : [];
 
                     if (isMounted) {
                         if (data && data.length > 0) {
@@ -99,7 +97,7 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
 
             return () => { isMounted = false; };
         }
-    }, [isOpen, supabase, order]);
+    }, [isOpen, order]);
 
     // Handle Reason Selection & Defaults
     const handleReasonChange = (reasonId: string) => {

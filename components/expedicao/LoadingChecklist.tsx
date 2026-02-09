@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { createClient } from '@/utils/supabase/client';
 import { Check, MapPin, FileText, Printer, AlertTriangle, X, PackageMinus } from 'lucide-react';
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from 'next/navigation';
-import { updateOrderVolumes } from "@/lib/data/expedition";
+import { updateOrderVolumesAction } from "@/app/actions/expedition/volume-actions";
+import { updateRouteOrderStatusAction } from "@/app/actions/expedition/order-actions";
 import { generateVolumeLabelZPL, downloadZpl } from "@/lib/zpl-generator";
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -26,13 +26,12 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
     const [selectedOrderForPartial, setSelectedOrderForPartial] = useState<any>(null);
 
     const orders = route.orders || [];
-    const supabase = createClient();
 
     const handleVolumeChange = async (routeId: string, routeOrder: any, newVolume: number) => {
         if (newVolume < 1) return;
         routeOrder.volumes = newVolume; // Optimistic
         try {
-            await updateOrderVolumes(supabase, routeId, routeOrder.sales_document_id, newVolume);
+            await updateOrderVolumesAction(routeId, routeOrder.sales_document_id, newVolume);
             toast({ title: "Volumes atualizados" });
         } catch (e) {
             console.error(e);
@@ -61,23 +60,17 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
 
         setLoadingStates(prev => ({ ...prev, [orderId]: true }));
         try {
-            const updateData: any = { loading_status: status };
-            if (status === 'loaded' || status === 'not_loaded' || status === 'pending') {
-                updateData.partial_payload = null;
+            try {
+                await updateRouteOrderStatusAction(routeOrder.id, status, payload);
+
+                toast({ title: "Status atualizado", description: "Alteração salva no romaneio." });
+                router.refresh();
+            } catch (err: any) {
+                console.error('Update Status Error:', err);
+                toast({ title: "Erro", description: err.message || 'Erro ao atualizar status', variant: "destructive" });
+            } finally {
+                setLoadingStates(prev => ({ ...prev, [orderId]: false }));
             }
-            if (payload !== null) {
-                updateData.partial_payload = payload;
-            }
-
-            const { error: routeOrderError } = await supabase
-                .from('delivery_route_orders')
-                .update(updateData)
-                .eq('id', routeOrder.id);
-
-            if (routeOrderError) throw routeOrderError;
-
-            toast({ title: "Status atualizado", description: "Alteração salva no romaneio." });
-            router.refresh();
         } catch (err: any) {
             console.error('Update Status Error:', err);
             toast({ title: "Erro", description: err.message || 'Erro ao atualizar status', variant: "destructive" });

@@ -19,7 +19,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
-import { getFiscalOperations, deleteFiscalOperation, FiscalOperation } from "@/lib/data/fiscal-operations";
+import { getFiscalOperations, deleteFiscalOperation, FiscalOperationDTO } from "@/lib/data/fiscal-operations";
 import { getTaxGroups } from "@/lib/data/tax-groups";
 
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
@@ -30,7 +30,7 @@ export default function FiscalOperationsPage() {
     const router = useRouter();
     const { toast } = useToast();
 
-    const [operations, setOperations] = useState<FiscalOperation[]>([]);
+    const [operations, setOperations] = useState<FiscalOperationDTO[]>([]);
     const [taxGroups, setTaxGroups] = useState<{ id: string, name: string }[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -95,7 +95,7 @@ export default function FiscalOperationsPage() {
         }
     };
 
-    const handleDuplicate = async (op: FiscalOperation, e: React.MouseEvent) => {
+    const handleDuplicate = async (op: FiscalOperationDTO, e: React.MouseEvent) => {
         e.stopPropagation();
         router.push(`/app/fiscal/operacoes/novo?duplicate=${op.id}`);
     };

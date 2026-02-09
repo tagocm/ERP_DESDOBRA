@@ -12,7 +12,7 @@ import { RouteDetails } from './RouteDetails';
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabaseBrowser';
-import { resetAndUnscheduleRoute } from '@/lib/data/expedition';
+import { resetAndUnscheduleRouteAction } from '@/app/actions/expedition/route-actions';
 import { normalizeLoadingStatus, normalizeLogisticsStatus, normalizeRouteStatus } from '@/lib/constants/status';
 
 interface ExpedicaoClientProps {
@@ -90,8 +90,8 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
         setStarting(true);
         try {
             if (allOrdersNotLoaded) {
-                const supabase = createClient();
-                await resetAndUnscheduleRoute(supabase, selectedRoute.id);
+                // const supabase = createClient(); // Not needed for action
+                await resetAndUnscheduleRouteAction(selectedRoute.id);
                 toast({ title: "Rota Cancelada", description: 'A rota voltou para "Rotas Não Agendadas" e está editável.' });
             } else {
                 // 1. Process Occurrences (Deferral)

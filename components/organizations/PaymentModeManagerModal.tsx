@@ -5,7 +5,13 @@ import { useToast } from "@/components/ui/use-toast";
 import { DialogContent, DialogTitle, DialogDescription } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { getPaymentModes, createPaymentMode, updatePaymentMode, deletePaymentMode, PaymentMode } from "@/lib/data/payment-modes";
+import {
+    listPaymentModesAction,
+    createPaymentModeAction,
+    updatePaymentModeAction,
+    deletePaymentModeAction
+} from "@/app/actions/payment-mode-actions";
+import { PaymentMode } from "@/lib/data/payment-modes"; // Keeping type import if needed, or better move type to dto
 import { cn } from "@/lib/utils";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { Card } from "@/components/ui/Card";
@@ -43,8 +49,12 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
         if (!selectedCompany) return;
         setIsLoading(true);
         try {
-            const data = await getPaymentModes(selectedCompany.id);
-            setModes(data);
+            const res = await listPaymentModesAction();
+            if (res.ok && res.data) {
+                setModes(res.data);
+            } else {
+                toast({ title: "Erro ao carregar modalidades", description: res.error?.message, variant: "destructive" });
+            }
         } catch (error) {
             console.error(error);
             toast({ title: "Erro ao carregar modalidades", variant: "destructive" });
@@ -61,7 +71,9 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
         if (!newItemName.trim() || !selectedCompany) return;
         setIsCreating(true);
         try {
-            await createPaymentMode(selectedCompany.id, newItemName);
+            const res = await createPaymentModeAction(newItemName);
+            if (!res.ok) throw new Error(res.error?.message);
+
             setNewItemName("");
             fetchModes();
             onChange?.();
@@ -77,7 +89,9 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
         if (!editName.trim()) return;
         setIsUpdating(true);
         try {
-            await updatePaymentMode(id, editName);
+            const res = await updatePaymentModeAction(id, editName);
+            if (!res.ok) throw new Error(res.error?.message);
+
             setEditingId(null);
             fetchModes();
             onChange?.();
@@ -92,7 +106,9 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
     const handleDelete = async () => {
         if (!itemToDelete) return;
         try {
-            await deletePaymentMode(itemToDelete);
+            const res = await deletePaymentModeAction(itemToDelete);
+            if (!res.ok) throw new Error(res.error?.message);
+
             fetchModes();
             onChange?.();
             toast({ title: "Modalidade removida!", variant: "default" });

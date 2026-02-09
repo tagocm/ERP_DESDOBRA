@@ -4,22 +4,21 @@ import { OrderCard } from "./OrderCard";
 
 import { useState, useRef, memo } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { DeliveryRoute } from "@/types/sales";
+import { DeliveryRouteDTO } from "@/lib/types/expedition-dto";
 import { Truck, Package, DollarSign, X, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/use-toast";
 import { createClient } from "@/utils/supabase/client";
-import { removeOrderFromRoute } from "@/lib/data/expedition";
+import { removeOrderFromRouteAction, deleteRouteAction } from "@/app/actions/expedition/route-actions";
 import { OrderItemsPopover } from "./OrderItemsPopover";
-import { deleteRoute } from "@/lib/data/expedition";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { normalizeRouteStatus } from "@/lib/constants/status";
 import { Card } from "@/components/ui/Card";
 
 interface UnscheduledRouteCardProps {
-    route: DeliveryRoute;
+    route: DeliveryRouteDTO;
     onDelete: () => void;
     onRemoveOrder: (orderId: string, routeId: string) => void;
 }
@@ -64,7 +63,7 @@ export const UnscheduledRouteCard = memo(function UnscheduledRouteCard({ route, 
     const confirmDelete = async () => {
         setIsDeleting(true);
         try {
-            await deleteRoute(supabase, route.id);
+            await deleteRouteAction(route.id);
             toast({ title: "Rota excluída com sucesso" });
             onDelete();
         } catch (err) {

@@ -4,21 +4,10 @@ import { logger } from '@/lib/logger';
 import { SalesOrder, SalesOrderItem, SalesOrderPayment, SalesOrderNfe, SalesOrderAdjustment, SalesStatus, LogisticStatus, FiscalStatus, DocType } from '@/types/sales';
 import { resolveFiscalRulesForOrder } from './fiscal-engine';
 
-export interface SalesFilters {
-    page?: number;
-    limit?: number;
-    search?: string;
-    dateFrom?: string;
-    dateTo?: string;
-    statusCommercial?: string;
-    statusLogistic?: string;
-    financialStatus?: string;
-    clientId?: string;
-    clientSearch?: string;
-    docType?: string | 'all';
-    routeFilter?: 'all' | 'no_route' | 'with_route';
-    showCancelled?: boolean;
-}
+import { SalesFilters } from '@/lib/types/sales-dto';
+
+export type { SalesFilters };
+
 
 export async function getSalesDocuments(supabase: SupabaseClient, filters: SalesFilters) {
     const page = filters.page || 1;

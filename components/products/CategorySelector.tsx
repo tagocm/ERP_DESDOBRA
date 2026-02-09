@@ -18,11 +18,11 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover"
-import { getCategories, createCategory } from "@/lib/data/categories"
-import { ProductCategory } from "@/types/product"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/Dialog"
 import { CategoryManagerModal } from "./CategoryManagerModal"
 import { useToast } from "@/components/ui/use-toast"
+import { listCategoriesAction, createCategoryAction } from "@/app/actions/category-actions"
+import type { CategoryDTO } from "@/lib/types/products-dto"
 
 interface CategorySelectorProps {
     value?: string; // ID
@@ -35,7 +35,7 @@ interface CategorySelectorProps {
 export function CategorySelector({ value, onChange, className, disabled, companyId }: CategorySelectorProps) {
     const { toast } = useToast()
     const [open, setOpen] = React.useState(false)
-    const [categories, setCategories] = React.useState<ProductCategory[]>([])
+    const [categories, setCategories] = React.useState<CategoryDTO[]>([])
     const [searchValue, setSearchValue] = React.useState("")
     const [manageOpen, setManageOpen] = React.useState(false)
 
@@ -43,8 +43,10 @@ export function CategorySelector({ value, onChange, className, disabled, company
     const fetchCategories = async () => {
         if (!companyId) return;
         try {
-            const data = await getCategories(companyId);
-            setCategories(data);
+            const result = await listCategoriesAction();
+            if (result.success) {
+                setCategories(result.data);
+            }
         } catch (e) {
             console.error(e);
         }
@@ -57,27 +59,31 @@ export function CategorySelector({ value, onChange, className, disabled, company
     const handleCreateOption = async () => {
         if (!searchValue) return;
         try {
-            const newCat = await createCategory(companyId, searchValue);
-            setCategories(prev => [...prev, newCat]);
-            onChange(newCat.id);
-            setOpen(false);
-            setSearchValue("");
-            toast({ title: "Categoria criada e selecionada!", variant: "default" });
-        } catch (error: any) {
-            // If duplicate, try to find existing and select it
-            if (error.message.includes("Já existe")) {
-                await fetchCategories();
-                // Find by normalized matching roughly... actually fetch refetched.
-                // let's try to match by name
-                const existing = categories.find(c => c.name.toLowerCase() === searchValue.toLowerCase());
-                if (existing) {
-                    onChange(existing.id);
-                    toast({ title: `Categoria já existia, selecionamos '${existing.name}'`, variant: "default" });
-                    setOpen(false);
-                    return;
+            const result = await createCategoryAction({ name: searchValue });
+            if (result.success) {
+                const newCat = result.data;
+                setCategories(prev => [...prev, newCat]);
+                onChange(newCat.id);
+                setOpen(false);
+                setSearchValue("");
+                toast({ title: "Categoria criada e selecionada!", variant: "default" });
+            } else {
+                // If duplicate, try to find existing and select it
+                if (result.error.includes("já existe") || result.error.includes("Já existe")) {
+                    await fetchCategories();
+                    const existing = categories.find(c => c.name.toLowerCase() === searchValue.toLowerCase());
+                    if (existing) {
+                        onChange(existing.id);
+                        toast({ title: `Categoria já existia, selecionamos '${existing.name}'`, variant: "default" });
+                        setOpen(false);
+                        return;
+                    }
                 }
+                toast({ title: "Erro ao criar", description: result.error, variant: "destructive" });
             }
-            toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Erro ao criar", variant: "destructive" });
         }
     }
 

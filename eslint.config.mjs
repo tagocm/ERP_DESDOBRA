@@ -58,6 +58,34 @@ const eslintConfig = defineConfig([
     },
   },
 
+  // 4. TRUE GOLD: Prevent Entity Imports in UI
+  // 4. TRUE GOLD: Prevent Entity Imports in UI
+  {
+    files: ['components/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          {
+            group: [
+              '@/types/sales',
+              '@/types/financial',
+              '@/types/product',
+              '@/types/finance',
+              '@/types/fiscal',
+              '@/types/fleet',
+              '@/types/inventory',
+              '@/types/reasons',
+              '@/types/recurring-rules',
+              '@/types/system-preferences'
+            ],
+            message: 'UI components must not import domain entities directly. Use DTOs from @/lib/types/*-dto or create minimal local types.'
+          },
+          // Expand to other types if necessary, but start with the requested ones
+        ]
+      }]
+    }
+  },
+
   // 4. Default Next.js Ignores (Overridden/Supplemented above but kept for safety)
   globalIgnores([
     ".next/**",

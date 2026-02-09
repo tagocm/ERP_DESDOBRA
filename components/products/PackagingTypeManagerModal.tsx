@@ -22,11 +22,17 @@ import {
 } from "@/components/ui/table";
 import { Edit, Trash2, Plus, Loader2, Save, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { PackagingType, createPackagingType, deletePackagingType, getAllPackagingTypesIncludingInactive, updatePackagingType } from "@/lib/data/packaging-types";
 import { useCompany } from "@/contexts/CompanyContext";
 import { cn } from "@/lib/utils";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { Card } from "@/components/ui/Card";
+import {
+    listPackagingTypesAction,
+    createPackagingTypeAction,
+    updatePackagingTypeAction,
+    deletePackagingTypeAction,
+} from "@/app/actions/packaging-actions";
+import type { PackagingTypeDTO } from "@/lib/types/products-dto";
 
 interface PackagingTypeManagerModalProps {
     open?: boolean;
@@ -44,7 +50,7 @@ export function PackagingTypeManagerModal({ open: controlledOpen, onOpenChange, 
 
     const { selectedCompany } = useCompany();
     const { toast } = useToast();
-    const [types, setTypes] = useState<PackagingType[]>([]);
+    const [types, setTypes] = useState<PackagingTypeDTO[]>([]);
     const [loading, setLoading] = useState(false);
 
     // Edit/Create State
@@ -70,8 +76,12 @@ export function PackagingTypeManagerModal({ open: controlledOpen, onOpenChange, 
         if (!selectedCompany?.id) return;
         setLoading(true);
         try {
-            const data = await getAllPackagingTypesIncludingInactive(selectedCompany.id);
-            setTypes(data);
+            const result = await listPackagingTypesAction({ includeInactive: true });
+            if (result.success) {
+                setTypes(result.data);
+            } else {
+                toast({ title: "Erro ao carregar tipos", description: result.error, variant: "destructive" });
+            }
         } catch (error) {
             console.error(error);
             toast({ title: "Erro ao carregar tipos", variant: "destructive" });
@@ -100,50 +110,64 @@ export function PackagingTypeManagerModal({ open: controlledOpen, onOpenChange, 
 
         try {
             if (isCreating) {
-                await createPackagingType({
-                    company_id: selectedCompany.id,
+                const result = await createPackagingTypeAction({
                     name: editForm.name.trim(),
                     code: editForm.code.trim(),
                     is_active: true,
                 });
-                toast({ title: "Tipo criado com sucesso!" });
+                if (result.success) {
+                    toast({ title: "Tipo criado com sucesso!" });
+                } else {
+                    if (result.error.includes("já existe") || result.error.includes("idx_packaging_types_code")) {
+                        toast({ title: "Já existe um tipo com este código.", variant: "destructive" });
+                    } else {
+                        toast({ title: "Erro ao salvar", description: result.error, variant: "destructive" });
+                    }
+                    return;
+                }
             } else if (editingId) {
-                await updatePackagingType(editingId, {
+                const result = await updatePackagingTypeAction({
+                    id: editingId,
                     name: editForm.name.trim(),
                     code: editForm.code.trim(),
                 });
-                toast({ title: "Tipo atualizado!" });
+                if (result.success) {
+                    toast({ title: "Tipo atualizado!" });
+                } else {
+                    toast({ title: "Erro ao salvar", description: result.error, variant: "destructive" });
+                    return;
+                }
             }
 
             setEditingId(null);
             setIsCreating(false);
             setEditForm({ name: "", code: "" });
             loadTypes();
-        } catch (error: any) {
+        } catch (error) {
             console.error(error);
-            if (error.message?.includes("idx_packaging_types_code")) {
-                toast({ title: "Já existe um tipo com este código.", variant: "destructive" });
-            } else {
-                toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
-            }
+            toast({ title: "Erro ao salvar", variant: "destructive" });
         }
     };
 
     const confirmDelete = async () => {
         if (!deletingId) return;
         try {
-            await deletePackagingType(deletingId);
-            toast({ title: "Tipo excluído." });
-            loadTypes();
-        } catch (error: any) {
+            const result = await deletePackagingTypeAction({ id: deletingId });
+            if (result.success) {
+                toast({ title: "Tipo excluído." });
+                loadTypes();
+            } else {
+                toast({ title: "Erro ao excluir", description: result.error, variant: "destructive" });
+            }
+        } catch (error) {
             console.error(error);
-            toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" });
+            toast({ title: "Erro ao excluir", variant: "destructive" });
         } finally {
             setDeletingId(null);
         }
     };
 
-    const startEdit = (type: PackagingType) => {
+    const startEdit = (type: PackagingTypeDTO) => {
         // Prevent editing global types (no company_id) if we want to enforce it
         // Or just allow overriding? For now, we only allow editing if it belongs to valid company or user has permission.
         // Assuming RLS blocks update if not owner.

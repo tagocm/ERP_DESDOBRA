@@ -2,7 +2,7 @@
 "use client";
 
 import { SalesFilters } from "./SalesFilters";
-import { SalesFilters as FilterType } from "@/lib/data/sales-orders";
+import { SalesFilters as FilterType } from "@/lib/types/sales-dto";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 

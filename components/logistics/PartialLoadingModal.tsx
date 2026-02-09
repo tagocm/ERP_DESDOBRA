@@ -8,11 +8,10 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent } from "@/components/ui/Card";
-import { DeliveryReason } from "@/types/reasons";
-import { createClient } from "@/lib/supabaseBrowser";
-import { getDeliveryReasons } from "@/lib/data/reasons";
+import { DeliveryReasonDTO } from "@/lib/types/reasons-dto";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
+import { listDeliveryReasonsAction } from "@/app/actions/expedition/reason-actions";
 
 interface PartialLoadingModalProps {
     isOpen: boolean;
@@ -24,9 +23,8 @@ interface PartialLoadingModalProps {
 
 export function PartialLoadingModal({ isOpen, onClose, order, companyId, onSuccess }: PartialLoadingModalProps) {
     const { toast } = useToast();
-    const supabase = createClient();
 
-    const [reasons, setReasons] = useState<DeliveryReason[]>([]);
+    const [reasons, setReasons] = useState<DeliveryReasonDTO[]>([]);
     const [loadingReasons, setLoadingReasons] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
@@ -55,8 +53,12 @@ export function PartialLoadingModal({ isOpen, onClose, order, companyId, onSucce
     const fetchReasons = async () => {
         setLoadingReasons(true);
         try {
-            const data = await getDeliveryReasons(supabase, companyId, 'EXPEDICAO_CARREGADO_PARCIAL');
-            setReasons(data);
+            const res = await listDeliveryReasonsAction('EXPEDICAO_CARREGADO_PARCIAL');
+            if (res.ok) {
+                setReasons(res.data);
+            } else {
+                throw new Error(res.error.message || "Failed to load");
+            }
         } catch (error) {
             console.error(error);
             toast({ title: "Erro", description: "Falha ao carregar motivos.", variant: "destructive" });

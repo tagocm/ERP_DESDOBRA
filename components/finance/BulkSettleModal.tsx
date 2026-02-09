@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/Label";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { formatCurrency } from "@/lib/utils";
-import { ArInstallment } from "@/types/financial";
+import { ArInstallmentDTO } from "@/lib/types/financial-dto";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
 import { createClient } from "@/lib/supabaseBrowser";
@@ -16,7 +16,7 @@ interface BulkSettleModalProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     selectedIds: Set<string>;
-    installments: ArInstallment[]; // Full list to lookup
+    installments: ArInstallmentDTO[]; // Full list to lookup
     onConfirm: (date: string, accountId: string, validIds: string[]) => Promise<void>;
     isProcessing: boolean;
 }

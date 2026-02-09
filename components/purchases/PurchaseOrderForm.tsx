@@ -42,7 +42,8 @@ import { DecimalInput } from "@/components/ui/DecimalInput";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { formatCurrency, cn } from "@/lib/utils";
 import { useCompany } from "@/contexts/CompanyContext";
-import { getPaymentModes, PaymentMode } from "@/lib/data/payment-modes";
+import { PaymentMode } from "@/lib/data/payment-modes";
+import { listPaymentModesAction } from "@/app/actions/payment-mode-actions";
 import { OrganizationSelector } from "@/components/app/OrganizationSelector";
 import { ProductSelector } from "@/components/app/ProductSelector";
 
@@ -114,7 +115,9 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
             const { data: pay } = await supabase.from('payment_terms').select('id, name').eq('company_id', selectedCompany.id);
             if (pay) setPaymentTerms(pay);
 
-            getPaymentModes(selectedCompany.id).then(setPaymentModes).catch(console.error);
+            listPaymentModesAction().then(res => {
+                if (res.ok && res.data) setPaymentModes(res.data);
+            }).catch(console.error);
 
             if (initialData?.supplier) {
                 setSupplierInfo(initialData.supplier);

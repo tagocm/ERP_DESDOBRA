@@ -1,6 +1,6 @@
 "use client";
 
-import { RecurringRule, RecurringRuleStatus } from "@/types/recurring-rules";
+import { RecurringRuleDTO, RecurringRuleStatus } from "@/lib/types/recurring-dto";
 import {
     Table,
     TableBody,
@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/DropdownMenu";
 
 interface RecurringRulesTableProps {
-    rules: RecurringRule[];
+    rules: RecurringRuleDTO[];
     loading?: boolean;
 }
 

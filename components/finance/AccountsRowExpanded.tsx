@@ -1,6 +1,6 @@
 "use client";
 
-import { ArTitle, ArInstallment } from "@/types/financial";
+import { ArTitleDTO, ArInstallmentDTO } from "@/lib/types/financial-dto";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -10,12 +10,13 @@ import { CircleDollarSign, AlertTriangle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/Tooltip";
 
 interface AccountsRowExpandedProps {
-    title: ArTitle;
+    title: ArTitleDTO;
+    installments: ArInstallmentDTO[];
     onRefresh: () => void;
 }
 
-export function AccountsRowExpanded({ title, onRefresh }: AccountsRowExpandedProps) {
-    const installments = title.ar_installments?.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()) || [];
+export function AccountsRowExpanded({ title, installments, onRefresh }: AccountsRowExpandedProps) {
+    // const installments = title.ar_installments?.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime()) || [];
 
     const getStatusBadge = (status: string) => {
         switch (status) {

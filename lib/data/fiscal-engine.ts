@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { getFiscalOperations, FiscalOperation } from './fiscal-operations';
+import { getFiscalOperations, FiscalOperationDTO } from './fiscal-operations';
 
 /**
  * Fiscal Engine - Automatic Tax Rule Resolution
@@ -25,7 +25,7 @@ export interface FiscalResolutionInput {
 
 export interface FiscalResolutionResult {
     status: 'calculated' | 'no_rule_found' | 'error';
-    operation?: FiscalOperation;
+    operation?: FiscalOperationDTO;
     cfop?: string;
     cst_icms?: string;
     csosn?: string;
@@ -75,65 +75,20 @@ export async function resolveFiscalRule(
             };
         }
 
-        // Filter and score by specificity
-        const scoredOperations = operations
-            .filter(op => op.is_active)
-            .map(op => {
-                let score = 0;
-
-                // Mandatory: origin_state and tax_group already filtered
-                score += 100; // Base score
-
-                // Destination State: specific match = +50, "all" = +10
-                if (op.destination_state === input.customerUF) {
-                    score += 50;
-                } else if (op.destination_state.toUpperCase() === 'TODOS' || op.destination_state === '*') {
-                    score += 10;
-                } else {
-                    return null; // Doesn't match
-                }
-
-                // Customer Type: specific match = +30, "all" = +5
-                const customerTypeMap: Record<string, string> = {
-                    'contribuinte': 'contributor',
-                    'isento': 'exempt',
-                    'nao_contribuinte': 'non_contributor'
-                };
-
-                const opCustomerType = op.customer_ie_indicator;
-                const inputCustomerType = customerTypeMap[input.customerType] || input.customerType;
-
-                if (opCustomerType === inputCustomerType) {
-                    score += 30;
-                } else if ((opCustomerType as string) === 'all' || !opCustomerType) {
-                    score += 5;
-                } else {
-                    return null; // Doesn't match
-                }
-
-                // Final Consumer: exact match = +10
-                if (op.customer_is_final_consumer === input.customerIsFinalConsumer) {
-                    score += 10;
-                }
-
-                return { operation: op, score };
-            })
-            .filter(item => item !== null) as Array<{ operation: FiscalOperation; score: number }>;
-
-        if (scoredOperations.length === 0) {
-            return {
-                status: 'no_rule_found',
-                error: 'Nenhuma regra fiscal compatível encontrada'
-            };
-        }
-
-        // Sort by score DESC, then by updated_at DESC (most recent)
-        scoredOperations.sort((a, b) => {
-            if (b.score !== a.score) return b.score - a.score;
-            return new Date(b.operation.updated_at || 0).getTime() - new Date(a.operation.updated_at || 0).getTime();
+        // Use domain logic for rule selection
+        const { selectBestFiscalRule } = await import('@/lib/domain/fiscal/rules');
+        const selectedOperation = selectBestFiscalRule(operations, {
+            customerUF: input.customerUF,
+            customerType: input.customerType,
+            customerIsFinalConsumer: input.customerIsFinalConsumer
         });
 
-        const selectedOperation = scoredOperations[0].operation;
+        if (!selectedOperation) {
+            return {
+                status: 'no_rule_found',
+                error: 'Nenhuma regra fiscal compatível encontrada para o cliente/destino'
+            };
+        }
 
         // Build result
         const result: FiscalResolutionResult = {

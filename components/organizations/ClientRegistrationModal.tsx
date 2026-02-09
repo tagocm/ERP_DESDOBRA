@@ -4,7 +4,8 @@
 import { useState, useEffect } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
-import { createOrganization, setOrganizationRoles, upsertAddress, upsertPerson } from "@/lib/clients-db";
+import { useToast } from "@/components/ui/use-toast";
+import { createOrganization, setOrganizationRoles, upsertAddress, upsertPerson, getRepresentatives } from "@/lib/clients-db";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -36,9 +37,8 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
     const [activeTab, setActiveTab] = useState("dados");
     const [isLoading, setIsLoading] = useState(false);
     const [cnpjLoading, setCnpjLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
     const [cnpjFetched, setCnpjFetched] = useState(false);
+    const { toast } = useToast();
 
     // Tab 1: Dados
     const [formData, setFormData] = useState({
@@ -95,17 +95,21 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
     const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
     const [paymentModes, setPaymentModes] = useState<PaymentMode[]>([]);
 
+    const [representatives, setRepresentatives] = useState<any[]>([]);
+
     // Fetch Commercial Data
     useEffect(() => {
         if (isOpen && selectedCompany?.id) {
             Promise.all([
                 getPriceTables(supabase, selectedCompany.id),
                 getPaymentTerms(supabase, selectedCompany.id),
-                getPaymentModes(supabase, selectedCompany.id)
-            ]).then(([tables, terms, modes]) => {
+                getPaymentModes(supabase, selectedCompany.id),
+                getRepresentatives(supabase, selectedCompany.id)
+            ]).then(([tables, terms, modes, reps]) => {
                 setPriceTables(tables);
                 setPaymentTerms(terms);
                 setPaymentModes(modes);
+                setRepresentatives(reps);
             }).catch(console.error);
         }
     }, [isOpen, selectedCompany?.id, supabase]);
@@ -136,7 +140,8 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
         prospect: false,
         customer: true,
         supplier: false,
-        carrier: false
+        carrier: false,
+        representative: false
     });
 
     const [contacts, setContacts] = useState<ContactFormData[]>([]);
@@ -189,10 +194,8 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
             final_consumer: false,
             icms_contributor: true
         });
-        setRoles({ prospect: false, customer: true, supplier: false, carrier: false });
+        setRoles({ prospect: false, customer: true, supplier: false, carrier: false, representative: false });
         setContacts([]);
-        setError(null);
-        setSuccess(null);
         setCnpjFetched(false);
     };
 
@@ -201,11 +204,15 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
         if (cleanDoc.length !== 14) return;
 
         setCnpjLoading(true);
-        setError(null);
         try {
             const res = await fetch(`/api/cnpj/${cleanDoc}`);
-            if (!res.ok) throw new Error("CNPJ não encontrado");
             const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+
+            toast({
+                title: "CNPJ Encontrado",
+                description: "Dados importados com sucesso.",
+            });
 
             setFormData(prev => ({
                 ...prev,
@@ -215,17 +222,21 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                 email: normalizeEmail(data.email) || ""
             }));
 
-            setBillingAddress({
-                zip: data.address.zip || "",
-                street: toTitleCase(data.address.street) || "",
-                number: data.address.number || "",
-                complement: toTitleCase(data.address.complement) || "",
-                neighborhood: toTitleCase(data.address.neighborhood) || "",
-                city: toTitleCase(data.address.city) || "",
-                state: data.address.state || "",
-                country: "BR",
-                city_code_ibge: data.address.ibge || "" // Use IBGE from API
-            });
+            // Only update address if current address fields are empty or if the fetched data is more complete
+            if (!billingAddress.zip && data.address.zip) {
+                setBillingAddress(prev => ({
+                    zip: data.address.zip || "",
+                    street: toTitleCase(data.address.street) || "",
+                    number: data.address.number || "",
+                    complement: toTitleCase(data.address.complement) || "",
+                    neighborhood: toTitleCase(data.address.neighborhood) || "",
+                    city: toTitleCase(data.address.city) || "",
+                    state: data.address.state || "",
+                    country: "BR",
+                    city_code_ibge: data.address.ibge || "" // Use IBGE from API
+                }));
+            }
+
 
             // Note: Simplificated fiscal update as state is limited in this modal
             setFiscalData(prev => ({
@@ -235,8 +246,11 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
 
             setCnpjFetched(true);
         } catch (err: any) {
-            console.error(err);
-            setError(err.message);
+            toast({
+                title: "Erro ao buscar CNPJ",
+                description: err.message || "Não foi possível localizar os dados.",
+                variant: "destructive",
+            });
         } finally {
             setCnpjLoading(false);
         }
@@ -321,13 +335,13 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
         const { sanitizedFormData, sanitizedAddress, sanitizedCommercial, sanitizedFiscal, sanitizedContacts } = sanitizeData();
 
         setIsLoading(true);
-        setError(null);
-        setSuccess(null);
 
         try {
             // Validate using sanitized data
-            if (!sanitizedFormData.trade_name) setActiveTab("dados");
-            if (!sanitizedFormData.trade_name) throw new Error("Nome Fantasia é obrigatório");
+            if (!sanitizedFormData.trade_name) {
+                setActiveTab("dados");
+                throw new Error("Nome Fantasia é obrigatório");
+            }
 
             const cleanDoc = extractDigits(sanitizedFormData.document_number);
             const isPJ = cleanDoc?.length === 14;
@@ -437,14 +451,25 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
 
             if (saveAndNew) {
                 resetForm();
-                setSuccess("Cadastro criado com sucesso!");
+                toast({
+                    title: "Sucesso",
+                    description: "Cadastro criado com sucesso!",
+                });
             } else {
                 onSuccess();
                 onClose();
+                toast({
+                    title: "Sucesso",
+                    description: "Cadastro realizado com sucesso!",
+                });
             }
         } catch (err: any) {
             console.error(err);
-            setError(err.message || "Erro ao criar cadastro.");
+            toast({
+                title: "Erro ao salvar",
+                description: err.message || "Não foi possível realizar o cadastro.",
+                variant: "destructive",
+            });
         } finally {
             setIsLoading(false);
         }
@@ -491,18 +516,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                     </div>
                 </DialogHeader>
                 <div className="flex-1 overflow-y-auto p-0">
-                    {error && (
-                        <div className="mx-6 mt-4 p-3 bg-red-50 text-red-700 rounded-2xl border border-red-200 text-sm">
-                            {error}
-                        </div>
-                    )}
 
-                    {success && (
-                        <div className="mx-6 mt-4 p-3 bg-green-50 text-green-700 rounded-2xl border border-green-200 flex items-center gap-2 text-sm">
-                            <CheckCircle2 className="w-4 h-4" />
-                            {success}
-                        </div>
-                    )}
 
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <div className="px-6 border-b">
@@ -560,7 +574,8 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                                                         role === 'prospect' ? 'Prospect' :
                                                             role === 'customer' ? 'Cliente' :
                                                                 role === 'supplier' ? 'Fornecedor' :
-                                                                    'Transportadora'
+                                                                    role === 'carrier' ? 'Transportadora' :
+                                                                        role === 'representative' ? 'Representante' : role
                                                     }</span>
                                                 </label>
                                             ))}
@@ -816,7 +831,11 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                                                 <SelectValue placeholder="Selecione..." />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="user-1">Representante Mock</SelectItem>
+                                                {representatives.map(rep => (
+                                                    <SelectItem key={rep.id} value={rep.id}>
+                                                        {rep.trade_name}
+                                                    </SelectItem>
+                                                ))}
                                                 {/* Dynamic reps here */}
                                             </SelectContent>
                                         </Select>

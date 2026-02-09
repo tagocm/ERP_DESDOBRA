@@ -10,6 +10,7 @@ import { formatCurrency, formatDate, cn } from "@/lib/utils";
 import { Edit2, Plus, RefreshCw, Save, X, ChevronDown, Copy } from "lucide-react";
 import { InstallmentDetailPanel } from "./InstallmentDetailPanel";
 import { updateInstallmentsAction, recalculateInstallmentsAction, listGLAccountsAction, listCostCentersAction, listBankAccountsAction, listPaymentTermsAction, type GLAccountOption, type CostCenterOption, type BankAccountOption, type PaymentTermOption } from "@/app/actions/finance-events";
+import { recalculateInstallments } from "@/lib/utils/finance-calculations";
 import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/Dialog";
 import { Label } from "@/components/ui/Label";
@@ -233,7 +234,42 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                                             const newVal = e.target.value;
                                             setGlobalTermId(newVal);
                                             const selectedTerm = paymentTerms.find(t => t.id === newVal);
-                                            handleApplyToAll('payment_condition', selectedTerm?.name || null);
+
+                                            if (selectedTerm) {
+                                                // AUTOMATIC RECALCULATION: Recalculate installments based on new payment term
+                                                const baseDate = new Date(event.issue_date);
+                                                const newInstallments = recalculateInstallments(
+                                                    event.total_amount,
+                                                    baseDate,
+                                                    {
+                                                        installments_count: selectedTerm.installments_count,
+                                                        first_due_days: selectedTerm.first_due_days,
+                                                        cadence_days: selectedTerm.cadence_days
+                                                    },
+                                                    globalMethod,
+                                                    selectedTerm.name
+                                                );
+
+                                                // Merge with existing IDs and apply global fields
+                                                const merged = newInstallments.map((newInst, idx) => ({
+                                                    ...newInst,
+                                                    id: localInstallments[idx]?.id, // Preserve ID if exists
+                                                    event_id: event.id,
+                                                    // Apply global fields
+                                                    financial_account_id: globalAccountId || null,
+                                                    suggested_account_id: globalGLAccountId || null,
+                                                    cost_center_id: globalCostCenterId || null
+                                                })) as EventInstallment[];
+
+                                                setLocalInstallments(merged);
+                                                toast({
+                                                    title: `Recalculado para ${selectedTerm.name}`,
+                                                    description: `${selectedTerm.installments_count} parcelas criadas automaticamente`
+                                                });
+                                            } else {
+                                                // Fallback: just apply payment condition name
+                                                handleApplyToAll('payment_condition', null);
+                                            }
                                         }}
                                         disabled={loadingOptions}
                                     >
@@ -405,7 +441,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                 </TableHeader>
                 <TableBody>
                     {localInstallments.map((inst, idx) => (
-                        <Fragment key={inst.id}>
+                        <Fragment key={inst.id || `temp-${idx}`}>
                             <TableRow
                                 className={cn(
                                     "cursor-pointer hover:bg-gray-50 transition-colors h-10",
@@ -529,7 +565,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                                             </div>
                                         </div>
                                     ) : (
-                                    <div className="flex flex-col gap-0.5 max-w-44">
+                                        <div className="flex flex-col gap-0.5 max-w-44">
                                             {inst.suggested_account_id ? (
                                                 <span className="text-[10px] font-medium text-blue-700 bg-blue-50 px-1 rounded truncate">
                                                     Conta: ...{inst.suggested_account_id.slice(-4)}

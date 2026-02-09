@@ -3,8 +3,19 @@
 
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { CompanySettings, BankAccount, PaymentTerm, getBankAccounts, upsertBankAccount, deleteBankAccount, getPaymentTerms, upsertPaymentTerm, deletePaymentTerm } from "@/lib/data/company-settings";
-import { useState, useEffect } from "react";
+import {
+    getBankAccountsAction,
+    deleteBankAccountAction,
+    upsertBankAccountAction
+} from "@/app/actions/settings/bank-accounts-actions";
+import {
+    getPaymentTermsAction,
+    deletePaymentTermAction,
+    upsertPaymentTermAction
+} from "@/app/actions/settings/payment-terms-actions";
+// Keeping interfaces if not yet moved to DTO
+import { CompanySettings, BankAccount, PaymentTerm } from "@/lib/types/settings-types";
+import { useState, useEffect, useCallback } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { Plus, Trash2, Landmark, CreditCard, Loader2, Edit2, Search, Save, X } from "lucide-react";
@@ -50,26 +61,29 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
     }>({ open: false, type: null, id: null, title: "", description: "" });
     const [isDeleting, setIsDeleting] = useState(false);
 
+    const loadLists = useCallback(async () => {
+        if (!selectedCompany) return;
+        setLoadingLists(true);
+        try {
+            // Load Bank Accounts
+            const banksRes = await getBankAccountsAction();
+            if (banksRes.success) setBankAccounts(banksRes.data || []);
+
+            // Load Payment Terms
+            const termsRes = await getPaymentTermsAction();
+            if (termsRes.success) setTerms(termsRes.data || []);
+        } catch (e) {
+            console.error(e);
+            toast({ title: "Erro ao carregar dados", description: "Não foi possível carregar as listas de contas e prazos.", variant: "destructive" });
+        } finally {
+            setLoadingLists(false);
+        }
+    }, [selectedCompany, toast]);
+
     // Refresh lists
     useEffect(() => {
-        if (!selectedCompany) return;
-        const load = async () => {
-            setLoadingLists(true);
-            try {
-                const [banks, paymentTerms] = await Promise.all([
-                    getBankAccounts(supabase, selectedCompany.id),
-                    getPaymentTerms(supabase, selectedCompany.id)
-                ]);
-                setBankAccounts(banks);
-                setTerms(paymentTerms);
-            } catch (e) {
-                console.error("Load Error:", JSON.stringify(e, null, 2));
-            } finally {
-                setLoadingLists(false);
-            }
-        };
-        load();
-    }, [selectedCompany]);
+        loadLists();
+    }, [loadLists]);
 
     // Handlers for Terms
     const handleOpenTermModal = (term?: PaymentTerm) => {
@@ -90,15 +104,19 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
             return false;
         }
         try {
-            await upsertPaymentTerm(supabase, {
+            const res = await upsertPaymentTermAction({
                 ...termData,
-                company_id: selectedCompany.id
-            });
-            // Refresh
-            const updated = await getPaymentTerms(supabase, selectedCompany.id);
-            setTerms(updated);
-            // Toast removed - now handled by PaymentTermModal
-            return true;
+                is_custom_name: false,
+                is_active: true
+            } as any);
+            if (res.success) {
+                // Refresh
+                await loadLists();
+                return true;
+            } else {
+                toast({ title: "Erro", description: res.error || "Erro ao salvar prazo.", variant: "destructive" });
+                return false;
+            }
         } catch (e: any) {
             console.error("Save Error:", JSON.stringify(e, null, 2));
             toast({ title: "Erro", description: "Erro ao salvar prazo.", variant: "destructive" });
@@ -120,13 +138,16 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
     const handleAddBank = async (account: Partial<BankAccount>) => {
         if (!selectedCompany) return;
         try {
-            await upsertBankAccount(supabase, {
+            const res = await upsertBankAccountAction({
                 ...account,
-                company_id: selectedCompany.id,
                 is_active: true
-            });
-            const banks = await getBankAccounts(supabase, selectedCompany.id);
-            setBankAccounts(banks);
+            } as any);
+            if (res.success) {
+                await loadLists();
+                toast({ title: "Sucesso", description: "Conta bancária salva." });
+            } else {
+                toast({ title: "Erro", description: res.error || "Erro ao salvar conta bancária.", variant: "destructive" });
+            }
         } catch (e) {
             toast({ title: "Erro", description: "Erro ao salvar conta bancária.", variant: "destructive" });
         }
@@ -147,16 +168,33 @@ export function TabFinancial({ data, onChange, isAdmin }: TabFinancialProps) {
         setIsDeleting(true);
         try {
             if (deleteState.type === 'term') {
-                await deletePaymentTerm(supabase, deleteState.id);
-                setTerms(prev => prev.filter(t => t.id !== deleteState.id));
-                toast({ title: "Sucesso", description: "Prazo removido." });
+                // Optimistic update
+                const newTerms = terms.filter(t => t.id !== deleteState.id);
+                setTerms(newTerms);
+
+                const res = await deletePaymentTermAction(deleteState.id);
+                if (!res.success) {
+                    toast({ title: "Erro ao excluir condição", variant: "destructive" });
+                    loadLists(); // Revert
+                } else {
+                    toast({ title: "Condição excluída" });
+                }
             } else if (deleteState.type === 'bank') {
-                await deleteBankAccount(supabase, deleteState.id);
-                setBankAccounts(prev => prev.filter(b => b.id !== deleteState.id));
-                toast({ title: "Sucesso", description: "Conta removida." });
+                // Optimistic update
+                const newAccounts = bankAccounts.filter(a => a.id !== deleteState.id);
+                setBankAccounts(newAccounts);
+
+                const res = await deleteBankAccountAction(deleteState.id);
+                if (!res.success) {
+                    toast({ title: "Erro ao excluir conta", variant: "destructive" });
+                    loadLists(); // Revert
+                } else {
+                    toast({ title: "Conta excluída" });
+                }
             }
             setDeleteState(prev => ({ ...prev, open: false }));
         } catch (e) {
+            console.error(e);
             toast({ title: "Erro", description: "Erro ao excluir.", variant: "destructive" });
         } finally {
             setIsDeleting(false);

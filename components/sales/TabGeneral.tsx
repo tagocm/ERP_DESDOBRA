@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { SalesOrder } from "@/types/sales";
+import { SalesOrderDTO } from "@/lib/types/sales-dto";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
@@ -11,8 +11,8 @@ import { createClient } from "@/lib/supabaseBrowser";
 import { useCompany } from "@/contexts/CompanyContext";
 
 interface TabProps {
-    data: Partial<SalesOrder>;
-    onChange: (field: keyof SalesOrder, value: any) => void;
+    data: Partial<SalesOrderDTO>;
+    onChange: (field: keyof SalesOrderDTO, value: any) => void;
     disabled?: boolean;
 }
 

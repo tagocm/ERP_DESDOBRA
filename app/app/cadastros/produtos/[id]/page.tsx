@@ -137,7 +137,7 @@ export default function ItemEditPage() {
 
     return (
         <ProductForm
-            initialData={initialData}
+            initialData={initialData as any}
             isEdit
             itemId={itemId}
         />

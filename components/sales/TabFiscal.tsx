@@ -2,26 +2,26 @@
 "use client";
 
 import { useState } from "react";
-import { SalesOrder, SalesOrderNfe } from "@/types/sales";
+import { SalesOrderDTO, SalesOrderNfeDTO } from "@/lib/types/sales-dto";
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/Alert";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/Dialog";
 import { Label } from "@/components/ui/Label";
 import { Select } from "@/components/ui/Select";
 import { createClient } from "@/lib/supabaseBrowser";
-import { emitNfeMock } from "@/lib/data/sales-orders";
+import { emitNfeAction } from "@/app/actions/sales/sales-actions";
 import { useToast } from "@/components/ui/use-toast";
 import { FileText, AlertCircle, Loader2 } from "lucide-react";
 
 interface TabFiscalProps {
-    order: SalesOrder;
+    order: SalesOrderDTO;
 }
 
 export function TabFiscal({ order }: TabFiscalProps) {
     const supabase = createClient();
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
-    const [nfes, setNfes] = useState<SalesOrderNfe[]>(order.nfes || []);
+    const [nfes, setNfes] = useState<SalesOrderNfeDTO[]>(order.nfes || []);
     const [emissionOpen, setEmissionOpen] = useState(false);
     const [emitReason, setEmitReason] = useState("normal");
 
@@ -33,10 +33,16 @@ export function TabFiscal({ order }: TabFiscalProps) {
     const handleEmit = async () => {
         setLoading(true);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) return;
+            // Server Action Call
+            const result = await emitNfeAction({
+                orderId: order.id,
+                isAntecipada: emitReason === 'antecipada',
+                details: `Emissão via sistema - Motivo: ${emitReason}`
+            });
 
-            await emitNfeMock(supabase, order.id, user.id, emitReason === 'antecipada', `Emissão via sistema - Motivo: ${emitReason}`);
+            if (!result.success) {
+                throw new Error(result.error);
+            }
 
             toast({ title: "NF-e Emitida", description: "Nota fiscal emitida com sucesso (MOCK)." });
             setEmissionOpen(false);

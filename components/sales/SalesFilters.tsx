@@ -12,7 +12,7 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
-import { SalesFilters as FilterType } from "@/lib/data/sales-orders";
+import { SalesFilters as FilterType } from "@/lib/types/sales-dto";
 import { useState, useEffect } from "react";
 
 interface SalesFiltersProps {

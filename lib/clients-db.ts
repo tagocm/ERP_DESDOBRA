@@ -124,10 +124,12 @@ export interface OrganizationTag {
     name: string;
 }
 
+export type OrganizationRoleType = 'prospect' | 'customer' | 'supplier' | 'carrier' | 'employee' | 'representative';
+
 export interface OrganizationRole {
     company_id: string;
     organization_id: string;
-    role: 'prospect' | 'customer' | 'supplier' | 'carrier' | 'employee';
+    role: OrganizationRoleType;
     created_at: string;
     deleted_at: string | null;
 }
@@ -579,10 +581,6 @@ export async function getCarriers(
         return [];
     }
 
-    if (!carrierIds || carrierIds.length === 0) {
-        return [];
-    }
-
     const carrierIdList = carrierIds.map(r => r.organization_id);
     query = query.in("id", carrierIdList);
 
@@ -596,6 +594,66 @@ export async function getCarriers(
 
     if (error) {
         console.error("Error fetching carriers:", error);
+        return [];
+    }
+
+    return data || [];
+}
+
+/**
+ * Get all representatives (organizations with 'representative' role)
+ * @param supabase - Supabase client
+ * @param companyId - Company ID
+ * @param search - Optional search term
+ * @returns List of representative organizations
+ */
+export async function getRepresentatives(
+    supabase: SupabaseClient,
+    companyId: string,
+    search?: string
+) {
+    let query = supabase
+        .from("organizations")
+        .select(`
+            id,
+            trade_name,
+            legal_name,
+            document_number
+        `)
+        .eq("company_id", companyId)
+        .eq("status", "active")
+        .is("deleted_at", null);
+
+    // Filter by representative role
+    const { data: repIds, error: rolesError } = await supabase
+        .from("organization_roles")
+        .select("organization_id")
+        .eq("company_id", companyId)
+        .eq("role", "representative")
+        .is("deleted_at", null);
+
+    if (rolesError) {
+        console.error("Error fetching representative roles:", rolesError);
+        return [];
+    }
+
+    if (!repIds || repIds.length === 0) {
+        return [];
+    }
+
+    const repIdList = repIds.map(r => r.organization_id);
+    query = query.in("id", repIdList);
+
+    if (search) {
+        query = query.or(`trade_name.ilike.%${search}%,legal_name.ilike.%${search}%,document_number.ilike.%${search}%`);
+    }
+
+    query = query.order("trade_name", { ascending: true });
+
+    const { data, error } = await query;
+
+    if (error) {
+        console.error("Error fetching representatives:", error);
         return [];
     }
 

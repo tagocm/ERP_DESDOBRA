@@ -16,6 +16,7 @@ export type ItemPackaging = {
     length_cm?: number | null;
     is_default_sales_unit: boolean;
     is_active: boolean;
+    is_used?: boolean;
     created_at?: string;
     updated_at?: string;
 };

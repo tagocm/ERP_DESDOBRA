@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Search, Filter, X } from "lucide-react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { useCallback, useState, useEffect } from "react";
-import { RecurringRuleStatus, AmountType } from "@/types/recurring-rules";
+import { RecurringRuleStatus, AmountType } from "@/lib/types/recurring-dto";
 
 export function RecurringRulesToolbar() {
     const router = useRouter();

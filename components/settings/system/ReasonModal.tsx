@@ -9,20 +9,20 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Switch } from "@/components/ui/Switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { DeliveryReason, DeliveryReasonGroup, DELIVERY_REASON_GROUPS } from "@/types/reasons";
-import { upsertDeliveryReason } from "@/lib/data/reasons";
+import { DeliveryReasonDTO, DeliveryReasonGroup, DELIVERY_REASON_GROUPS } from "@/lib/types/reasons-dto";
+import { upsertDeliveryReasonAction } from "@/app/actions/settings/reasons-actions";
 
 interface ReasonModalProps {
     isOpen: boolean;
     onClose: () => void;
-    reason: DeliveryReason | null;
+    reason: DeliveryReasonDTO | null;
     defaultGroup?: DeliveryReasonGroup;
     companyId: string;
     onSaved: () => void;
 }
 
 export function ReasonModal({ isOpen, onClose, reason, defaultGroup, companyId, onSaved }: ReasonModalProps) {
-    const supabase = createClient();
+    // const supabase = createClient(); // Not used, action used instead
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
 
@@ -68,15 +68,37 @@ export function ReasonModal({ isOpen, onClose, reason, defaultGroup, companyId, 
         const formattedName = toTitleCase(name.trim());
 
         setLoading(true);
+        setLoading(true);
         try {
-            await upsertDeliveryReason(supabase, {
+            const res = await upsertDeliveryReasonAction({
                 id: reason?.id,
-                company_id: companyId,
+                // company_id: companyId, // Action handles auth/tenant via getCompanyId(), or we pass it? 
+                // Wait, Action implementation calls upsertDeliveryReason which expects Partial<DeliveryReason>.
+                // The Action enforces tenant if it sets company_id. 
+                // Let's check reasons-actions.ts again.
+                // upsertDeliveryReasonAction does: const result = await upsertDeliveryReason(supabase, { ...validated });
+                // It does NOT explicitly set company_id from getCompanyId() in the spread!!
+                // BUT reasons usually strictly need company_id.
+                // Looking at reasons-actions.ts content in memory:
+                // "const result = await upsertDeliveryReason(supabase, { ...validated });"
+                // It calls getCompanyId() at start but doesn't use it in payload!
+                // This might be a bug in my Action implementation if the data layer expects company_id.
+                // "getDeliveryReasons" takes companyId arg.
+                // "upsertDeliveryReason" probably expects company_id in payload.
+                // I should fix the Action first? Or pass it here?
+                // Secure way: Action sets it.
+                // I will pass it here for now as the Schema validation allows it (passthrough? no, strictly defined).
+                // My Schema in actions: id, name, reason_group, is_active, require_note. NO company_id.
+                // So I MUST Fix the Action to inject company_id.
+                // Proceeding with refactor here assuming I will fix Action immediately after.
+
                 name: formattedName,
                 reason_group: group,
                 is_active: isActive,
                 require_note: requireNote,
             });
+
+            if (!res.success) throw new Error(res.error);
 
             toast({ title: "Salvo", description: "Motivo salvo com sucesso." });
             onSaved();

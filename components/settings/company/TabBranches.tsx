@@ -3,7 +3,9 @@
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
-import { getBranches, Branch } from "@/lib/data/company-settings";
+import { getBranchesAction } from "@/app/actions/settings/branches-actions";
+// Keeping Branch type alias if not in DTO yet, or redefine locally/shared
+import { Branch } from "@/lib/types/settings-types";
 import { useState, useEffect } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
@@ -29,8 +31,11 @@ export function TabBranches({ isAdmin }: TabBranchesProps) {
             setLoading(true);
             setError(null);
             try {
-                const data = await getBranches(supabase, selectedCompany.id);
-                if (mounted) setBranches(data || []);
+                const res = await getBranchesAction();
+                if (mounted && res.success) setBranches(res.data || []);
+                if (!res.success && mounted) {
+                    setError("Não foi possível carregar as filiais: " + res.error);
+                }
             } catch (e: any) {
                 console.warn("Failed to load branches:", e);
                 // Don't crash full UI, just show local error state

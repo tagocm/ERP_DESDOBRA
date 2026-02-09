@@ -35,6 +35,10 @@ export async function POST(request: NextRequest) {
             return errorResponse("Você não tem permissão para acessar esta empresa", 403, "FORBIDDEN");
         }
 
+        if (ctx.role !== 'admin' && ctx.role !== 'finance') {
+            return errorResponse("Você não tem permissão para gerenciar o certificado", 403, "FORBIDDEN");
+        }
+
         const supabaseUser = ctx.supabase;
         const companyId = ctx.companyId;
 

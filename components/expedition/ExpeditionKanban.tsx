@@ -3,17 +3,20 @@
 import { useEffect, useState, useMemo, useCallback, memo } from "react";
 import { createClient } from "@/utils/supabase/client";
 import {
-    getScheduledRoutes,
-    getUnscheduledRoutes,
-    getSandboxOrders,
-    addOrderToRoute,
-    removeOrderFromRoute,
-    createRoute,
-    updateRouteSchedule,
-    deleteRoute,
-    checkAndCleanupExpiredRoutes,
-} from "@/lib/data/expedition";
-import { DeliveryRoute, SalesOrder } from "@/types/sales";
+    createRouteAction,
+    deleteRouteAction,
+    addOrderToRouteAction,
+    removeOrderFromRouteAction,
+    updateRouteScheduleAction,
+    checkAndCleanupExpiredRoutesAction
+} from "@/app/actions/expedition/route-actions";
+import {
+    listSandboxOrdersAction,
+    listScheduledRoutesAction,
+    listUnscheduledRoutesAction
+} from "@/app/actions/expedition-actions";
+import type { DeliveryRouteDTO, SandboxOrderDTO } from "@/lib/types/expedition-dto";
+// import { DeliveryRoute, SalesOrder } from "@/types/sales"; // Removed
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
@@ -22,7 +25,7 @@ import { format, startOfWeek, endOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useToast } from "@/components/ui/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DndContext, DragOverlay, useDraggable, useDroppable, useSensor, useSensors, PointerSensor, KeyboardSensor } from "@dnd-kit/core";
+import { DndContext, DragOverlay, useDraggable, useDroppable, useSensor, useSensors, PointerSensor, KeyboardSensor, DragStartEvent, DragEndEvent } from "@dnd-kit/core";
 import { WeeklyCalendar } from "./WeeklyCalendar";
 import { RouteCardCompact } from "./RouteCardCompact";
 import { UnscheduledRouteCard } from "./UnscheduledRouteCard";
@@ -33,15 +36,11 @@ import { cn } from "@/lib/utils";
 import { OrderCard } from "./OrderCard";
 import { normalizeRouteStatus } from "@/lib/constants/status";
 
-type DragItem = {
-    id: string; // Order ID or Route ID
-    type: 'order' | 'route';
-    sourceRouteId?: string;
-    order?: any;
-    route?: DeliveryRoute;
-};
+type DragItem =
+    | { type: 'order'; order: SandboxOrderDTO; sourceRouteId?: string }
+    | { type: 'route'; route: DeliveryRouteDTO };
 
-const isLockedRoute = (route?: DeliveryRoute) => {
+const isLockedRoute = (route?: { status?: string }) => {
     const status = normalizeRouteStatus(route?.status) || route?.status || "";
     return ['in_route', 'in_progress', 'completed', 'cancelled'].includes(status);
 };
@@ -54,9 +53,9 @@ interface ExpeditionKanbanProps {
 
 export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek: propSetCurrentWeek, companyId }: ExpeditionKanbanProps) {
     const { toast } = useToast();
-    const [sandbox, setSandbox] = useState<any[]>([]);
-    const [scheduledRoutes, setScheduledRoutes] = useState<DeliveryRoute[]>([]);
-    const [unscheduledRoutes, setUnscheduledRoutes] = useState<DeliveryRoute[]>([]);
+    const [sandbox, setSandbox] = useState<SandboxOrderDTO[]>([]);
+    const [scheduledRoutes, setScheduledRoutes] = useState<DeliveryRouteDTO[]>([]);
+    const [unscheduledRoutes, setUnscheduledRoutes] = useState<DeliveryRouteDTO[]>([]);
     const [loading, setLoading] = useState(true);
 
     // Internal state for when props are not provided
@@ -79,7 +78,7 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
     const [addToRouteOrderId, setAddToRouteOrderId] = useState<string | null>(null);
     const [dayDetailsOpen, setDayDetailsOpen] = useState(false);
     const [selectedDayDate, setSelectedDayDate] = useState<Date | null>(null);
-    const [selectedDayRoutes, setSelectedDayRoutes] = useState<DeliveryRoute[]>([]);
+    const [selectedDayRoutes, setSelectedDayRoutes] = useState<DeliveryRouteDTO[]>([]);
 
     // User context cache
     const [userContext, setUserContext] = useState<{ userId: string; companyId: string } | null>(null);
@@ -116,7 +115,7 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             if (profile?.company_id) {
                 setUserContext({ userId: user.id, companyId: profile.company_id });
             }
-        } catch (e) {
+        } catch (e: unknown) {
             console.error("User context error:", e);
         }
     };
@@ -136,18 +135,31 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             const weekEnd = format(endOfWeek(currentWeek, { locale: ptBR }), 'yyyy-MM-dd');
 
             // Cleanup expired routes (past date and unprocessed)
-            await checkAndCleanupExpiredRoutes(supabase, cId);
+            await checkAndCleanupExpiredRoutesAction();
 
-            const [unscheduledData, scheduledData, sandboxData] = await Promise.all([
-                getUnscheduledRoutes(supabase, cId),
-                getScheduledRoutes(supabase, cId, weekStart, weekEnd),
-                getSandboxOrders(supabase, cId)
+            // Use Server Actions to fetch data (returns serializable DTOs)
+            const [unscheduledResult, scheduledResult, sandboxResult] = await Promise.all([
+                listUnscheduledRoutesAction(cId),
+                listScheduledRoutesAction(cId, weekStart, weekEnd),
+                listSandboxOrdersAction(cId)
             ]);
 
-            setUnscheduledRoutes(unscheduledData);
-            setScheduledRoutes(scheduledData);
-            setSandbox(sandboxData);
-        } catch (error) {
+            // Check for errors
+            if (!unscheduledResult.ok) {
+                throw new Error(unscheduledResult.error.message);
+            }
+            if (!scheduledResult.ok) {
+                throw new Error(scheduledResult.error.message);
+            }
+            if (!sandboxResult.ok) {
+                throw new Error(sandboxResult.error.message);
+            }
+
+            // DTOs are compatible with original types
+            setUnscheduledRoutes(unscheduledResult.data);
+            setScheduledRoutes(scheduledResult.data);
+            setSandbox(sandboxResult.data);
+        } catch (error: unknown) {
             console.error('Error fetching data:', error);
             toast({ title: "Erro ao carregar dados", variant: "destructive" });
         } finally {
@@ -157,18 +169,20 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
 
     // === DRAG HANDLERS ===
 
-    const handleDragStart = useCallback((event: any) => {
+    const handleDragStart = useCallback((event: DragStartEvent) => {
         const { active } = event;
-        setActiveItem(active.data.current);
+        setActiveItem(active.data.current as DragItem);
     }, []);
 
-    const handleDragEnd = async (event: any) => {
+    const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
         setActiveItem(null);
 
         if (!over) return;
 
-        const dragData: DragItem = active.data.current;
+        const dragData = active.data.current as DragItem;
+        if (!dragData) return;
+        const draggedId = dragData.type === 'order' ? dragData.order.id : dragData.route.id;
         const dropData = over.data.current;
 
         console.log("Drag:", dragData, "Drop:", dropData);
@@ -200,7 +214,7 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
                     return;
                 }
             }
-            await handleOrderToSandbox(dragData.id, dragData.sourceRouteId);
+            await handleOrderToSandbox(draggedId, dragData.sourceRouteId);
         } else if (dragData.type === 'order' && (dropData?.type === 'unscheduled-route' || dropData?.type === 'route')) {
             // Order to Route (Unscheduled or Scheduled)
             const targetRouteId = dropData.routeId || dropData.id;
@@ -221,11 +235,11 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
                 }
             }
 
-            await handleOrderToRoute(dragData.id, targetRouteId, dragData.sourceRouteId);
+            await handleOrderToRoute(draggedId, targetRouteId, dragData.sourceRouteId);
         } else if (dragData.type === 'order' && dropData?.type === 'calendar-day') {
             // Order to Calendar Day -> Open Modal
             setAddToRouteDate(dropData.date);
-            setAddToRouteOrderId(dragData.id);
+            setAddToRouteOrderId(draggedId);
             setAddToRouteModalOpen(true);
         } else if (dragData.type === 'route' && dropData?.type === 'calendar-day') {
             // Route to Calendar Day (schedule/reschedule)
@@ -243,70 +257,65 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             await handleUnscheduleRoute(dragData.route!.id);
         } else if (dragData.type === 'order' && dropData?.type === 'unscheduled-column') {
             // Order to New Unscheduled Route
-            setAddToRouteOrderId(dragData.id);
+            setAddToRouteOrderId(draggedId);
             setNewRouteOpen(true);
         }
     };
 
     const handleOrderToSandbox = useCallback(async (orderId: string, sourceRouteId: string = '') => {
         try {
-            await removeOrderFromRoute(supabase, sourceRouteId, orderId);
+            await removeOrderFromRouteAction(sourceRouteId, orderId);
             toast({ title: "Pedido removido da rota" });
             fetchData();
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(err);
             toast({ title: "Erro ao remover pedido", variant: "destructive" });
         }
-    }, [supabase, toast, fetchData]);
+    }, [toast, fetchData]);
 
     const handleOrderToRoute = useCallback(async (orderId: string, targetRouteId: string, sourceRouteId?: string) => {
         if (!userContext) return;
 
         try {
             if (sourceRouteId) {
-                await removeOrderFromRoute(supabase, sourceRouteId, orderId);
+                await removeOrderFromRouteAction(sourceRouteId, orderId);
             }
 
-            const cId = getCompanyId();
-            if (!cId) {
-                toast({ title: "Erro", description: "Empresa não identificada", variant: "destructive" });
-                return;
-            }
-
-            await addOrderToRoute(supabase, targetRouteId, orderId, 999, cId);
+            await addOrderToRouteAction(targetRouteId, orderId, 999);
             toast({ title: "Pedido adicionado à rota" });
             fetchData();
-        } catch (err: any) {
-            console.error("Erro ao mover pedido:", JSON.stringify(err, null, 2));
+        } catch (err: unknown) {
+            console.error("Erro ao mover pedido:", err);
+            const message = err instanceof Error ? err.message : String(err);
             toast({
                 title: "Erro ao mover pedido",
-                description: err.message || "Ocorreu um erro desconhecido",
+                description: message,
                 variant: "destructive"
             });
         }
-    }, [userContext, supabase, toast, fetchData]);
+    }, [userContext, toast, fetchData]);
 
     const handleScheduleRoute = useCallback(async (routeId: string, scheduledDate: string) => {
         try {
-            await updateRouteSchedule(supabase, routeId, scheduledDate);
+            await updateRouteScheduleAction(routeId, scheduledDate);
             toast({ title: "Rota agendada" });
             fetchData();
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(err);
             toast({ title: "Erro ao agendar rota", variant: "destructive" });
         }
-    }, [supabase, toast, fetchData]);
+    }, [toast, fetchData]);
 
     const handleUnscheduleRoute = useCallback(async (routeId: string) => {
         try {
-            await updateRouteSchedule(supabase, routeId, null);
+            await updateRouteScheduleAction(routeId, null);
             toast({ title: "Rota desagendada" });
             fetchData();
-        } catch (err) {
+        } catch (err: unknown) {
             console.error(err);
             toast({ title: "Erro ao desagendar rota", variant: "destructive" });
         }
-    }, [supabase, toast, fetchData]);
+    }, [toast, fetchData]);
 
     const handleCreateRoute = useCallback(async () => {
         if (!newRouteName || !userContext) return;
@@ -315,16 +324,18 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             if (!cId) return;
 
             // Use Server Action
-            const { createRouteAction } = await import("@/app/actions/logistics/create-route");
-            const newRoute = await createRouteAction({
+            const result = await createRouteAction({
                 name: newRouteName,
                 route_date: format(new Date(), 'yyyy-MM-dd'),
                 status: 'planned'
             });
 
+            if (!result.ok) throw new Error(result.error.message);
+            const newRoute = result.data;
+
             // If we have an order waiting to be added (dragged to new route area)
             if (addToRouteOrderId) {
-                await addOrderToRoute(supabase, newRoute.id, addToRouteOrderId, 1, cId);
+                await addOrderToRouteAction(newRoute.id, addToRouteOrderId, 1);
                 setAddToRouteOrderId(null);
             }
 
@@ -333,18 +344,22 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             setNewRouteName("");
 
             // Refresh data
-            const unscheduledData = await getUnscheduledRoutes(supabase, cId);
-            setUnscheduledRoutes(unscheduledData);
+            const unscheduledResult = await listUnscheduledRoutesAction(cId);
+            if (unscheduledResult.ok) {
+                setUnscheduledRoutes(unscheduledResult.data);
+            }
 
             // Also refresh sandbox if we moved an order
             if (addToRouteOrderId) {
-                const sandboxData = await getSandboxOrders(supabase, cId);
-                setSandbox(sandboxData);
+                const sandboxResult = await listSandboxOrdersAction(cId);
+                if (sandboxResult.ok) {
+                    setSandbox(sandboxResult.data);
+                }
             }
-        } catch (e) {
+        } catch (e: unknown) {
             toast({ title: "Erro ao criar rota", variant: "destructive" });
         }
-    }, [newRouteName, userContext, supabase, toast, addToRouteOrderId]);
+    }, [newRouteName, userContext, toast, addToRouteOrderId, getCompanyId]);
 
     const handleAddToRouteModalSelectRoute = useCallback(async (routeId: string) => {
         if (!addToRouteOrderId) return;
@@ -362,15 +377,17 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             if (!cId) return;
 
             // Use Server Action
-            const { createRouteAction } = await import("@/app/actions/logistics/create-route");
-            const newRoute = await createRouteAction({
+            const result = await createRouteAction({
                 name: routeName,
                 route_date: addToRouteDate,
                 scheduled_date: addToRouteDate,
                 status: 'planned'
             });
 
-            await addOrderToRoute(supabase, newRoute.id, addToRouteOrderId, 1, cId);
+            if (!result.ok) throw new Error(result.error.message);
+            const newRoute = result.data;
+
+            await addOrderToRouteAction(newRoute.id, addToRouteOrderId, 1);
 
             toast({ title: "Rota criada e pedido adicionado!" });
             setAddToRouteModalOpen(false);
@@ -380,19 +397,23 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
             // Refresh scheduled routes for the current week
             const weekStart = format(startOfWeek(currentWeek, { locale: ptBR }), 'yyyy-MM-dd');
             const weekEnd = format(endOfWeek(currentWeek, { locale: ptBR }), 'yyyy-MM-dd');
-            const scheduledData = await getScheduledRoutes(supabase, cId, weekStart, weekEnd);
-            setScheduledRoutes(scheduledData);
+            const scheduledResult = await listScheduledRoutesAction(cId, weekStart, weekEnd);
+            if (scheduledResult.ok) {
+                setScheduledRoutes(scheduledResult.data);
+            }
 
             // Refresh sandbox
-            const sandboxData = await getSandboxOrders(supabase, cId);
-            setSandbox(sandboxData);
-        } catch (e) {
+            const sandboxResult = await listSandboxOrdersAction(cId);
+            if (sandboxResult.ok) {
+                setSandbox(sandboxResult.data);
+            }
+        } catch (e: unknown) {
             console.error(e);
             toast({ title: "Erro ao criar rota", variant: "destructive" });
         }
-    }, [addToRouteOrderId, addToRouteDate, userContext, currentWeek, supabase, toast]);
+    }, [addToRouteOrderId, addToRouteDate, userContext, currentWeek, toast, getCompanyId]);
 
-    const handleDayClick = useCallback((date: Date, routes: DeliveryRoute[]) => {
+    const handleDayClick = useCallback((date: Date, routes: DeliveryRouteDTO[]) => {
         setSelectedDayDate(date);
         setSelectedDayRoutes(routes);
         setDayDetailsOpen(true);
@@ -415,22 +436,19 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
         if (ordersToMove.length === 0) return;
 
         try {
-            const cId = getCompanyId();
-            if (!cId) return;
-
             await Promise.all(ordersToMove.map((o, idx) =>
-                addOrderToRoute(supabase, targetRouteId, o.id, 999 + idx, cId)
+                addOrderToRouteAction(targetRouteId, o.id, 999 + idx)
             ));
 
             setSelectedOrders(new Set());
             setBatchRouteOpen(false);
             toast({ title: `${ordersToMove.length} pedidos adicionados à rota.` });
             fetchData();
-        } catch (e) {
+        } catch (e: unknown) {
             console.error(e);
             toast({ title: "Erro na atribuição em massa", variant: "destructive" });
         }
-    }, [selectedOrders, sandbox, userContext, supabase, toast, fetchData]);
+    }, [selectedOrders, sandbox, userContext, toast, fetchData]);
 
     // Get routes for the selected day (for AddToRouteModal)
     const routesForSelectedDay = useMemo(() => {
@@ -538,7 +556,17 @@ export function ExpeditionKanban({ currentWeek: propCurrentWeek, setCurrentWeek:
 
 // === SUB-COMPONENTS ===
 
-const SandboxColumn = memo(function SandboxColumn({ sandbox, selectedOrders, toggleSelection, batchRouteOpen, setBatchRouteOpen, unscheduledRoutes, handleBatchAssign }: any) {
+interface SandboxColumnProps {
+    sandbox: SandboxOrderDTO[];
+    selectedOrders: Set<string>;
+    toggleSelection: (id: string) => void;
+    batchRouteOpen: boolean;
+    setBatchRouteOpen: (open: boolean) => void;
+    unscheduledRoutes: DeliveryRouteDTO[];
+    handleBatchAssign: (routeId: string) => void;
+}
+
+const SandboxColumn = memo(function SandboxColumn({ sandbox, selectedOrders, toggleSelection, batchRouteOpen, setBatchRouteOpen, unscheduledRoutes, handleBatchAssign }: SandboxColumnProps) {
     const { setNodeRef, isOver } = useDroppable({
         id: 'sandbox',
         data: { type: 'sandbox' },
@@ -566,7 +594,7 @@ const SandboxColumn = memo(function SandboxColumn({ sandbox, selectedOrders, tog
                                 <PopoverContent className="w-56 p-2" align="start">
                                     <div className="space-y-1">
                                         <h4 className="text-xs font-semibold text-gray-500 px-2 py-1">Escolher Rota</h4>
-                                        {unscheduledRoutes.map((r: DeliveryRoute) => (
+                                        {unscheduledRoutes.map((r: DeliveryRouteDTO) => (
                                             <button
                                                 key={r.id}
                                                 className="w-full text-left px-2 py-1.5 text-sm hover:bg-gray-100 rounded flex items-center justify-between group"
@@ -591,7 +619,7 @@ const SandboxColumn = memo(function SandboxColumn({ sandbox, selectedOrders, tog
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {sandbox.map((order: any) => (
+                {sandbox.map((order) => (
                     <OrderCard
                         key={order.id}
                         order={order}
@@ -610,7 +638,7 @@ const SandboxColumn = memo(function SandboxColumn({ sandbox, selectedOrders, tog
     );
 });
 
-const UnscheduledRoutesColumn = memo(function UnscheduledRoutesColumn({ routes, onCreateRoute, onRefresh, onRemoveOrder }: { routes: DeliveryRoute[], onCreateRoute: () => void, onRefresh: () => void, onRemoveOrder: (orderId: string, routeId: string) => void }) {
+const UnscheduledRoutesColumn = memo(function UnscheduledRoutesColumn({ routes, onCreateRoute, onRefresh, onRemoveOrder }: { routes: DeliveryRouteDTO[], onCreateRoute: () => void, onRefresh: () => void, onRemoveOrder: (orderId: string, routeId: string) => void }) {
     const { setNodeRef, isOver } = useDroppable({
         id: 'unscheduled-column',
         data: { type: 'unscheduled-column' },
@@ -645,7 +673,7 @@ const UnscheduledRoutesColumn = memo(function UnscheduledRoutesColumn({ routes, 
                     </div>
                 ) : (
                     <div className="grid grid-cols-3 gap-3">
-                        {routes.map((route: DeliveryRoute) => (
+                        {routes.map((route: DeliveryRouteDTO) => (
                             <UnscheduledRouteCard
                                 key={route.id}
                                 route={route}
