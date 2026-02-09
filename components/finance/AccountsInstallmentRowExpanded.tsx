@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ArInstallment } from "@/types/financial";
+import { ArInstallmentDTO } from "@/lib/types/financial-dto";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { formatCurrency } from "@/lib/utils";
@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { createClient } from "@/lib/supabaseBrowser";
 
 interface AccountsInstallmentRowExpandedProps {
-    installment: ArInstallment;
+    installment: ArInstallmentDTO;
     onRefresh: () => void;
 }
 

@@ -4,7 +4,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { ReasonList } from "./ReasonList";
 import { RotateCcw } from "lucide-react";
 
-import { DELIVERY_REASON_GROUPS } from "@/types/reasons";
+import { DELIVERY_REASON_GROUPS } from "@/lib/types/reasons-dto";
 
 const SECTIONS = [
     {

@@ -43,7 +43,7 @@ export async function getRoutes(supabase: SupabaseClient, companyId: string, dat
                 sales_order:sales_documents(
                     id, document_number, total_amount, date_issued, status_commercial, status_logistic, dispatch_blocked, total_weight_kg,
                     client:organizations!client_id(trade_name),
-                    items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items(id, name, sku, net_weight_g_base)),
+                    items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items!fk_sales_item_product(id, name, sku, net_weight_g_base)),
                     deliveries:deliveries(
                         id, status,
                         items:delivery_items(sales_document_item_id, qty_delivered)
@@ -347,7 +347,7 @@ export async function getScheduledRoutes(supabase: SupabaseClient, companyId: st
                 sales_order:sales_documents(
                     id, document_number, total_amount, date_issued, status_commercial, status_logistic, total_weight_kg, loading_checked,
                     client:organizations!client_id(trade_name),
-                    items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items(id, name, sku, net_weight_g_base)),
+                    items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items!fk_sales_item_product(id, name, sku, net_weight_g_base)),
                     deliveries:deliveries(
                         id, status,
                         items:delivery_items(sales_document_item_id, qty_delivered)
@@ -364,7 +364,6 @@ export async function getScheduledRoutes(supabase: SupabaseClient, companyId: st
     const { data, error } = await query;
     if (error) throw error;
 
-    // Sort orders by position
     // Sort orders by position and calculate balances
     const routes = data?.map((route: any) => ({
         ...route,
@@ -389,7 +388,7 @@ export async function getUnscheduledRoutes(supabase: SupabaseClient, companyId: 
                 sales_order:sales_documents(
                     id, document_number, total_amount, date_issued, status_commercial, status_logistic, total_weight_kg, loading_checked,
                     client:organizations!client_id(trade_name),
-                    items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items(id, name, sku, net_weight_g_base)),
+                    items:sales_document_items(id, quantity, unit_price, unit_weight_kg, packaging:item_packaging(id, label, qty_in_base), product:items!fk_sales_item_product(id, name, sku, net_weight_g_base)),
                     deliveries:deliveries(
                         id, status,
                         items:delivery_items(sales_document_item_id, qty_delivered)
@@ -404,7 +403,6 @@ export async function getUnscheduledRoutes(supabase: SupabaseClient, companyId: 
     const { data, error } = await query;
     if (error) throw error;
 
-    // Sort orders by position
     // Sort orders by position and calculate balances
     const routes = data?.map((route: any) => ({
         ...route,
@@ -780,6 +778,8 @@ export async function getCompletedRoutes(
             status,
             orders:delivery_route_orders(
                 id,
+                position,
+                created_at,
                 sales_document_id,
                 sales_order:sales_documents!sales_document_id(
                     id,
@@ -807,7 +807,34 @@ export async function getCompletedRoutes(
 
     const { data, error } = await query;
     if (error) throw error;
-    return data;
+
+    // Type-safe mapping using helper to ensure array-to-object conversion
+    return data?.map((route: any) => toDeliveryRouteDTO(route)) || [];
+}
+
+// Helper to ensure type safety for delivery routes
+function toDeliveryRouteDTO(route: any): DeliveryRoute {
+    return {
+        id: route.id,
+        company_id: route.company_id || '', // defensive
+        name: route.name,
+        route_date: route.route_date,
+        scheduled_date: route.scheduled_date,
+        status: route.status,
+        created_at: route.created_at,
+        orders: route.orders?.map((ro: any) => ({
+            id: ro.id,
+            route_id: ro.route_id || route.id,
+            sales_document_id: ro.sales_document_id,
+            position: ro.position || 0,
+            volumes: ro.volumes,
+            assigned_at: ro.created_at || new Date().toISOString(), // Fallback if not selected
+            loading_status: ro.loading_status,
+            partial_payload: ro.partial_payload,
+            // CRITICAL: Ensure sales_order is an object, even if Supabase returns array [1]
+            sales_order: Array.isArray(ro.sales_order) ? ro.sales_order[0] : ro.sales_order
+        })) || []
+    };
 }
 
 /**

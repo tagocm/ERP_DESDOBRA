@@ -9,9 +9,8 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select-shadcn';
 import { Label } from '@/components/ui/Label';
-import { createClient } from "@/utils/supabase/client";
-import { getSystemReasons } from "@/lib/data/system-preferences";
-import { SystemOccurrenceReasonWithDefaults } from "@/types/system-preferences";
+import { SystemOccurrenceReasonWithDefaultsDTO } from "@/lib/types/system-preferences-dto";
+import { listSystemReasonsAction } from "@/app/actions/system-preferences-actions";
 
 interface PartialReturnModalProps {
     isOpen: boolean;
@@ -21,11 +20,10 @@ interface PartialReturnModalProps {
 }
 
 export function PartialReturnModal({ isOpen, onClose, onConfirm, order }: PartialReturnModalProps) {
-    const [supabase] = useState(() => createClient());
     const { toast } = useToast();
 
     // Data State
-    const [reasons, setReasons] = useState<SystemOccurrenceReasonWithDefaults[]>([]);
+    const [reasons, setReasons] = useState<SystemOccurrenceReasonWithDefaultsDTO[]>([]);
     const [isLoadingReasons, setIsLoadingReasons] = useState(false);
     const [reasonsError, setReasonsError] = useState(false);
     const [deliveryData, setDeliveryData] = useState<any>(null);
@@ -85,11 +83,13 @@ export function PartialReturnModal({ isOpen, onClose, onConfirm, order }: Partia
                 setReasonsError(false);
 
                 try {
-                    const data = await getSystemReasons(supabase, 'RETORNO_ENTREGA_PARCIAL');
+                    const res = await listSystemReasonsAction('RETORNO_ENTREGA_PARCIAL');
 
                     if (isMounted) {
-                        if (data && data.length > 0) {
-                            setReasons(data);
+                        if (res.ok && res.data && res.data.length > 0) {
+                            setReasons(res.data);
+                        } else if (!res.ok) {
+                            throw new Error(res.error?.message);
                         } else {
                             throw new Error("No reasons found");
                         }
@@ -113,7 +113,7 @@ export function PartialReturnModal({ isOpen, onClose, onConfirm, order }: Partia
 
             return () => { isMounted = false; };
         }
-    }, [isOpen, supabase]);
+    }, [isOpen]);
 
     const handleQtyChange = (itemId: string, val: string) => {
         const num = parseFloat(val);

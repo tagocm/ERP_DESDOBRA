@@ -21,6 +21,7 @@ import { EstoqueFlyoutPanel } from "./EstoqueFlyoutPanel";
 import { FinanceiroFlyoutPanel } from "./FinanceiroFlyoutPanel";
 import { ProducaoFlyoutPanel } from "./ProducaoFlyoutPanel";
 import { ComprasFlyoutPanel } from "./ComprasFlyoutPanel";
+import { FrotaFlyoutPanel } from "./FrotaFlyoutPanel";
 import { createClient } from "@/lib/supabaseBrowser";
 import { useRouter } from "next/navigation";
 import { useEffect } from 'react';
@@ -62,7 +63,7 @@ const navGroups: NavGroup[] = [
             { name: "Financeiro", href: "#", icon: DollarSign, isButton: true },
             { name: "Fiscal", href: "#", icon: FileText, isButton: true },
             { name: "RH", href: "/app/rh/colaboradores", icon: Users },
-            { name: "Frota", href: "/app/frota/veiculos", icon: Truck },
+            { name: "Frota", href: "#", icon: Truck, isButton: true },
         ]
     },
     // Cadastros e Configurações could be their own groups or just items
@@ -127,6 +128,9 @@ export function Sidebar({ collapsed }: SidebarProps) {
     const [isProducaoOpen, setIsProducaoOpen] = useState(false);
     const producaoRef = React.useRef<HTMLButtonElement>(null);
 
+    const [isFrotaOpen, setIsFrotaOpen] = useState(false);
+    const frotaRef = React.useRef<HTMLButtonElement>(null);
+
     // Listen for close flyouts event
     useEffect(() => {
         const handleCloseFlyouts = () => {
@@ -140,6 +144,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
             setIsEstoqueOpen(false);
             setIsProducaoOpen(false);
             setIsFinanceiroOpen(false);
+            setIsFrotaOpen(false);
         };
 
         window.addEventListener('closeFlyouts', handleCloseFlyouts);
@@ -287,7 +292,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
                                                                                 item.name === "Estoque" ? estoqueRef :
                                                                                     item.name === "Produção (PCP)" ? producaoRef :
                                                                                         item.name === "Compras" ? comprasRef :
-                                                                                            item.name === "Financeiro" ? financeiroRef : null
+                                                                                            item.name === "Frota" ? frotaRef :
+                                                                                                item.name === "Financeiro" ? financeiroRef : null
                                                         }
                                                         onClick={() => {
                                                             if (item.name === "Cadastros") setIsCadastrosOpen(true);
@@ -298,6 +304,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                                                             if (item.name === "Estoque") setIsEstoqueOpen(true);
                                                             if (item.name === "Produção (PCP)") setIsProducaoOpen(true);
                                                             if (item.name === "Compras") setIsComprasOpen(true);
+                                                            if (item.name === "Frota") setIsFrotaOpen(true);
                                                             if (item.name === "Financeiro") setIsFinanceiroOpen(true);
                                                         }}
                                                         className={cn(
@@ -311,6 +318,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                                                                 (item.name === "Logística" && (isActive('/app/logistica') || isLogisticaOpen)) ||
                                                                 (item.name === "Estoque" && (isActive('/app/estoque') || isEstoqueOpen)) ||
                                                                 (item.name === "Produção (PCP)" && (isActive('/app/producao') || isProducaoOpen)) ||
+                                                                (item.name === "Frota" && (isActive('/app/frota') || isFrotaOpen)) ||
                                                                 (item.name === "Financeiro" && (isActive('/app/financeiro') || isFinanceiroOpen))
                                                                 ? "bg-brand-50 text-brand-700 font-medium"
                                                                 : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
@@ -459,6 +467,12 @@ export function Sidebar({ collapsed }: SidebarProps) {
                         isOpen={isFinanceiroOpen}
                         onClose={() => setIsFinanceiroOpen(false)}
                         anchorRef={financeiroRef as any}
+                    />
+
+                    <FrotaFlyoutPanel
+                        isOpen={isFrotaOpen}
+                        onClose={() => setIsFrotaOpen(false)}
+                        anchorRef={frotaRef as any}
                     />
                 </aside>
             </div>

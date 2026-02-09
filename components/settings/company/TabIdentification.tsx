@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
 import { Search, Loader2, Upload, Trash2, MapPin, Phone, Building2, UserCircle, Image as ImageIcon, AlertTriangle, CheckCircle2 } from "lucide-react";
-import { CompanySettings } from "@/lib/data/company-settings";
+import { CompanySettings } from "@/lib/types/settings-types";
 import { extractDigits, formatCNPJ } from "@/lib/cnpj";
 import { useState, useRef } from "react";
 import { createClient } from "@/lib/supabaseBrowser";

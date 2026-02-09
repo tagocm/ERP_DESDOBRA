@@ -17,21 +17,21 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Loader2, AlertTriangle, CheckCircle2, Factory, Archive, Receipt, Layers, Box, Plus, Trash2, Info, AlertCircle, Package2, Warehouse, ShoppingBag, FileText } from "lucide-react";
-import { ProductFormData } from "@/types/product";
+import { ProductFormDataDTO, ItemPackagingDTO } from "@/lib/types/products-dto";
 import { cn, toTitleCase } from "@/lib/utils";
-import { getTaxGroups, TaxGroup } from "@/lib/data/tax-groups";
-import { getUoms } from "@/lib/data/uoms";
-import { Uom } from "@/types/product";
+import { listTaxGroupsAction } from "@/app/actions/tax-group-actions";
+import { listUomsAction } from "@/app/actions/uom-actions";
+import type { TaxGroupDTO, UomDTO } from "@/lib/types/products-dto";
 import { Alert } from "@/components/ui/Alert";
 import { PackagingList } from "./PackagingList";
 import { PackagingModal } from "./PackagingModal";
 import { TaxGroupSelector } from "./TaxGroupSelector";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
-import { ItemPackaging } from "@/types/product";
+
 
 
 interface ProductFormProps {
-    initialData?: ProductFormData;
+    initialData?: ProductFormDataDTO;
     isEdit?: boolean;
     itemId?: string;
 }
@@ -56,12 +56,12 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
     const supabase = createClient();
 
     const [isLoading, setIsLoading] = useState(false);
-    const [taxGroups, setTaxGroups] = useState<TaxGroup[]>([]);
+    const [taxGroups, setTaxGroups] = useState<TaxGroupDTO[]>([]);
     const [activeTab, setActiveTab] = useState("general");
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [success, setSuccess] = useState<string | null>(null);
 
-    const [uoms, setUoms] = useState<Uom[]>([]);
+    const [uoms, setUoms] = useState<UomDTO[]>([]);
 
     // Recipe State
     const [availableIngredients, setAvailableIngredients] = useState<any[]>([]);
@@ -69,7 +69,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
     const [byproducts, setByproducts] = useState<any[]>([]);
     const [recipeHeaderId, setRecipeHeaderId] = useState<string | null>(null);
 
-    const [formData, setFormData] = useState<ProductFormData>(initialData || {
+    const [formData, setFormData] = useState<ProductFormDataDTO>(initialData || {
         // Identity
         name: "",
         sku: "",
@@ -96,7 +96,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         batch_size: 1, // Default yield 1
         loss_percent: 0,     // Perda padrão %
         byproducts: []
-    } as ProductFormData & { production_uom: string; batch_size: number; loss_percent: number; packagings: Partial<ItemPackaging>[]; byproducts: any[] });
+    } as ProductFormDataDTO & { production_uom: string; batch_size: number; loss_percent: number; packagings: Partial<ItemPackagingDTO>[]; byproducts: any[] });
 
     const [packagingModalOpen, setPackagingModalOpen] = useState(false);
     const [showNoRecipeConfirm, setShowNoRecipeConfirm] = useState(false);
@@ -137,7 +137,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         setErrors({});
     };
 
-    const handleChange = (field: keyof ProductFormData | string, value: any) => {
+    const handleChange = (field: keyof ProductFormDataDTO | string, value: any) => {
         let finalValue = value;
 
         // Normalization Rules
@@ -156,11 +156,9 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 const uom = uoms.find(u => u.id === value);
                 if (uom) updates.uom = uom.abbrev;
 
-                // Sync Production UOM if it was same as base or unset
-                if (!prev.production_uom_id || prev.production_uom_id === prev.uom_id) {
-                    updates.production_uom_id = value;
-                    if (uom) updates.production_uom = uom.abbrev;
-                }
+                // Force Production UOM to follow base UOM
+                updates.production_uom_id = value;
+                if (uom) updates.production_uom = uom.abbrev;
             }
 
             if (field === 'production_uom_id') {
@@ -191,7 +189,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         setPackagingModalOpen(true);
     };
 
-    const handleSavePackaging = (pkg: Partial<ItemPackaging>) => {
+    const handleSavePackaging = (pkg: Partial<ItemPackagingDTO>) => {
         const newPackagings = [...(formData.packagings || [])];
 
         // Handle Default Sales Unit logic: If this one is default, unset others
@@ -426,8 +424,12 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
 
     useEffect(() => {
         if (selectedCompany) {
-            getTaxGroups(supabase, selectedCompany.id).then(setTaxGroups);
-            getUoms(selectedCompany.id).then(setUoms);
+            listTaxGroupsAction().then(result => {
+                if (result.success) setTaxGroups(result.data);
+            });
+            listUomsAction().then(result => {
+                if (result.success) setUoms(result.data);
+            });
 
             // ... rest of use effect
 
@@ -498,9 +500,23 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                     .eq('item_id', itemId)
                     .is('deleted_at', null)
                     .order('created_at', { ascending: true })
-                    .then(({ data }) => {
+                    .then(async ({ data }) => {
                         if (data) {
-                            setFormData(prev => ({ ...prev, packagings: data }));
+                            // Check usage in sales_document_items
+                            const pIds = data.map(p => p.id);
+                            const { data: usageData } = await supabase
+                                .from('sales_document_items')
+                                .select('packaging_id')
+                                .in('packaging_id', pIds);
+
+                            const usedIds = new Set(usageData?.map(u => u.packaging_id) || []);
+
+                            const enriched = data.map(p => ({
+                                ...p,
+                                is_used: usedIds.has(p.id)
+                            }));
+
+                            setFormData(prev => ({ ...prev, packagings: enriched }));
                         }
                     });
             }
@@ -521,8 +537,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                             ncm: prev.ncm || group.ncm || "",
                             cest: prev.cest || group.cest || "",
                             origin: (prev.origin === 0 && group.origin_default !== undefined && group.origin_default !== 0)
-                                ? group.origin_default
-                                : prev.origin
+                                ? (group.origin_default ?? 0)
+                                : (prev.origin ?? 0)
                         };
                     }
                     return prev;
@@ -538,6 +554,13 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
             setFormData(prev => ({ ...prev, is_produced: true }));
         }
     }, [formData.type, formData.is_produced]);
+
+    // Force production_uom_id to match uom_id
+    useEffect(() => {
+        if (formData.uom_id && formData.production_uom_id !== formData.uom_id) {
+            setFormData(prev => ({ ...prev, production_uom_id: formData.uom_id }));
+        }
+    }, [formData.uom_id, formData.production_uom_id]);
 
     const executeSave = async (saveAndNew: boolean) => {
         // Apply formatting rules (Frontend)
@@ -737,7 +760,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 default_bom_id: recipeHeaderId || null,
                 batch_size: formProd.batch_size || 1,
                 production_uom: formProd.production_uom || "UN", // Legacy
-                production_uom_id: formData.production_uom_id || null,
+                production_uom_id: formData.uom_id || null,
                 loss_percent: formProd.loss_percent || 0,
                 notes: formProd.production_notes || null
             }, { onConflict: 'item_id' });
@@ -1230,8 +1253,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                             value={formData.net_weight_kg_base || 0}
                                                             onChange={(val) => handleChange('net_weight_kg_base', val)}
                                                             precision={2}
-                                                            minPrecision={0}
-                                                            disableDecimalShift={true}
+                                                            minPrecision={2}
+                                                            disableDecimalShift={false}
                                                             placeholder="0"
                                                             className="text-right"
                                                         />
@@ -1242,8 +1265,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                             value={formData.gross_weight_kg_base || 0}
                                                             onChange={(val) => handleChange('gross_weight_kg_base', val)}
                                                             precision={2}
-                                                            minPrecision={0}
-                                                            disableDecimalShift={true}
+                                                            minPrecision={2}
+                                                            disableDecimalShift={false}
                                                             placeholder="0"
                                                             className="text-right"
                                                         />
@@ -1447,7 +1470,11 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                 value={formData.tax_group_id}
                                                 onChange={(val) => handleTaxGroupChange(val || '')}
                                                 onGroupUpdated={() => {
-                                                    if (selectedCompany) getTaxGroups(createClient(), selectedCompany.id).then(setTaxGroups);
+                                                    if (selectedCompany) {
+                                                        listTaxGroupsAction().then(result => {
+                                                            if (result.success) setTaxGroups(result.data);
+                                                        });
+                                                    }
                                                 }}
                                                 className={cn("mt-1", errors.tax_group_id && "border-red-500")}
                                             />
@@ -1536,18 +1563,13 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                     </div>
                                     <div className="col-span-12 md:col-span-3">
                                         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Unidade de Produção</label>
-                                        <UomSelector
-                                            value={formData.production_uom_id}
-                                            onChange={(val) => handleChange('production_uom_id', val)}
-                                            onSelect={(uom) => {
-                                                // Sync Production UOM if it was same as base or unset
-                                                if (!formData.production_uom_id || formData.production_uom_id === formData.uom_id) {
-                                                    handleChange('production_uom_id', uom.id);
-                                                }
-                                            }}
-                                            className="mt-1"
-                                        />
-                                        <p className="text-xs text-gray-500 mt-1">Unidade do produto final.</p>
+                                        <div className="mt-1 flex items-center h-10 px-3 rounded-md bg-gray-50 border border-gray-100 text-sm text-gray-600 font-medium">
+                                            {uoms.find(u => u.id === formData.uom_id)?.name || '---'}
+                                            <span className="ml-1.5 text-gray-400 font-normal">
+                                                ({uoms.find(u => u.id === formData.uom_id)?.abbrev || '---'})
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-gray-500 mt-1">Sempre a mesma da Unidade básica.</p>
                                     </div>
                                 </div>
                             </CardContent>
@@ -1639,8 +1661,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                                         />
                                                     </td>
                                                     <td className="px-4 py-2">
-                                                        <div className="flex items-center text-xs text-gray-500 h-8 justify-center bg-gray-100 rounded">
-                                                            {line.uom}
+                                                        <div className="flex items-center text-xs text-gray-500 h-8 justify-center bg-gray-100 rounded tabular-nums px-2">
+                                                            {line.uom || availableIngredients.find(i => i.id === line.component_item_id)?.uom || '-'}
                                                         </div>
                                                     </td>
 

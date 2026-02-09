@@ -19,8 +19,16 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
-import { TaxGroup, getTaxGroups } from "@/lib/data/tax-groups";
-import { FiscalOperation, createFiscalOperation, updateFiscalOperation, getFiscalOperations } from "@/lib/data/fiscal-operations";
+import { TaxGroupDTO, FiscalOperationDTO, CfopDTO } from "@/lib/types/fiscal-types";
+import {
+    listFiscalOperationsAction,
+    createFiscalOperationAction,
+    updateFiscalOperationAction,
+    CreateFiscalOperationParams
+} from "@/app/actions/fiscal/fiscal-operation-actions";
+import { listTaxGroupsAction } from "@/app/actions/fiscal/tax-group-actions";
+import { listCfopsAction } from "@/app/actions/fiscal/cfop-actions";
+import { getCompanySettingsAction } from "@/app/actions/settings/company-settings-actions";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -33,33 +41,33 @@ import { DecimalInput } from "@/components/ui/DecimalInput";
 import { Switch } from "@/components/ui/Switch";
 import { cn } from "@/lib/utils";
 import { ICMS_CST_OPTIONS, ICMS_CSOSN_OPTIONS, PIS_COFINS_CST_OPTIONS, IPI_CST_OPTIONS } from "@/lib/constants/fiscal-codes";
-import { getCfops, Cfop } from "@/lib/data/cfops";
 
 // --- Constants ---
 const STATES = [
     'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO', 'EX'
 ];
 
-interface FormProps {
-    initialData?: FiscalOperation;
+interface FiscalOperationFormProps {
+    initialData?: FiscalOperationDTO | null;
     isDuplicate?: boolean;
 }
 
-export function FiscalOperationForm({ initialData, isDuplicate = false }: FormProps) {
+export function FiscalOperationForm({ initialData, isDuplicate = false }: FiscalOperationFormProps) {
     const { selectedCompany } = useCompany();
-    const supabase = createClient();
+    // Removed direct supabase client usage as we use actions now
     const router = useRouter();
     const { toast } = useToast();
 
+    // States
+    const [taxGroups, setTaxGroups] = useState<TaxGroupDTO[]>([]); // Changed to DTO
+    const [cfops, setCfops] = useState<CfopDTO[]>([]); // Changed to DTO
     const [isLoading, setIsLoading] = useState(false);
-    const [taxGroups, setTaxGroups] = useState<TaxGroup[]>([]);
     const [taxRegime, setTaxRegime] = useState<string | null>(null);
     const [originState, setOriginState] = useState<string>('SP'); // Default fallback
-    const [cfops, setCfops] = useState<Cfop[]>([]);
     const [cfopOpen, setCfopOpen] = useState(false);
 
-    // Form State
-    const [formData, setFormData] = useState<Partial<FiscalOperation>>({
+    // Form Data
+    const [formData, setFormData] = useState<Partial<FiscalOperationDTO>>({ // Changed to DTO
         destination_state: 'SP',
         customer_ie_indicator: 'contributor',
         customer_is_final_consumer: false,
@@ -91,48 +99,43 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
 
     useEffect(() => {
         if (selectedCompany) {
-            getTaxGroups(supabase, selectedCompany.id).then(setTaxGroups);
-            getCfops(supabase).then(setCfops);
+            // Updated to use Server Actions
+            listTaxGroupsAction({ companyId: selectedCompany.id, onlyActive: true }).then(res => {
+                if (res.success && res.data) {
+                    console.log(`[DEBUG] Tax Groups loaded: ${res.data.length} for company ${selectedCompany.id}`);
+                    setTaxGroups(res.data);
+                } else {
+                    console.log(`[DEBUG] Failed to load tax groups or empty:`, res);
+                }
+            });
+            listCfopsAction().then(res => {
+                if (res.success && res.data) setCfops(res.data);
+            });
 
             // Fetch Company Settings for Tax Regime and Origin State
-            supabase
-                .from('company_settings')
-                .select('tax_regime, address_state')
-                .eq('company_id', selectedCompany.id)
-                .single()
-                .then(({ data, error }) => {
-                    if (data) {
-                        if (data.tax_regime) setTaxRegime(data.tax_regime);
-                        if (data.address_state) setOriginState(data.address_state);
-                    } else if (error && error.code !== 'PGRST116') {
-                        console.error("Error fetching company settings:", error);
-                    }
-                });
+            getCompanySettingsAction().then(res => {
+                if (res.success && res.data) {
+                    if (res.data.tax_regime) setTaxRegime(res.data.tax_regime);
+                    if (res.data.address_state) setOriginState(res.data.address_state);
+                }
+            });
         }
-    }, [selectedCompany, supabase]);
+    }, [selectedCompany]);
 
     useEffect(() => {
         if (initialData) {
-            const data = { ...initialData };
             if (isDuplicate) {
-                // @ts-expect-error: Removing readonly id for duplication
-                delete data.id;
-                delete data.created_at;
-                delete data.updated_at;
-                delete data.deleted_at;
+                // Removing readonly id for duplication
+                const { id, created_at, updated_at, deleted_at, ...rest } = initialData;
+                setFormData(rest);
             } else {
-                // If editing, use the saved origin state if available (though it should match company currently, 
-                // but strictly we should respect the record's origin if we wanted historical accuracy. 
-                // However, requirement says "manter uf_origem imutável" and display "UF da organização ativa".
-                // Actually, if I edit an old rule from a different state, the prompt said: 
-                // "Ao editar... aplicar filtro obrigatório uf_origem = activeOrganization.uf".
-                // So I only see rules from current active org state. 
-                // Thus, the rule being edited MUST match current company state.
-                if (data.uf_origem) {
-                    setOriginState(data.uf_origem);
+                setFormData(initialData);
+
+                // If editing, use the saved origin state if available
+                if (initialData.uf_origem) {
+                    setOriginState(initialData.uf_origem);
                 }
             }
-            setFormData(data);
         }
     }, [initialData, isDuplicate]);
 
@@ -165,7 +168,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
     }, [taxRegime, formData.ipi_applies]);
 
 
-    const handleChange = (field: keyof FiscalOperation, value: any) => {
+    const handleChange = (field: keyof FiscalOperationDTO, value: unknown) => {
         setFormData(prev => ({ ...prev, [field]: value }));
     };
 
@@ -243,21 +246,30 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
             const payload = {
                 ...formData,
                 company_id: selectedCompany.id
-            } as any;
+            } as unknown as CreateFiscalOperationParams;
 
             if (initialData?.id && !isDuplicate) {
-                await updateFiscalOperation(supabase, initialData.id, payload);
-                toast({ title: "Sucesso!", description: "Regra atualizada com sucesso." });
+                const res = await updateFiscalOperationAction(initialData.id, payload);
+                if (res.success) {
+                    toast({ title: "Sucesso!", description: "Regra atualizada com sucesso." });
+                } else {
+                    throw new Error(res.error);
+                }
             } else {
                 // Pass originState explicitly
-                await createFiscalOperation(supabase, payload, originState);
-                toast({ title: "Sucesso!", description: "Regra criada com sucesso." });
+                const res = await createFiscalOperationAction(payload, originState);
+                if (res.success) {
+                    toast({ title: "Sucesso!", description: "Regra criada com sucesso." });
+                } else {
+                    throw new Error(res.error);
+                }
             }
 
             router.push('/app/fiscal/operacoes');
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error);
-            toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+            const message = error instanceof Error ? error.message : String(error);
+            toast({ title: "Erro ao salvar", description: message, variant: "destructive" });
         } finally {
             setIsLoading(false);
         }
@@ -318,7 +330,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                             <ArrowLeft className="w-4 h-4 mr-2" />
                             Voltar
                         </Button>
-                        <Button onClick={handleSave} disabled={isLoading} className="bg-brand-600 hover:bg-brand-700 text-white">
+                        <Button onClick={handleSave} disabled={isLoading} className="bg-brand-600 hover:bg-brand-700 text-white" data-testid="fiscal-save-button">
                             {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                             Salvar Regra
                         </Button>
@@ -342,7 +354,11 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                         value={formData.tax_group_id}
                                         onValueChange={(v) => handleChange('tax_group_id', v)}
                                     >
-                                        <SelectTrigger className="mt-1">
+                                        <SelectTrigger
+                                            className="mt-1"
+                                            data-testid="fiscal-tax-group"
+                                            data-loaded={taxGroups.length > 0}
+                                        >
                                             <SelectValue placeholder="Selecione..." />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -360,7 +376,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                         value={formData.destination_state}
                                         onValueChange={(v) => handleChange('destination_state', v)}
                                     >
-                                        <SelectTrigger className="mt-1">
+                                        <SelectTrigger className="mt-1" data-testid="fiscal-dest-state">
                                             <SelectValue placeholder="UF" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -472,6 +488,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                                 variant="secondary"
                                                 aria-expanded={cfopOpen}
                                                 className="w-full justify-between px-3 font-normal"
+                                                data-testid="fiscal-cfop-trigger"
                                             >
                                                 {selectedCfopData ? (
                                                     <div className="flex items-center gap-2 overflow-hidden">
@@ -543,6 +560,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                         <TabsTrigger
                                             value="pis_cofins"
                                             className="flex-1"
+                                            data-testid="tab-pis-cofins"
                                         >
                                             PIS / COFINS
                                         </TabsTrigger>
@@ -567,7 +585,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                                             value={formData.icms_cst || ''}
                                                             onValueChange={(v) => handleChange('icms_cst', v)}
                                                         >
-                                                            <SelectTrigger className="h-9 text-sm">
+                                                            <SelectTrigger className="h-9 text-sm" data-testid="fiscal-icms-cst">
                                                                 <SelectValue placeholder="Selecione..." />
                                                             </SelectTrigger>
                                                             <SelectContent>
@@ -722,7 +740,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                                                     <Label className="text-sm font-bold text-gray-800 uppercase">PIS</Label>
-                                                    <Switch checked={formData.pis_applies} onCheckedChange={(v) => handleChange('pis_applies', v)} className="scale-90" />
+                                                    <Switch checked={formData.pis_applies} onCheckedChange={(v) => handleChange('pis_applies', v)} className="scale-90" data-testid="switch-pis" />
                                                 </div>
                                                 {formData.pis_applies && (
                                                     <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-3 rounded-2xl border border-gray-100">
@@ -762,7 +780,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: FormPr
                                             <div className="space-y-3">
                                                 <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                                                     <Label className="text-sm font-bold text-gray-800 uppercase">COFINS</Label>
-                                                    <Switch checked={formData.cofins_applies} onCheckedChange={(v) => handleChange('cofins_applies', v)} className="scale-90" />
+                                                    <Switch checked={formData.cofins_applies} onCheckedChange={(v) => handleChange('cofins_applies', v)} className="scale-90" data-testid="switch-cofins" />
                                                 </div>
                                                 {formData.cofins_applies && (
                                                     <div className="grid grid-cols-2 gap-4 bg-gray-50/50 p-3 rounded-2xl border border-gray-100">

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabaseBrowser";
-import { ArTitle, ArInstallment } from "@/types/financial";
+import { ArTitleDTO, ArInstallmentDTO } from "@/lib/types/financial-dto";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/use-toast";
@@ -37,8 +37,8 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
-interface Props {
-    title: ArTitle;
+interface ApprovalRowExpandedProps {
+    title: ArTitleDTO;
     onRefresh: () => void;
     onApprove: (id: string) => void;
     onDeleteTitle: (id: string) => void;
@@ -55,8 +55,8 @@ const handleCurrencyInput = (val: string, setter: (num: number, str: string) => 
 // Helper for initial format
 const formatToInput = (val: number) => val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export function ApprovalRowExpanded({ title, onRefresh, onApprove, onDeleteTitle }: Props) {
-    const [installments, setInstallments] = useState<(ArInstallment & { _amountInput?: string, _overridden?: boolean })[]>([]);
+export function ApprovalRowExpanded({ title, onRefresh, onApprove, onDeleteTitle }: ApprovalRowExpandedProps) {
+    const [installments, setInstallments] = useState<(ArInstallmentDTO & { _amountInput?: string, _overridden?: boolean })[]>([]);
     const [loading, setLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [generalPaymentMethod, setGeneralPaymentMethod] = useState(title.payment_method_snapshot || "");
@@ -76,7 +76,7 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onDeleteTitle
 
         if (data) {
             // Map to state with input helpers
-            const mapped = data.map((d: ArInstallment) => ({
+            const mapped = data.map((d: ArInstallmentDTO) => ({
                 ...d,
                 _amountInput: formatToInput(d.amount_original),
                 _overridden: false // Reset on fetch
@@ -104,7 +104,7 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onDeleteTitle
         setInstallments(newInsts);
     };
 
-    const handleInstallmentChange = (index: number, field: keyof ArInstallment | '_amountInput', value: any) => {
+    const handleInstallmentChange = (index: number, field: keyof ArInstallmentDTO | '_amountInput', value: any) => {
         const newInstallments = [...installments];
         const current = newInstallments[index];
 

@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Label } from "@/components/ui/Label"
 import { Checkbox } from "@/components/ui/Checkbox"
-import { SystemOccurrenceReasonWithDefaults } from "@/types/system-preferences"
+import { SystemOccurrenceReasonWithDefaultsDTO } from "@/lib/types/system-preferences-dto"
 import { useToast } from "@/components/ui/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface SystemReasonSheetProps {
     isOpen: boolean
     onClose: () => void
-    reason: SystemOccurrenceReasonWithDefaults | null
+    reason: SystemOccurrenceReasonWithDefaultsDTO | null
     typeCode: string
     onSaved: () => Promise<void>
 }

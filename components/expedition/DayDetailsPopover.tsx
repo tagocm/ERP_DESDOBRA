@@ -2,13 +2,13 @@
 
 import { Sheet } from "@/components/ui/Sheet";
 import { Button } from "@/components/ui/Button";
-import { DeliveryRoute } from "@/types/sales";
+import { DeliveryRouteDTO } from "@/lib/types/expedition-dto";
 import { Calendar, Truck, Package, DollarSign, X, CalendarOff, Printer } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
-import { updateOrderVolumes } from "@/lib/data/expedition";
+import { updateOrderVolumesAction } from "@/app/actions/expedition/volume-actions";
 import { generateVolumeLabelZPL, downloadZpl } from "@/lib/zpl-generator";
 import { Input } from "@/components/ui/Input";
 
@@ -16,7 +16,7 @@ interface DayDetailsPopoverProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     date: Date;
-    routes: DeliveryRoute[];
+    routes: DeliveryRouteDTO[];
     onUnscheduleRoute: (routeId: string) => void;
     onRemoveOrderFromRoute: (orderId: string, routeId: string) => void;
     onOpenRouteDetails?: (routeId: string) => void;
@@ -37,7 +37,7 @@ export function DayDetailsPopover({
     const handleVolumeChange = async (routeId: string, orderId: string, newVolume: number) => {
         if (newVolume < 1) return;
         try {
-            await updateOrderVolumes(supabase, routeId, orderId, newVolume);
+            await updateOrderVolumesAction(routeId, orderId, newVolume);
             toast({ title: "Volumes atualizados" });
         } catch (e) {
             console.error(e);
@@ -45,7 +45,7 @@ export function DayDetailsPopover({
         }
     };
 
-    const handlePrintRoute = (route: DeliveryRoute) => {
+    const handlePrintRoute = (route: DeliveryRouteDTO) => {
         let zpl = '';
         route.orders?.forEach(ro => {
             const vols = ro.volumes || 1;
@@ -58,7 +58,7 @@ export function DayDetailsPopover({
         else toast({ title: "Nada para imprimir", variant: "destructive" });
     };
 
-    const handlePrintOrder = (route: DeliveryRoute, ro: any) => {
+    const handlePrintOrder = (route: DeliveryRouteDTO, ro: any) => {
         let zpl = '';
         const vols = ro.volumes || 1;
         const order = ro.sales_order!;
@@ -138,7 +138,7 @@ export function DayDetailsPopover({
                                 <div className="divide-y divide-gray-100">
                                     {route.orders && route.orders.length > 0 ? (
                                         route.orders.map((ro) => {
-                                             
+
                                             const order = ro.sales_order;
                                             if (!order) return null;
 

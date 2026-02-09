@@ -10,7 +10,12 @@ import { Tabs, TabsContent } from "@/components/ui/Tabs";
 import { TabsList, TabsTrigger } from "@/components/ui/Tabs";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Save, Undo } from "lucide-react";
-import { CompanySettings, getCompanySettings, updateCompanySettings, updateCompanyName } from "@/lib/data/company-settings";
+import { CompanySettings } from "@/lib/types/settings-types"; // Type
+import {
+    getCompanySettingsAction,
+    updateCompanySettingsAction,
+    updateCompanyNameAction
+} from "@/app/actions/settings/company-settings-actions";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { FormTabsList, FormTabsTrigger } from "@/components/ui/FormTabs";
 
@@ -66,7 +71,10 @@ export function CompanySettingsForm() {
 
                 // Load Settings
                 console.log("Fetching company settings...");
-                const data = await getCompanySettings(supabase, selectedCompany.id);
+                const res = await getCompanySettingsAction();
+                if (!res.success) throw new Error(res.error);
+
+                const data = res.data;
                 console.log("Settings data:", data);
 
                 setSettings({
@@ -163,14 +171,22 @@ export function CompanySettingsForm() {
 
             // Save Settings
             console.log("Saving settings to DB...");
-            const result = await updateCompanySettings(supabase, selectedCompany.id, settings);
+
+            // Map settings to action schema if needed, but action currently matches CompanySettings Partial
+            // except we need to be careful with nulls vs undefined if Zod is strict
+            // The action takes Partial<CompanySettings>, Zod schema validation happens inside.
+
+            const res = await updateCompanySettingsAction(settings);
+            if (!res.success) throw new Error(res.error);
+
+            const result = res.data;
             console.log("Save result:", result);
 
             // Update Company Name (Secondary, non-blocking)
             if (settings.trade_name) {
                 try {
                     console.log("Updating trade name...");
-                    await updateCompanyName(supabase, selectedCompany.id, settings.trade_name);
+                    await updateCompanyNameAction(settings.trade_name);
                 } catch (nameErr) {
                     console.warn("Failed to update company name in 'companies' table:", nameErr);
                     // Do not block the user if this fails

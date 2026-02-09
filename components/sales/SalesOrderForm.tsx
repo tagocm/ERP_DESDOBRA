@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { saveSalesOrderAction } from "@/app/actions/save-sales-order";
-import { getSalesDocumentById, upsertSalesDocument, upsertSalesItem, deleteSalesItem } from "@/lib/data/sales-orders";
-import { SalesOrder } from "@/types/sales";
+import { getSalesOrderAction } from "@/app/actions/sales/sales-actions";
+import { SalesOrderDTO } from "@/lib/types/sales-dto";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -24,11 +24,11 @@ import { Loader2, Save, Ban } from "lucide-react";
 import { getFinancialBadgeStyle } from "@/lib/constants/statusColors";
 import { normalizeFinancialStatus, normalizeLogisticsStatus, translateLogisticsStatusPt } from "@/lib/constants/status";
 
-interface SalesOrderFormProps {
+interface SalesOrderDTOFormProps {
     id: string; // 'novo' or uuid
 }
 
-const emptyDoc: Partial<SalesOrder> = {
+const emptyDoc: Partial<SalesOrderDTO> = {
     doc_type: 'proposal',
     status_commercial: 'draft',
     status_logistic: 'pending',
@@ -43,7 +43,7 @@ const emptyDoc: Partial<SalesOrder> = {
     total_gross_weight_kg: 0
 };
 
-export function SalesOrderForm({ id }: SalesOrderFormProps) {
+export function SalesOrderDTOForm({ id }: SalesOrderDTOFormProps) {
     const isNew = id === 'novo';
     const router = useRouter();
     const { selectedCompany } = useCompany();
@@ -51,7 +51,7 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
 
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [data, setData] = useState<Partial<SalesOrder>>(emptyDoc);
+    const [data, setData] = useState<Partial<SalesOrderDTO>>(emptyDoc);
     const [deletedItemIds, setDeletedItemIds] = useState<string[]>([]);
     const [activeTab, setActiveTab] = useState("general");
     const currentLogisticsStatus = normalizeLogisticsStatus(data.status_logistic) || data.status_logistic || "";
@@ -69,8 +69,9 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
     const loadDocument = async (docId: string) => {
         setLoading(true);
         try {
-            const doc = await getSalesDocumentById(supabase, docId);
-            if (doc) setData(doc);
+            const result = await getSalesOrderAction(docId);
+            if (result.success && result.data) setData(result.data);
+            else if (!result.success) throw new Error(result.error);
         } catch (e) {
             console.error(e);
             setError("Falha ao carregar pedido.");
@@ -79,7 +80,7 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
         }
     };
 
-    const handleChange = (field: keyof SalesOrder, value: any) => {
+    const handleChange = (field: keyof SalesOrderDTO, value: any) => {
         setData(prev => {
             const next = { ...prev, [field]: value };
 
@@ -119,7 +120,7 @@ export function SalesOrderForm({ id }: SalesOrderFormProps) {
     };
 
     // Intercept item deletion to track IDs
-    const handleItemChangeWrapper = (field: keyof SalesOrder, value: any) => {
+    const handleItemChangeWrapper = (field: keyof SalesOrderDTO, value: any) => {
         if (field === 'items') {
             const newItems = value as any[];
             const oldItems = data.items || [];

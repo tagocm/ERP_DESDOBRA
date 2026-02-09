@@ -5,12 +5,17 @@ import { useToast } from "@/components/ui/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { getCategories, createCategory, updateCategory, deleteCategory } from "@/lib/data/categories";
-import { ProductCategory } from "@/types/product";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/Alert";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { Card } from "@/components/ui/Card";
+import {
+    listCategoriesAction,
+    createCategoryAction,
+    updateCategoryAction,
+    deleteCategoryAction,
+} from "@/app/actions/category-actions";
+import type { CategoryDTO } from "@/lib/types/products-dto";
 import {
     Table,
     TableBody,
@@ -28,7 +33,7 @@ interface CategoryManagerModalProps {
 
 export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryManagerModalProps) {
     const { toast } = useToast();
-    const [categories, setCategories] = useState<ProductCategory[]>([]);
+    const [categories, setCategories] = useState<CategoryDTO[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [newItemName, setNewItemName] = useState("");
     const [isCreating, setIsCreating] = useState(false);
@@ -43,8 +48,12 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
     const fetchCategories = async () => {
         setIsLoading(true);
         try {
-            const data = await getCategories(companyId);
-            setCategories(data);
+            const result = await listCategoriesAction();
+            if (result.success) {
+                setCategories(result.data);
+            } else {
+                toast({ title: "Erro ao carregar categorias", description: result.error, variant: "destructive" });
+            }
         } catch (error) {
             console.error(error);
             toast({ title: "Erro ao carregar categorias", variant: "destructive" });
@@ -63,13 +72,18 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
         if (!newItemName.trim()) return;
         setIsCreating(true);
         try {
-            await createCategory(companyId, newItemName);
-            setNewItemName("");
-            fetchCategories();
-            onChange?.();
-            toast({ title: "Categoria criada com sucesso!", variant: "default" });
-        } catch (error: any) {
-            toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
+            const result = await createCategoryAction({ name: newItemName });
+            if (result.success) {
+                setNewItemName("");
+                fetchCategories();
+                onChange?.();
+                toast({ title: "Categoria criada com sucesso!", variant: "default" });
+            } else {
+                toast({ title: "Erro ao criar", description: result.error, variant: "destructive" });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Erro ao criar", variant: "destructive" });
         } finally {
             setIsCreating(false);
         }
@@ -79,13 +93,18 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
         if (!editName.trim()) return;
         setIsUpdating(true);
         try {
-            await updateCategory(id, editName);
-            setEditingId(null);
-            fetchCategories();
-            onChange?.();
-            toast({ title: "Categoria atualizada!", variant: "default" });
-        } catch (error: any) {
-            toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
+            const result = await updateCategoryAction({ id, name: editName });
+            if (result.success) {
+                setEditingId(null);
+                fetchCategories();
+                onChange?.();
+                toast({ title: "Categoria atualizada!", variant: "default" });
+            } else {
+                toast({ title: "Erro ao atualizar", description: result.error, variant: "destructive" });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Erro ao atualizar", variant: "destructive" });
         } finally {
             setIsUpdating(false);
         }
@@ -94,12 +113,17 @@ export function CategoryManagerModal({ companyId, onClose, onChange }: CategoryM
     const handleDelete = async () => {
         if (!categoryToDelete) return;
         try {
-            await deleteCategory(categoryToDelete);
-            fetchCategories();
-            onChange?.();
-            toast({ title: "Categoria removida!", variant: "default" });
-        } catch (error: any) {
-            toast({ title: "Erro ao remover", description: error.message, variant: "destructive" });
+            const result = await deleteCategoryAction({ id: categoryToDelete });
+            if (result.success) {
+                fetchCategories();
+                onChange?.();
+                toast({ title: "Categoria removida!", variant: "default" });
+            } else {
+                toast({ title: "Erro ao remover", description: result.error, variant: "destructive" });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Erro ao remover", variant: "destructive" });
         } finally {
             setCategoryToDelete(null);
         }

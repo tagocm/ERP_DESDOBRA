@@ -4,7 +4,8 @@
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
-import { CompanySettings } from "@/lib/data/company-settings";
+import { CompanySettings } from "@/lib/types/settings-types"; // Type only
+import { updateCompanySettingsAction } from "@/app/actions/settings/company-settings-actions";
 import { useState, useRef } from "react";
 import { createClient } from "@/lib/supabaseBrowser";
 import { validateCertFile, generateFilePath } from "@/lib/upload-helpers";
@@ -186,21 +187,21 @@ export function TabCertificate({ data, onChange, isAdmin }: TabCertificateProps)
             <CardContent>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                     {/* Left Column: Upload / Status */}
-	                        <div className="flex flex-col h-full space-y-3">
-	                            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-	                            <div className="w-8 h-8 rounded-full bg-brand-50 flex items-center justify-center text-brand-600">
-	                                <Upload className="w-4 h-4" />
-	                            </div>
-	                            <h3 className="text-sm font-semibold text-gray-900">Arquivo do Certificado</h3>
-	                        </div>
+                    <div className="flex flex-col h-full space-y-3">
+                        <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                            <div className="w-8 h-8 rounded-full bg-brand-50 flex items-center justify-center text-brand-600">
+                                <Upload className="w-4 h-4" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-gray-900">Arquivo do Certificado</h3>
+                        </div>
 
-	                        {data.cert_a1_storage_path ? (
-	                            <Card className="p-5 flex-1 flex flex-col transition-all hover:shadow-float hover:border-brand-200 group">
-	                                <div className="flex items-start gap-4 mb-4">
-	                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-50 to-white flex items-center justify-center text-brand-600 shrink-0 border border-brand-100 group-hover:scale-105 transition-transform">
-	                                        <FileKey className="w-6 h-6" />
-	                                    </div>
-	                                    <div className="flex-1 min-w-0 pt-1">
+                        {data.cert_a1_storage_path ? (
+                            <Card className="p-5 flex-1 flex flex-col transition-all hover:shadow-float hover:border-brand-200 group">
+                                <div className="flex items-start gap-4 mb-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-50 to-white flex items-center justify-center text-brand-600 shrink-0 border border-brand-100 group-hover:scale-105 transition-transform">
+                                        <FileKey className="w-6 h-6" />
+                                    </div>
+                                    <div className="flex-1 min-w-0 pt-1">
                                         <div className="flex items-center justify-between">
                                             <h4 className="font-bold text-gray-900 text-sm">Certificado Digital</h4>
                                             {isAdmin && (
@@ -234,9 +235,9 @@ export function TabCertificate({ data, onChange, isAdmin }: TabCertificateProps)
                                         <p className="text-xs text-gray-500 mt-1 flex items-center gap-1.5">
                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                                             Arquivo identificado.
-	                                        </p>
-	                                    </div>
-	                                </div>
+                                        </p>
+                                    </div>
+                                </div>
 
                                 <div className="space-y-3 mt-auto pt-3 border-t border-gray-100">
                                     <div className="grid grid-cols-2 gap-3">
@@ -260,30 +261,30 @@ export function TabCertificate({ data, onChange, isAdmin }: TabCertificateProps)
                                         </div>
                                     </div>
                                 </div>
-	                            </Card>
-	                        ) : (
-	                            <div
-	                                className={`flex-1 border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center text-center transition-all cursor-pointer group ${isDragging
-	                                    ? 'border-brand-500 bg-brand-50/30'
-	                                    : 'border-gray-200 bg-white hover:border-brand-300 hover:bg-gray-50/50'
-	                                    }`}
+                            </Card>
+                        ) : (
+                            <div
+                                className={`flex-1 border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center text-center transition-all cursor-pointer group ${isDragging
+                                    ? 'border-brand-500 bg-brand-50/30'
+                                    : 'border-gray-200 bg-white hover:border-brand-300 hover:bg-gray-50/50'
+                                    }`}
                                 onClick={() => fileInputRef.current?.click()}
                                 onDragOver={handleDragOver}
                                 onDragLeave={handleDragLeave}
                                 onDrop={handleDrop}
                             >
-	                                <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-3 transition-all ${isDragging
-	                                    ? 'bg-brand-100 scale-110'
-	                                    : 'bg-gray-50 border border-gray-100 group-hover:scale-105 group-hover:border-brand-100 group-hover:bg-white'
-	                                    }`}>
-	                                    <Upload className={`w-6 h-6 ${isDragging ? 'text-brand-600' : 'text-gray-400 group-hover:text-brand-600'}`} />
-	                                </div>
+                                <div className={`w-14 h-14 rounded-full flex items-center justify-center mb-3 transition-all ${isDragging
+                                    ? 'bg-brand-100 scale-110'
+                                    : 'bg-gray-50 border border-gray-100 group-hover:scale-105 group-hover:border-brand-100 group-hover:bg-white'
+                                    }`}>
+                                    <Upload className={`w-6 h-6 ${isDragging ? 'text-brand-600' : 'text-gray-400 group-hover:text-brand-600'}`} />
+                                </div>
                                 <h4 className="font-bold text-gray-900 text-sm mb-1">
                                     {isDragging ? 'Solte o arquivo aqui' : 'Upload do Certificado'}
                                 </h4>
-	                                <p className="text-xs text-gray-500 max-w-xs leading-relaxed">
-	                                    Arraste .pfx ou .p12 ou clica para buscar.
-	                                </p>
+                                <p className="text-xs text-gray-500 max-w-xs leading-relaxed">
+                                    Arraste .pfx ou .p12 ou clica para buscar.
+                                </p>
 
                                 {isAdmin && (
                                     <>
@@ -294,38 +295,38 @@ export function TabCertificate({ data, onChange, isAdmin }: TabCertificateProps)
                                             ref={fileInputRef}
                                             onChange={handleFileChange}
                                         />
-	                                        <div className="mt-4">
-	                                            <Button variant="outline" size="sm" className="h-8 text-xs font-medium border-gray-200 hover:border-brand-300 hover:text-brand-700" disabled={uploading}>
-	                                                {uploading ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Upload className="w-3 h-3 mr-2" />}
-	                                                {uploading ? "Enviando..." : "Selecionar Arquivo"}
-	                                            </Button>
-	                                        </div>
+                                        <div className="mt-4">
+                                            <Button variant="outline" size="sm" className="h-8 text-xs font-medium border-gray-200 hover:border-brand-300 hover:text-brand-700" disabled={uploading}>
+                                                {uploading ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <Upload className="w-3 h-3 mr-2" />}
+                                                {uploading ? "Enviando..." : "Selecionar Arquivo"}
+                                            </Button>
+                                        </div>
                                     </>
-	                                )}
-	                                {uploadError && (
-	                                    <div className="mt-3 flex items-center gap-2 text-xs text-red-600 bg-red-50 px-2.5 py-1.5 rounded-2xl border border-red-100">
-	                                        <AlertTriangle className="w-3 h-3" />
-	                                        {uploadError}
-	                                    </div>
-	                                )}
+                                )}
+                                {uploadError && (
+                                    <div className="mt-3 flex items-center gap-2 text-xs text-red-600 bg-red-50 px-2.5 py-1.5 rounded-2xl border border-red-100">
+                                        <AlertTriangle className="w-3 h-3" />
+                                        {uploadError}
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
 
-	                        {/* Right Column: Security & Test */}
-	                        <div className="flex flex-col h-full space-y-3">
-	                            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-	                            <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
-	                                <ShieldCheck className="w-4 h-4" />
-	                            </div>
-	                            <h3 className="text-sm font-semibold text-gray-900">Segurança do Certificado</h3>
-	                        </div>
+                    {/* Right Column: Security & Test */}
+                    <div className="flex flex-col h-full space-y-3">
+                        <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+                            <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+                                <ShieldCheck className="w-4 h-4" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-gray-900">Segurança do Certificado</h3>
+                        </div>
 
-	                        {/* Legacy Password Warning */}
-	                        {(data.cert_password_encrypted && data.cert_password_encrypted.length === 64 && !passwordSaved) && (
-	                            <div className="bg-red-50 border border-red-100 rounded-2xl p-4 mb-4 flex gap-3 animate-pulse">
-	                                <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-	                                <div className="text-sm text-red-800">
+                        {/* Legacy Password Warning */}
+                        {(data.cert_password_encrypted && data.cert_password_encrypted.length === 64 && !passwordSaved) && (
+                            <div className="bg-red-50 border border-red-100 rounded-2xl p-4 mb-4 flex gap-3 animate-pulse">
+                                <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                <div className="text-sm text-red-800">
                                     <p className="font-bold">Ação Necessária: Atualizar Senha</p>
                                     <p className="mt-1 leading-relaxed">
                                         Identificamos que sua senha estava salva com um padrão antigo.
@@ -335,31 +336,31 @@ export function TabCertificate({ data, onChange, isAdmin }: TabCertificateProps)
                             </div>
                         )}
 
-	                        <div className="space-y-4">
-	                            {data.is_cert_password_saved || passwordSaved ? (
-	                                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-3">
-	                                    <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
-	                                        <CheckCircle2 className="w-6 h-6" />
-	                                    </div>
-	                                    <div>
-	                                        <h4 className="text-sm font-bold text-gray-900 mb-1">Senha Salva com Segurança</h4>
-	                                        <p className="text-xs text-emerald-700 max-w-xs mx-auto leading-relaxed">
-	                                            Sua senha está criptografada e salva, permitindo a emissão automática de notas fiscais.
-	                                        </p>
-	                                    </div>
+                        <div className="space-y-4">
+                            {data.is_cert_password_saved || passwordSaved ? (
+                                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex flex-col items-center text-center space-y-3">
+                                    <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                                        <CheckCircle2 className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <h4 className="text-sm font-bold text-gray-900 mb-1">Senha Salva com Segurança</h4>
+                                        <p className="text-xs text-emerald-700 max-w-xs mx-auto leading-relaxed">
+                                            Sua senha está criptografada e salva, permitindo a emissão automática de notas fiscais.
+                                        </p>
+                                    </div>
                                     {isAdmin && (
                                         <Button
                                             variant="outline"
                                             size="sm"
-	                                            onClick={() => {
-	                                                onChange('is_cert_password_saved', false);
-	                                                setCertPassword("");
-	                                                setPasswordSaved(false);
-	                                            }}
-	                                            className="h-8 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 hover:border-emerald-300 bg-white"
-	                                        >
-	                                            Remover Senha Salva
-	                                        </Button>
+                                            onClick={() => {
+                                                onChange('is_cert_password_saved', false);
+                                                setCertPassword("");
+                                                setPasswordSaved(false);
+                                            }}
+                                            className="h-8 text-xs border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800 hover:border-emerald-300 bg-white"
+                                        >
+                                            Remover Senha Salva
+                                        </Button>
                                     )}
                                 </div>
                             ) : (
@@ -378,16 +379,16 @@ export function TabCertificate({ data, onChange, isAdmin }: TabCertificateProps)
                                         />
                                     </div>
 
-	                                    <Button
-	                                        variant="primary"
-	                                        size="sm"
-	                                        onClick={handlePasswordSave}
-	                                        disabled={!isAdmin || !certPassword}
-	                                        className="w-full h-10"
-	                                    >
-	                                        <ShieldCheck className="w-4 h-4 mr-2" />
-	                                        Salvar Senha de Forma Segura
-	                                    </Button>
+                                    <Button
+                                        variant="primary"
+                                        size="sm"
+                                        onClick={handlePasswordSave}
+                                        disabled={!isAdmin || !certPassword}
+                                        className="w-full h-10"
+                                    >
+                                        <ShieldCheck className="w-4 h-4 mr-2" />
+                                        Salvar Senha de Forma Segura
+                                    </Button>
 
                                     <p className="text-[10px] text-gray-400 text-center leading-tight pt-1">
                                         A senha será criptografada antes de ser salva.
@@ -408,15 +409,15 @@ export function TabCertificate({ data, onChange, isAdmin }: TabCertificateProps)
                                 Testar Conectividade
                             </Button>
 
-	                            {testResult && (
-	                                <div className={`mt-2 text-xs px-3 py-2 rounded-2xl font-medium border flex items-center gap-2 animate-in fade-in slide-in-from-top-1 ${testResult.valid
-	                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
-	                                    : 'bg-red-50 text-red-700 border-red-100'
-	                                    }`}>
-	                                    {testResult.valid ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
-	                                    {testResult.message}
-	                                </div>
-	                            )}
+                            {testResult && (
+                                <div className={`mt-2 text-xs px-3 py-2 rounded-2xl font-medium border flex items-center gap-2 animate-in fade-in slide-in-from-top-1 ${testResult.valid
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                    : 'bg-red-50 text-red-700 border-red-100'
+                                    }`}>
+                                    {testResult.valid ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+                                    {testResult.message}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>

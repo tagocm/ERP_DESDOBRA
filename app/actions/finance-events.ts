@@ -25,6 +25,7 @@ import {
     type ApprovalSnapshot
 } from '@/lib/finance/events-db';
 import { generateTitleFromEvent } from '@/lib/finance/title-generator';
+import { recalculateInstallments } from '@/lib/utils/finance-calculations';
 
 export interface ActionResult<T = any> {
     success: boolean;
@@ -53,6 +54,9 @@ export interface CostCenterOption {
 export interface PaymentTermOption {
     id: string;
     name: string;
+    installments_count: number;
+    first_due_days: number;
+    cadence_days: number;
 }
 
 /**
@@ -134,7 +138,7 @@ export async function listPaymentTermsAction(companyId: string): Promise<ActionR
         const supabase = await createClient();
         const { data, error } = await supabase
             .from('payment_terms')
-            .select('id, name')
+            .select('id, name, installments_count, first_due_days, cadence_days')
             .eq('company_id', companyId)
             .eq('is_active', true)
             .order('name', { ascending: true });
@@ -529,38 +533,65 @@ export async function recalculateInstallmentsAction(
                 notes: null
             }];
         } else {
-            // Parse "30/60/90" or "2x30"
+            // Try to parse using shared utils logic if it matches standard format? 
+            // The utils `recalculateInstallments` expects a structured `paymentTerm` config.
+            // Here we only have a string `paymentCondition`.
+            // We need to parse the string into the config first, as the inline code did manually.
+
             const match = paymentCondition.match(/(\d+)x(\d+)|(\d+)\/(\d+)\/(\d+)/);
 
             if (match) {
-                let days: number[] = [];
+                let count = 1;
+                let firstDue = 30;
+                let cadence = 30;
 
                 if (match[1]) {
-                    // Format: "3x30" → 3 installments every 30 days
-                    const count = parseInt(match[1]);
-                    const interval = parseInt(match[2]);
-                    days = Array.from({ length: count }, (_, i) => interval * (i + 1));
+                    // Format: "3x30"
+                    count = parseInt(match[1]);
+                    cadence = parseInt(match[2]);
+                    firstDue = cadence;
                 } else {
-                    // Format: "30/60/90" → specific days
-                    days = [parseInt(match[3]), parseInt(match[4]), parseInt(match[5])].filter(Boolean);
+                    // Format: "30/60/90" - This is harder to map to (first, cadence) if it's irregular.
+                    // The shared utility assumes REGULAR cadence.
+                    // If the input string implies IRREGULAR (e.g. 30/45/60 - diff 15, first 30), 
+                    // reusing the shared utility might fail if it strictly enforces `first + i*cadence`.
+                    // Example: 30/60/90 -> first 30, cadence 30. Works.
+
+                    const days = [parseInt(match[3]), parseInt(match[4]), parseInt(match[5])].filter(Boolean);
+                    // Check if regular
+                    const d1 = days[0];
+                    const d2 = days[1];
+                    const diff = d2 - d1;
+
+                    count = days.length;
+                    firstDue = d1;
+                    cadence = diff;
                 }
 
-                const amountPer = event.total_amount / days.length;
-                const roundedAmountPer = Math.floor(amountPer * 100) / 100;
-                const remainder = event.total_amount - (roundedAmountPer * days.length);
+                // Import dynamically or at top? Top is better. I will add import in next step.
+                // Assuming import is present:
+                const rec = recalculateInstallments(
+                    event.total_amount,
+                    issueDate,
+                    { installments_count: count, first_due_days: firstDue, cadence_days: cadence },
+                    null,
+                    paymentCondition
+                );
 
-                installments = days.map((daysOffset, idx) => ({
-                    installment_number: idx + 1,
-                    due_date: new Date(issueDate.getTime() + daysOffset * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                    amount: idx === 0 ? roundedAmountPer + remainder : roundedAmountPer,
-                    payment_condition: paymentCondition,
-                    payment_method: null,
+                // Map back to EventInstallment structure (partial)
+                installments = rec.map(r => ({
+                    installment_number: r.installment_number,
+                    due_date: r.due_date,
+                    amount: r.amount,
+                    payment_condition: r.payment_condition,
+                    payment_method: r.payment_method,
                     suggested_account_id: null,
                     category_id: null,
                     cost_center_id: null,
                     financial_account_id: null,
                     notes: null
                 }));
+
             } else {
                 // Default: 30 days
                 installments = [{

@@ -5,12 +5,17 @@ import { useToast } from "@/components/ui/use-toast";
 import { DialogContent, DialogTitle, DialogDescription } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { TaxGroup, getTaxGroups, createTaxGroup, updateTaxGroup, deleteTaxGroup } from "@/lib/data/tax-groups";
-import { createClient } from "@/lib/supabaseBrowser";
 import { useCompany } from "@/contexts/CompanyContext";
 import { cn, toTitleCase } from "@/lib/utils";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { Card } from "@/components/ui/Card";
+import {
+    listTaxGroupsAction,
+    createTaxGroupAction,
+    updateTaxGroupAction,
+    deleteTaxGroupAction,
+} from "@/app/actions/tax-group-actions";
+import type { TaxGroupDTO } from "@/lib/types/products-dto";
 import {
     Table,
     TableBody,
@@ -29,9 +34,8 @@ interface TaxGroupManagerModalProps {
 export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModalProps) {
     const { toast } = useToast();
     const { selectedCompany } = useCompany();
-    const supabase = createClient();
 
-    const [groups, setGroups] = useState<TaxGroup[]>([]);
+    const [groups, setGroups] = useState<TaxGroupDTO[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     // Form State
@@ -51,9 +55,12 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
         if (!selectedCompany?.id) return;
         setIsLoading(true);
         try {
-            // Fetch ALL (including inactive) for management
-            const data = await getTaxGroups(supabase, selectedCompany.id, false);
-            setGroups(data);
+            const result = await listTaxGroupsAction({ onlyActive: false });
+            if (result.success) {
+                setGroups(result.data);
+            } else {
+                toast({ title: "Erro ao carregar grupos tributários", description: result.error, variant: "destructive" });
+            }
         } catch (error) {
             console.error(error);
             toast({ title: "Erro ao carregar grupos tributários", variant: "destructive" });
@@ -73,7 +80,7 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
         setEditingId(null);
     };
 
-    const handleStartEdit = (group: TaxGroup) => {
+    const handleStartEdit = (group: TaxGroupDTO) => {
         setEditingId(group.id);
         setFormName(group.name);
         setFormObservation(group.observation || "");
@@ -94,19 +101,22 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
         if (!validate()) return;
         setIsCreating(true);
         try {
-            await createTaxGroup(supabase, {
-                company_id: selectedCompany.id,
+            const result = await createTaxGroupAction({
                 name: toTitleCase(formName) || "",
-                // Deprecated: ncm, cest, origin_default removed from payload
                 is_active: formIsActive,
                 observation: formObservation || null
             });
-            resetForm();
-            fetchGroups();
-            onChange?.();
-            toast({ title: "Grupo criado com sucesso!", variant: "default" });
-        } catch (error: any) {
-            toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
+            if (result.success) {
+                resetForm();
+                fetchGroups();
+                onChange?.();
+                toast({ title: "Grupo criado com sucesso!", variant: "default" });
+            } else {
+                toast({ title: "Erro ao criar", description: result.error, variant: "destructive" });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Erro ao criar", variant: "destructive" });
         } finally {
             setIsCreating(false);
         }
@@ -116,19 +126,24 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
         if (!validate()) return;
         setIsUpdating(true);
         try {
-            await updateTaxGroup(supabase, id, {
+            const result = await updateTaxGroupAction({
+                id,
                 name: toTitleCase(formName) || "",
-                // Deprecated: ncm, cest, origin_default removed from payload
                 is_active: formIsActive,
                 observation: formObservation || null
             });
-            resetForm();
-            fetchGroups();
-            onChange?.();
-            toast({ title: "Grupo atualizado!", variant: "default" });
-            setAddBoxOpen(false); // Close box after update
-        } catch (error: any) {
-            toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
+            if (result.success) {
+                resetForm();
+                fetchGroups();
+                onChange?.();
+                toast({ title: "Grupo atualizado!", variant: "default" });
+                setAddBoxOpen(false);
+            } else {
+                toast({ title: "Erro ao atualizar", description: result.error, variant: "destructive" });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Erro ao atualizar", variant: "destructive" });
         } finally {
             setIsUpdating(false);
         }
@@ -137,12 +152,17 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
     const handleDelete = async () => {
         if (!groupToDelete) return;
         try {
-            await deleteTaxGroup(supabase, groupToDelete);
-            fetchGroups();
-            onChange?.();
-            toast({ title: "Grupo removido!", variant: "default" });
-        } catch (error: any) {
-            toast({ title: "Erro ao remover", description: error.message, variant: "destructive" });
+            const result = await deleteTaxGroupAction({ id: groupToDelete });
+            if (result.success) {
+                fetchGroups();
+                onChange?.();
+                toast({ title: "Grupo removido!", variant: "default" });
+            } else {
+                toast({ title: "Erro ao remover", description: result.error, variant: "destructive" });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Erro ao remover", variant: "destructive" });
         } finally {
             setGroupToDelete(null);
         }

@@ -7,9 +7,9 @@ import { Input } from "@/components/ui/Input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Loader2, Plus, Truck } from "lucide-react";
 import { createClient } from "@/lib/supabaseBrowser";
-import { getTodayRoutes, createRoute } from "@/lib/data/expedition";
+import { getTodayRoutesAction } from "@/app/actions/sales/expedition-actions";
 import { useToast } from "@/components/ui/use-toast";
-import { DeliveryRoute } from "@/types/sales";
+import { DeliveryRouteDTO } from "@/lib/types/sales-dto";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
@@ -25,7 +25,7 @@ interface RouteSelectionModalProps {
 export function RouteSelectionModal({ open, onOpenChange, companyId, onConfirm }: RouteSelectionModalProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [routes, setRoutes] = useState<DeliveryRoute[]>([]);
+    const [routes, setRoutes] = useState<DeliveryRouteDTO[]>([]);
     const [selectedValue, setSelectedValue] = useState<string>("");
     const [newRouteName, setNewRouteName] = useState("");
     const supabase = createClient();
@@ -43,8 +43,11 @@ export function RouteSelectionModal({ open, onOpenChange, companyId, onConfirm }
     const fetchRoutes = async () => {
         setIsLoading(true);
         try {
-            const data = await getTodayRoutes(supabase, companyId);
-            setRoutes(data || []);
+            const result = await getTodayRoutesAction();
+            if (!result.success) throw new Error(result.error);
+
+            const data = result.data || [];
+            setRoutes(data);
             // Pre-select the first route if available, otherwise 'new'
             if (data && data.length > 0) {
                 setSelectedValue(data[0].id);
@@ -115,7 +118,7 @@ export function RouteSelectionModal({ open, onOpenChange, companyId, onConfirm }
                         </div>
                     ) : (
                         <RadioGroup value={selectedValue} onValueChange={setSelectedValue} className="gap-3">
-                    <ScrollArea className="h-[200px] w-full rounded-2xl border p-2">
+                            <ScrollArea className="h-[200px] w-full rounded-2xl border p-2">
                                 <div className="space-y-2">
                                     {routes.length === 0 && (
                                         <div className="text-sm text-center text-muted-foreground py-4">

@@ -19,9 +19,9 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover"
-import { getCfops, Cfop } from "@/lib/data/cfops"
 import { useToast } from "@/components/ui/use-toast"
-import { createClient } from "@/lib/supabaseBrowser";
+import { listCfopsAction } from "@/app/actions/cfop-actions"
+import type { CfopDTO } from "@/lib/types/products-dto"
 
 interface CfopSelectorProps {
     value?: string; // code
@@ -33,19 +33,21 @@ interface CfopSelectorProps {
 export function CfopSelector({ value, onChange, className, disabled }: CfopSelectorProps) {
     const { toast } = useToast()
     const [open, setOpen] = React.useState(false)
-    const [cfops, setCfops] = React.useState<Cfop[]>([]) // Full list or filtered
+    const [cfops, setCfops] = React.useState<CfopDTO[]>([]) // Full list or filtered
     const [loading, setLoading] = React.useState(false)
     const [initialLoadDone, setInitialLoadDone] = React.useState(false)
-
-    const supabase = createClient();
 
     // Load all CFOPs once or on open? There are not that many (< 1000). 
     // Loading all is safer for "search by description".
     const fetchCfops = async () => {
         setLoading(true);
         try {
-            const data = await getCfops(supabase);
-            setCfops(data);
+            const result = await listCfopsAction();
+            if (result.success) {
+                setCfops(result.data);
+            } else {
+                toast({ title: "Erro ao carregar CFOPs", description: result.error, variant: "destructive" });
+            }
         } catch (e) {
             console.error(e);
             toast({ title: "Erro ao carregar CFOPs", variant: "destructive" });

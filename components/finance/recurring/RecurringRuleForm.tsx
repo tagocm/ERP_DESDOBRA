@@ -185,14 +185,14 @@ export function RecurringRuleForm() {
 
                             <div className="space-y-2">
                                 <Label className="text-sm font-semibold text-gray-700">Fornecedor *</Label>
-                                <OrganizationSelector
-                                    value={watch("partner_id") || undefined}
-                                    onChange={(org) => {
-                                        setValue("partner_id", org?.id || null);
-                                        setValue("partner_name", org?.trade_name || "");
-                                    }}
-                                    type="supplier"
-                                />
+	                                <OrganizationSelector
+	                                    value={watch("partner_id") || undefined}
+	                                    onChange={(partnerId, org) => {
+	                                        setValue("partner_id", partnerId || null);
+	                                        setValue("partner_name", org?.trade_name || "");
+	                                    }}
+	                                    type="supplier"
+	                                />
                                 <input type="hidden" {...register("partner_name")} />
                                 {errors.partner_name && <p className="text-xs text-red-500">{errors.partner_name.message}</p>}
                             </div>

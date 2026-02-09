@@ -7,18 +7,18 @@ import { DecimalInput } from "@/components/ui/DecimalInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Label } from "@/components/ui/Label";
 import { Card } from "@/components/ui/Card";
-import { ItemPackaging } from "@/types/product";
+import { ItemPackagingDTO } from "@/lib/types/products-dto";
 import { cn } from "@/lib/utils";
 import { PackagingTypeManagerModal } from "./PackagingTypeManagerModal";
-import { getPackagingTypes } from "@/lib/data/packaging-types";
 import { Settings } from "lucide-react";
 import { useCompany } from "@/contexts/CompanyContext";
+import { listPackagingTypesAction } from "@/app/actions/packaging-actions";
 
 interface PackagingModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSave: (packaging: Partial<ItemPackaging>) => void;
-    initialData?: Partial<ItemPackaging>;
+    onSave: (packaging: Partial<ItemPackagingDTO>) => void;
+    initialData?: Partial<ItemPackagingDTO>;
     baseUom: string;
     baseNetWeight: number;
     baseGrossWeight: number;
@@ -39,7 +39,7 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
     const [manageTypesOpen, setManageTypesOpen] = useState(false);
 
     // Initialize formData from initialData or defaults
-    const [formData, setFormData] = useState<Partial<ItemPackaging>>(() => {
+    const [formData, setFormData] = useState<Partial<ItemPackagingDTO>>(() => {
         if (initialData) {
             return {
                 ...initialData,
@@ -66,16 +66,16 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
-    // If editing existing packaging, weights/labels are considered manual
-    const [manualWeightOverride, setManualWeightOverride] = useState(!!initialData);
-    const [manualLabelOverride, setManualLabelOverride] = useState(!!initialData);
+    // If editing existing packaging, it only counts as manual if it already has a non-suggested label
+    const [manualWeightOverride, setManualWeightOverride] = useState(!!initialData?.net_weight_kg || !!initialData?.gross_weight_kg);
+    const [manualLabelOverride, setManualLabelOverride] = useState(false); // Start false to allow initial sync even in edit if it matches
 
     // Load types when modal opens
     useEffect(() => {
         if (isOpen && selectedCompany?.id) {
-            getPackagingTypes(selectedCompany.id).then(data => {
-                if (data && data.length > 0) {
-                    setTypes(data.map(t => ({ value: t.code, label: t.name })));
+            listPackagingTypesAction().then(result => {
+                if (result.success && result.data.length > 0) {
+                    setTypes(result.data.map(t => ({ value: t.code, label: t.name })));
                 }
             }).catch(console.error);
         }
@@ -103,9 +103,12 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
         gross: manualWeightOverride ? (formData.gross_weight_kg ?? 0) : calculatedWeights.gross
     };
 
-    const effectiveLabel = manualLabelOverride || initialData ? (formData.label || '') : (suggestedLabel || formData.label || '');
+    const effectiveLabel = manualLabelOverride ? (formData.label || '') : (suggestedLabel || formData.label || '');
 
-    const handleChange = (field: keyof ItemPackaging, value: any) => {
+    // Sync label when suggested changes, IF not manually overridden
+
+
+    const handleChange = (field: keyof ItemPackagingDTO, value: any) => {
         setFormData(prev => ({ ...prev, [field]: value }));
 
         // Mark as manually overridden if user edits weights or label
@@ -126,9 +129,13 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
     };
 
     const handleSave = () => {
+        const finalLabel = effectiveLabel.trim();
+        const finalNetWeight = effectiveWeights.net;
+        const finalGrossWeight = effectiveWeights.gross;
+
         const newErrors: Record<string, string> = {};
 
-        if (!formData.label?.trim()) newErrors.label = "Rótulo é obrigatório";
+        if (!finalLabel) newErrors.label = "Rótulo é obrigatório";
         if (!formData.qty_in_base || formData.qty_in_base <= 0) newErrors.qty_in_base = "Quantidade deve ser maior que 0";
 
         if (formData.gtin_ean) {
@@ -143,13 +150,21 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
             return;
         }
 
-        onSave(formData);
+        onSave({
+            ...formData,
+            label: finalLabel,
+            net_weight_kg: finalNetWeight,
+            gross_weight_kg: finalGrossWeight
+        });
         onClose();
     };
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-lg w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-float flex flex-col max-h-screen">
+            <DialogContent
+                hideCloseButton={true}
+                className="max-w-lg w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl border-none shadow-float flex flex-col max-h-screen"
+            >
                 {/* Header Compact */}
                 <div className="bg-white px-6 py-3 border-b border-gray-100 flex justify-between items-center">
                     <div>
@@ -327,8 +342,8 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                                 value={effectiveWeights.net}
                                 onChange={(val) => handleChange('net_weight_kg', val)}
                                 precision={2}
-                                minPrecision={0}
-                                disableDecimalShift={true}
+                                minPrecision={2}
+                                disableDecimalShift={false}
                                 placeholder="0"
                                 className="h-9 rounded-2xl bg-white border-gray-200 text-right font-medium"
                             />
@@ -340,8 +355,8 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
                                 value={effectiveWeights.gross}
                                 onChange={(val) => handleChange('gross_weight_kg', val)}
                                 precision={2}
-                                minPrecision={0}
-                                disableDecimalShift={true}
+                                minPrecision={2}
+                                disableDecimalShift={false}
                                 placeholder="0"
                                 className="h-9 rounded-2xl bg-white border-gray-200 text-right font-medium"
                             />

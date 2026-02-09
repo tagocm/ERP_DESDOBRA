@@ -1,7 +1,7 @@
 
 "use client";
 
-import { SalesOrder, SalesOrderPayment } from "@/types/sales";
+import { SalesOrderDTO, SalesOrderPaymentDTO } from "@/lib/types/sales-dto";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
@@ -9,8 +9,8 @@ import { Trash2, Plus } from "lucide-react";
 import { useRef } from "react";
 
 interface TabProps {
-    data: Partial<SalesOrder>;
-    onChange: (field: keyof SalesOrder, value: any) => void;
+    data: Partial<SalesOrderDTO>;
+    onChange: (field: keyof SalesOrderDTO, value: any) => void;
     disabled?: boolean;
 }
 
@@ -22,7 +22,7 @@ export function TabPayment({ data, onChange, disabled }: TabProps) {
         const totalPayments = payments.reduce((acc, p) => acc + (Number(p.amount) || 0), 0);
         const remaining = (data.total_amount || 0) - totalPayments;
 
-        const newPayment: SalesOrderPayment = {
+        const newPayment: SalesOrderPaymentDTO = {
             id: `temp-${tempIdCounter.current++}`,
             document_id: data.id || '',
             installment_number: payments.length + 1,
@@ -39,7 +39,7 @@ export function TabPayment({ data, onChange, disabled }: TabProps) {
         onChange('payments', newPayments);
     };
 
-    const handleUpdatePayment = (index: number, field: keyof SalesOrderPayment, value: any) => {
+    const handleUpdatePayment = (index: number, field: keyof SalesOrderPaymentDTO, value: any) => {
         const newPayments = [...payments];
         newPayments[index] = { ...newPayments[index], [field]: value };
         onChange('payments', newPayments);

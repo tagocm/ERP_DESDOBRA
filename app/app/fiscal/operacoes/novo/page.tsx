@@ -1,6 +1,7 @@
 "use client";
 
 import { FiscalOperationForm } from "@/components/fiscal/FiscalOperationForm";
+import { FiscalOperationDTO } from "@/lib/types/fiscal-types";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseBrowser";

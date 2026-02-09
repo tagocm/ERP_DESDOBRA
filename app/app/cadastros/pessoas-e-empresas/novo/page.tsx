@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { createClient } from "@/lib/supabaseBrowser";
-import { createOrganization, setOrganizationRoles, upsertAddress, upsertPerson, getPriceTables, getPaymentTerms, PriceTable, PaymentTerm } from "@/lib/clients-db";
+import { createOrganization, setOrganizationRoles, upsertAddress, upsertPerson, getPriceTables, getPaymentTerms, getRepresentatives, PriceTable, PaymentTerm } from "@/lib/clients-db";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { DecimalInput } from "@/components/ui/DecimalInput";
@@ -47,8 +47,6 @@ export default function NewOrganizationPage() {
     const [activeTab, setActiveTab] = useState("dados");
     const [isLoading, setIsLoading] = useState(false);
     const [cnpjLoading, setCnpjLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState<string | null>(null);
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const [manageModesOpen, setManageModesOpen] = useState(false);
 
@@ -115,19 +113,22 @@ export default function NewOrganizationPage() {
     const [priceTables, setPriceTables] = useState<PriceTable[]>([]);
     const [paymentTerms, setPaymentTerms] = useState<PaymentTerm[]>([]);
     const [paymentModes, setPaymentModes] = useState<PaymentMode[]>([]);
+    const [representatives, setRepresentatives] = useState<any[]>([]);
 
     useEffect(() => {
         if (!selectedCompany) return;
         const loadOptions = async () => {
             try {
-                const [pts, terms, modes] = await Promise.all([
+                const [pts, terms, modes, reps] = await Promise.all([
                     getPriceTables(supabase, selectedCompany.id),
                     getPaymentTerms(supabase, selectedCompany.id),
-                    getPaymentModes(selectedCompany.id)
+                    getPaymentModes(selectedCompany.id),
+                    getRepresentatives(supabase, selectedCompany.id)
                 ]);
                 setPriceTables(pts);
                 setPaymentTerms(terms);
                 setPaymentModes(modes);
+                setRepresentatives(reps);
             } catch (err: any) {
                 console.error("Error loading options (FULL):", err);
                 // Fail silently
@@ -142,7 +143,8 @@ export default function NewOrganizationPage() {
         prospect: false,
         customer: true,
         supplier: false,
-        carrier: false
+        carrier: false,
+        representative: false
     });
 
     // Refs for state access in callbacks without re-triggering effects excessively
@@ -201,8 +203,6 @@ export default function NewOrganizationPage() {
         if (!selectedCompany) return;
 
         setIsLoading(true);
-        setError(null);
-        setSuccess(null);
 
         try {
             const { roles } = stateRef.current;
@@ -339,12 +339,7 @@ export default function NewOrganizationPage() {
                 });
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             } else {
-                toast({
-                    title: "Sucesso",
-                    description: "Cadastro salvo com sucesso.",
-                    variant: "default"
-                });
-                router.push("/app/cadastros/pessoas-e-empresas");
+                router.push("/app/cadastros/pessoas-e-empresas?success=created");
             }
 
         } catch (err: any) {
@@ -443,7 +438,6 @@ export default function NewOrganizationPage() {
         const cnpjDigits = extractDigits(formData.document_number);
         if (cnpjDigits.length !== 14) return;
         setCnpjLoading(true);
-        setError(null);
         try {
             const res = await fetch("/api/cnpj/" + cnpjDigits);
             const data = await res.json();
@@ -471,7 +465,11 @@ export default function NewOrganizationPage() {
             }
             setCnpjFetched(true);
         } catch (err) {
-            setError("Erro ao buscar dados do CNPJ.");
+            toast({
+                title: "Erro ao buscar CNPJ",
+                description: "Não foi possível buscar dados para o CNPJ informado.",
+                variant: "destructive",
+            });
         } finally {
             setCnpjLoading(false);
         }
@@ -596,7 +594,11 @@ export default function NewOrganizationPage() {
                                                         className="w-4 h-4 text-brand-600 rounded focus:ring-brand-500"
                                                     />
                                                     <span className="text-sm text-gray-700 font-medium capitalize">
-                                                        {role === 'prospect' ? 'Prospect' : role === 'customer' ? 'Cliente' : role === 'supplier' ? 'Fornecedor' : 'Transportadora'}
+                                                        {role === 'prospect' ? 'Prospect' :
+                                                            role === 'customer' ? 'Cliente' :
+                                                                role === 'supplier' ? 'Fornecedor' :
+                                                                    role === 'carrier' ? 'Transportadora' :
+                                                                        role === 'representative' ? 'Representante' : role}
                                                     </span>
                                                 </label>
                                             ))}
@@ -832,7 +834,11 @@ export default function NewOrganizationPage() {
                                                         <SelectValue placeholder="Selecione..." />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                        {/* TODO: Add items here when users are fetched */}
+                                                        {representatives.map(rep => (
+                                                            <SelectItem key={rep.id} value={rep.id}>
+                                                                {rep.trade_name}
+                                                            </SelectItem>
+                                                        ))}
                                                     </SelectContent>
                                                 </Select>
                                             </div>
@@ -1274,7 +1280,7 @@ export default function NewOrganizationPage() {
                                                     value={fiscalData.notes_fiscal}
                                                     onChange={handleFiscalChange}
                                                     rows={3}
-                                    className="flex w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                                                    className="flex w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                                                 />
                                             </div>
                                         </CardContent>

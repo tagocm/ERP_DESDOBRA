@@ -7,14 +7,14 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { ItemPackaging } from "@/types/product";
+import { ItemPackagingDTO } from "@/lib/types/products-dto";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Edit2, Trash2, Package, Star } from "lucide-react";
 
 interface PackagingListProps {
-    packagings: Partial<ItemPackaging>[];
+    packagings: Partial<ItemPackagingDTO>[];
     baseUom: string;
     onEdit: (index: number) => void;
     onDelete: (index: number) => void;
@@ -108,7 +108,14 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                                             variant="ghost"
                                             size="icon"
                                             onClick={() => onDelete(originalIndex)}
-                                            className="h-8 w-8 rounded-2xl hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
+                                            disabled={pkg.is_used}
+                                            className={cn(
+                                                "h-8 w-8 rounded-2xl transition-colors",
+                                                pkg.is_used
+                                                    ? "opacity-30 cursor-not-allowed hover:bg-transparent text-gray-400"
+                                                    : "hover:bg-red-50 hover:text-red-600 text-gray-400"
+                                            )}
+                                            title={pkg.is_used ? "Esta embalagem já foi utilizada em documentos e não pode ser removida." : "Remover Embalagem"}
                                         >
                                             <Trash2 className="w-4 h-4" />
                                         </Button>

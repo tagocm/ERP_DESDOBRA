@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ArInstallment } from "@/types/financial";
+
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -9,10 +9,11 @@ import { formatCurrency } from "@/lib/utils";
 import { Loader2, Plus, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabaseBrowser";
 import { useToast } from "@/components/ui/use-toast";
+import { ArInstallmentDTO } from "@/lib/types/financial-dto";
 import { Card } from "@/components/ui/Card";
 
 interface Props {
-    installment: ArInstallment;
+    installment: ArInstallmentDTO;
     onUpdate: () => void;
     onClose?: () => void;
     trigger?: React.ReactNode;

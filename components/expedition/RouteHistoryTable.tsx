@@ -1,15 +1,16 @@
 "use client";
 
 import { format } from "date-fns";
-import { Eye, FileText } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import Link from "next/link";
-import { DeliveryRoute } from "@/types/sales";
+// import { DeliveryRoute } from "@/types/sales"; // Removed
 import { normalizeLogisticsStatus } from "@/lib/constants/status";
+import { FileText, Eye } from "lucide-react";
+import { RouteForHistoryTable } from "./types";
 
 interface RouteHistoryTableProps {
-    data: any[]; // Extended DeliveryRoute with joined orders/sales_order
+    data: RouteForHistoryTable[];
     isLoading?: boolean;
 }
 

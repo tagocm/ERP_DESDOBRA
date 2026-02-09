@@ -149,7 +149,8 @@ export const inventoryRepo = {
         }
 
         // Calculate new average cost
-        const newAvgCost = (currentStock * currentAvgCost + qtyIn * unitCost) / newStock
+        const { calculateNewAverageCost } = await import('@/lib/domain/inventory/cost');
+        const newAvgCost = calculateNewAverageCost(currentStock, currentAvgCost, qtyIn, unitCost);
 
         // Update item
         await itemsRepo.updateAvgCost(companyId, itemId, newAvgCost)

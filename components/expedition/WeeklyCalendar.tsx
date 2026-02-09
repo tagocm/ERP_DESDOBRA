@@ -2,15 +2,15 @@
 
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { DeliveryRoute } from "@/types/sales";
+import { DeliveryRouteDTO } from "@/lib/types/expedition-dto";
 import { cn } from "@/lib/utils";
 import { useDroppable } from "@dnd-kit/core";
 
 interface WeeklyCalendarProps {
     currentWeek: Date;
-    scheduledRoutes: DeliveryRoute[];
-    onDayClick: (date: Date, routes: DeliveryRoute[]) => void;
-    renderRouteCard: (route: DeliveryRoute) => React.ReactNode;
+    scheduledRoutes: DeliveryRouteDTO[];
+    onDayClick: (date: Date, routes: DeliveryRouteDTO[]) => void;
+    renderRouteCard: (route: DeliveryRouteDTO) => React.ReactNode;
 }
 
 export function WeeklyCalendar({ currentWeek, scheduledRoutes, onDayClick, renderRouteCard }: WeeklyCalendarProps) {
@@ -26,7 +26,7 @@ export function WeeklyCalendar({ currentWeek, scheduledRoutes, onDayClick, rende
             acc[dateKey].push(route);
         }
         return acc;
-    }, {} as Record<string, DeliveryRoute[]>);
+    }, {} as Record<string, DeliveryRouteDTO[]>);
 
     return (
         <div className="bg-white border-b border-gray-200">
@@ -57,10 +57,10 @@ export function WeeklyCalendar({ currentWeek, scheduledRoutes, onDayClick, rende
 interface DayColumnProps {
     date: Date;
     dateKey: string;
-    routes: DeliveryRoute[];
+    routes: DeliveryRouteDTO[];
     isToday: boolean;
     onDayClick: () => void;
-    renderRouteCard: (route: DeliveryRoute) => React.ReactNode;
+    renderRouteCard: (route: DeliveryRouteDTO) => React.ReactNode;
 }
 
 function DayColumn({ date, dateKey, routes, isToday, onDayClick, renderRouteCard }: DayColumnProps) {

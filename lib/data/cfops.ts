@@ -1,14 +1,8 @@
 
 import { SupabaseClient } from "@supabase/supabase-js";
 
-export interface Cfop {
-    id: string;
-    codigo: string;
-    descricao: string;
-    tipo_operacao: 'entrada' | 'saida';
-    ambito: 'estadual' | 'interestadual' | 'exterior';
-    ativo: boolean;
-}
+import { CfopDTO } from "@/lib/types/fiscal-types";
+export type { CfopDTO };
 
 export async function getCfops(supabase: SupabaseClient) {
     const { data, error } = await supabase
@@ -22,5 +16,5 @@ export async function getCfops(supabase: SupabaseClient) {
         return [];
     }
 
-    return data as Cfop[];
+    return data as CfopDTO[];
 }

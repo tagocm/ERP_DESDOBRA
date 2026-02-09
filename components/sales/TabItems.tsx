@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { SalesOrderItem } from "@/types/sales";
+import { SalesOrderItemDTO } from "@/lib/types/sales-dto";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Trash2, Plus, GripVertical } from "lucide-react";
@@ -12,8 +12,8 @@ import { createClient } from "@/lib/supabaseBrowser";
 
 interface TabItemsProps {
     orderId?: string;
-    items: SalesOrderItem[];
-    onChange: (items: SalesOrderItem[]) => void;
+    items: SalesOrderItemDTO[];
+    onChange: (items: SalesOrderItemDTO[]) => void;
     disabled?: boolean;
 }
 
@@ -21,7 +21,7 @@ export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) 
     const supabase = createClient();
 
     const handleAddItem = () => {
-        const newItem: SalesOrderItem = {
+        const newItem: SalesOrderItemDTO = {
             id: `temp-${Date.now()}`,
             document_id: orderId || '',
             item_id: '',
@@ -41,7 +41,7 @@ export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) 
         onChange(newItems);
     };
 
-    const handleUpdateItem = (index: number, field: keyof SalesOrderItem, value: any) => {
+    const handleUpdateItem = (index: number, field: keyof SalesOrderItemDTO, value: any) => {
         const newItems = [...items];
         const item = { ...newItems[index], [field]: value };
 

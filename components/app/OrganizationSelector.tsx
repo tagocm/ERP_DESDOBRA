@@ -1,105 +1,109 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { Check, X, Plus } from "lucide-react";
+import { Check, X, Plus, ChevronsUpDown, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
-import { createClient } from "@/lib/supabaseBrowser";
-import { useCompany } from "@/contexts/CompanyContext";
+import { searchOrganizationsAction } from "@/app/actions/sales/organization-actions";
+import { getClientDetailsAction } from "@/app/actions/sales/sales-actions";
+import { getTenantContextAction } from '@/app/actions/debug/tenant-context-actions';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/Command";
+import { Label } from "@/components/ui/Label";
 
 interface OrganizationSelectorProps {
     value?: string;
-    onChange: (org: any) => void;
+    onChange: (value: string, org?: any) => void;
+    currentOrganization?: any;
     type?: 'customer' | 'supplier' | 'carrier' | 'all';
+    label?: string;
     disabled?: boolean;
+    error?: string;
+    description?: string;
+    onCreateNew?: () => void;
+    className?: string;
+    required?: boolean;
     "data-testid"?: string;
 }
 
-export function OrganizationSelector({ value, onChange, type = 'all', disabled, "data-testid": dataTestId }: OrganizationSelectorProps) {
-    // ... existing hooks ... 
-    const { selectedCompany } = useCompany();
-    const supabase = createClient();
+export function OrganizationSelector({
+    value,
+    onChange,
+    currentOrganization,
+    type = 'all',
+    label,
+    disabled = false,
+    error,
+    description,
+    onCreateNew,
+    className,
+    required = false,
+    "data-testid": dataTestId
+}: OrganizationSelectorProps) {
 
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
     const [options, setOptions] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
-    const [selectedOrg, setSelectedOrg] = useState<any>(null);
+    const [selectedCompany, setSelectedCompany] = useState<any>(currentOrganization);
 
     const wrapperRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
 
     // Fetch initial organization if value exists
     useEffect(() => {
-        if (!value || selectedOrg) return;
-        const fetchOrg = async () => {
-            const { data } = await supabase
-                .from('organizations')
-                .select('id, trade_name, document_number')
-                .eq('id', value)
-                .is('deleted_at', null)
-                .single();
-            if (data) {
-                setSelectedOrg(data);
-                setSearch(data.trade_name);
+        if (value && !selectedCompany) {
+            const loadInitial = async () => {
+                setLoading(true);
+                try {
+                    const res = await getClientDetailsAction(value);
+                    if (res.success && res.data) {
+                        setSelectedCompany(res.data);
+                        setOptions([res.data]);
+                    }
+                } catch (e) {
+                    console.error("Error loading initial org:", e);
+                } finally {
+                    setLoading(false);
+                }
+            };
+            loadInitial();
+        } else if (currentOrganization) {
+            setSelectedCompany(currentOrganization);
+            if (!options.find(o => o.id === currentOrganization.id)) {
+                setOptions(prev => [currentOrganization, ...prev]);
             }
-        };
-        fetchOrg();
-    }, [value, supabase, selectedOrg]);
+        }
+    }, [value, currentOrganization]);
 
     // Fetch organizations based on search
     useEffect(() => {
-        if (!selectedCompany || search.length < 2) {
+        if (!open) return;
+
+        if (search.length < 2) {
             setOptions([]);
             return;
         }
 
-        // Avoid re-fetching/opening if the search matches the currently selected item exactly
-        if (selectedOrg && search === selectedOrg.trade_name) {
+        if (selectedCompany && search === selectedCompany.trade_name) {
             return;
         }
 
         const fetchOrgs = async () => {
             setLoading(true);
             try {
-                // Remove all non-digit characters for number comparison
-                const cleanSearch = search.replace(/[^\d]/g, '');
-                const isNumericSearch = cleanSearch.length >= 2;
+                console.log(`[Search] Requesting: "${search}" Type: ${type}`);
+                const res = await searchOrganizationsAction(search, type);
 
-                // Fetch organizations - get more if doing numeric search for client-side filtering
-                let selectQuery = 'id, trade_name, legal_name, document_number';
-
-                // If filtering by type, use inner join on roles
-                if (type !== 'all') {
-                    selectQuery += ', organization_roles!inner(role)';
-                }
-
-                let query = supabase
-                    .from('organizations')
-                    .select(selectQuery)
-                    .eq('company_id', selectedCompany.id)
-                    .is('deleted_at', null); // Exclude soft-deleted records
-
-                if (type !== 'all') {
-                    query = query.eq('organization_roles.role', type);
-                }
-
-                if (isNumericSearch) {
-                    // Search in document_number (clean)
-                    // We also include trade_name and legal_name just in case there are numbers in the name
-                    query = query.or(`trade_name.ilike.%${search}%,legal_name.ilike.%${search}%,document_number.ilike.%${cleanSearch}%`);
+                if (res.success && res.data) {
+                    setOptions(res.data);
+                    console.log(`[Search] Result Count: ${res.data.length}`);
                 } else {
-                    query = query.or(`trade_name.ilike.%${search}%,legal_name.ilike.%${search}%`);
+                    setOptions([]);
+                    console.error('[Search] Failed:', res.error);
                 }
-
-                const { data } = await query.limit(20);
-
-                // Filter duplicates by ID and ensure trade_name
-                const uniqueData = Array.from(new Map((data || []).map((item: any) => [item.id, item])).values())
-                    .filter((item: any) => item.trade_name);
-
-                setOptions(uniqueData);
-                setOpen(true);
+            } catch (error) {
+                console.error("Error searching organizations:", error);
+                setOptions([]);
             } finally {
                 setLoading(false);
             }
@@ -107,137 +111,157 @@ export function OrganizationSelector({ value, onChange, type = 'all', disabled, 
 
         const timer = setTimeout(fetchOrgs, 300);
         return () => clearTimeout(timer);
-    }, [search, selectedCompany, supabase]);
+    }, [search, selectedCompany, type, open]);
 
-    // Close on click outside
-    useEffect(() => {
-        function handleClickOutside(event: MouseEvent) {
-            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-                setOpen(false);
-            }
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
+    const handleSelect = (currentValue: string) => {
+        const selected = options.find((framework) => framework.id === currentValue);
+        console.log('handleSelect:', currentValue, selected);
 
-    const handleSelect = (option: any) => {
-        setSelectedOrg(option);
-        setSearch(option.trade_name);
-        onChange(option);
+        setSelectedCompany(selected);
+        onChange(currentValue, selected);
         setOpen(false);
-        inputRef.current?.blur();
     };
 
     const handleClear = () => {
-        setSelectedOrg(null);
+        setSelectedCompany(null);
         setSearch("");
-        onChange(null);
+        onChange("", undefined);
         setOptions([]);
-        inputRef.current?.focus();
     };
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const newValue = e.target.value;
-        setSearch(newValue);
-
-        // If user clears the field or changes it, clear selection
-        if (selectedOrg && newValue !== selectedOrg.trade_name) {
-            setSelectedOrg(null);
-            onChange(null);
+    const handleDebugTenant = async () => {
+        console.log('[Debug] Fetching Tenant Context...');
+        const res = await getTenantContextAction();
+        console.log('[Debug] Tenant Context:', res);
+        // Alert for visibility in manual testing
+        if (typeof window !== 'undefined') {
+            alert(`Tenant Debug:\nUser: ${res.data?.userId}\nCompany: ${res.data?.companyId}\nCustomers: ${res.data?.customersCount}\n\n(Full details in Console)`);
         }
     };
 
     return (
-        <div className="relative" ref={wrapperRef}>
-            <div className="relative">
-                <input
-                    ref={inputRef}
-                    data-testid={dataTestId}
-                    type="text"
-                    className={cn(
-                        "flex h-10 w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500 disabled:cursor-not-allowed disabled:opacity-50",
-                        selectedOrg && "pr-8"
-                    )}
-                    placeholder="Digite nome ou documento..."
-                    value={search}
-                    onChange={handleInputChange}
-                    disabled={disabled}
-                    onFocus={() => {
-                        if (search.length >= 2) setOpen(true);
-                    }}
-                />
-                {selectedOrg && !disabled && (
-                    <button
-                        type="button"
-                        onClick={handleClear}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-2xl transition-colors"
-                        disabled={disabled}
+        <div className={cn("flex flex-col gap-2", className)} ref={wrapperRef} data-testid={dataTestId}>
+            <div className="flex items-center gap-2">
+                {label && (
+                    <Label
+                        className={cn(error && "text-destructive", required && "after:content-['*'] after:ml-0.5 after:text-destructive")}
+                        htmlFor={`org-selector-${dataTestId}`}
                     >
-                        <X className="h-4 w-4 text-gray-400" />
-                    </button>
+                        {label}
+                    </Label>
+                )}
+                {/* Debug Button - Controlled by Env Var or Dev Mode */}
+                {(process.env.NODE_ENV !== 'production' || process.env.NEXT_PUBLIC_ENABLE_TENANT_DEBUG === 'true') && (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-4 w-4 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={handleDebugTenant}
+                        title="Debug Tenant Context"
+                        data-testid="debug-tenant-btn"
+                    >
+                        🐛
+                    </Button>
                 )}
             </div>
 
-            {open && (search.length >= 2 || options.length > 0) && (
-                <div
-                    role="listbox"
-                    className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-2xl border border-gray-100 bg-white py-1 text-base shadow-float focus:outline-none sm:text-sm"
-                >
-                    {loading && (
-                        <div className="p-3 text-center text-xs text-gray-400">
-                            Buscando...
-                        </div>
-                    )}
-
-                    {!loading && options.length === 0 && search.length >= 2 && (
-                        <div className="p-3 text-center text-xs text-gray-500">
-                            Nenhum resultado encontrado.
-                        </div>
-                    )}
-
-                    {!loading && options.map((option) => (
-                        <div
-                            key={option.id}
-                            role="option"
-                            aria-selected={selectedOrg?.id === option.id}
-                            className={cn(
-                                "relative cursor-pointer select-none py-2.5 pl-3 pr-9 hover:bg-gray-50 transition-colors",
-                                selectedOrg?.id === option.id ? "bg-brand-50 font-medium text-brand-700" : "text-gray-900"
+            <Popover open={open} onOpenChange={setOpen}>
+                <PopoverTrigger asChild>
+                    <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={open}
+                        className={cn(
+                            "w-full justify-between",
+                            !selectedCompany && "text-muted-foreground",
+                            error && "border-destructive",
+                            disabled && "opacity-50 cursor-not-allowed",
+                            className
+                        )}
+                        disabled={disabled}
+                        data-testid="organization-selector-trigger"
+                        id={`org-selector-${dataTestId}`}
+                    >
+                        {selectedCompany
+                            ? selectedCompany.trade_name
+                            : "Selecione organização..."}
+                        <div className="flex items-center">
+                            {selectedCompany && (
+                                <X
+                                    className="mr-2 h-4 w-4 shrink-0 opacity-50 hover:opacity-100 cursor-pointer"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleClear();
+                                    }}
+                                />
                             )}
-                            onClick={() => handleSelect(option)}
-                        >
-                            <div className="flex flex-col">
-                                <span className="block truncate">{option.trade_name}</span>
-                                {option.document_number && (
-                                    <span className="text-xs text-gray-400">{option.document_number}</span>
+                            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                        </div>
+                    </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command shouldFilter={false}>
+                        <CommandInput
+                            placeholder="Digite nome ou documento..."
+                            value={search}
+                            onValueChange={setSearch}
+                        />
+                        <CommandList>
+                            <CommandEmpty>
+                                {loading ? (
+                                    <div className="flex items-center justify-center p-2" data-testid="org-selector-loading">
+                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                        Buscando...
+                                    </div>
+                                ) : (
+                                    "Nenhum resultado encontrado."
                                 )}
-                            </div>
-                            {selectedOrg?.id === option.id && (
-                                <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-brand-600">
-                                    <Check className="h-4 w-4" />
-                                </span>
-                            )}
+                            </CommandEmpty>
+                            <CommandGroup>
+                                {options.map((option: any) => (
+                                    <CommandItem
+                                        key={option.id}
+                                        value={option.id}
+                                        onSelect={handleSelect}
+                                    >
+                                        <Check
+                                            className={cn(
+                                                "mr-2 h-4 w-4",
+                                                selectedCompany?.id === option.id ? "opacity-100" : "opacity-0"
+                                            )}
+                                        />
+                                        <div className="flex flex-col">
+                                            <span>{option.trade_name}</span>
+                                            {option.document_number && (
+                                                <span className="text-xs text-muted-foreground">{option.document_number}</span>
+                                            )}
+                                        </div>
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        </CommandList>
+                        <div className="border-t border-gray-100 p-2">
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                className="w-full justify-start h-8 text-xs"
+                                onClick={() => {
+                                    if (onCreateNew) onCreateNew();
+                                    else console.log('Create new clicked logic missing');
+                                }}
+                            >
+                                <Plus className="w-3 h-3 mr-2" />
+                                {type === 'supplier' ? 'Novo Fornecedor' :
+                                    type === 'carrier' ? 'Nova Transportadora' :
+                                        'Novo Cliente'}
+                            </Button>
                         </div>
-                    ))}
-
-                    <div className="border-t border-gray-100 p-2">
-                        <Button
-                            size="sm"
-                            variant="secondary"
-                            className="w-full justify-start h-8 text-xs"
-                            onClick={() => {
-                                // TODO: Open new client modal
-                                console.log('Open new client modal');
-                            }}
-                        >
-                            <Plus className="w-3 h-3 mr-2" />
-                            {type === 'supplier' ? 'Novo Fornecedor' :
-                                type === 'carrier' ? 'Nova Transportadora' :
-                                    'Novo Cliente'}
-                        </Button>
-                    </div>
-                </div>
-            )}
+                    </Command>
+                </PopoverContent>
+            </Popover>
+            {description && <p className="text-sm text-muted-foreground">{description}</p>}
+            {error && <p className="text-sm text-destructive">{error}</p>}
         </div>
     );
 }

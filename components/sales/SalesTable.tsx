@@ -1,6 +1,6 @@
 "use client";
 
-import { SalesOrder } from "@/types/sales";
+import { SalesOrderDTO } from "@/lib/types/sales-dto";
 import { format } from "date-fns";
 import { Eye, FileText, Trash2, X, Printer, Loader2, Download, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -20,7 +20,7 @@ import { Checkbox } from "@/components/ui/Checkbox";
 // DropdownMenu imports removed
 
 interface SalesTableProps {
-    data: SalesOrder[];
+    data: SalesOrderDTO[];
     isLoading: boolean;
     onSelectionChange?: (selectedIds: string[]) => void;
 }
@@ -29,7 +29,7 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
     const { toast } = useToast();
     const router = useRouter();
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [orderToDelete, setOrderToDelete] = useState<SalesOrder | null>(null);
+    const [orderToDelete, setOrderToDelete] = useState<SalesOrderDTO | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
 
     // Batch actions state
@@ -79,13 +79,13 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
     const isAllSelected = data.length > 0 && selectedIds.size === data.length;
     const isIndeterminate = selectedIds.size > 0 && selectedIds.size < data.length;
 
-    const canDelete = (order: SalesOrder) => {
+    const canDelete = (order: SalesOrderDTO) => {
         const blockedStatuses = ['in_route', 'delivered', 'not_delivered'];
         const status = normalizeLogisticsStatus(order.status_logistic) || order.status_logistic;
         return !blockedStatuses.includes(status);
     };
 
-    const handleDeleteClick = (order: SalesOrder) => {
+    const handleDeleteClick = (order: SalesOrderDTO) => {
         if (!canDelete(order)) {
             const statusLabel = translateLogisticsStatusPt(order.status_logistic).toUpperCase();
             toast({

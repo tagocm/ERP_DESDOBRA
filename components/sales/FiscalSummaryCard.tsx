@@ -4,10 +4,10 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
-import { SalesOrderItem } from "@/types/sales";
+import { SalesOrderItemDTO } from "@/lib/types/sales-dto";
 
 interface FiscalSummaryCardProps {
-    items: SalesOrderItem[];
+    items: SalesOrderItemDTO[];
     className?: string;
 }
 

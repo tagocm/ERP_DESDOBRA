@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense, useRef } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { createClient } from "@/lib/supabaseBrowser";
@@ -45,15 +45,18 @@ function PessoasEmpresasContent() {
     // const [searchDebounced, setSearchDebounced] = useState(""); // Removed server-side debounce
 
     const { toast } = useToast();
+    const toastShownRef = useRef<string | null>(null);
 
     // Check for success param on mount
     useEffect(() => {
         const successParam = searchParams?.get('success');
-        if (successParam === 'created') {
-            toast({ title: "Sucesso", description: "Cadastro criado com sucesso!" });
-            router.replace('/app/cadastros/pessoas-e-empresas');
-        } else if (successParam === 'updated') {
-            toast({ title: "Sucesso", description: "Cadastro atualizado com sucesso!" });
+        if (successParam && toastShownRef.current !== successParam) {
+            if (successParam === 'created') {
+                toast({ title: "Sucesso", description: "Cadastro criado com sucesso!" });
+            } else if (successParam === 'updated') {
+                toast({ title: "Sucesso", description: "Cadastro atualizado com sucesso!" });
+            }
+            toastShownRef.current = successParam;
             router.replace('/app/cadastros/pessoas-e-empresas');
         }
     }, [searchParams, router, toast]);

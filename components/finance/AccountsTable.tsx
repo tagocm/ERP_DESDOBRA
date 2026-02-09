@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useState, useEffect, useMemo } from "react";
 import { createClient } from "@/lib/supabaseBrowser";
-import { ArInstallment } from "@/types/financial";
+import { ArInstallmentDTO } from "@/lib/types/financial-dto";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -35,7 +35,7 @@ type ViewMode = 'INSTALLMENT' | 'ORDER';
 export function AccountsTable({ companyId }: { companyId: string }) {
     const { toast } = useToast();
     const [direction, setDirection] = useState<Direction>('IN');
-    const [installments, setInstallments] = useState<ArInstallment[]>([]);
+    const [installments, setInstallments] = useState<ArInstallmentDTO[]>([]);
     const [loading, setLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
     const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -135,7 +135,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
         const { data, error } = await query;
 
         if (!error && data) {
-            let filtered = data as unknown as ArInstallment[];
+            let filtered = data as unknown as ArInstallmentDTO[];
             filtered = filtered.filter(i => i.ar_title?.status !== 'PENDING_APPROVAL');
 
             if (searchQuery) {
@@ -284,10 +284,11 @@ export function AccountsTable({ companyId }: { companyId: string }) {
             setSelectedIds(new Set()); // Clear selection
             fetchInstallments(); // Refresh
 
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
             toast({
                 title: "Erro na Baixa",
-                description: error.message,
+                description: message,
                 variant: 'destructive'
             });
         } finally {
@@ -444,7 +445,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
 
                         <div className="flex gap-2">
                             {/* Date Type Selector (Replaces Status Selector) */}
-                            <Select value={dateTypeFilter} onValueChange={(v: any) => setDateTypeFilter(v)}>
+                            <Select value={dateTypeFilter} onValueChange={(v) => setDateTypeFilter(v as 'DUE' | 'ISSUE')}>
                                 <SelectTrigger className="w-36 bg-white">
                                     <SelectValue />
                                 </SelectTrigger>

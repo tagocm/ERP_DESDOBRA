@@ -19,10 +19,11 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover"
-import { getUoms, createUom, Uom } from "@/lib/data/uoms" // You'll need to export Uom type or import from types
 import { useToast } from "@/components/ui/use-toast"
 import { UomManagerModal } from "./UomManagerModal"
 import { useCompany } from "@/contexts/CompanyContext"
+import { listUomsAction, createUomAction } from "@/app/actions/uom-actions"
+import type { UomDTO } from "@/lib/types/products-dto"
 
 interface UomSelectorProps {
     value?: string; // uom_id
@@ -37,7 +38,7 @@ export function UomSelector({ value, onChange, onSelect, className, disabled }: 
     const { selectedCompany } = useCompany();
 
     const [open, setOpen] = React.useState(false)
-    const [uoms, setUoms] = React.useState<any[]>([])
+    const [uoms, setUoms] = React.useState<UomDTO[]>([])
     const [loading, setLoading] = React.useState(false)
     const [initialLoadDone, setInitialLoadDone] = React.useState(false)
 
@@ -48,8 +49,12 @@ export function UomSelector({ value, onChange, onSelect, className, disabled }: 
         if (!selectedCompany?.id) return;
         setLoading(true);
         try {
-            const data = await getUoms(selectedCompany.id);
-            setUoms(data);
+            const result = await listUomsAction();
+            if (result.success) {
+                setUoms(result.data);
+            } else {
+                toast({ title: "Erro ao carregar unidades", description: result.error, variant: "destructive" });
+            }
         } catch (e) {
             console.error(e);
             toast({ title: "Erro ao carregar unidades", variant: "destructive" });
@@ -91,29 +96,26 @@ export function UomSelector({ value, onChange, onSelect, className, disabled }: 
 
         try {
             setLoading(true);
-            const newUom = await createUom({
-                company_id: selectedCompany.id,
+            const result = await createUomAction({
                 name: name,
                 abbrev: abbrev,
                 is_active: true
             });
 
-            if (newUom) {
-                setUoms(prev => [...prev, newUom]); // Optimistic update or refetch? Pushing is fine.
+            if (result.success) {
+                const newUom = result.data;
+                setUoms(prev => [...prev, newUom]);
                 onChange(newUom.id);
                 if (onSelect) onSelect(newUom);
                 setOpen(false);
                 setSearchQuery("");
                 toast({ title: "Unidade criada!", description: `${newUom.name} (${newUom.abbrev})` });
-            }
-        } catch (error: any) {
-            if (error.message?.includes("uoms_name_company_unique")) {
-                toast({ title: "Esta unidade já existe.", variant: "destructive" });
-            } else if (error.message?.includes("uoms_abbrev_company_unique")) {
-                toast({ title: "Esta abreviação já existe.", variant: "destructive" });
             } else {
-                toast({ title: "Erro ao criar unidade", variant: "destructive" });
+                toast({ title: "Erro ao criar unidade", description: result.error, variant: "destructive" });
             }
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Erro ao criar unidade", variant: "destructive" });
         } finally {
             setLoading(false);
         }

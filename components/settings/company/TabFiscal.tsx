@@ -3,7 +3,7 @@
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { CompanySettings } from "@/lib/data/company-settings";
+import { CompanySettings } from "@/lib/types/settings-types";
 import { FileText, Settings } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
