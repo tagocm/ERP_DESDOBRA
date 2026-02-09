@@ -70,7 +70,7 @@ jobs:
       run: npx playwright install --with-deps chromium
 
     - name: Build
-      run: npm run build
+      run: npm run build:prod
       env:
         CI: true
         NEXT_TELEMETRY_DISABLED: 1

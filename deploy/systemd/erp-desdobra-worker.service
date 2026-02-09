@@ -1,0 +1,26 @@
+[Unit]
+Description=ERP Desdobra Worker (NFE queue)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=erp
+Group=erp
+WorkingDirectory=/opt/erp-desdobra
+EnvironmentFile=/etc/erp-desdobra/env
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/npx tsx scripts/start-worker.ts
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGINT
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/erp-desdobra
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

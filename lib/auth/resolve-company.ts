@@ -29,7 +29,8 @@ export async function resolveCompanyContext(): Promise<CompanyContext> {
     }
 
     const devId = process.env.NEXT_PUBLIC_DEV_COMPANY_ID;
-    if (devId) {
+    const allowDevFallback = process.env.NODE_ENV !== "production";
+    if (allowDevFallback && devId) {
         const devMembership = members.find((member) => member.company_id === devId);
         if (devMembership) {
             return { supabase, companyId: devId, userId: user.id, role: devMembership.role };

@@ -1,0 +1,27 @@
+[Unit]
+Description=ERP Desdobra Web (Next.js)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=erp
+Group=erp
+WorkingDirectory=/opt/erp-desdobra
+EnvironmentFile=/etc/erp-desdobra/env
+Environment=NODE_ENV=production
+Environment=PORT=3000
+ExecStart=/usr/bin/npm run start -- -p 3000 -H 127.0.0.1
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGINT
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/erp-desdobra
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
