@@ -91,8 +91,13 @@ export async function soapRequest(
         }
 
         // Prepare mTLS Agent
-        // For homologation/dev, allow disabling strict SSL to work around ICP-Brasil cert chain issues
-        const shouldRejectUnauthorized = process.env.SEFAZ_REJECT_UNAUTHORIZED !== 'false';
+        // In production, we always enforce strict TLS.
+        const isProduction = process.env.NODE_ENV === "production";
+        const requestedRejectUnauthorized = process.env.SEFAZ_REJECT_UNAUTHORIZED !== "false";
+        const shouldRejectUnauthorized = isProduction ? true : requestedRejectUnauthorized;
+        if (isProduction && !requestedRejectUnauthorized) {
+            logger.warn("[SEFAZ] Ignoring SEFAZ_REJECT_UNAUTHORIZED=false in production.");
+        }
 
         const agent = new https.Agent({
             cert: pfxData.certificatePem,

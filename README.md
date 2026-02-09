@@ -127,6 +127,8 @@ E2E tests run automatically in CI (GitHub Actions) on every push/PR. Test report
 -   `supabase/`: DB migrations, seeds, and config.
 -   `types/`: TypeScript definitions (generated from DB schema).
 -   `scripts/`: Utility scripts for maintenance, diagnostics, and testing.
+-   `scripts/ops/`: Production operation scripts (deploy, rollback, health, logs, go-live gate).
+-   `scripts/legacy/`: Historical ad-hoc scripts kept for technical reference.
 
 ## 🔒 Security
 

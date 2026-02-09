@@ -1,0 +1,7 @@
+tunnel: erp-desdobra
+credentials-file: /etc/cloudflared/erp-desdobra.json
+
+ingress:
+  - hostname: erp.example.com
+    service: http://127.0.0.1:3000
+  - service: http_status:404

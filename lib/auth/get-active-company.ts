@@ -47,7 +47,8 @@ export async function getActiveCompanyId() {
 
     // 3. Dev Fallback Priority
     const devId = process.env.NEXT_PUBLIC_DEV_COMPANY_ID;
-    if (devId && companyIds.includes(devId)) {
+    const allowDevFallback = process.env.NODE_ENV !== "production";
+    if (allowDevFallback && devId && companyIds.includes(devId)) {
         return devId;
     }
 
