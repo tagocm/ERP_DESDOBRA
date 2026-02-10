@@ -71,6 +71,11 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
             return;
         }
 
+        if (selectedProduct && search === selectedProduct.name) {
+            setOpen(false);
+            return;
+        }
+
         // LAZY LOADING: Only fetch if user has typed at least 2 characters
         if (search.length < 2) {
             setOptions([]);
@@ -78,6 +83,8 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
             setOpen(false); // Close dropdown when search is too short
             return;
         }
+
+        let cancelled = false;
 
         const fetchProducts = async () => {
             setLoading(true);
@@ -91,16 +98,21 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
                     .limit(20);
 
                 const { data } = await query;
+                if (cancelled) return;
                 setOptions(data ? data.map((d: any) => ({ ...d, un: d.uom, price: 0 })) : []);
             } finally {
+                if (cancelled) return;
                 setLoading(false);
             }
         };
 
         // Debounce: wait 300ms after user stops typing
         const timer = setTimeout(fetchProducts, 300);
-        return () => clearTimeout(timer);
-    }, [search, selectedCompany, supabase]);
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [search, selectedCompany, supabase, selectedProduct]);
 
     // Close on click outside
     useEffect(() => {

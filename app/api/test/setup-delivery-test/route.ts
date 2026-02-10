@@ -11,6 +11,10 @@ export async function POST(request: Request) {
     const supabase = await createClient();
 
     try {
+        const body = await request.json().catch(() => ({}));
+        const customRouteName = typeof body?.routeName === 'string' ? body.routeName.trim() : '';
+        const today = new Date().toISOString().slice(0, 10);
+
         // 1. Get Test User ID
         const { data: userId } = await supabase.rpc('get_test_user_id');
         if (!userId) return NextResponse.json({ error: "No test user" }, { status: 500 });
@@ -45,9 +49,10 @@ export async function POST(request: Request) {
             .from('delivery_routes')
             .insert({
                 company_id: companyId,
-                name: 'Rota Teste Deliveries',
-                route_date: new Date().toISOString(),
-                status: 'pending'
+                name: customRouteName || `Rota Teste Deliveries ${Date.now()}`,
+                route_date: today,
+                scheduled_date: today,
+                status: 'scheduled'
             })
             .select()
             .single();
@@ -66,7 +71,7 @@ export async function POST(request: Request) {
 
         if (linkError) throw linkError;
 
-        return NextResponse.json({ success: true, routeId: route.id, orderId });
+        return NextResponse.json({ success: true, routeId: route.id, routeName: route.name, orderId });
 
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Unknown error";

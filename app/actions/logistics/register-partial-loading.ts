@@ -49,7 +49,7 @@ export async function registerPartialLoading({
         .insert({
             company_id: companyId,
             order_id: orderId,
-            event_type: 'CARREGAMENTO_PARCIAL',
+            event_type: 'PARTIAL_LOADED',
             reason_id: reasonId,
             note: note || null,
             created_by: user.id

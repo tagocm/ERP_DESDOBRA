@@ -2,6 +2,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
+import { normalizeOccurrenceType } from "@/lib/logistics/flow-rules";
 
 export async function POST(
     request: Request,
@@ -56,9 +57,11 @@ export async function POST(
             const reason = occ.reason;
             const orderId = occ.order_id;
 
+            const eventType = normalizeOccurrenceType(occ.event_type);
+
             // Common: Remove from Route
             // Only remove if it is NOT a Partial Load (Partial must stay in route to be delivered)
-            if (occ.event_type !== 'CARREGAMENTO_PARCIAL') {
+            if (eventType !== 'PARTIAL_LOADED') {
                 await supabase.from('delivery_route_orders').delete()
                     .eq('route_id', routeId)
                     .eq('sales_document_id', orderId);
@@ -68,8 +71,8 @@ export async function POST(
             }
 
             // Common: Add Internal Note
-            const reasonName = reason?.name || occ.event_type;
-            const noteText = `[RETORNO DE ROTA] Ocorrência: ${occ.event_type} | Motivo: ${reasonName} | Obs: ${occ.note || ''} | Rota: ${routeId}`;
+            const reasonName = reason?.name || eventType;
+            const noteText = `[RETORNO DE ROTA] Ocorrência: ${eventType} | Motivo: ${reasonName} | Obs: ${occ.note || ''} | Rota: ${routeId}`;
 
             const { data: order } = await supabase.from('sales_documents').select('internal_notes, total_amount').eq('id', orderId).single();
             const newNotes = (order?.internal_notes ? order.internal_notes + '\n' : '') + noteText;
@@ -81,14 +84,14 @@ export async function POST(
             resultLog.actions.push("updated_notes_flags");
 
             // Specific Logic
-            if (occ.event_type === 'NAO_CARREGAMENTO') {
+            if (eventType === 'NOT_LOADED_TOTAL') {
                 // Return to sandbox
                 await supabase.from('sales_documents')
                     .update({ status_logistic: 'pending' })
                     .eq('id', orderId);
                 resultLog.actions.push("status_logistic_pendente");
             }
-            else if (occ.event_type === 'CARREGAMENTO_PARCIAL') {
+            else if (eventType === 'PARTIAL_LOADED') {
                 const generateDifference = occ.payload?.actions?.generateDifference === true;
                 const payloadItems = occ.payload?.items || [];
 
@@ -129,7 +132,11 @@ export async function POST(
                 const itemsSummaryLine = itemSummaries.length > 0 ? `Itens: ${itemSummaries.join('; ')}.` : '';
                 const pLogEntry = `[EXPEDIÇÃO] CARREGAMENTO PARCIAL. Motivo: ${reasonName}.${obsText ? ` Obs: ${obsText}.` : ''} Pedido ajustado para quantidades carregadas.\n${itemsSummaryLine}`;
 
-                const { data: currentOrder } = await supabase.from('sales_documents').select('internal_notes, id, document_number, client_id, price_table_id, payment_condition_id, branch_id, delivery_address, seller_id').eq('id', orderId).single();
+                const { data: currentOrder } = await supabase
+                    .from('sales_documents')
+                    .select('internal_notes, id, document_number, client_id, price_table_id, payment_terms_id, branch_id, delivery_address_json, sales_rep_id')
+                    .eq('id', orderId)
+                    .single();
                 let updatedNotes = (currentOrder?.internal_notes ? currentOrder.internal_notes + '\n\n' : '') + pLogEntry;
 
                 if (generateDifference && hasDifference && currentOrder) {
@@ -142,10 +149,10 @@ export async function POST(
                             status_logistic: 'pending',
                             client_id: currentOrder.client_id,
                             price_table_id: currentOrder.price_table_id,
-                            payment_condition_id: currentOrder.payment_condition_id,
+                            payment_terms_id: currentOrder.payment_terms_id,
                             branch_id: currentOrder.branch_id,
-                            delivery_address: currentOrder.delivery_address,
-                            seller_id: currentOrder.seller_id,
+                            delivery_address_json: currentOrder.delivery_address_json,
+                            sales_rep_id: currentOrder.sales_rep_id,
                             origin_sales_document_id: currentOrder.id,
                             internal_notes: `[EXPEDIÇÃO] Pedido criado automaticamente com a DIFERENÇA não carregada do Pedido #${currentOrder.document_number}.`
                         })
@@ -153,14 +160,14 @@ export async function POST(
                         .single();
 
                     if (newOrder) {
-                        const newItems = diffItems.map(di => ({
-                            company_id: companyId,
-                            sales_document_id: newOrder.id,
-                            item_id: di.item_id,
-                            quantity: di.quantity,
-                            unit_price: di.unit_price,
-                            total_amount: Number(di.unit_price) * Number(di.quantity)
-                        }));
+                            const newItems = diffItems.map(di => ({
+                                company_id: companyId,
+                                document_id: newOrder.id,
+                                item_id: di.item_id,
+                                quantity: di.quantity,
+                                unit_price: di.unit_price,
+                                total_amount: Number(di.unit_price) * Number(di.quantity)
+                            }));
 
                         if (newItems.length > 0) {
                             await supabase.from('sales_document_items').insert(newItems);

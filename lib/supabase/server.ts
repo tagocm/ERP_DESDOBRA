@@ -1,32 +1,44 @@
-import 'server-only'
-import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import { Database } from '@/types/supabase'
+import { createServerClient } from "@supabase/ssr"
+import { cookies } from "next/headers"
+import { createAdminClient } from "./admin"
+import { SupabaseClient } from "@supabase/supabase-js"
+import { Database } from "@/types/supabase"
 
-let _instance: SupabaseClient<Database> | null = null
+export async function createClient() {
+    const cookieStore = await cookies()
 
-export function getSupabaseServer() {
-    if (_instance) return _instance
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-        throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for server client')
+    if (!url || !key) {
+        throw new Error("Supabase environment variables are missing (URL or ANON_KEY)")
     }
 
-    _instance = createClient<Database>(supabaseUrl, supabaseServiceRoleKey, {
-        auth: {
-            autoRefreshToken: false,
-            persistSession: false,
+    return createServerClient(url, key, {
+        cookies: {
+            getAll() {
+                return cookieStore.getAll()
+            },
+            setAll(cookiesToSet) {
+                try {
+                    cookiesToSet.forEach(({ name, value, options }) =>
+                        cookieStore.set(name, value, options)
+                    )
+                } catch {
+                    // The `setAll` method was called from a Server Component.
+                    // This can be ignored if you have middleware refreshing
+                    // user sessions.
+                }
+            },
         },
     })
-    return _instance
 }
 
+// Legacy support for lib/data/* using Service Role Client (Admin)
+// This is used for background tasks and data access layers that bypass RLS or don't have user session
 export const supabaseServer = new Proxy({} as SupabaseClient<Database>, {
     get(target, prop, receiver) {
-        // Redirect all property access to the lazy-initialized instance
-        const instance = getSupabaseServer()
+        const instance = createAdminClient()
         const value = Reflect.get(instance, prop, receiver)
         if (typeof value === 'function') {
             return value.bind(instance)

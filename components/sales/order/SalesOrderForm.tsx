@@ -502,6 +502,29 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         }
     }, [selectedCompany, mode, formData.company_id]);
 
+    // Keep customer labels synchronized with selected IDs and loaded metadata
+    useEffect(() => {
+        if (!formData.client_id) return;
+        const priceTableName = priceTables.find(p => p.id === formData.price_table_id)?.name || 'Não definido';
+        const paymentTermsName = paymentTerms.find(p => p.id === formData.payment_terms_id)?.name || 'Não definido';
+        const paymentModeName = paymentModes.find(p => p.id === formData.payment_mode_id)?.name || 'Não definido';
+
+        setCustomerInfo(prev => ({
+            ...prev,
+            priceTableName,
+            paymentTermsName,
+            paymentModeName
+        }));
+    }, [
+        formData.client_id,
+        formData.price_table_id,
+        formData.payment_terms_id,
+        formData.payment_mode_id,
+        priceTables,
+        paymentTerms,
+        paymentModes
+    ]);
+
     // --- 2. Auto-fill Customer Data ---
     const handleCustomerSelect = async (org: any) => {
         if (!org) {
@@ -514,23 +537,30 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
 
         try {
             const fullOrg = await getClientDetailsAction(org.id);
-            console.log('handleCustomerSelect: fullOrg result:', fullOrg);
 
             if (fullOrg && !fullOrg.error) {
+                const resolveId = (
+                    preferredId: string | null | undefined,
+                    currentId: string | null | undefined,
+                    options: Array<{ id: string }>
+                ) => {
+                    if (preferredId && options.some(option => option.id === preferredId)) return preferredId;
+                    if (currentId && options.some(option => option.id === currentId)) return currentId;
+                    return options[0]?.id || '';
+                };
+
                 // Defaults
-                const priceTableId = fullOrg.price_table_id || (priceTables.length > 0 ? priceTables[0].id : undefined);
-                const paymentTermsId = fullOrg.payment_terms_id || (paymentTerms.length > 0 ? paymentTerms[0].id : undefined);
+                const priceTableId = resolveId(fullOrg.price_table_id, formData.price_table_id, priceTables);
+                const paymentTermsId = resolveId(fullOrg.payment_terms_id, formData.payment_terms_id, paymentTerms);
 
                 // Payment Mode Logic
                 let paymentModeId = formData.payment_mode_id;
                 if (!manualPaymentModeOverride.current || !paymentModeId) {
-                    paymentModeId = fullOrg.payment_mode_id || '';
+                    paymentModeId = resolveId(fullOrg.payment_mode_id, formData.payment_mode_id, paymentModes);
                 }
 
                 // Address logic: Pick 'billing' or first available
                 const addresses = fullOrg.addresses || [];
-                setClientAddresses(addresses);
-
                 setClientAddresses(addresses);
 
                 const address = addresses.find((a: any) => a.type === 'billing') || addresses[0];
@@ -582,8 +612,8 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                     delivery_address_json: address, // Snapshot
                 }));
 
-                const ptName = priceTables.find(p => p.id === priceTableId)?.name || 'Padrão';
-                const payName = paymentTerms.find(p => p.id === paymentTermsId)?.name || 'Padrão';
+                const ptName = priceTables.find(p => p.id === priceTableId)?.name || 'Não definido';
+                const payName = paymentTerms.find(p => p.id === paymentTermsId)?.name || 'Não definido';
                 const payModeName = paymentModes.find(p => p.id === paymentModeId)?.name || 'Não definido';
 
                 setCustomerInfo({
@@ -596,17 +626,6 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                     paymentModeName: payModeName
                 });
 
-                // Auto-create draft if not exists (NEW)
-                if (!formData.id) {
-                    try {
-                        // ensureDraftOrder is not a server action yet, keeping it as a local helper or assuming it will be
-                        // For now, let's assume it's a local helper that uses upsertSalesDocumentAction
-                        await ensureDraftOrder(fullOrg.id); // Pass client ID directly
-                    } catch (error) {
-                        console.error('Failed to auto-create draft:', error);
-                        // Non-blocking - user can still continue
-                    }
-                }
             }
 
         } catch (error) {
@@ -618,6 +637,41 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             });
         }
     };
+
+    // Hydrate customer info when editing/reloading an existing draft that already has client_id
+    useEffect(() => {
+        if (!formData.client_id) return;
+        if (customerInfo.tradeName && customerInfo.cityState) return;
+
+        let cancelled = false;
+        const loadCustomerInfo = async () => {
+            try {
+                const fullOrg = await getClientDetailsAction(formData.client_id!);
+                if (cancelled || !fullOrg || fullOrg.error) return;
+
+                const addresses = fullOrg.addresses || [];
+                const address = addresses.find((a: any) => a.type === 'billing') || addresses[0];
+                const addressStr = address ? `${address.street}, ${address.number} - ${address.neighborhood}` : "Endereço não cadastrado";
+                const cityState = address ? `${address.city}/${address.state}` : "";
+
+                setClientAddresses(addresses);
+                setCustomerInfo(prev => ({
+                    ...prev,
+                    tradeName: fullOrg.trade_name || prev.tradeName,
+                    doc: fullOrg.document || prev.doc,
+                    address: addressStr,
+                    cityState
+                }));
+            } catch (error) {
+                console.error("Error hydrating customer info:", error);
+            }
+        };
+
+        loadCustomerInfo();
+        return () => {
+            cancelled = true;
+        };
+    }, [formData.client_id, customerInfo.tradeName, customerInfo.cityState]);
 
     // Update address when selected from More Options
     const handleAddressChange = (addressId: string) => {
@@ -1632,100 +1686,6 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         if (!error && data) setFormData(data as SalesOrderDTO);
     };
 
-    // --- ENSURE DRAFT ORDER (auto-save) ---
-    const ensureDraftOrder = async (clientId?: string): Promise<string> => {
-        // If already has order ID, return it
-        if (formData.id) return formData.id;
-
-        // Use provided clientId or fallback to formData
-        const effectiveClientId = clientId || formData.client_id;
-
-        // Validate required data
-        if (!effectiveClientId || !selectedCompany) {
-            throw new Error('Cliente e empresa são obrigatórios para criar rascunho');
-        }
-
-        try {
-            // 1. Singleton Draft Logic: Check for EXISTING reusable draft
-            const { data: { user } = {} } = await supabase.auth.getUser();
-            let validRepId = null;
-            let existingDraftId = null;
-
-            if (user) {
-                // Verify user exists in public.users
-                const { data: rep } = await supabase.from('users').select('id').eq('id', user.id).maybeSingle();
-                if (rep) {
-                    validRepId = user.id;
-
-                    // Find existing draft (doc_type='order', status='draft')
-                    const { data: existing } = await supabase
-                        .from('sales_documents')
-                        .select('id')
-                        .eq('company_id', selectedCompany.id)
-                        .eq('sales_rep_id', user.id)
-                        .eq('status_commercial', 'draft')
-                        .eq('doc_type', 'order') // Only reuse true drafts, not proposals
-                        .maybeSingle();
-
-                    if (existing) {
-                        existingDraftId = existing.id;
-                    }
-                }
-            }
-
-            // 2. Prepare Draft Data
-            const draftData: Partial<SalesOrderDTO> = {
-                id: existingDraftId || undefined, // If ID exists, it's an update (UPSERT)
-                company_id: selectedCompany.id,
-                client_id: effectiveClientId,
-                status_commercial: 'draft' as const,
-                status_logistic: 'pending' as const,
-                status_fiscal: 'none' as const,
-                financial_status: 'pending' as const,
-                date_issued: new Date().toISOString().split('T')[0],
-                price_table_id: formData.price_table_id,
-                payment_terms_id: formData.payment_terms_id,
-                delivery_address_json: formData.delivery_address_json,
-                doc_type: 'order' as const,
-                subtotal_amount: 0,
-                discount_amount: 0,
-                freight_amount: 0,
-                total_amount: 0,
-                sales_rep_id: validRepId
-            };
-
-            // Upsert Draft
-            const res = await upsertSalesOrderAction(draftData);
-            if (!res.success) throw new Error(res.error);
-            const savedOrder = res.data;
-
-            // Update URL to edit mode
-            router.replace(`/app/vendas/pedidos/${savedOrder.id}`);
-
-            // Update local state with order ID
-            setFormData(prev => ({ ...prev, id: savedOrder.id }));
-
-            // Clean up other potential dupes if we just created/updated one (optional safety)
-            // if (validRepId) cleanupUserDrafts(supabase, selectedCompany.id, validRepId, savedOrder.id);
-
-            toast({
-                title: existingDraftId ? "Rascunho atualizado" : "Rascunho criado",
-                description: "Pedido salvo automaticamente"
-            });
-
-            return savedOrder.id;
-        } catch (error: unknown) {
-            console.error('Failed to create/update draft:', error);
-            const message = error instanceof Error ? error.message : String(error);
-            toast({
-                title: "Erro ao gerenciar rascunho",
-                description: message,
-                variant: "destructive"
-            });
-            throw error;
-        }
-    };
-
     const executeCancel = async () => {
         if (!formData.id || !selectedCompany) return;
         setIsLoading(true);
@@ -2015,9 +1975,10 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                                                 <div className="flex gap-2">
                                                     <div className="flex-1">
                                                         <OrganizationSelector
+                                                            value={formData.client_id || ''}
                                                             currentOrganization={formData.client_id ? {
                                                                 id: formData.client_id,
-                                                                trade_name: customerInfo.tradeName || 'Cliente Selecionado'
+                                                                trade_name: customerInfo.tradeName || ''
                                                             } : undefined}
                                                             onChange={(_, org) => handleCustomerSelect(org)}
                                                             type="customer"
@@ -2041,18 +2002,22 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                                             <div className="flex-[2] bg-gray-50/80 rounded-2xl border border-gray-100 p-4 grid grid-cols-1 md:grid-cols-[auto_1fr] gap-10">
                                                 <Card className="p-3 text-center border-gray-100 shadow-none min-w-24">
                                                     <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Número</span>
-                                                    <span className="block text-xl font-bold text-gray-800 font-mono" data-testid="order-number">{formData.id ? formData.id.slice(0, 8).toUpperCase() : '-'}</span>
+                                                    <span className="block text-xl font-bold text-gray-800 font-mono" data-testid="order-number">
+                                                        {formData.document_number
+                                                            ? String(formData.document_number).padStart(4, '0')
+                                                            : '-'}
+                                                    </span>
                                                 </Card>
                                                 <div>
                                                     <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Localização / Tabela / Prazo / Forma</span>
                                                     <div className="flex items-center gap-2 text-sm">
                                                         <span className="font-medium text-gray-900 truncate">{customerInfo.cityState || '-'}</span>
                                                         <span className="text-gray-300">•</span>
-                                                        <span className="font-medium text-brand-600 truncate">{customerInfo.priceTableName || 'Padrão'}</span>
+                                                        <span className="font-medium text-brand-600 truncate">{customerInfo.priceTableName || 'Não definido'}</span>
                                                         <span className="text-gray-300">•</span>
-                                                        <span className="font-medium text-brand-600 truncate">{customerInfo.paymentTermsName || 'Padrão'}</span>
+                                                        <span className="font-medium text-brand-600 truncate">{customerInfo.paymentTermsName || 'Não definido'}</span>
                                                         <span className="text-gray-300">•</span>
-                                                        <span className="font-medium text-brand-600 truncate">{customerInfo.paymentModeName || 'Padrão'}</span>
+                                                        <span className="font-medium text-brand-600 truncate">{customerInfo.paymentModeName || 'Não definido'}</span>
                                                     </div>
                                                 </div>
                                             </div>

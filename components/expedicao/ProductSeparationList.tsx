@@ -93,7 +93,7 @@ export function ProductSeparationList({ routeId }: ProductSeparationListProps) {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                     {products.map((product) => (
-                        <tr key={product.product_id} className="hover:bg-gray-50">
+                        <tr key={`${product.product_id}-${product.unit || 'UN'}`} className="hover:bg-gray-50">
                             <td className="px-4 py-3 font-medium text-gray-900">{product.product_name}</td>
                             <td className="px-4 py-3 text-gray-600">{product.sku || '-'}</td>
                             <td className="px-4 py-3 text-center font-bold text-gray-900">{product.total_quantity}</td>

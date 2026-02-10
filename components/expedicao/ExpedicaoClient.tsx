@@ -48,6 +48,9 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
     const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
     const [dialogConfig, setDialogConfig] = useState({ countFull: 0, countPartial: 0, countNotLoaded: 0, totalCount: 0 });
 
+    const hasOccurrenceType = (order: any, type: string) =>
+        order?.sales_order?.occurrences?.some((occ: any) => occ?.event_type === type || occ?.occurrence_type === type);
+
     const handleStartRoute = () => {
         if (!selectedRoute) {
             toast({ title: "Erro", description: 'Selecione uma rota primeiro', variant: "destructive" });
@@ -55,8 +58,8 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
         }
 
         const countFull = selectedRoute.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'loaded').length || 0;
-        const countPartial = selectedRoute.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'partial' || o.sales_order?.occurrences?.some((occ: any) => occ.occurrence_type === 'PARTIAL_LOADED')).length || 0;
-        const countNotLoaded = selectedRoute.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'not_loaded' || o.sales_order?.occurrences?.some((occ: any) => occ.occurrence_type === 'NOT_LOADED_TOTAL')).length || 0;
+        const countPartial = selectedRoute.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'partial' || hasOccurrenceType(o, 'PARTIAL_LOADED')).length || 0;
+        const countNotLoaded = selectedRoute.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'not_loaded' || hasOccurrenceType(o, 'NOT_LOADED_TOTAL')).length || 0;
         const totalCount = selectedRoute.orders?.length || 0;
 
         // Ensure we don't double count if statuses overlap with occurrences
@@ -84,6 +87,76 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
         setConfirmDialogOpen(true);
     };
 
+    const getEffectiveLoadingStatus = (order: any): 'pending' | 'loaded' | 'partial' | 'not_loaded' => {
+        const normalized = normalizeLoadingStatus(order.loading_status) || 'pending';
+        const occurrences = order.sales_order?.occurrences || [];
+
+        if (occurrences.some((occ: any) => occ?.event_type === 'NOT_LOADED_TOTAL' || occ?.occurrence_type === 'NOT_LOADED_TOTAL')) return 'not_loaded';
+        if (occurrences.some((occ: any) => occ?.event_type === 'PARTIAL_LOADED' || occ?.occurrence_type === 'PARTIAL_LOADED')) return 'partial';
+        if (['loaded', 'partial', 'not_loaded'].includes(normalized)) return normalized as 'loaded' | 'partial' | 'not_loaded';
+        if (normalized === 'pending' && order.partial_payload?.status === 'not_loaded') return 'not_loaded';
+        return 'pending';
+    };
+
+    const getRouteProgress = (route: any) => {
+        const orders = route?.orders || [];
+        const totalCount = orders.length;
+        const processedCount = orders.filter((o: any) => getEffectiveLoadingStatus(o) !== 'pending').length;
+        return { totalCount, processedCount };
+    };
+
+    const canPrintManifest = (() => {
+        if (!selectedRoute) return false;
+        const { totalCount, processedCount } = getRouteProgress(selectedRoute);
+        return totalCount > 0 && processedCount === totalCount;
+    })();
+
+    const handlePrintManifest = () => {
+        if (!selectedRoute) {
+            toast({ title: "Selecione uma rota", description: "Escolha uma rota para imprimir o romaneio.", variant: "destructive" });
+            return;
+        }
+
+        const { totalCount, processedCount } = getRouteProgress(selectedRoute);
+        if (totalCount === 0 || processedCount !== totalCount) {
+            toast({ title: "Romaneio indisponível", description: "Finalize a conferência de todos os pedidos para imprimir.", variant: "destructive" });
+            return;
+        }
+
+        (async () => {
+            try {
+                const response = await fetch('/api/expedition/print-manifest', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ routeId: selectedRoute.id })
+                });
+
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data?.error || 'Erro ao gerar romaneio.');
+                }
+
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+                const win = window.open(blobUrl, '_blank');
+
+                if (!win) {
+                    URL.revokeObjectURL(blobUrl);
+                    toast({ title: "Bloqueio de pop-up", description: "Permita pop-ups para visualizar/imprimir o romaneio.", variant: "destructive" });
+                    return;
+                }
+
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+            } catch (error: any) {
+                toast({
+                    title: "Falha na impressão",
+                    description: error?.message || "Não foi possível gerar o romaneio.",
+                    variant: "destructive"
+                });
+            }
+        })();
+    };
+
     const confirmStartRoute = async () => {
         if (!selectedRoute) return;
 
@@ -94,18 +167,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                 await resetAndUnscheduleRouteAction(selectedRoute.id);
                 toast({ title: "Rota Cancelada", description: 'A rota voltou para "Rotas Não Agendadas" e está editável.' });
             } else {
-                // 1. Process Occurrences (Deferral)
-                const procResponse = await fetch(`/api/logistics/routes/${selectedRoute.id}/process-return`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-
-                if (!procResponse.ok) {
-                    const err = await procResponse.json();
-                    throw new Error(err.error || "Falha ao processar ocorrências.");
-                }
-
-                // 2. Start Route (Logic for remaining orders)
+                // Start Route (single source of truth: delivery_route_orders + deliveries)
                 const response = await fetch('/api/expedition/start-route', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -165,7 +227,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                 description="Separação e carregamento das rotas agendadas"
                 actions={
                     <div className="flex gap-2">
-                        <Button variant="secondary" disabled>
+                        <Button variant="secondary" onClick={handlePrintManifest} disabled={!canPrintManifest}>
                             <Printer className="w-4 h-4 mr-2" />
                             Imprimir Romaneio
                         </Button>

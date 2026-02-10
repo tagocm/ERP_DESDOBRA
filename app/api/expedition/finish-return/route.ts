@@ -3,6 +3,7 @@ import { createClient } from '@/utils/supabase/server';
 import { NextRequest, NextResponse } from 'next/server';
 import { setDeliveryStatus, updateDeliveryItemQuantities } from '@/lib/services/deliveries';
 import { logger } from '@/lib/logger';
+import { isRouteOrderEligibleForReturn } from '@/lib/logistics/flow-rules';
 
 export async function POST(request: NextRequest) {
     const supabase = await createClient();
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
         const { data: routeOrders, error: fetchError } = await supabase
             .from('delivery_route_orders')
             .select(`
-                id, return_outcome_type, return_payload, sales_document_id,
+                id, loading_status, return_outcome_type, return_payload, sales_document_id,
                 sales_order:sales_documents(*)
             `)
             .eq('route_id', routeId);
@@ -31,8 +32,19 @@ export async function POST(request: NextRequest) {
         if (fetchError) throw fetchError;
         if (!routeOrders || routeOrders.length === 0) throw new Error('Rota sem pedidos.');
 
+        const scopedRouteOrders = routeOrders.filter((ro: any) =>
+            isRouteOrderEligibleForReturn(ro.loading_status, ro.sales_order?.status_logistic)
+        );
+
+        if (scopedRouteOrders.length === 0) {
+            return NextResponse.json(
+                { error: 'Nenhum pedido carregado/em rota para finalizar retorno.' },
+                { status: 400 }
+            );
+        }
+
         // Validate all have outcomes
-        const pending = routeOrders.filter(ro => !ro.return_outcome_type);
+        const pending = scopedRouteOrders.filter(ro => !ro.return_outcome_type);
         if (pending.length > 0) {
             return NextResponse.json({ error: 'Todos os pedidos devem ter um resultado definido.' }, { status: 400 });
         }
@@ -44,7 +56,7 @@ export async function POST(request: NextRequest) {
         const baseDate = new Date().toLocaleDateString();
 
         // 2. Process Outcomes
-        for (const ro of routeOrders) {
+        for (const ro of scopedRouteOrders) {
             let outcome = ro.return_outcome_type;
             if (outcome === 'ENTREGUE') outcome = 'delivered';
             if (outcome === 'DEVOLVIDO_PARCIAL') outcome = 'partial';
@@ -355,7 +367,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 3. Log Route Event
-        const summaryLog = routeOrders.map(ro => ({
+        const summaryLog = scopedRouteOrders.map(ro => ({
             order_id: (ro.sales_order as any)?.id,
             document_number: (ro.sales_order as any)?.document_number,
             outcome: ro.return_outcome_type, // 'delivered', 'partial', 'not_delivered'
@@ -363,14 +375,14 @@ export async function POST(request: NextRequest) {
         }));
 
         await supabase.from('route_event_logs').insert({
-            route_id: routeId,
-            event_code: 'ROUTE_FINISHED',
-            payload: {
-                finished_at: nowIso,
-                orders_count: routeOrders.length,
-                user_id: user.id,
-                summary: summaryLog
-            },
+                route_id: routeId,
+                event_code: 'ROUTE_FINISHED',
+                payload: {
+                    finished_at: nowIso,
+                    orders_count: scopedRouteOrders.length,
+                    user_id: user.id,
+                    summary: summaryLog
+                },
             created_by_user_id: user.id
         });
 

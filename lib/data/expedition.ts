@@ -19,8 +19,7 @@ export async function getSandboxOrders(supabase: SupabaseClient, companyId: stri
         `)
         .eq('company_id', companyId)
         .eq('status_commercial', 'confirmed')
-        .eq('status_commercial', 'confirmed')
-        .in('status_logistic', ['pending', 'partial'])
+        .in('status_logistic', ['pending', 'partial', 'sandbox'])
         .eq('dispatch_blocked', false)
         .is('deleted_at', null)
         .order('date_issued', { ascending: false });
@@ -567,12 +566,21 @@ export async function getRetornoRoutes(
     // Sort orders by position and calculate balances
     const routes = data?.map((route: any) => ({
         ...route,
-        orders: route.orders?.sort((a: any, b: any) => a.position - b.position).map((ro: any) => {
-            if (ro.sales_order) {
-                ro.sales_order = calculateOrderBalances(ro.sales_order);
-            }
-            return ro;
-        }) || []
+        orders: route.orders
+            ?.filter((ro: any) => {
+                const loadingStatus = String(ro.loading_status || '').toLowerCase();
+                const logisticStatus = String(ro.sales_order?.status_logistic || '').toLowerCase();
+                const isLoadedForReturn = loadingStatus === 'loaded' || loadingStatus === 'partial';
+                const isInRoute = logisticStatus === 'in_route';
+                return isLoadedForReturn && isInRoute;
+            })
+            .sort((a: any, b: any) => a.position - b.position)
+            .map((ro: any) => {
+                if (ro.sales_order) {
+                    ro.sales_order = calculateOrderBalances(ro.sales_order);
+                }
+                return ro;
+            }) || []
     }));
 
     return routes as any[];
