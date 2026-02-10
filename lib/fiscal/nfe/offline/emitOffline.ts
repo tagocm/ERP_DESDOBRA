@@ -8,6 +8,7 @@ import { decryptPassword } from '@/lib/vault-helpers';
 import { normalizeDetails } from './normalization';
 import { buildDraftFromDb } from './mappers';
 import crypto from 'crypto';
+import { syncSalesDocumentFiscalStatus } from '@/lib/fiscal/nfe/sync-sales-document-fiscal-status';
 
 import { emitirNfeHomolog } from '@/lib/nfe/sefaz/services/emitir';
 import { loadCompanyCertificate } from '@/lib/nfe/sefaz/services/certificateLoader';
@@ -292,6 +293,8 @@ ${cleanProtocol}
 
         if (updateError) throw updateError;
 
+        await syncSalesDocumentFiscalStatus(adminSupabase, orderId, finalStatus);
+
         // CRITICAL: Increment nfe_next_number to ensure sequential numbering
         console.log(`[OfflineEmit] Incrementing NF-e number counter...`);
         const { error: incrementError } = await adminSupabase
@@ -335,6 +338,7 @@ ${cleanProtocol}
                 })
                 .eq('document_id', orderId)
                 .in('status', ['draft', 'processing']); // Update only if not already authorized/cancelled
+            await syncSalesDocumentFiscalStatus(adminSupabase, orderId, 'error');
         } catch (dbErr) {
             console.error('Failed to report error to DB:', dbErr);
         }

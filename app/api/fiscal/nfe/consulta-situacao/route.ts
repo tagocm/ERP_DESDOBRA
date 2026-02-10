@@ -10,6 +10,7 @@ import { errorResponse } from "@/lib/api/response";
 import { logger } from "@/lib/logger";
 import { NfeSefazError } from "@/lib/nfe/sefaz/errors";
 import { resolveCompanyContext } from "@/lib/auth/resolve-company";
+import { syncSalesDocumentFiscalStatus } from "@/lib/fiscal/nfe/sync-sales-document-fiscal-status";
 
 function mapLegacyStatusForUi(status: string): 'authorized' | 'processing' | 'error' {
     if (status === 'authorized') return 'authorized';
@@ -150,6 +151,12 @@ export async function POST(request: NextRequest) {
             xml_signed: emission?.xml_signed || '',
             ...updates
         });
+
+        await syncSalesDocumentFiscalStatus(
+            supabaseAdmin,
+            emission?.sales_document_id || legacyNfe?.document_id || undefined,
+            status as 'processing' | 'authorized' | 'cancelled' | 'denied' | 'rejected' | 'error'
+        );
 
         if (legacyNfe) {
             await supabaseAdmin

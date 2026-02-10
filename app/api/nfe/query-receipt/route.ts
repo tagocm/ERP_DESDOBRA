@@ -10,6 +10,7 @@ import { errorResponse } from "@/lib/api/response";
 import { logger } from "@/lib/logger";
 import { NfeSefazError } from "@/lib/nfe/sefaz/errors";
 import { resolveCompanyContext } from "@/lib/auth/resolve-company";
+import { syncSalesDocumentFiscalStatus } from "@/lib/fiscal/nfe/sync-sales-document-fiscal-status";
 
 export async function POST(request: NextRequest) {
     try {
@@ -171,6 +172,12 @@ export async function POST(request: NextRequest) {
             xml_signed: emission?.xml_signed || '', // Preserve or empty
             ...updates
         });
+
+        await syncSalesDocumentFiscalStatus(
+            supabaseAdmin,
+            emission?.sales_document_id || legacyNfe?.document_id || undefined,
+            status as 'processing' | 'authorized' | 'cancelled' | 'denied' | 'rejected' | 'error'
+        );
 
         const exposeXml = process.env.NODE_ENV !== 'production' || process.env.EXPOSE_NFE_XML === 'true';
         return NextResponse.json({

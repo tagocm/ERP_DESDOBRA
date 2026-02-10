@@ -8,6 +8,8 @@ import { loadCompanyCertificate } from '@/lib/nfe/sefaz/services/certificateLoad
 import { NfeDraft } from '@/lib/nfe/domain/types';
 import { logger } from '@/lib/logger';
 import { rateLimit } from '@/lib/rate-limit';
+import { createAdminClient } from '@/lib/supabaseServer';
+import { syncSalesDocumentFiscalStatus } from '@/lib/fiscal/nfe/sync-sales-document-fiscal-status';
 
 function mapUfFromCUF(cUF?: string): string {
     const ufMap: Record<string, string> = {
@@ -170,6 +172,15 @@ export async function POST(request: NextRequest) {
             uf: mapUfFromCUF(draft.ide.cUF),
             ...updates
         });
+
+        if (salesDocumentId) {
+            const admin = createAdminClient();
+            await syncSalesDocumentFiscalStatus(
+                admin,
+                salesDocumentId,
+                status as 'processing' | 'authorized' | 'cancelled' | 'denied' | 'rejected' | 'error'
+            );
+        }
 
         const exposeXml = process.env.NODE_ENV !== 'production' || process.env.EXPOSE_NFE_XML === 'true';
         const exposeLogs = process.env.NODE_ENV !== 'production' || process.env.EXPOSE_NFE_LOGS === 'true';
