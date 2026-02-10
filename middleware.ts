@@ -1,4 +1,3 @@
-
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
@@ -23,16 +22,12 @@ function applySecurityHeaders(response: NextResponse, request: NextRequest) {
 }
 
 export async function middleware(request: NextRequest) {
-    // 1. Guard clause: CI/E2E bypass when Supabase envs are missing OR explicitly in E2E mode
+    // STRICT ENV VAR CHECK - Fail fast if missing
     if (
-        process.env.E2E === 'true' ||
-        process.env.CI === 'true' ||
         !process.env.NEXT_PUBLIC_SUPABASE_URL ||
         !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     ) {
-        // Log only if verbose or warn
-        // console.warn("⚠️ Middleware: Bypassing auth check (CI/E2E mode or missing envs).");
-        return NextResponse.next();
+        throw new Error("Supabase environment variables are missing (URL or ANON_KEY)");
     }
 
     let response = NextResponse.next({

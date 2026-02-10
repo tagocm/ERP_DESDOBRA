@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/server";
-import { getExpeditionRoutes } from "@/lib/data/expedition";
+import { checkAndCleanupExpiredRoutes, getExpeditionRoutes } from "@/lib/data/expedition";
 import { format } from "date-fns";
 import { ExpedicaoClient } from "@/components/expedicao/ExpedicaoClient";
 
@@ -46,6 +46,8 @@ export default async function ExpedicaoSeparacaoPage() {
     }
 
     try {
+        await checkAndCleanupExpiredRoutes(supabase, companyId);
+
         // Get routes for expanded range (Today + 14 days)
         const today = new Date();
         const dateFrom = format(today, 'yyyy-MM-dd');

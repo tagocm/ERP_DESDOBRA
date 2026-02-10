@@ -15,7 +15,8 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
   // Calcula totais se não vierem prontos
   const totalItems = items.reduce((acc, item) => acc + (item.total_amount || 0), 0);
   const totalDiscount = order.discount_amount || 0;
-  const totalOrder = order.total_amount || (totalItems - totalDiscount);
+  const totalFreight = Number(order.freight_amount || 0);
+  const totalOrder = Number(order.total_amount ?? (totalItems - totalDiscount + totalFreight));
 
   // Fallback seguro para dados
   const clientName = (order.client?.trade_name || order.client?.legal_name || "Consumidor Final").toUpperCase();
@@ -23,6 +24,12 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
 
   // Prefer resolved address from backend (route.ts), fallback to fields
   const clientAddress = order.client_address_resolved || order.client_address || order.delivery_address || "Endereço não informado";
+
+  const companyLegalName = (company?.legal_name || company?.trade_name || "EMPRESA").toUpperCase();
+  const companyStreetLine = [company?.address_street, company?.address_number].filter(Boolean).join(', ') || company?.address || "-";
+  const companyNeighborhoodCityUfLine = [company?.address_neighborhood, company?.address_city, company?.address_state].filter(Boolean).join(' - ') || "-";
+  const companyWebsiteLine = company?.website || "-";
+  const companyPhoneLine = company?.phone || "-";
 
   return `
 <!DOCTYPE html>
@@ -32,49 +39,55 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
   <title>Pedido ${order.document_number}</title>
   <style>
     @page { size: A4; margin: 10mm; }
-    body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 11px; color: #333; line-height: 1.3; }
+    html, body { height: 100%; }
+    body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 10px; color: #333; line-height: 1.2; display: flex; flex-direction: column; min-height: 100%; }
     .page-break { break-before: page; page-break-before: always; }
     
-    .box { border: 1px solid #ccc; margin-bottom: 12px; padding: 10px; border-radius: 4px; }
-    .row { display: flex; gap: 20px; }
+    .box { border: 1px solid #ccc; margin-bottom: 8px; padding: 7px; border-radius: 4px; }
+    .row { display: flex; gap: 12px; }
     .col { flex: 1; }
     .col-2 { flex: 2; }
     .col-3 { flex: 3; }
     
-    .header-title { font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 4px; text-transform: uppercase; color: #111; }
-    .label { font-size: 9px; font-weight: bold; text-transform: uppercase; color: #666; margin-bottom: 2px; }
-    .value { font-size: 11px; font-weight: normal; color: #000; }
+    .header-title { font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 2px; text-transform: uppercase; color: #111; }
+    .label { font-size: 8px; font-weight: bold; text-transform: uppercase; color: #666; margin-bottom: 1px; }
+    .value { font-size: 10px; font-weight: normal; color: #000; margin: 0; }
     .value.bold { font-weight: bold; }
-    .value.lg { font-size: 13px; }
+    .value.lg { font-size: 12px; }
     
-    table { width: 100%; border-collapse: collapse; margin-bottom: 5px; font-size: 10px; }
-    th { border-bottom: 2px solid #ddd; background: #f9f9f9; padding: 6px; text-align: left; font-weight: bold; text-transform: uppercase; color: #444; }
-    td { border-bottom: 1px solid #eee; padding: 6px; text-align: left; vertical-align: top; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 2px; font-size: 9px; }
+    th { border-bottom: 2px solid #ddd; background: #f9f9f9; padding: 4px; text-align: left; font-weight: bold; text-transform: uppercase; color: #444; }
+    td { border-bottom: 1px solid #eee; padding: 4px; text-align: left; vertical-align: top; }
     tr:nth-child(even) { background-color: #fbfbfb; }
     
     .text-center { text-align: center; }
     .text-right { text-align: right; }
     .text-red { color: #d00; }
     
-    .footer-note { font-size: 9px; text-align: center; margin-top: 15px; border-top: 1px solid #eee; padding-top: 8px; color: #888; }
+    .footer-note { font-size: 8px; text-align: center; margin-top: 8px; border-top: 1px solid #eee; padding-top: 5px; color: #888; }
+    .main-content { flex: 1 1 auto; display: flex; flex-direction: column; }
+    .items-box { flex: 1 1 auto; display: flex; flex-direction: column; }
+    .items-table-wrap { flex: 1 1 auto; }
   </style>
 </head>
 <body>
+  <div class="main-content">
 
   <!-- Cabeçalho Principal -->
   <div class="box">
     <div class="row" style="align-items: center;">
       <div class="col text-center">
-         ${company?.logo_url ? `<img src="${company.logo_url}" style="max-height: 70px; margin-bottom: 8px;" alt="Logo" />` : ``}
-         <div class="value bold lg" style="margin-top: 4px;">${company?.trade_name || "EMPRESA MODELO"}</div>
-         <div class="value">${company?.legal_name || ""}</div>
-         <div class="value">CNPJ: ${company?.document || ""}</div>
-         <div class="value" style="font-size: 10px; color: #555;">${company?.address || ""}</div>
+         ${company?.logo_url ? `<img src="${company.logo_url}" style="max-height: 46px; margin-bottom: 4px;" alt="Logo" />` : ``}
+         <div class="value bold lg" style="margin-top: 1px;">${companyLegalName}</div>
+         <div class="value">${companyStreetLine}</div>
+         <div class="value">${companyNeighborhoodCityUfLine}</div>
+         <div class="value">${companyWebsiteLine}</div>
+         <div class="value">${companyPhoneLine}</div>
       </div>
-      <div class="col text-center" style="border-left: 1px solid #eee; padding-left: 15px;">
+      <div class="col text-center" style="border-left: 1px solid #eee; padding-left: 10px;">
          <div class="header-title">PEDIDO DE VENDA</div>
-         <div class="value bold" style="font-size: 24px; color: #444;">Nº ${String(order.document_number).padStart(6, '0')}</div>
-         <div class="value" style="margin-top: 8px;">EMISSÃO: <strong>${formatDate(order.date_issued)}</strong></div>
+         <div class="value bold" style="font-size: 20px; color: #444;">Nº ${String(order.document_number).padStart(6, '0')}</div>
+         <div class="value" style="margin-top: 4px;">EMISSÃO: <strong>${formatDate(order.date_issued)}</strong></div>
          <div class="value">STATUS: <strong style="text-transform: uppercase;">${order.status_commercial || order.status || "Novo"}</strong></div>
       </div>
     </div>
@@ -102,8 +115,9 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
   </div>
 
   <!-- Itens -->
-  <div class="box" style="min-height: 300px; border: none; padding: 0;">
-    <div class="label" style="margin-bottom: 8px;">ITENS DO PEDIDO</div>
+  <div class="box items-box" style="min-height: 220px; border: none; padding: 0;">
+    <div class="label" style="margin-bottom: 4px;">ITENS DO PEDIDO</div>
+    <div class="items-table-wrap">
     <table>
       <thead>
         <tr>
@@ -134,10 +148,12 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
         `).join('')}
       </tbody>
     </table>
+    </div>
+  </div>
   </div>
 
   <!-- Totais -->
-  <div class="box" style="background-color: #fbfbfb;">
+  <div class="box" style="background-color: #fbfbfb; margin-top: auto;">
     <div class="row">
       <div class="col-2">
          <div class="label">OBSERVAÇÕES INTERNAS / ENTREGA</div>
@@ -149,14 +165,13 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
              <td style="border:none; padding: 4px;" class="text-right label">TOTAL ITENS:</td>
              <td style="border:none; padding: 4px;" class="text-right value">${formatCurrency(totalItems)}</td>
            </tr>
-           ${totalDiscount > 0 ? `
            <tr>
              <td style="border:none; padding: 4px;" class="text-right label">DESCONTOS:</td>
              <td style="border:none; padding: 4px;" class="text-right value text-red">-${formatCurrency(totalDiscount)}</td>
-           </tr>` : ''}
+           </tr>
            <tr>
              <td style="border:none; padding: 4px;" class="text-right label">FRETE:</td>
-             <td style="border:none; padding: 4px;" class="text-right value">${formatCurrency(order.freight_amount || 0)}</td>
+             <td style="border:none; padding: 4px;" class="text-right value">${formatCurrency(totalFreight)}</td>
            </tr>
            <tr>
              <td style="border:none; padding: 8px; border-top: 2px solid #ddd;" class="text-right label" style="font-size: 12px;">TOTAL PEDIDO:</td>

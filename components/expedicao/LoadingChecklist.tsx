@@ -132,7 +132,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                     let status = normalizeLoadingStatus(routeOrder.loading_status) || 'pending';
                     const occurrences = order.occurrences || [];
 
-                    if (occurrences.some((o: any) => o.occurrence_type === 'NOT_LOADED_TOTAL')) {
+                    if (occurrences.some((o: any) => o?.event_type === 'NOT_LOADED_TOTAL' || o?.occurrence_type === 'NOT_LOADED_TOTAL')) {
                         status = 'not_loaded';
                     } else if (status === 'loaded') {
                         // Keep explicit status

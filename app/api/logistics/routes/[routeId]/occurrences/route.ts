@@ -2,6 +2,7 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/logger";
+import { normalizeOccurrenceType } from "@/lib/logistics/flow-rules";
 
 export async function POST(
     request: Request,
@@ -66,6 +67,8 @@ export async function POST(
             }
         }
 
+        const canonicalType = normalizeOccurrenceType(occurrenceType);
+
         // Insert Event (Occurrence)
         const { data, error } = await supabase
             .from('order_delivery_events')
@@ -73,7 +76,7 @@ export async function POST(
                 company_id: companyId,
                 route_id: routeId,
                 order_id: salesDocumentId,
-                event_type: occurrenceType,
+                event_type: canonicalType,
                 reason_id: reasonId,
                 note: observation,
                 payload: payload,
@@ -86,8 +89,8 @@ export async function POST(
 
         // Sync with delivery_route_orders
         let newStatus = null;
-        if (occurrenceType === 'PARTIAL_LOADED') newStatus = 'partial';
-        if (occurrenceType === 'NAO_CARREGAMENTO') newStatus = 'not_loaded';
+        if (canonicalType === 'PARTIAL_LOADED') newStatus = 'partial';
+        if (canonicalType === 'NOT_LOADED_TOTAL') newStatus = 'not_loaded';
 
         if (newStatus) {
             await supabase.from('delivery_route_orders')

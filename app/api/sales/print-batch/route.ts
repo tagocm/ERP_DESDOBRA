@@ -83,6 +83,13 @@ export async function POST(request: Request) {
             legal_name: "MARTIGRAN LTDA",
             document: "00.000.000/0001-00",
             address: "Dados da Empresa não encontrados",
+            address_street: "",
+            address_number: "",
+            address_neighborhood: "",
+            address_city: "",
+            address_state: "",
+            website: "",
+            phone: "",
             logo_url: null as string | null
         };
 
@@ -136,6 +143,13 @@ export async function POST(request: Request) {
                     legal_name: (settings.legal_name || "").toUpperCase(),
                     document: settings.cnpj || "",
                     address: address,
+                    address_street: settings.address_street || "",
+                    address_number: settings.address_number || "",
+                    address_neighborhood: settings.address_neighborhood || "",
+                    address_city: settings.address_city || "",
+                    address_state: settings.address_state || "",
+                    website: settings.website || "",
+                    phone: settings.phone || "",
                     logo_url: logoDataUri
                 };
             }
