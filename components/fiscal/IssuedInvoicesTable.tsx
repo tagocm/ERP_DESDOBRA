@@ -132,6 +132,22 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
         try {
             const result = await downloadNfeXml(nfeId);
 
+            if (result.inlineXml) {
+                const xmlBlob = new Blob([result.inlineXml], { type: 'application/xml;charset=utf-8' });
+                const blobUrl = window.URL.createObjectURL(xmlBlob);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = result.filename;
+                link.style.display = 'none';
+                document.body.appendChild(link);
+                link.click();
+                setTimeout(() => {
+                    document.body.removeChild(link);
+                    window.URL.revokeObjectURL(blobUrl);
+                }, 100);
+                return;
+            }
+
             // Get signed URL from Supabase Storage
             const supabase = createClient();
             const { data: signedUrl } = await supabase.storage

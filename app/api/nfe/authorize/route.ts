@@ -9,6 +9,16 @@ import { NfeDraft } from '@/lib/nfe/domain/types';
 import { logger } from '@/lib/logger';
 import { rateLimit } from '@/lib/rate-limit';
 
+function mapUfFromCUF(cUF?: string): string {
+    const ufMap: Record<string, string> = {
+        "11": "RO", "12": "AC", "13": "AM", "14": "RR", "15": "PA", "16": "AP", "17": "TO",
+        "21": "MA", "22": "PI", "23": "CE", "24": "RN", "25": "PB", "26": "PE", "27": "AL",
+        "28": "SE", "29": "BA", "31": "MG", "32": "ES", "33": "RJ", "35": "SP", "41": "PR",
+        "42": "SC", "43": "RS", "50": "MS", "51": "MT", "52": "GO", "53": "DF"
+    };
+    return ufMap[cUF || ""] || "SP";
+}
+
 export async function POST(request: NextRequest) {
     try {
         const limitConfig = process.env.NODE_ENV === 'production'
@@ -31,10 +41,11 @@ export async function POST(request: NextRequest) {
         }
 
         // 2. Parse request
-        const { draft, companyId, tpAmb = '2' } = await request.json() as {
+        const { draft, companyId, tpAmb = '2', salesDocumentId } = await request.json() as {
             draft: NfeDraft;
             companyId: string;
             tpAmb?: '1' | '2';
+            salesDocumentId?: string;
         };
 
         if (!draft || !companyId) {
@@ -93,21 +104,30 @@ export async function POST(request: NextRequest) {
         const idLote = Date.now().toString().slice(-15);
 
         // 7. Create initial emission record
+        const draftWithEnv: NfeDraft = {
+            ...draft,
+            ide: {
+                ...draft.ide,
+                tpAmb
+            }
+        };
+
         await upsertNfeEmission({
             company_id: companyId,
+            sales_document_id: salesDocumentId || undefined,
             access_key: accessKey,
             numero: draft.ide.nNF,
             serie: draft.ide.serie,
             status: 'draft',
             tp_amb: tpAmb,
-            uf: 'SP',
+            uf: mapUfFromCUF(draft.ide.cUF),
             id_lote: idLote,
             xml_signed: '', // Will be updated after signing
             attempts: 0
         });
 
         // 8. Emit NF-e with persistence options
-        const result = await emitirNfeHomolog(draft, certConfig, idLote, {
+        const result = await emitirNfeHomolog(draftWithEnv, certConfig, idLote, {
             debug: process.env.NFE_WS_DEBUG === '1',
             companyId,
             accessKey
@@ -142,10 +162,12 @@ export async function POST(request: NextRequest) {
 
         await upsertNfeEmission({
             company_id: companyId,
+            sales_document_id: salesDocumentId || undefined,
             access_key: accessKey,
             numero: draft.ide.nNF,
             serie: draft.ide.serie,
             tp_amb: tpAmb,
+            uf: mapUfFromCUF(draft.ide.cUF),
             ...updates
         });
 

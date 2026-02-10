@@ -9,7 +9,7 @@ export async function uploadNfeArtifact(
     contentType: string = 'application/xml'
 ) {
     const supabase = createAdminClient();
-    const path = `nfe/${documentId}/${nfeId}/${fileName}`;
+    const path = `companies/${companyId}/nfe/${documentId}/${nfeId}/${fileName}`;
 
     // We use the 'company-assets' bucket but organized by NFe
     // Ideally we should use a separate bucket 'nfe-artifacts' but 'company-assets' is already configured.

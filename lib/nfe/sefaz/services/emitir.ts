@@ -51,11 +51,13 @@ export async function emitirNfeHomolog(
         };
         const targetUF = ufMap[draft.ide.cUF] || "SP";
 
+        const envTpAmb = draft.ide.tpAmb === "1" ? "1" : "2";
+
         const config: SefazEnvConfig = {
             xmlNfeAssinado: signedXml,
             idLote,
             indSinc: "1", // Sync by default (faster, SEFAZ preference)
-            tpAmb: "2", // Homolog
+            tpAmb: envTpAmb,
             uf: targetUF
         };
 

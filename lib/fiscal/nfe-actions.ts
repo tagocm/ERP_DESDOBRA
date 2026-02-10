@@ -97,7 +97,7 @@ export async function fetchIssuedInvoices(
 ) {
     const supabase = await createClient();
 
-    let query = supabase
+    let legacyQuery = supabase
         .from('sales_document_nfes')
         .select(`
             id,
@@ -116,31 +116,25 @@ export async function fetchIssuedInvoices(
                 )
             )
         `)
+        .eq('company_id', companyId)
         .neq('status', 'draft') // Exclude drafts
         .order('issued_at', { ascending: false });
 
     if (filters?.startDate) {
-        query = query.gte('issued_at', filters.startDate.toISOString());
+        legacyQuery = legacyQuery.gte('issued_at', filters.startDate.toISOString());
     }
 
     if (filters?.endDate) {
-        query = query.lte('issued_at', filters.endDate.toISOString());
+        legacyQuery = legacyQuery.lte('issued_at', filters.endDate.toISOString());
     }
 
-    const { data, error } = await query;
-
-    if (error) {
-        // If table doesn't exist, return empty array instead of throwing to avoid breaking the UI
-        if (error.code === '42P01' || error.message.includes('sales_document_nfes')) {
-            console.warn('Table sales_document_nfes not found, returning empty list');
-            return [];
-        }
-        console.error('Error fetching issued invoices:', error);
+    const { data: legacyData, error: legacyError } = await legacyQuery;
+    if (legacyError && legacyError.code !== '42P01' && !legacyError.message.includes('sales_document_nfes')) {
+        console.error('Error fetching legacy issued invoices:', legacyError);
         throw new Error('Erro ao buscar NF-e emitidas');
     }
 
-    // Transform nested client from array to single object
-    const transformedData = data?.map(nfe => {
+    const transformedLegacy = (legacyData || []).map(nfe => {
         const doc = Array.isArray(nfe.document) ? nfe.document[0] : nfe.document;
         if (!doc) return nfe;
 
@@ -155,7 +149,77 @@ export async function fetchIssuedInvoices(
         };
     });
 
-    return transformedData;
+    // Canonical source: nfe_emissions (compat layer to keep current UI shape)
+    let emissionsQuery = supabase
+        .from('nfe_emissions')
+        .select('id, sales_document_id, access_key, numero, serie, status, authorized_at, updated_at, created_at, xml_nfe_proc, xml_signed')
+        .eq('company_id', companyId)
+        .neq('status', 'draft')
+        .order('updated_at', { ascending: false });
+
+    if (filters?.startDate) {
+        emissionsQuery = emissionsQuery.gte('updated_at', filters.startDate.toISOString());
+    }
+    if (filters?.endDate) {
+        emissionsQuery = emissionsQuery.lte('updated_at', filters.endDate.toISOString());
+    }
+
+    const { data: emissionsData, error: emissionsError } = await emissionsQuery;
+    if (emissionsError && emissionsError.code !== '42P01') {
+        console.error('Error fetching canonical emissions:', emissionsError);
+        throw new Error('Erro ao buscar emissões NF-e');
+    }
+
+    const emissionDocIds = Array.from(new Set((emissionsData || []).map(e => e.sales_document_id).filter(Boolean)));
+    let docsMap = new Map<string, any>();
+    if (emissionDocIds.length > 0) {
+        const { data: docs } = await supabase
+            .from('sales_documents')
+            .select(`
+                id,
+                document_number,
+                total_amount,
+                client:organizations!client_id(
+                    trade_name,
+                    document_number
+                )
+            `)
+            .in('id', emissionDocIds as string[]);
+
+        docsMap = new Map((docs || []).map((doc: any) => {
+            const client = Array.isArray(doc.client) ? doc.client[0] : doc.client;
+            return [doc.id, { ...doc, client }];
+        }));
+    }
+
+    const transformedEmissions = (emissionsData || []).map((emission: any) => ({
+        id: emission.id,
+        nfe_number: Number(emission.numero) || null,
+        nfe_series: Number(emission.serie) || null,
+        nfe_key: emission.access_key,
+        status: emission.status,
+        issued_at: emission.authorized_at || emission.updated_at || emission.created_at,
+        document: emission.sales_document_id ? docsMap.get(emission.sales_document_id) || null : null,
+        _source: 'emission',
+        _xml_inline: emission.xml_nfe_proc || emission.xml_signed || null
+    }));
+
+    // Merge by access key (canonical first), keep legacy rows not present in canonical
+    const byKey = new Map<string, any>();
+    transformedEmissions.forEach((row: any) => {
+        const key = row.nfe_key || `emission:${row.id}`;
+        byKey.set(key, row);
+    });
+    (transformedLegacy || []).forEach((row: any) => {
+        const key = row.nfe_key || `legacy:${row.id}`;
+        if (!byKey.has(key)) {
+            byKey.set(key, { ...row, _source: 'legacy' });
+        }
+    });
+
+    return Array.from(byKey.values()).sort((a: any, b: any) =>
+        new Date(b.issued_at || 0).getTime() - new Date(a.issued_at || 0).getTime()
+    );
 }
 
 // Download NF-e XML
@@ -169,23 +233,40 @@ export async function downloadNfeXml(nfeId: string) {
         .eq('id', nfeId)
         .single();
 
-    if (error || !nfe) {
+    if (!error && nfe) {
+        // Get XML path from details
+        const details = nfe.details as any;
+        const xmlPath = details?.artifacts?.signed_xml || details?.xml_url;
+
+        if (xmlPath) {
+            return {
+                path: xmlPath,
+                key: nfe.nfe_key,
+                filename: `NFe-${nfe.nfe_key}.xml`
+            };
+        }
+    }
+
+    // Canonical fallback: nfe_emissions
+    const { data: emission, error: emissionError } = await supabase
+        .from('nfe_emissions')
+        .select('access_key, xml_nfe_proc, xml_signed')
+        .eq('id', nfeId)
+        .maybeSingle();
+
+    if (emissionError || !emission) {
         throw new Error('NF-e não encontrada');
     }
 
-    // Get XML path from details
-    const details = nfe.details as any;
-    const xmlPath = details?.artifacts?.signed_xml || details?.xml_url;
-
-    if (!xmlPath) {
+    const inlineXml = emission.xml_nfe_proc || emission.xml_signed;
+    if (!inlineXml) {
         throw new Error('XML não encontrado. A NF-e pode não ter sido processada completamente.');
     }
 
-    // Return the storage path for client-side download
     return {
-        path: xmlPath,
-        key: nfe.nfe_key,
-        filename: `NFe-${nfe.nfe_key}.xml`
+        key: emission.access_key,
+        filename: `NFe-${emission.access_key}.xml`,
+        inlineXml
     };
 }
 
