@@ -9,11 +9,12 @@ const isE2E = process.env.CI === 'true' || process.env.E2E === 'true';
 // Provide defaults to avoid Typecheck errors (Record<string, string> requirement)
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+const SUPABASE_SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 
-if (isE2E && (!SUPABASE_URL || !SUPABASE_ANON)) {
+if (isE2E && (!SUPABASE_URL || !SUPABASE_ANON || !SUPABASE_SERVICE)) {
     // We only throw if we are intentionally running E2E and vars are missing
     console.error('\n❌ [E2E] Error: Supabase environment variables are missing.');
-    console.error('Please ensure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set.\n');
+    console.error('Please ensure NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY are set.\n');
     process.exit(1);
 }
 
@@ -26,6 +27,7 @@ const webServer = isE2E ? {
         E2E: 'true',
         NEXT_PUBLIC_SUPABASE_URL: SUPABASE_URL,
         NEXT_PUBLIC_SUPABASE_ANON_KEY: SUPABASE_ANON,
+        SUPABASE_SERVICE_ROLE_KEY: SUPABASE_SERVICE,
     },
 } : undefined;
 
