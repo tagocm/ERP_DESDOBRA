@@ -1,9 +1,14 @@
 
 import { test, expect } from '@playwright/test';
+import { ensureE2EData } from './helpers/seed';
 
 test.describe('Sales Order Critical Path (True E2E)', () => {
     // 1. Use storage state from auth.setup.ts (Real Login)
     test.use({ storageState: 'playwright/.auth/user.json' });
+
+    test.beforeAll(async () => {
+        await ensureE2EData();
+    });
 
     test('should create a new sales order successfully without mocking', async ({ page }) => {
         // Define specific timeouts for critical interactions

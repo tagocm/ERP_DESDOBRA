@@ -1,8 +1,13 @@
 
 import { test, expect } from '@playwright/test';
+import { ensureE2EData } from './helpers/seed';
 
 test.describe('Debug Tenant Context', () => {
     test.use({ storageState: 'playwright/.auth/user.json' });
+
+    test.beforeAll(async () => {
+        await ensureE2EData();
+    });
 
     test('should log tenant context from browser session', async ({ page }) => {
         const consoleLogs: string[] = [];
