@@ -154,3 +154,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and th
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+_Commit de teste para validar push no GitHub (2026-02-10)._
