@@ -50,26 +50,16 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
                 setReasonsError(false);
 
                 try {
-                    // Try getting company ID from order or sales_order
-                    const companyId = order?.company_id || order?.sales_order?.company_id;
-
-                    if (!companyId) {
-                        console.warn("No company ID found on order");
-                        // Fallback or error? For now, empty list better than crash.
-                        if (isMounted) setReasons([]);
-                        return;
-                    }
-
                     const res = await listDeliveryReasonsAction('RETORNO_NAO_ENTREGUE');
-                    const data = res.ok ? res.data : [];
+                    if (!res.ok) {
+                        throw new Error(res.error?.message || "Falha ao carregar motivos.");
+                    }
+                    const data = res.data || [];
 
                     if (isMounted) {
-                        if (data && data.length > 0) {
+                        if (data.length > 0) {
                             setReasons(data);
                         } else {
-                            // If no custom reasons, maybe fallback to system? 
-                            // Or just show empty/other. User explicitly asked for "registered reasons".
-                            // If none found, empty list is correct (and "Other" option shows up).
                             setReasons([]);
                         }
                     }
@@ -150,7 +140,7 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-3xl h-screen flex flex-col">
+            <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
                 <DialogHeader>
                     <DialogTitle>Não Entregue (Rascunho)</DialogTitle>
                     <p className="text-sm text-gray-500">
@@ -158,20 +148,20 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
                     </p>
                 </DialogHeader>
 
-                <div className="flex-1 overflow-y-auto py-4 px-6 px-1">
+                <div className="flex-1 overflow-y-auto py-4 pr-1">
                     <div className="grid grid-cols-1 gap-6">
                         <div className="space-y-4">
                             <div className="space-y-1.5">
                                 <Label>Motivo <span className="text-red-500">*</span></Label>
                                 <Select value={selectedReasonId} onValueChange={handleReasonChange} disabled={isLoadingReasons}>
-                                    <SelectTrigger className={reasonsError ? "border-red-300 bg-red-50" : ""}>
+                                    <SelectTrigger className={`mx-[2px] w-[calc(100%-4px)] focus:ring-offset-0 ${reasonsError ? "border-red-300 bg-red-50" : ""}`}>
                                         <SelectValue placeholder={
                                             isLoadingReasons ? "Carregando motivos..." :
                                                 reasonsError ? "Erro ao carregar motivos." :
                                                     "Selecione o motivo..."
                                         } />
                                     </SelectTrigger>
-                                    <SelectContent>
+                                    <SelectContent className="max-h-64">
                                         {reasons.map((r) => (
                                             <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
                                         ))}
