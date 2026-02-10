@@ -5,6 +5,8 @@ export interface InventoryMovement {
     movement_type: 'ENTRADA' | 'SAIDA' | 'AJUSTE';
 
     qty_base: number;
+    qty_in?: number;
+    qty_out?: number;
 
     reference_type?: string | null;
     reference_id?: string | null;

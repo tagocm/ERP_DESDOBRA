@@ -111,6 +111,14 @@ export default function InventoryMovementsPage() {
         }
     };
 
+    const getSignedQtyBase = (mov: InventoryMovement) => {
+        const qtyOut = Number(mov.qty_out || 0);
+        const qtyIn = Number(mov.qty_in || 0);
+        if (qtyOut > 0) return -Math.abs(qtyOut);
+        if (qtyIn > 0) return Math.abs(qtyIn);
+        return Number(mov.qty_base || 0);
+    };
+
     return (
         <div className="bg-gray-50/50 min-h-screen">
             {/* ... (keep PageHeader) ... */}
@@ -238,7 +246,9 @@ export default function InventoryMovementsPage() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                movements.map((mov) => (
+                                movements.map((mov) => {
+                                    const signedQtyBase = getSignedQtyBase(mov);
+                                    return (
                                     <Fragment key={mov.id}>
                                         <TableRow
                                             className={cn(
@@ -272,9 +282,9 @@ export default function InventoryMovementsPage() {
                                             <TableCell className="text-right">
                                                 <span className={cn(
                                                     "font-bold font-mono text-sm",
-                                                    mov.qty_base > 0 ? "text-green-600" : "text-red-600"
+                                                    signedQtyBase > 0 ? "text-green-600" : "text-red-600"
                                                 )}>
-                                                    {mov.qty_base > 0 ? "+" : ""}{mov.qty_base}
+                                                    {signedQtyBase > 0 ? "+" : ""}{signedQtyBase}
                                                 </span>
                                                 <span className="text-[10px] text-gray-400 ml-1 uppercase">
                                                     {mov.uom_label || "UN"}
@@ -336,7 +346,8 @@ export default function InventoryMovementsPage() {
                                             </TableRow>
                                         )}
                                     </Fragment>
-                                ))
+                                    );
+                                })
                             )}
                         </TableBody>
                     </Table>
