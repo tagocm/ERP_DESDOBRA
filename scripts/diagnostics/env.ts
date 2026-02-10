@@ -40,7 +40,13 @@ if (hasEnvLocal) {
         }
     }
 
-    const criticalVars = ['DATABASE_URL', 'NEXTAUTH_URL', 'NEXTAUTH_SECRET', 'JWT_SECRET', 'NODE_ENV'];
+    const criticalVars = [
+        'NEXT_PUBLIC_SUPABASE_URL',
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+        'SUPABASE_SERVICE_ROLE_KEY',
+        'INTERNAL_API_TOKEN',
+        'NODE_ENV'
+    ];
     for (const v of criticalVars) {
         const presentInFile = keys.has(v);
         console.log(`${v}: ${presentInFile ? 'Defined in .env.local' : 'Not found in .env.local'}`);

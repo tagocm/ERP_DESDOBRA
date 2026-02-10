@@ -8,6 +8,11 @@ import { Input } from "@/components/ui/Input"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card"
 import Link from "next/link"
 
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) return error.message
+    return "Falha inesperada ao autenticar."
+}
+
 export default function LoginPage() {
     const router = useRouter()
     const [loading, setLoading] = useState(false)
@@ -26,9 +31,31 @@ export default function LoginPage() {
         if (e) e.preventDefault()
         setLoading(true)
         setError(null)
-        const supabase = createClient()
+        const loginAttemptId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
         try {
+            const hasPublicSupabaseEnv =
+                Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
+                Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
+
+            if (!hasPublicSupabaseEnv) {
+                throw new Error("Configuração de autenticação ausente no build (NEXT_PUBLIC_SUPABASE_*).")
+            }
+
+            const authHealthResponse = await fetch("/api/auth/health", {
+                method: "GET",
+                cache: "no-store",
+            })
+            if (!authHealthResponse.ok) {
+                const authHealthBody = await authHealthResponse.json().catch(() => ({}))
+                const authHealthMessage =
+                    typeof authHealthBody?.error === "string"
+                        ? authHealthBody.error
+                        : "Serviço de autenticação indisponível."
+                throw new Error(authHealthMessage)
+            }
+
+            const supabase = createClient()
             const { error } = await supabase.auth.signInWithPassword({
                 email: formData.email,
                 password: formData.password,
@@ -38,9 +65,14 @@ export default function LoginPage() {
 
             router.push("/app")
             router.refresh()
-        } catch (err: any) {
-            console.error(err)
-            setError(err.message === "Invalid login credentials" ? "Email ou senha incorretos" : err.message)
+        } catch (err: unknown) {
+            const message = getErrorMessage(err)
+            console.error("[login] failed", { loginAttemptId, message, error: err })
+            setError(
+                message === "Invalid login credentials"
+                    ? "Email ou senha incorretos"
+                    : message
+            )
         } finally {
             setLoading(false)
         }

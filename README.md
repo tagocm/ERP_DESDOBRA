@@ -106,6 +106,12 @@ E2E tests validate that React Hooks lint fixes don't introduce regressions:
 
 See [`tests/e2e/`](./tests/e2e/) for test specifications.
 
+## 🐳 Production Login (Docker)
+
+If you deploy with Docker + reverse proxy, see:
+
+- [`docs/LOGIN_DOCKER_TROUBLESHOOTING.md`](./docs/LOGIN_DOCKER_TROUBLESHOOTING.md)
+
 **CI Integration:**
 
 E2E tests run automatically in CI (GitHub Actions) on every push/PR. Test reports are uploaded as artifacts.

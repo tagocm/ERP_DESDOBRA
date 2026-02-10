@@ -48,6 +48,10 @@ assert_code "GET /api/health" "${code_health}" "200"
 code_login="$(request_code GET "${BASE_URL}/login")"
 assert_code "GET /login" "${code_login}" "200"
 
+# 2.1) Auth health must be reachable (prevents silent login failures).
+code_auth_health="$(request_code GET "${BASE_URL}/api/auth/health")"
+assert_code "GET /api/auth/health" "${code_auth_health}" "200"
+
 # 3) Protected app route should redirect or block without auth.
 code_app="$(request_code GET "${BASE_URL}/app")"
 assert_code "GET /app (sem sessao)" "${code_app}" "302,303,307"
