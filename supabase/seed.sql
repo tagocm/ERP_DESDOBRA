@@ -38,6 +38,8 @@ DECLARE
     v_prod_iso UUID;
     v_org_id UUID;
     v_order_id UUID;
+    v_emporio_id UUID;
+    v_prod_granola UUID;
 BEGIN
     SELECT id INTO v_company_id FROM public.companies WHERE slug = 'martigran';
     SELECT id INTO v_user_id FROM public.users WHERE email = 'admin@desdobra.local';
@@ -66,6 +68,12 @@ BEGIN
     ON CONFLICT (company_id, code) DO NOTHING
     RETURNING id INTO v_prod_iso;
 
+    -- Product D: Granola (E2E Test Requirement)
+    INSERT INTO public.products (company_id, name, code, unit, type, status)
+    VALUES (v_company_id, 'Granola Tradicional', 'GRA001', 'un', 'finished', 'active')
+    ON CONFLICT (company_id, code) DO NOTHING
+    RETURNING id INTO v_prod_granola;
+
     -- 3.3 Price Tables
     INSERT INTO public.price_tables (company_id, name, active)
     VALUES (v_company_id, 'Tabela Padrão 2026', true)
@@ -76,13 +84,19 @@ BEGIN
     VALUES 
         (v_pt_id, v_prod_chapa, 150.00),
         (v_pt_id, v_prod_bloco, 3500.00),
-        (v_pt_id, v_prod_iso, 45.50);
+        (v_pt_id, v_prod_iso, 45.50),
+        (v_pt_id, v_prod_granola, 10.00);
 
     -- 4. Clients / Organizations
     INSERT INTO public.organizations (company_id, trade_name, legal_name, document, status)
     VALUES (v_company_id, 'Construtora Exemplo', 'Construtora Exemplo S/A', '12345678000199', 'active')
     ON CONFLICT (company_id, document) DO NOTHING
     RETURNING id INTO v_org_id;
+
+    -- Roles for Construtora Exemplo
+    INSERT INTO public.organization_roles (company_id, organization_id, role)
+    VALUES (v_company_id, v_org_id, 'customer')
+    ON CONFLICT (company_id, organization_id, role) DO NOTHING;
 
     -- Address
     INSERT INTO public.addresses (company_id, organization_id, street, number, neighborhood, city, state, postal_code, type)
@@ -91,6 +105,21 @@ BEGIN
     -- Contact
     INSERT INTO public.people (company_id, organization_id, full_name, email, is_primary)
     VALUES (v_company_id, v_org_id, 'Engenheiro Chefe', 'eng@obra.com', true);
+
+    -- 4.2 Emporio Do Arroz Integral (E2E Test Requirement)
+    INSERT INTO public.organizations (company_id, trade_name, legal_name, document, status)
+    VALUES (v_company_id, 'Emporio Do Arroz Integral', 'Emporio Do Arroz Integral LTDA', '98765432000188', 'active')
+    ON CONFLICT (company_id, document) DO NOTHING
+    RETURNING id INTO v_emporio_id;
+
+    -- Roles for Emporio
+    INSERT INTO public.organization_roles (company_id, organization_id, role)
+    VALUES (v_company_id, v_emporio_id, 'customer')
+    ON CONFLICT (company_id, organization_id, role) DO NOTHING;
+    
+    -- Address for Emporio
+    INSERT INTO public.addresses (company_id, organization_id, street, number, neighborhood, city, state, postal_code, type)
+    VALUES (v_company_id, v_emporio_id, 'Rua do Comercio', '500', 'Centro', 'Rio de Janeiro', 'RJ', '20000-000', 'billing');
 
     -- 5. Sales Order (Confirmable)
     -- Status: 'draft' or 'confirmed'? Let's make it 'approved' (Active -> Logistics can see it)
