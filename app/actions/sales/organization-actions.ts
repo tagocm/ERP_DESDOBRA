@@ -16,9 +16,7 @@ export async function searchOrganizationsAction(
 ): Promise<ActionResult<OrganizationOptionDTO[]>> {
     try {
         const companyId = await getCompanyId();
-        const client = await createClient();
-        const user = (await client.auth.getUser()).data.user;
-        const supabase = client;
+        const supabase = await createClient();
 
         let queryBuilder = supabase
             .from('organizations')
@@ -26,12 +24,12 @@ export async function searchOrganizationsAction(
                 id,
                 trade_name,
                 legal_name,
-                document_number,
-                addresses(city, state)
+                document_number
                 ${type !== 'all' ? ', organization_roles!inner(role)' : ''}
             `)
             .eq('company_id', companyId)
-            .is('deleted_at', null);
+            .is('deleted_at', null)
+            .order('trade_name', { ascending: true });
 
         // Filter by Role (Inner Join)
         if (type !== 'all') {
@@ -82,17 +80,11 @@ export async function searchOrganizationsAction(
 
         // Map to DTO
         const dtos: OrganizationOptionDTO[] = (data || []).map((org: any) => {
-            // Handle duplicates if any (though unlikely with simple select)
-            // Address derivation
-            const addr = org.addresses?.[0];
-            const cityState = addr ? `${addr.city}/${addr.state}` : undefined;
-
             return {
                 id: org.id,
                 trade_name: org.trade_name,
                 legal_name: org.legal_name,
-                document_number: org.document_number,
-                city_state: cityState
+                document_number: org.document_number
             };
         });
 

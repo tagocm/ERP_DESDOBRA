@@ -395,6 +395,45 @@ export async function getItemPackagingsAction(itemId: string): Promise<any[]> {
     }
 }
 
+export async function getQuickItemMetaAction(params: {
+    itemId: string;
+    priceTableId?: string | null;
+}): Promise<{ price?: number; packagings: any[] }> {
+    try {
+        await getCompanyId();
+        const supabase = await createClient();
+
+        const packagingsQuery = supabase
+            .from('item_packaging')
+            .select('*')
+            .eq('item_id', params.itemId)
+            .eq('is_active', true)
+            .order('is_default_sales_unit', { ascending: false })
+            .order('qty_in_base', { ascending: true });
+
+        const priceQuery = params.priceTableId
+            ? supabase
+                .from('price_table_items')
+                .select('price')
+                .eq('price_table_id', params.priceTableId)
+                .eq('item_id', params.itemId)
+                .maybeSingle()
+            : Promise.resolve({ data: null, error: null } as any);
+
+        const [{ data: packagings }, { data: priceData }] = await Promise.all([
+            packagingsQuery,
+            priceQuery
+        ]);
+
+        return {
+            price: priceData?.price !== undefined ? Number(priceData.price) : undefined,
+            packagings: packagings || []
+        };
+    } catch (e) {
+        return { packagings: [] };
+    }
+}
+
 export async function getClientDetailsAction(clientId: string): Promise<any> {
     try {
         const companyId = await getCompanyId();
@@ -424,4 +463,3 @@ export async function getCompanySettingsAction(companyId: string): Promise<any> 
         return null;
     }
 }
-

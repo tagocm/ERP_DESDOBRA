@@ -52,6 +52,7 @@ export function OrganizationSelector({
     const [loading, setLoading] = useState(false);
     const [selectedCompany, setSelectedCompany] = useState<any>(currentOrganization);
     const searchRequestRef = useRef(0);
+    const searchCacheRef = useRef<Map<string, { ts: number; data: any[] }>>(new Map());
 
     const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -102,6 +103,17 @@ export function OrganizationSelector({
         }
 
         const requestId = ++searchRequestRef.current;
+        const normalizedQuery = search.trim().toLowerCase();
+        const cacheKey = `${type}:${normalizedQuery}`;
+        const cached = searchCacheRef.current.get(cacheKey);
+        const now = Date.now();
+
+        if (cached && now - cached.ts < 5 * 60 * 1000) {
+            setOptions(cached.data);
+            setOpen(true);
+            setLoading(false);
+            return;
+        }
 
         const fetchOrgs = async () => {
             setLoading(true);
@@ -111,9 +123,11 @@ export function OrganizationSelector({
 
                 if (res.success && res.data) {
                     setOptions(res.data);
+                    searchCacheRef.current.set(cacheKey, { ts: Date.now(), data: res.data });
                     setOpen(true);
                 } else {
                     setOptions([]);
+                    searchCacheRef.current.set(cacheKey, { ts: Date.now(), data: [] });
                     setOpen(true);
                 }
             } catch (error) {
@@ -127,7 +141,7 @@ export function OrganizationSelector({
             }
         };
 
-        const timer = setTimeout(fetchOrgs, 300);
+        const timer = setTimeout(fetchOrgs, 180);
         return () => {
             clearTimeout(timer);
         };
@@ -211,7 +225,7 @@ export function OrganizationSelector({
             </div>
 
             {open && (
-                <div className="z-50 mt-1 max-h-60 w-full overflow-auto rounded-2xl border border-gray-100 bg-white py-1 text-base shadow-float focus:outline-none sm:text-sm">
+                <div className="absolute left-0 top-full z-[70] mt-1 max-h-60 w-full overflow-auto rounded-2xl border border-gray-100 bg-white py-1 text-base shadow-float focus:outline-none sm:text-sm">
                     {loading && (
                         <div className="py-6 text-center text-xs text-gray-500 flex flex-col items-center gap-2" data-testid="org-selector-loading">
                             <Loader2 className="w-4 h-4 animate-spin" />

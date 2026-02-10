@@ -43,8 +43,7 @@ import {
     getPaymentModesAction,
     getPriceTablesAction,
     getPaymentTermsAction,
-    getPriceTableItemPriceAction,
-    getItemPackagingsAction,
+    getQuickItemMetaAction,
     getClientDetailsAction,
     // getSalesOrderDTODetailsAction removed (redundant)
     getCompanySettingsAction,
@@ -246,6 +245,8 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
     // Refs for focus management
     const quickAddProductRef = useRef<HTMLInputElement>(null);
     const quickAddQtyRef = useRef<HTMLInputElement>(null);
+    const quickItemMetaCacheRef = useRef<Map<string, { price?: number; packagings: ItemPackagingDTO[] }>>(new Map());
+    const quickItemRequestRef = useRef(0);
 
     // Expanded fiscal details state (track which items show fiscal info)
     const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
@@ -738,36 +739,42 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             return;
         }
 
+        const requestId = ++quickItemRequestRef.current;
+        const cacheKey = `${formData.price_table_id || 'none'}:${product.id}`;
+        const cachedMeta = quickItemMetaCacheRef.current.get(cacheKey);
 
         // Optimistic update to prevent Selector flicker/clear
         setQuickItem(prev => ({
             ...prev,
             product,
-            price: Number(product.sale_price || product.price || 0),
+            price: Number(cachedMeta?.price ?? product.sale_price ?? product.price ?? 0),
             quantity: 1,
-            packagings: [],
-            packaging: undefined
+            packagings: cachedMeta?.packagings || [],
+            packaging: cachedMeta?.packagings?.find(p => p.is_default_sales_unit)
+                || cachedMeta?.packagings?.find(p => Number(p.qty_in_base) === 1)
+                || cachedMeta?.packagings?.[0]
         }));
 
-        let basePrice = Number(product.sale_price || product.price || 0);
-
-        // Fetch price from selected Price Table if available
-        if (formData.price_table_id) {
-            const data = await getPriceTableItemPriceAction(formData.price_table_id, product.id);
-
-            if (data && data.price !== undefined) {
-                basePrice = Number(data.price);
-            }
+        if (cachedMeta) {
+            setTimeout(() => quickAddQtyRef.current?.focus(), 30);
+            return;
         }
 
-        // Fetch Packagings
-        const packagingsRes = await getItemPackagingsAction(product.id);
-        const packagings = Array.isArray(packagingsRes) ? packagingsRes : [];
+        const meta = await getQuickItemMetaAction({
+            itemId: product.id,
+            priceTableId: formData.price_table_id || null
+        });
 
-        // Resolve Default
+        if (requestId !== quickItemRequestRef.current) return;
+
+        const packagings = Array.isArray(meta.packagings) ? meta.packagings : [];
+        quickItemMetaCacheRef.current.set(cacheKey, { price: meta.price, packagings });
+
         let defaultPkg = packagings.find(p => p.is_default_sales_unit);
         if (!defaultPkg) defaultPkg = packagings.find(p => Number(p.qty_in_base) === 1);
         if (!defaultPkg) defaultPkg = packagings[0];
+
+        const basePrice = Number(meta.price ?? product.sale_price ?? product.price ?? 0);
 
         const factor = defaultPkg ? Number(defaultPkg.qty_in_base) : 1;
         const finalPrice = basePrice * factor;
