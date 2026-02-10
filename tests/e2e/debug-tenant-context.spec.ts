@@ -43,10 +43,12 @@ test.describe('Debug Tenant Context', () => {
         // Also perform a search to see search logs
         const clientInput = page.getByTestId('organization-selector-trigger');
         if (await clientInput.isVisible()) {
-            await clientInput.click();
-            const input = page.getByPlaceholder('Digite nome ou documento...');
-            await input.fill('emporio');
-            await page.waitForTimeout(2000); // Wait for debounce and result
+            if (await clientInput.isVisible()) {
+                // await clientInput.click(); // Not strictly needed if we fill directly, or fill automatically focuses
+                // The input IS the trigger in this component implementation
+                await clientInput.fill('emporio');
+                await page.waitForTimeout(2000); // Wait for debounce and result
+            }
         }
 
         console.log('--- CAPTURED LOGS ---');

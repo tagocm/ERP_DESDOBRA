@@ -39,11 +39,12 @@ test.describe('Sales Order Critical Path (True E2E)', () => {
         console.log('Testing Accent Normalization: Searching "Empório"...');
 
         await clientInput.click();
-        const comboboxInput = page.getByPlaceholder('Digite nome ou documento...');
-        await expect(comboboxInput).toBeVisible();
+        // const comboboxInput = page.getByPlaceholder('Digite nome ou documento...');
+        // await expect(comboboxInput).toBeVisible();
+        await expect(clientInput).toBeVisible();
 
         // Type slowly to mimic user and ensuring debounce trigger
-        await comboboxInput.fill('Empório');
+        await clientInput.fill('Empório');
 
         // Wait for loading indicator to appear AND disappear
         const orgLoading = page.getByTestId('org-selector-loading');
