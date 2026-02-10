@@ -83,3 +83,10 @@ reports/
 playwright-report/
 test-results/
 playwright/.cache/
+
+# Local backups
+*.bak.*
+*~
+
+# Server config at repo root
+/Caddyfile

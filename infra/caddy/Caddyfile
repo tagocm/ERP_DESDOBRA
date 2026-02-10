@@ -1,0 +1,10 @@
+{
+  auto_https off
+}
+:80 {
+  @erp host erp.martigran.com.br
+  handle @erp {
+    reverse_proxy desdobra:3000
+  }
+  respond "Not found" 404
+}
