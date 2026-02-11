@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, forwardRef } from "react";
+import { useEffect, useState, useRef, forwardRef, useMemo } from "react";
 import { Check, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabaseBrowser";
@@ -9,14 +9,16 @@ import { useCompany } from "@/contexts/CompanyContext";
 interface ProductSelectorProps {
     value?: string;
     onChange: (product: any) => void;
+    companyId?: string;
     className?: string;
     disabled?: boolean;
     "data-testid"?: string;
 }
 
-export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps>(({ value, onChange, className, disabled, "data-testid": dataTestId }, ref) => {
+export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps>(({ value, onChange, companyId, className, disabled, "data-testid": dataTestId }, ref) => {
     const { selectedCompany } = useCompany();
-    const supabase = createClient();
+    const supabase = useMemo(() => createClient(), []);
+    const activeCompanyId = companyId || selectedCompany?.id;
 
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState("");
@@ -40,11 +42,14 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
 
     // Fetch initial product if value exists
     useEffect(() => {
-        if (!value || selectedProduct) return;
+        if (!value) return;
+        if (selectedProduct?.id === value) return;
+        if (!activeCompanyId) return;
         const fetchProduct = async () => {
             const { data } = await supabase
                 .from('items')
                 .select('id, name, sku, uom, sale_price, net_weight_kg_base, gross_weight_kg_base')
+                .eq('company_id', activeCompanyId)
                 .eq('id', value)
                 .single();
             if (data) {
@@ -53,7 +58,7 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
             }
         };
         fetchProduct();
-    }, [value, supabase, selectedProduct]);
+    }, [value, supabase, selectedProduct, activeCompanyId]);
 
     // Handle external clearing
     useEffect(() => {
@@ -65,7 +70,7 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
 
     // Fetch products based on search (LAZY LOADING)
     useEffect(() => {
-        if (!selectedCompany) {
+        if (!activeCompanyId) {
             setOptions([]);
             setOpen(false);
             return;
@@ -85,15 +90,15 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
         }
 
         let cancelled = false;
+        setOpen(true); // keep immediate feedback while searching
+        setLoading(true);
 
         const fetchProducts = async () => {
-            setLoading(true);
-            setOpen(true); // Open dropdown when starting to fetch
             try {
                 const query = supabase
                     .from('items')
                     .select('id, name, sku, uom, sale_price, net_weight_kg_base, gross_weight_kg_base')
-                    .eq('company_id', selectedCompany.id)
+                    .eq('company_id', activeCompanyId)
                     .or(`name.ilike.%${search}%,sku.ilike.%${search}%`)
                     .limit(20);
 
@@ -106,13 +111,13 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
             }
         };
 
-        // Debounce: wait 300ms after user stops typing
-        const timer = setTimeout(fetchProducts, 300);
+        // Debounce: keep low to improve perceived performance.
+        const timer = setTimeout(fetchProducts, 120);
         return () => {
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [search, selectedCompany, supabase, selectedProduct]);
+    }, [search, activeCompanyId, supabase, selectedProduct]);
 
     // Close on click outside
     useEffect(() => {
@@ -173,7 +178,11 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
                     placeholder="Digite nome ou SKU..."
                     value={search}
                     onChange={handleInputChange}
-                    // Dropdown opens automatically when search results are available (controlled by useEffect)
+                    onFocus={() => {
+                        if (search.trim().length >= 2 || options.length > 0) {
+                            setOpen(true);
+                        }
+                    }}
                     disabled={disabled}
                 />
                 {selectedProduct && !disabled && (
@@ -211,15 +220,19 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
                     )}
 
                     {!loading && options.map((option) => (
-                        <div
+                        <button
                             key={option.id}
+                            type="button"
                             role="option"
                             aria-selected={selectedProduct?.id === option.id}
                             className={cn(
-                                "relative cursor-pointer select-none py-2.5 px-3 hover:bg-gray-50 flex items-center justify-between transition-colors",
+                                "w-full text-left relative cursor-pointer select-none py-2.5 px-3 hover:bg-gray-50 flex items-center justify-between transition-colors",
                                 selectedProduct?.id === option.id ? "bg-brand-50 text-brand-700 font-medium" : "text-gray-700"
                             )}
-                            onClick={() => handleSelect(option)}
+                            onMouseDown={(event) => {
+                                event.preventDefault();
+                                handleSelect(option);
+                            }}
                         >
                             <div className="flex flex-col overflow-hidden flex-1">
                                 <span className="truncate font-medium text-sm">{option.name}</span>
@@ -235,7 +248,7 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
                                     <Check className="h-4 w-4 text-brand-600" />
                                 )}
                             </div>
-                        </div>
+                        </button>
                     ))}
                 </div>
             )}

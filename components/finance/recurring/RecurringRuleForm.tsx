@@ -187,6 +187,7 @@ export function RecurringRuleForm() {
                                 <Label className="text-sm font-semibold text-gray-700">Fornecedor *</Label>
 	                                <OrganizationSelector
 	                                    value={watch("partner_id") || undefined}
+	                                    companyId={selectedCompany?.id}
 	                                    onChange={(partnerId, org) => {
 	                                        setValue("partner_id", partnerId || null);
 	                                        setValue("partner_name", org?.trade_name || "");

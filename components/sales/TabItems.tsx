@@ -9,6 +9,7 @@ import { Trash2, Plus, GripVertical } from "lucide-react";
 import { ProductSelector } from "@/components/app/ProductSelector";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { createClient } from "@/lib/supabaseBrowser";
+import { useCompany } from "@/contexts/CompanyContext";
 
 interface TabItemsProps {
     orderId?: string;
@@ -19,6 +20,7 @@ interface TabItemsProps {
 
 export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) {
     const supabase = createClient();
+    const { selectedCompany } = useCompany();
 
     const handleAddItem = () => {
         const newItem: SalesOrderItemDTO = {
@@ -185,6 +187,7 @@ export function TabItems({ orderId, items, onChange, disabled }: TabItemsProps) 
                                 <ProductSelector
                                     value={item.item_id}
                                     onChange={(prod) => handleProductSelect(index, prod)}
+                                    companyId={selectedCompany?.id}
                                     disabled={disabled}
                                 />
                             </div>

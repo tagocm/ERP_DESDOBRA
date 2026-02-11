@@ -23,11 +23,41 @@ import { SalesOrder, SalesOrderItem } from '@/types/sales';
 // ============================================================================
 // HELPER: Get Company ID
 // ============================================================================
-export async function getCompanyId(): Promise<string> {
+export async function getCompanyId(
+    preferredCompanyId?: string,
+    options?: { skipMembershipValidation?: boolean }
+): Promise<string> {
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) throw new Error('Usuário não autenticado');
+
+    if (preferredCompanyId) {
+        if (options?.skipMembershipValidation) {
+            return preferredCompanyId;
+        }
+
+        const { data: ownedCompany } = await supabase
+            .from('companies')
+            .select('id')
+            .eq('id', preferredCompanyId)
+            .eq('owner_id', user.id)
+            .maybeSingle();
+
+        if (ownedCompany?.id) return ownedCompany.id;
+
+        const { data: memberCompany } = await supabase
+            .from('company_members')
+            .select('company_id')
+            .eq('auth_user_id', user.id)
+            .eq('company_id', preferredCompanyId)
+            .limit(1)
+            .maybeSingle();
+
+        if (memberCompany?.company_id) return memberCompany.company_id;
+
+        throw new Error('Usuário sem acesso à empresa selecionada');
+    }
 
     const { data: companies } = await supabase
         .from('companies')
@@ -362,6 +392,31 @@ export async function getPaymentTermsAction(companyId: string): Promise<any[]> {
     }
 }
 
+export async function getSalesFormMetadataAction(companyId: string): Promise<{
+    priceTables: any[];
+    paymentTerms: any[];
+    paymentModes: any[];
+}> {
+    try {
+        await getCompanyId();
+        const supabase = await createClient();
+
+        const [priceTables, paymentTerms, paymentModes] = await Promise.all([
+            getPriceTables(supabase, companyId),
+            getPaymentTerms(supabase, companyId),
+            getPaymentModes(supabase, companyId),
+        ]);
+
+        return {
+            priceTables: Array.isArray(priceTables) ? priceTables : [],
+            paymentTerms: Array.isArray(paymentTerms) ? paymentTerms : [],
+            paymentModes: Array.isArray(paymentModes) ? paymentModes : [],
+        };
+    } catch {
+        return { priceTables: [], paymentTerms: [], paymentModes: [] };
+    }
+}
+
 export async function getPriceTableItemPriceAction(priceTableId: string, itemId: string): Promise<any> {
     try {
         await getCompanyId();
@@ -434,9 +489,12 @@ export async function getQuickItemMetaAction(params: {
     }
 }
 
-export async function getClientDetailsAction(clientId: string): Promise<any> {
+export async function getClientDetailsAction(clientId: string, preferredCompanyId?: string): Promise<any> {
     try {
-        const companyId = await getCompanyId();
+        const companyId = await getCompanyId(preferredCompanyId, {
+            // Called by selectors while user types/selects.
+            skipMembershipValidation: Boolean(preferredCompanyId),
+        });
         const supabase = await createClient();
         return await getOrganizationById(supabase, companyId, clientId);
     } catch (e: any) {

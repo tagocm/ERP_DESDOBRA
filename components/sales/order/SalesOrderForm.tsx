@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, Fragment } from "react";
+import { useEffect, useState, useRef, Fragment, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabaseBrowser";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -40,9 +40,7 @@ import {
     getSalesOrderTotalsAction,
     getLastOrderForClientAction,
     upsertSalesOrderAction,
-    getPaymentModesAction,
-    getPriceTablesAction,
-    getPaymentTermsAction,
+    getSalesFormMetadataAction,
     getQuickItemMetaAction,
     getClientDetailsAction,
     // getSalesOrderDTODetailsAction removed (redundant)
@@ -136,10 +134,11 @@ interface SalesOrderDTOFormProps {
 export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const supabase = createClient(); // Keep supabase for auth and client-side operations not yet server actions
+    const supabase = useMemo(() => createClient(), []); // Stable instance to avoid recreation on each render
     const { toast } = useToast();
     const { selectedCompany } = useCompany();
-    const { enabled: deliveriesEnabled } = useDeliveriesModel(selectedCompany?.id);
+    const deliveriesModelCompanyId = (mode === 'edit' || !!initialData?.id) ? selectedCompany?.id : undefined;
+    const { enabled: deliveriesEnabled } = useDeliveriesModel(deliveriesModelCompanyId);
 
     // Initialize form data
     const [formData, setFormData] = useState<Partial<SalesOrderDTO>>({
@@ -280,6 +279,16 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
 
     // --- EFFECT: Auto-Calculate Fiscal (with debounce) ---
     useEffect(() => {
+        const hasBaseContext = Boolean(formData.id && formData.client_id && selectedCompany?.id);
+        const hasItems = Boolean(formData.items && formData.items.length > 0);
+        const hasTempItems = Boolean(formData.items?.some(i => i.id?.startsWith('temp-') || !i.id));
+
+        // Avoid pending/idle loops on brand-new orders (main source of noisy renders on page entry).
+        if (!hasBaseContext || !hasItems || hasTempItems) {
+            if (fiscalStatus !== 'idle') setFiscalStatus('idle');
+            return;
+        }
+
         // Build dependency hash from fiscal-relevant data
         const newDeps = JSON.stringify({
             client_id: formData.client_id,
@@ -304,15 +313,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
 
         // Debounce: wait 600ms before actually calculating
         const timer = setTimeout(() => {
-            // Check for temp items or dirty state (Phase 2: Autosave removed, so we can't calc fiscal on unsaved items)
-            const hasTempItems = formData.items?.some(i => i.id?.startsWith('temp-') || !i.id);
-            // We can also rely on isDirty, but checking items specifically is safer for this context
-
-            if (formData.id && formData.client_id && selectedCompany && formData.items && formData.items.length > 0 && !hasTempItems) {
-                triggerFiscalCalculation();
-            } else {
-                setFiscalStatus('idle'); // Or 'paused' if we had that state
-            }
+            triggerFiscalCalculation();
         }, 600);
 
         return () => clearTimeout(timer);
@@ -322,7 +323,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
     // --- EFFECT: Detect Dirty State (FASE 1) ---
     useEffect(() => {
         if (!originalSnapshot || mode === 'create') {
-            setIsDirty(false);
+            if (isDirty) setIsDirty(false);
             return;
         }
 
@@ -331,7 +332,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         const originalDataStr = JSON.stringify(originalSnapshot.formData);
 
         setIsDirty(currentDataStr !== originalDataStr);
-    }, [formData, originalSnapshot, mode]);
+    }, [formData, originalSnapshot, mode, isDirty]);
 
     // --- EFFECT: Warn on Unsaved Changes (FASE 1) ---
     useEffect(() => {
@@ -479,21 +480,18 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
     // --- 1. Initial Data Fetching ---
     useEffect(() => {
         if (!selectedCompany) return;
+        let cancelled = false;
         const fetchData = async () => {
-            // Fetch Price Tables
-            const ptRes = await getPriceTablesAction(selectedCompany.id);
-            if (Array.isArray(ptRes)) setPriceTables(ptRes);
-
-            // Fetch Payment Terms
-            const payRes = await getPaymentTermsAction(selectedCompany.id);
-            if (Array.isArray(payRes)) setPaymentTerms(payRes);
-
-            // Fetch Payment Modes
-            getPaymentModesAction(selectedCompany.id).then(modes => {
-                if (Array.isArray(modes)) setPaymentModes(modes);
-            }).catch(console.error);
+            const metadata = await getSalesFormMetadataAction(selectedCompany.id);
+            if (cancelled) return;
+            setPriceTables(metadata.priceTables);
+            setPaymentTerms(metadata.paymentTerms);
+            setPaymentModes(metadata.paymentModes);
         };
         fetchData();
+        return () => {
+            cancelled = true;
+        };
     }, [selectedCompany]);
 
     // Ensure company_id is set on creation
@@ -537,7 +535,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         }
 
         try {
-            const fullOrg = await getClientDetailsAction(org.id);
+            const fullOrg = await getClientDetailsAction(org.id, selectedCompany?.id);
 
             if (fullOrg && !fullOrg.error) {
                 const resolveId = (
@@ -647,7 +645,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         let cancelled = false;
         const loadCustomerInfo = async () => {
             try {
-                const fullOrg = await getClientDetailsAction(formData.client_id!);
+                const fullOrg = await getClientDetailsAction(formData.client_id!, selectedCompany?.id);
                 if (cancelled || !fullOrg || fullOrg.error) return;
 
                 const addresses = fullOrg.addresses || [];
@@ -1034,8 +1032,6 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
 
 
     const executeSave = async (status: 'draft' | 'confirmed', docTypeOverride?: 'order' | 'proposal') => {
-        console.log('--- executeSave START ---', status);
-
         // CRITICAL: Prevent confirming blocked orders
         if (status === 'confirmed' && formData.dispatch_blocked) {
             const reason = formData.dispatch_blocked_reason || 'Motivo não especificado';
@@ -1051,8 +1047,6 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             throw new Error("Adicione pelo menos um item.");
         }
 
-        console.log("ACTIVE_COMPANY_ID", selectedCompany?.id);
-
         if (!selectedCompany?.id) {
             throw new Error("Erro Crítico: Empresa não identificada. Recarregue a página.");
         }
@@ -1063,14 +1057,11 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             status_commercial: status,
             doc_type: docTypeOverride || formData.doc_type || 'order'
         };
-        console.log('Saving Payload:', payload);
-
         let savedOrder;
         try {
             const res = await upsertSalesOrderAction(payload);
             if (!res.success) throw new Error(res.error);
             savedOrder = res.data;
-            console.log('Saved Order Result:', savedOrder);
         } catch (err: unknown) {
             console.error('upsertSalesDocument Failed:', err);
             // Safe logging
@@ -1102,7 +1093,6 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         });
 
         if (itemsToDelete.length > 0) {
-            console.log('🗑️ Deleting removed items:', itemsToDelete.map(i => i.id));
             await Promise.all(itemsToDelete.map(item =>
                 deleteSalesItemAction(item.id!, savedOrder.id)
             ));
@@ -1629,7 +1619,6 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                 .order('created_at');
 
             if (!itemsError && updatedItems) {
-                console.log('🔄 Reloaded Items from DB:', updatedItems);
                 // Update formData with fresh items from DB, but preserve dirty items (being edited)
                 setFormData(prev => {
                     const currentItems = prev.items || [];
@@ -1983,6 +1972,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                                                     <div className="flex-1">
                                                         <OrganizationSelector
                                                             value={formData.client_id || ''}
+                                                            companyId={selectedCompany?.id}
                                                             currentOrganization={formData.client_id ? {
                                                                 id: formData.client_id,
                                                                 trade_name: customerInfo.tradeName || ''
@@ -2203,6 +2193,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                                                 ref={quickAddProductRef}
                                                 value={quickItem.product?.id}
                                                 onChange={handleQuickItemSelect}
+                                                companyId={selectedCompany?.id}
                                                 disabled={isLocked}
                                                 data-testid="order-product-search"
                                             />

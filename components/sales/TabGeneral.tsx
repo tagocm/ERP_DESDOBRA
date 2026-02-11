@@ -102,6 +102,7 @@ export function TabGeneral({ data, onChange, disabled }: TabProps) {
                 <Label>Cliente <span className="text-red-500">*</span></Label>
                 <OrganizationSelector
                     value={data.client_id}
+                    companyId={selectedCompany?.id}
                     onChange={handleClientChange}
                     type="customer"
                     disabled={disabled}

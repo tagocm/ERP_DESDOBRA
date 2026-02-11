@@ -602,6 +602,7 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
                                                 <div className="flex-1">
                                                     <OrganizationSelector
                                                         value={formData.supplier_id}
+                                                        companyId={selectedCompany?.id}
                                                         onChange={handleSupplierSelect}
                                                         type="supplier"
                                                         disabled={isLocked}
@@ -741,6 +742,7 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
                                                 ref={quickAddProductRef}
                                                 value={quickItem.product?.id}
                                                 onChange={handleQuickItemSelect}
+                                                companyId={selectedCompany?.id}
                                             />
                                         </div>
 

@@ -12,10 +12,15 @@ export type ActionResult<T> = {
 
 export async function searchOrganizationsAction(
     query: string,
-    type: 'customer' | 'supplier' | 'carrier' | 'all' = 'all'
+    type: 'customer' | 'supplier' | 'carrier' | 'all' = 'all',
+    preferredCompanyId?: string
 ): Promise<ActionResult<OrganizationOptionDTO[]>> {
     try {
-        const companyId = await getCompanyId();
+        const companyId = await getCompanyId(preferredCompanyId, {
+            // Performance path: this action is called on each keystroke.
+            // RLS and company_id filter still protect access.
+            skipMembershipValidation: Boolean(preferredCompanyId),
+        });
         const supabase = await createClient();
 
         let queryBuilder = supabase
@@ -79,7 +84,36 @@ export async function searchOrganizationsAction(
         }
 
         // Map to DTO
-        const dtos: OrganizationOptionDTO[] = (data || []).map((org: any) => {
+        let rows: any[] = (data || []) as any[];
+
+        if ((type === 'customer' || type === 'supplier' || type === 'carrier') && rows.length === 0) {
+            const fallbackSearch = query.trim();
+            let fallbackQuery = supabase
+                .from('organizations')
+                .select('id, trade_name, legal_name, document_number')
+                .eq('company_id', companyId)
+                .is('deleted_at', null)
+                .order('trade_name', { ascending: true });
+
+            if (fallbackSearch) {
+                const cleanSearch = fallbackSearch.replace(/[^\d]/g, '');
+                const fallbackClauses: string[] = [
+                    `trade_name.ilike.%${fallbackSearch}%`,
+                    `legal_name.ilike.%${fallbackSearch}%`,
+                ];
+                if (cleanSearch.length >= 2) {
+                    fallbackClauses.push(`document_number.ilike.%${cleanSearch}%`);
+                }
+                fallbackQuery = fallbackQuery.or(fallbackClauses.join(','));
+            }
+
+            const { data: fallbackRows, error: fallbackError } = await fallbackQuery.limit(20);
+            if (!fallbackError && fallbackRows) {
+                rows = fallbackRows as any[];
+            }
+        }
+
+        const dtos: OrganizationOptionDTO[] = rows.map((org: any) => {
             return {
                 id: org.id,
                 trade_name: org.trade_name,
