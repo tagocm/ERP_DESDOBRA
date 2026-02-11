@@ -549,83 +549,54 @@ export async function renderDanfeHtml(data: DanfeData): Promise<string> {
             
             <!-- TRANSPORTE / VOLUMES -->
             <div class="section-title">TRANSPORTADOR / VOLUMES TRANSPORTADOS</div>
-            
-            ${data.transp?.modFrete === '9' ? `
-                <!-- Simplified layout for "Sem Frete" -->
-                <div class="flex border-thin" style="margin-bottom: 2mm;">
-                    <div class="field w-100 field-small">
-                        <div class="field-label">FRETE POR CONTA</div>
-                        <div class="field-value">9 – SEM FRETE</div>
-                    </div>
+            <!-- FAIXA 1: DADOS DO TRANSPORTADOR (sempre reservada) -->
+            <div class="flex border-thin">
+                <div class="field w-50 field-small border-right">
+                    <div class="field-label">RAZÃO SOCIAL</div>
+                    <div class="field-value" style="font-weight: 500;">${data.transp?.transporta?.xNome || ''}</div>
                 </div>
-            ` : `
-                <!-- FAIXA 1: DADOS DO TRANSPORTADOR -->
-                <div class="flex border-thin">
-                    <div class="field w-50 field-small border-right">
-                        <div class="field-label">RAZÃO SOCIAL</div>
-                        <div class="field-value" style="font-weight: 500;">${data.transp?.transporta?.xNome || ''}</div>
-                    </div>
-                    <div class="field w-20 field-small border-right">
-                        <div class="field-label">FRETE POR CONTA</div>
-                        <div class="field-value text-center">${data.transp?.modFrete === '0' ? '0-Emitente' : data.transp?.modFrete === '1' ? '1-Destinat' : '9-Sem Frete'}</div>
-                    </div>
-                    <div class="field w-20 field-small border-right">
-                        <div class="field-label">CNPJ/CPF</div>
-                        <div class="field-value" style="font-family: 'Courier New', monospace; font-weight: 500;">${formatCnpj(data.transp?.transporta?.cnpj || '')}</div>
-                    </div>
-                    <div class="field w-10 field-small">
-                        <div class="field-label">IE</div>
-                        <div class="field-value" style="font-family: 'Courier New', monospace;">${data.transp?.transporta?.ie || ''}</div>
-                    </div>
+                <div class="field w-20 field-small border-right">
+                    <div class="field-label">FRETE POR CONTA</div>
+                    <div class="field-value text-center">${data.transp?.modFrete === '0' ? '0-Emitente' : data.transp?.modFrete === '1' ? '1-Destinat' : '9-Sem Frete'}</div>
                 </div>
-
-                <div class="flex border-thin" style="border-top: none;">
-                    <div class="field w-35 field-small border-right">
-                        <div class="field-label">ENDEREÇO</div>
-                        <div class="field-value">${data.transp?.transporta?.xEnder || ''}</div>
-                    </div>
-                    <div class="field w-20 field-small border-right">
-                        <div class="field-label">MUNICÍPIO</div>
-                        <div class="field-value">${data.transp?.transporta?.xMun || ''}</div>
-                    </div>
-                    <div class="field w-5 field-small border-right">
-                        <div class="field-label">UF</div>
-                        <div class="field-value text-center">${data.transp?.transporta?.uf || ''}</div>
-                    </div>
-                    <div class="field w-40 field-small">
-                        <div class="field-label" style="opacity: 0.5; font-size: 5.5pt;">(Endereço do Transportador)</div>
-                        <div class="field-value"></div>
-                    </div>
+                <div class="field w-20 field-small border-right">
+                    <div class="field-label">CNPJ/CPF</div>
+                    <div class="field-value" style="font-family: 'Courier New', monospace; font-weight: 500;">${formatCnpj(data.transp?.transporta?.cnpj || '')}</div>
                 </div>
+                <div class="field w-10 field-small">
+                    <div class="field-label">IE</div>
+                    <div class="field-value" style="font-family: 'Courier New', monospace;">${data.transp?.transporta?.ie || ''}</div>
+                </div>
+            </div>
 
-                ${data.transp?.veicTransp?.placa ? `
-                    <!-- FAIXA 2: DADOS DO VEÍCULO (só aparece se placa preenchida) -->
-                    <div style="background: #f9f9f9; padding: 1mm 2mm; border-left: 1px solid #000; border-right: 1px solid #000; border-bottom: 1px solid #000;">
-                        <div style="font-size: 5.5pt; font-weight: 600; color: #555; margin-bottom: 0.5mm; text-transform: uppercase;">▸ Dados do Veículo</div>
-                        <div class="flex">
-                            <div class="field w-15 field-small border-right" style="border-left: none;">
-                                <div class="field-label">PLACA</div>
-                                <div class="field-value" style="font-family: 'Courier New', monospace; font-weight: 500; text-transform: uppercase;">${data.transp?.veicTransp?.placa || ''}</div>
-                            </div>
-                            <div class="field w-5 field-small border-right">
-                                <div class="field-label">UF</div>
-                                <div class="field-value text-center">${data.transp?.veicTransp?.uf || ''}</div>
-                            </div>
-                            <div class="field w-12 field-small border-right">
-                                <div class="field-label">CÓD. ANTT/RNTRC</div>
-                                <div class="field-value" style="font-family: 'Courier New', monospace;">${data.transp?.veicTransp?.rntc || ''}</div>
-                            </div>
-                            <div class="field w-68 field-small" style="border-right: none;">
-                                <div class="field-label" style="opacity: 0.5; font-size: 5.5pt;">(Veículo Transportador)</div>
-                                <div class="field-value"></div>
-                            </div>
-                        </div>
-                    </div>
-                ` : ''}
-            `}
-
-            <!-- FAIXA 3: VOLUMES (mantém layout existente) -->
-            <div class="flex border-thin" style="border-top: ${data.transp?.modFrete === '9' ? 'none' : (data.transp?.veicTransp?.placa ? 'none' : 'none')}; margin-bottom: 2mm;">
+            <div class="flex border-thin" style="border-top: none;">
+                <div class="field w-35 field-small border-right">
+                    <div class="field-label">ENDEREÇO</div>
+                    <div class="field-value">${data.transp?.transporta?.xEnder || ''}</div>
+                </div>
+                <div class="field w-20 field-small border-right">
+                    <div class="field-label">MUNICÍPIO</div>
+                    <div class="field-value">${data.transp?.transporta?.xMun || ''}</div>
+                </div>
+                <div class="field w-5 field-small border-right">
+                    <div class="field-label">UF</div>
+                    <div class="field-value text-center">${data.transp?.transporta?.uf || ''}</div>
+                </div>
+                <div class="field w-15 field-small border-right">
+                    <div class="field-label">PLACA</div>
+                    <div class="field-value" style="font-family: 'Courier New', monospace; font-weight: 500; text-transform: uppercase;">${data.transp?.veicTransp?.placa || ''}</div>
+                </div>
+                <div class="field w-5 field-small border-right">
+                    <div class="field-label">UF</div>
+                    <div class="field-value text-center">${data.transp?.veicTransp?.uf || ''}</div>
+                </div>
+                <div class="field w-20 field-small">
+                    <div class="field-label">CÓD. ANTT/RNTRC</div>
+                    <div class="field-value" style="font-family: 'Courier New', monospace;">${data.transp?.veicTransp?.rntc || ''}</div>
+                </div>
+            </div>
+            <!-- FAIXA 3: VOLUMES -->
+            <div class="flex border-thin" style="border-top: none; margin-bottom: 2mm;">
                 <div class="field w-10 field-small border-right">
                     <div class="field-label">QUANTIDADE</div>
                     <div class="field-value">${data.transp?.vol?.[0]?.qVol || ''}</div>

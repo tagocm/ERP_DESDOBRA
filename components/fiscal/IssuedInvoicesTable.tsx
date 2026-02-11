@@ -20,6 +20,15 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
     const [syncingId, setSyncingId] = useState<string | null>(null);
     const [verifyingId, setVerifyingId] = useState<string | null>(null);
 
+    const extractErrorMessage = (payload: any): string => {
+        const details = payload?.details;
+        if (typeof details === 'string' && details.trim()) return details;
+        if (typeof payload?.error === 'string' && payload.error.trim()) return payload.error;
+        if (typeof details?.details === 'string' && details.details.trim()) return details.details;
+        if (typeof payload?.message === 'string' && payload.message.trim()) return payload.message;
+        return 'Erro ao gerar DANFE';
+    };
+
     const handleSync = async (nfeId: string, accessKey: string) => {
         if (!accessKey) {
             alert('Chave de acesso não encontrada');
@@ -76,7 +85,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
             if (!response.ok) {
                 const err = await response.json();
                 console.error('[DANFE Client] API Error:', err);
-                throw new Error(err.details || err.error || 'Erro ao gerar DANFE');
+                throw new Error(extractErrorMessage(err));
             }
 
             const blob = await response.blob();

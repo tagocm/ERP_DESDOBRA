@@ -74,9 +74,9 @@ export async function POST(req: NextRequest) {
                 // Step 2: Legacy source (sales_document_nfes)
                 const { data: nfeRecord, error: nfeError } = await supabase
                     .from('sales_document_nfes')
-                    .select('document_id, nfe_key, details, status, company_id')
+                    .select('document_id, nfe_key, details, status, document:sales_documents!inner(company_id)')
                     .eq('id', id)
-                    .eq('company_id', ctxCompanyId)
+                    .eq('document.company_id', ctxCompanyId)
                     .maybeSingle();
 
                 logger.info('[DANFE API] Legacy record lookup:', { error: nfeError, hasData: !!nfeRecord });
@@ -94,7 +94,9 @@ export async function POST(req: NextRequest) {
                 details = nfeRecord.details as any;
                 documentId = nfeRecord.document_id || null;
                 nfeKey = nfeRecord.nfe_key || null;
-                sourceCompanyId = nfeRecord.company_id || null;
+                sourceCompanyId = (Array.isArray((nfeRecord as any).document)
+                    ? (nfeRecord as any).document[0]?.company_id
+                    : (nfeRecord as any).document?.company_id) || null;
             }
 
             // Step 3: Extract XML path from details (prefer nfeProc > signed > unsigned)
@@ -104,8 +106,8 @@ export async function POST(req: NextRequest) {
             if (!xmlPath && (documentId || nfeKey)) {
                 const legacyQuery = supabase
                     .from('sales_document_nfes')
-                    .select('document_id, nfe_key, details, status, company_id')
-                    .eq('company_id', ctxCompanyId)
+                    .select('document_id, nfe_key, details, status, document:sales_documents!inner(company_id)')
+                    .eq('document.company_id', ctxCompanyId)
                     .limit(1);
                 let legacyResult;
                 if (documentId) {
@@ -120,7 +122,10 @@ export async function POST(req: NextRequest) {
                         details = legacyDetails;
                         documentId = legacyResult.data.document_id || documentId;
                         nfeKey = legacyResult.data.nfe_key || nfeKey;
-                        sourceCompanyId = legacyResult.data.company_id || sourceCompanyId;
+                        const legacyDoc = Array.isArray((legacyResult.data as any).document)
+                            ? (legacyResult.data as any).document[0]
+                            : (legacyResult.data as any).document;
+                        sourceCompanyId = legacyDoc?.company_id || sourceCompanyId;
                         logger.info('[DANFE API] Fallback legacy artifacts resolved');
                     }
                 }

@@ -32,12 +32,14 @@ export function InvoiceListClient({ companyId, initialView = 'pending', initialF
                 const data = await fetchPendingInvoices(companyId, {
                     startDate: filters.dateFrom ? new Date(filters.dateFrom) : undefined,
                     endDate: filters.dateTo ? new Date(filters.dateTo) : undefined,
+                    clientSearch: filters.clientSearch,
                 });
                 setPendingInvoices(data);
             } else {
                 const data = await fetchIssuedInvoices(companyId, {
                     startDate: filters.dateFrom ? new Date(filters.dateFrom) : undefined,
                     endDate: filters.dateTo ? new Date(filters.dateTo) : undefined,
+                    clientSearch: filters.clientSearch,
                 });
                 setIssuedInvoices(data);
             }

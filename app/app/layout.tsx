@@ -6,6 +6,7 @@ import { HeaderProvider } from "@/contexts/HeaderContext";
 import { Sidebar } from "@/components/app/Sidebar";
 import { Topbar } from "@/components/app/Topbar";
 import { SettingsSheetManager } from "@/components/settings/SettingsSheetManager";
+import { NFeStatusNotifier } from "@/components/fiscal/NFeStatusNotifier";
 import { useState } from "react";
 
 export default function AppLayout({
@@ -26,6 +27,7 @@ export default function AppLayout({
                             {children}
                         </main>
                     </div>
+                    <NFeStatusNotifier />
                     <SettingsSheetManager />
                 </div>
             </HeaderProvider>

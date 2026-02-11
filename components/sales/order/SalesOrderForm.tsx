@@ -1979,7 +1979,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                                         <div className="flex flex-col md:flex-row gap-6">
                                             <div className="flex-1 space-y-2">
                                                 <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Cliente / Destinatário</Label>
-                                                <div className="flex gap-2">
+                                                <div className="flex items-center gap-2">
                                                     <div className="flex-1">
                                                         <OrganizationSelector
                                                             value={formData.client_id || ''}

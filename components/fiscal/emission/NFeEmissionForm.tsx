@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { EmissionData, NFeDraftData, saveNFeDraft, emitNFe, NFeItem, NFeBilling } from '@/lib/fiscal/nfe-emission-actions';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -27,6 +27,7 @@ export function NFeEmissionForm({ data, orderId }: Props) {
     const { toast } = useToast();
     const [isSaving, setIsSaving] = useState(false);
     const [isEmitting, setIsEmitting] = useState(false);
+    const emitInFlightRef = useRef(false);
 
     // --- Draft Initialization ---
     const [draft, setDraft] = useState<NFeDraftData>(() => {
@@ -271,6 +272,8 @@ export function NFeEmissionForm({ data, orderId }: Props) {
     };
 
     const handleEmit = async () => {
+        if (emitInFlightRef.current) return;
+
         // Validations
         if (!draft.recipient.document_number) {
             toast({ title: 'Erro de Validação', description: 'CNPJ/CPF do destinatário obrigatório.', variant: 'destructive' });
@@ -284,89 +287,38 @@ export function NFeEmissionForm({ data, orderId }: Props) {
             return;
         }
 
+        emitInFlightRef.current = true;
         setIsEmitting(true);
-        try {
-            // 1. Enqueue Job
-            const result = await emitNFe(orderId, draft);
 
-            if (!result.jobId) {
-                // Fallback for immediate return (should not happen with new logic, but robust)
-                throw new Error("Resposta inválida: Job ID não retornado.");
+        router.replace('/app/fiscal/nfe?view=issued');
+
+        void (async () => {
+            try {
+                const result = await emitNFe(orderId, draft);
+
+                if (!result.jobId) {
+                    throw new Error("Resposta inválida: Job ID não retornado.");
+                }
+
+                window.dispatchEvent(new CustomEvent('nfe-emit-feedback', {
+                    detail: {
+                        type: 'queued',
+                        orderNumber: data.order.document_number || null
+                    }
+                }));
+            } catch (error: any) {
+                console.error(error);
+                window.dispatchEvent(new CustomEvent('nfe-emit-feedback', {
+                    detail: {
+                        type: 'enqueue_error',
+                        message: error?.message || 'Falha de comunicação ao enviar NF-e para fila.',
+                        orderNumber: data.order.document_number || null
+                    }
+                }));
+            } finally {
+                emitInFlightRef.current = false;
             }
-
-            toast({
-                title: 'Processamento Iniciado ⏳',
-                description: 'A nota fiscal entrou na fila de processamento...'
-            });
-
-            // 2. Poll for Status
-            const pollInterval = setInterval(async () => {
-                // Determine poll function dynamically to avoid import cycles is hard in client, 
-                // but we imported `pollNFeJobStatus` from actions? No, we need to import it.
-                // It was not imported yet. I will rely on the fact that I will add it to the imports in a separate step or assume I can add it here if I modify imports.
-                // Wait, I can't modify imports in this block.
-                // I will add the import in a previous step? No, replacing the whole file or just use 'require'? Client component can't verify require? 
-
-                // Let's assume pollNFeJobStatus is available (I will fix imports next).
-                const { pollNFeJobStatus } = await import('@/lib/fiscal/nfe-emission-actions');
-
-                const statusRes = await pollNFeJobStatus(result.jobId!);
-
-                if (statusRes.status === 'completed') {
-                    clearInterval(pollInterval);
-                    setIsEmitting(false);
-                    // Fixed: shadcn toast usually doesn't accept className, handled by variant or custom component?
-                    // Actually, standard useToast from shadcn often exposes a 'className' prop on the toast call if configured.
-                    // But the error says it doesn't. Checking types...
-                    // If className is not supported, I'll use standard variant 'default' or 'success' if available.
-                    // Assuming 'default' for now as 'success' is not standard shadcn.
-                    toast({
-                        title: 'Sucesso! ✅',
-                        description: 'Nota Fiscal emitida e autorizada.',
-                        // className: 'bg-green-600 text-white' // REMOVED CAUSE ERROR
-                        // Standard shadcn doesn't easy style color unless custom variant.
-                    });
-                    router.push('/app/fiscal/nfe');
-                    router.refresh();
-                }
-                else if (statusRes.status === 'failed') {
-                    clearInterval(pollInterval);
-                    setIsEmitting(false);
-                    console.error('Job Failed:', statusRes.last_error);
-                    toast({
-                        title: 'Falha no Processamento ❌',
-                        description: statusRes.last_error || 'Ocorreu um erro durante a emissão.',
-                        variant: 'destructive'
-                    });
-                }
-                // If pending/processing, keep polling
-            }, 2000);
-
-            // Safety timeout (e.g. 60s)
-            setTimeout(() => {
-                clearInterval(pollInterval);
-                if (isEmitting) {
-                    setIsEmitting(false);
-                    toast({
-                        title: 'Tempo Excedido',
-                        description: 'O processamento está demorando mais que o esperado. Verifique o status na lista.',
-                        // variant: 'warning' // REMOVED CAUSE ERROR, using 'destructive' or 'default'
-                        variant: 'destructive'
-                    });
-                    router.push('/app/fiscal/nfe');
-                }
-            }, 60000);
-
-        } catch (error: any) {
-            console.error(error);
-            setIsEmitting(false);
-            toast({
-                title: 'Erro ao iniciar emissão',
-                description: error.message || 'Falha de comunicação.',
-                variant: 'destructive'
-            });
-        }
-        // finally removed because we handle loading state inside polling
+        })();
     };
 
     const fmt = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);

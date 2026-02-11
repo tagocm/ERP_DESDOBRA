@@ -7,6 +7,7 @@ export interface InvoiceFilters {
     startDate?: Date;
     endDate?: Date;
     clientId?: string;
+    clientSearch?: string;
 }
 
 export interface PendingInvoice {
@@ -79,7 +80,18 @@ export async function fetchPendingInvoices(
     const idsWithNfe = new Set(nfeRecords?.map(r => r.document_id) || []);
 
     // Filter out orders that have NFe records
-    const filteredData = data?.filter(doc => !idsWithNfe.has(doc.id));
+    let filteredData = data?.filter(doc => !idsWithNfe.has(doc.id));
+
+    const searchTerm = filters?.clientSearch?.trim().toLowerCase();
+    if (searchTerm) {
+        const normalized = searchTerm.replace(/[^\d]/g, '');
+        filteredData = (filteredData || []).filter((doc: any) => {
+            const clientRaw = Array.isArray(doc.client) ? doc.client[0] : doc.client;
+            const tradeName = String(clientRaw?.trade_name || '').toLowerCase();
+            const docNumber = String(clientRaw?.document_number || '').replace(/[^\d]/g, '');
+            return tradeName.includes(searchTerm) || (normalized.length > 0 && docNumber.includes(normalized));
+        });
+    }
 
     // Transform client from array to single object
     const transformedData = filteredData?.map(doc => ({
@@ -93,9 +105,16 @@ export async function fetchPendingInvoices(
 // Listar NF-e emitidas
 export async function fetchIssuedInvoices(
     companyId: string,
-    filters?: { startDate?: Date; endDate?: Date }
+    filters?: { startDate?: Date; endDate?: Date; clientSearch?: string }
 ) {
     const supabase = await createClient();
+
+    const startDateIso = filters?.startDate
+        ? new Date(filters.startDate.getFullYear(), filters.startDate.getMonth(), filters.startDate.getDate(), 0, 0, 0, 0).toISOString()
+        : undefined;
+    const endDateExclusiveIso = filters?.endDate
+        ? new Date(filters.endDate.getFullYear(), filters.endDate.getMonth(), filters.endDate.getDate() + 1, 0, 0, 0, 0).toISOString()
+        : undefined;
 
     let legacyQuery = supabase
         .from('sales_document_nfes')
@@ -106,8 +125,11 @@ export async function fetchIssuedInvoices(
             nfe_key,
             status,
             issued_at,
+            updated_at,
+            created_at,
             document:sales_documents (
                 id,
+                company_id,
                 document_number,
                 total_amount,
                 client:organizations!client_id (
@@ -116,17 +138,9 @@ export async function fetchIssuedInvoices(
                 )
             )
         `)
-        .eq('company_id', companyId)
+        .eq('document.company_id', companyId)
         .neq('status', 'draft') // Exclude drafts
-        .order('issued_at', { ascending: false });
-
-    if (filters?.startDate) {
-        legacyQuery = legacyQuery.gte('issued_at', filters.startDate.toISOString());
-    }
-
-    if (filters?.endDate) {
-        legacyQuery = legacyQuery.lte('issued_at', filters.endDate.toISOString());
-    }
+        .order('updated_at', { ascending: false });
 
     const { data: legacyData, error: legacyError } = await legacyQuery;
     if (legacyError && legacyError.code !== '42P01' && !legacyError.message.includes('sales_document_nfes')) {
@@ -134,7 +148,7 @@ export async function fetchIssuedInvoices(
         throw new Error('Erro ao buscar NF-e emitidas');
     }
 
-    const transformedLegacy = (legacyData || []).map(nfe => {
+    let transformedLegacy = (legacyData || []).map((nfe: any) => {
         const doc = Array.isArray(nfe.document) ? nfe.document[0] : nfe.document;
         if (!doc) return nfe;
 
@@ -142,12 +156,23 @@ export async function fetchIssuedInvoices(
 
         return {
             ...nfe,
+            issued_at: nfe.issued_at || nfe.updated_at || nfe.created_at,
             document: {
                 ...doc,
                 client
             }
         };
     });
+
+    if (startDateIso || endDateExclusiveIso) {
+        transformedLegacy = transformedLegacy.filter((row: any) => {
+            const emittedAt = row.issued_at ? new Date(row.issued_at).getTime() : NaN;
+            if (Number.isNaN(emittedAt)) return false;
+            if (startDateIso && emittedAt < new Date(startDateIso).getTime()) return false;
+            if (endDateExclusiveIso && emittedAt >= new Date(endDateExclusiveIso).getTime()) return false;
+            return true;
+        });
+    }
 
     // Canonical source: nfe_emissions (compat layer to keep current UI shape)
     let emissionsQuery = supabase
@@ -157,11 +182,11 @@ export async function fetchIssuedInvoices(
         .neq('status', 'draft')
         .order('updated_at', { ascending: false });
 
-    if (filters?.startDate) {
-        emissionsQuery = emissionsQuery.gte('updated_at', filters.startDate.toISOString());
+    if (startDateIso) {
+        emissionsQuery = emissionsQuery.gte('updated_at', startDateIso);
     }
-    if (filters?.endDate) {
-        emissionsQuery = emissionsQuery.lte('updated_at', filters.endDate.toISOString());
+    if (endDateExclusiveIso) {
+        emissionsQuery = emissionsQuery.lt('updated_at', endDateExclusiveIso);
     }
 
     const { data: emissionsData, error: emissionsError } = await emissionsQuery;
@@ -217,9 +242,21 @@ export async function fetchIssuedInvoices(
         }
     });
 
-    return Array.from(byKey.values()).sort((a: any, b: any) =>
+    let merged = Array.from(byKey.values()).sort((a: any, b: any) =>
         new Date(b.issued_at || 0).getTime() - new Date(a.issued_at || 0).getTime()
     );
+
+    const searchTerm = filters?.clientSearch?.trim().toLowerCase();
+    if (searchTerm) {
+        const normalized = searchTerm.replace(/[^\d]/g, '');
+        merged = merged.filter((row: any) => {
+            const tradeName = String(row?.document?.client?.trade_name || '').toLowerCase();
+            const legalDoc = String(row?.document?.client?.document_number || '').replace(/[^\d]/g, '');
+            return tradeName.includes(searchTerm) || (normalized.length > 0 && legalDoc.includes(normalized));
+        });
+    }
+
+    return merged;
 }
 
 // Download NF-e XML
