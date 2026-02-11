@@ -23,6 +23,13 @@ export interface PendingInvoice {
     status_fiscal: string;
 }
 
+export interface FetchIssuedInvoicesResult {
+    data: any[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
 // Listar pedidos confirmados sem NF-e
 export async function fetchPendingInvoices(
     companyId: string,
@@ -105,9 +112,12 @@ export async function fetchPendingInvoices(
 // Listar NF-e emitidas
 export async function fetchIssuedInvoices(
     companyId: string,
-    filters?: { startDate?: Date; endDate?: Date; clientSearch?: string }
-) {
+    filters?: { startDate?: Date; endDate?: Date; clientSearch?: string },
+    options?: { page?: number; pageSize?: number }
+): Promise<FetchIssuedInvoicesResult> {
     const supabase = await createClient();
+    const page = Math.max(1, options?.page || 1);
+    const pageSize = Math.max(1, Math.min(100, options?.pageSize || 100));
 
     const startDateIso = filters?.startDate
         ? new Date(filters.startDate.getFullYear(), filters.startDate.getMonth(), filters.startDate.getDate(), 0, 0, 0, 0).toISOString()
@@ -256,7 +266,16 @@ export async function fetchIssuedInvoices(
         });
     }
 
-    return merged;
+    const total = merged.length;
+    const startIndex = (page - 1) * pageSize;
+    const pagedData = merged.slice(startIndex, startIndex + pageSize);
+
+    return {
+        data: pagedData,
+        total,
+        page,
+        pageSize,
+    };
 }
 
 // Download NF-e XML

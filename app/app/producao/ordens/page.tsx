@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 
 import { NewWorkOrderModal } from "@/components/pcp/NewWorkOrderModal";
+import { ListPagination } from "@/components/ui/ListPagination";
 
 // Types
 interface WorkOrder {
@@ -46,6 +47,8 @@ export default function WorkOrdersPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 100;
 
     // ... (previous code)
 
@@ -241,6 +244,14 @@ export default function WorkOrdersPage() {
         return matchesSearch;
     });
 
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, statusFilter, orders.length]);
+
+    const totalFilteredOrders = filteredOrders.length;
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    const pagedFilteredOrders = filteredOrders.slice(startIndex, startIndex + PAGE_SIZE);
+
     return (
         <div className="space-y-6">
             {/* ... (NewWorkOrderModal) */}
@@ -295,7 +306,7 @@ export default function WorkOrdersPage() {
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             {/* ... (thead) */}
-                            <thead className="bg-gray-50/50 text-gray-500 font-medium border-b border-gray-100">
+                            <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
                                 <tr>
                                     <th className="px-6 py-3 text-left">Nº ID</th>
                                     <th className="px-6 py-3 text-left">Produto</th>
@@ -321,8 +332,8 @@ export default function WorkOrdersPage() {
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredOrders.map((order) => (
-                                        <tr key={order.id} className="hover:bg-gray-50/50 transition-colors">
+                                    pagedFilteredOrders.map((order) => (
+                                        <tr key={order.id} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-6 py-3 font-mono text-xs text-gray-500">
                                                 #{order.id.slice(0, 8)}
                                             </td>
@@ -410,6 +421,14 @@ export default function WorkOrdersPage() {
                     </div>
                 </CardContent>
             </Card>
+            <ListPagination
+                page={currentPage}
+                pageSize={PAGE_SIZE}
+                total={totalFilteredOrders}
+                onPageChange={setCurrentPage}
+                label="ordens"
+                disabled={isLoading}
+            />
 
             <StatusChangeModal
                 isOpen={statusModal.isOpen}

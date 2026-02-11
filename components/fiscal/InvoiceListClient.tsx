@@ -19,9 +19,12 @@ interface Props {
 }
 
 export function InvoiceListClient({ companyId, initialView = 'pending', initialFilters }: Props) {
+    const ISSUED_PAGE_SIZE = 100;
     const [view, setView] = useState<'pending' | 'issued'>(initialView);
     const [pendingInvoices, setPendingInvoices] = useState<PendingInvoice[]>([]);
     const [issuedInvoices, setIssuedInvoices] = useState<any[]>([]);
+    const [issuedPage, setIssuedPage] = useState(1);
+    const [issuedTotal, setIssuedTotal] = useState(0);
     const [isLoading, setIsLoading] = useState(true);
     const [filters, setFilters] = useState(initialFilters || {});
 
@@ -36,23 +39,32 @@ export function InvoiceListClient({ companyId, initialView = 'pending', initialF
                 });
                 setPendingInvoices(data);
             } else {
-                const data = await fetchIssuedInvoices(companyId, {
+                const result = await fetchIssuedInvoices(companyId, {
                     startDate: filters.dateFrom ? new Date(filters.dateFrom) : undefined,
                     endDate: filters.dateTo ? new Date(filters.dateTo) : undefined,
                     clientSearch: filters.clientSearch,
+                }, {
+                    page: issuedPage,
+                    pageSize: ISSUED_PAGE_SIZE,
                 });
-                setIssuedInvoices(data);
+                setIssuedInvoices(result.data);
+                setIssuedTotal(result.total);
             }
         } catch (error) {
             console.error('Error loading invoices:', error);
         } finally {
             setIsLoading(false);
         }
-    }, [view, filters, companyId]);
+    }, [view, filters, companyId, issuedPage]);
 
     useEffect(() => {
         loadData();
     }, [loadData]);
+
+    useEffect(() => {
+        if (view !== 'issued') return;
+        setIssuedPage(1);
+    }, [filters, view]);
 
     return (
         <div className="space-y-6">
@@ -106,6 +118,12 @@ export function InvoiceListClient({ companyId, initialView = 'pending', initialF
                         companyId={companyId}
                         isLoading={isLoading}
                         onInvoiceCancelled={loadData}
+                        pagination={{
+                            page: issuedPage,
+                            pageSize: ISSUED_PAGE_SIZE,
+                            total: issuedTotal,
+                            onPageChange: setIssuedPage,
+                        }}
                     />
                 )}
             </div>

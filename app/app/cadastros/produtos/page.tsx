@@ -11,6 +11,7 @@ import { Plus, Search, Trash2, Edit2, Package, Layers, Wheat, Box } from "lucide
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ListPagination } from "@/components/ui/ListPagination";
 import {
     Table,
     TableBody,
@@ -51,6 +52,8 @@ export default function ItemsPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [typeFilter, setTypeFilter] = useState<string>("all");
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 100;
 
 
 
@@ -79,6 +82,14 @@ export default function ItemsPage() {
             fetchItems();
         }
     }, [selectedCompany, search, typeFilter]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, typeFilter]);
+
+    const totalItems = items.length;
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    const pagedItems = items.slice(startIndex, startIndex + PAGE_SIZE);
 
     const fetchItems = async () => {
         if (!selectedCompany) return;
@@ -204,8 +215,8 @@ export default function ItemsPage() {
 
                 <Card className="overflow-hidden">
                     <Table>
-                        <TableHeader className="bg-gray-50/50">
-                            <TableRow className="hover:bg-transparent border-gray-100">
+                        <TableHeader className="bg-white">
+                            <TableRow className="hover:bg-transparent border-gray-200">
                                 <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider">SKU</TableHead>
                                 <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider">Nome</TableHead>
                                 <TableHead className="px-6 h-10 text-xs font-bold text-gray-500 uppercase tracking-wider">Tipo</TableHead>
@@ -236,10 +247,10 @@ export default function ItemsPage() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                items.map((item) => (
+                                pagedItems.map((item) => (
                                     <TableRow
                                         key={item.id}
-                                        className="group border-gray-50 hover:bg-gray-50/50 transition-colors cursor-pointer"
+                                        className="group border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
                                         onClick={() => router.push(`/app/cadastros/produtos/${item.id}`)}
                                     >
                                         <TableCell className="px-6 py-4">
@@ -323,6 +334,14 @@ export default function ItemsPage() {
                         </TableBody>
                     </Table>
                 </Card>
+                <ListPagination
+                    page={currentPage}
+                    pageSize={PAGE_SIZE}
+                    total={totalItems}
+                    onPageChange={setCurrentPage}
+                    label="produtos"
+                    disabled={isLoading}
+                />
             </div>
         </div>
     );

@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/Label";
 import { Checkbox } from "@/components/ui/Checkbox";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/use-toast";
+import { ListPagination } from "@/components/ui/ListPagination";
 
 type Direction = 'IN' | 'OUT' | 'ALL';
 type ViewMode = 'INSTALLMENT' | 'ORDER';
@@ -45,6 +46,8 @@ export function AccountsTable({ companyId }: { companyId: string }) {
 
     // Selection State
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 100;
 
     // Bulk Settle State
     const [showBulkSettleModal, setShowBulkSettleModal] = useState(false);
@@ -157,6 +160,11 @@ export function AccountsTable({ companyId }: { companyId: string }) {
         fetchInstallments();
     }, [direction, statusFilter, dateRange, dateTypeFilter]);
 
+    useEffect(() => {
+        setCurrentPage(1);
+        setSelectedIds(new Set());
+    }, [searchQuery, viewMode, installments.length]);
+
     // Grouping Logic
     const groupedOrders = useMemo(() => {
         if (viewMode !== 'ORDER') return [];
@@ -208,6 +216,14 @@ export function AccountsTable({ companyId }: { companyId: string }) {
 
     }, [installments, viewMode]);
 
+    const totalRecords = viewMode === "INSTALLMENT" ? installments.length : groupedOrders.length;
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    const pagedInstallments = installments.slice(startIndex, startIndex + PAGE_SIZE);
+    const pagedGroupedOrders = groupedOrders.slice(startIndex, startIndex + PAGE_SIZE);
+    const visibleInstallmentIds = viewMode === "INSTALLMENT"
+        ? pagedInstallments.map((item) => item.id)
+        : pagedGroupedOrders.flatMap((group) => group.installments.map((item) => item.id));
+
 
     const toggleExpand = (id: string, e?: React.MouseEvent) => {
         if (e) e.stopPropagation();
@@ -221,8 +237,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            const allIds = installments.map(i => i.id);
-            setSelectedIds(new Set(allIds));
+            setSelectedIds(new Set(visibleInstallmentIds));
         } else {
             setSelectedIds(new Set());
         }
@@ -246,8 +261,8 @@ export function AccountsTable({ companyId }: { companyId: string }) {
 
     const clearSelection = () => setSelectedIds(new Set());
 
-    const isAllSelected = installments.length > 0 && selectedIds.size === installments.length;
-    const isIndeterminate = selectedIds.size > 0 && selectedIds.size < installments.length;
+    const isAllSelected = visibleInstallmentIds.length > 0 && visibleInstallmentIds.every((id) => selectedIds.has(id));
+    const isIndeterminate = visibleInstallmentIds.some((id) => selectedIds.has(id)) && !isAllSelected;
 
     // --- Bulk Settle Handler ---
     const handleConfirmBulkSettle = async (date: string, accountId: string, validIds: string[]) => {
@@ -465,13 +480,13 @@ export function AccountsTable({ companyId }: { companyId: string }) {
 
                 {/* Selection Bar */}
                 {selectedIds.size > 0 && (
-                    <div className="mx-4 mt-4 p-3 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                    <div className="mx-4 mt-4 p-3 bg-brand-50 border border-brand-100 rounded-2xl flex items-center justify-between animate-in fade-in slide-in-from-top-2">
                         <div className="flex items-center gap-3">
-                            <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-semibold">
+                            <div className="bg-brand-100 text-brand-700 px-3 py-1 rounded-full text-xs font-semibold">
                                 {selectedIds.size} {selectedIds.size === 1 ? 'lançamento selecionado' : 'lançamentos selecionados'}
                             </div>
 
-                            <div className="h-4 w-px bg-blue-200 mx-1"></div>
+                            <div className="h-4 w-px bg-brand-200 mx-1"></div>
 
                             <Button
                                 size="sm"
@@ -486,7 +501,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                             variant="ghost"
                             size="sm"
                             onClick={clearSelection}
-                            className="text-blue-700 hover:text-blue-800 hover:bg-blue-100 h-8 text-xs"
+                            className="text-brand-700 hover:text-brand-800 hover:bg-brand-100 h-8 text-xs"
                         >
                             <X className="w-3.5 h-3.5 mr-2" />
                             Limpar seleção
@@ -512,7 +527,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                             {/* Conditional Header based on View Mode */}
                             <TableHeader>
                                 {viewMode === 'INSTALLMENT' ? (
-                                    <TableRow className="bg-gray-50/40 hover:bg-gray-50/40">
+                                    <TableRow className="bg-white hover:bg-white border-gray-200">
                                         <TableHead className="w-12"></TableHead>
                                         <TableHead className="w-12">
                                             <Checkbox
@@ -531,7 +546,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                                         <TableHead>Origem</TableHead>
                                     </TableRow>
                                 ) : (
-                                    <TableRow className="bg-gray-50/40 hover:bg-gray-50/40">
+                                    <TableRow className="bg-white hover:bg-white border-gray-200">
                                         <TableHead className="w-12"></TableHead>
                                         <TableHead className="w-12">
                                             <Checkbox
@@ -560,15 +575,15 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                                     <>
                                         {viewMode === 'INSTALLMENT' ? (
                                             /* INSTALLMENT VIEW */
-                                            installments.map(inst => {
+                                            pagedInstallments.map(inst => {
                                                 const isExpanded = expandedIds.has(inst.id);
                                                 const isSelected = selectedIds.has(inst.id);
                                                 return (
                                                     <React.Fragment key={inst.id}>
                                                         <TableRow
                                                             className={cn("cursor-pointer transition-colors",
-                                                                isExpanded ? "bg-blue-50/30" : "hover:bg-gray-50",
-                                                                isSelected && !isExpanded ? "bg-blue-50/20" : ""
+                                                                isExpanded ? "bg-brand-50/40" : "hover:bg-gray-50",
+                                                                isSelected && !isExpanded ? "bg-brand-50/30" : ""
                                                             )}
                                                             onClick={(e) => toggleExpand(inst.id, e)}
                                                         >
@@ -619,7 +634,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                                                         </TableRow>
                                                         {isExpanded && (
                                                             <TableRow>
-                                                                <TableCell colSpan={11} className="p-0 border-none bg-blue-50/10">
+                                                                <TableCell colSpan={11} className="p-0 border-none bg-brand-50/20">
                                                                     <div className="px-10 py-4">
                                                                         <AccountsInstallmentRowExpanded installment={inst} onRefresh={fetchInstallments} />
                                                                     </div>
@@ -631,7 +646,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                                             })
                                         ) : (
                                             /* ORDER VIEW (GROUPED) */
-                                            groupedOrders.map(group => (
+                                            pagedGroupedOrders.map(group => (
                                                 <AccountsGroupRow
                                                     key={group.id}
                                                     group={group}
@@ -649,6 +664,19 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                     </div>
                 )}
             </Card>
+            {direction !== 'OUT' && (
+                <ListPagination
+                    page={currentPage}
+                    pageSize={PAGE_SIZE}
+                    total={totalRecords}
+                    onPageChange={(page) => {
+                        setSelectedIds(new Set());
+                        setCurrentPage(page);
+                    }}
+                    label={viewMode === "INSTALLMENT" ? "lançamentos" : "pedidos agrupados"}
+                    disabled={loading}
+                />
+            )}
         </div>
     );
 }

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import {
     receivePurchaseOrderAction,
@@ -16,6 +16,7 @@ import {
 } from "@/app/actions/purchases";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { Checkbox } from "@/components/ui/Checkbox";
+import { ListPagination } from "@/components/ui/ListPagination";
 
 interface PurchaseOrder {
     id: string;
@@ -51,11 +52,23 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
     const { toast } = useToast();
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 100;
 
     // Batch Actions State
     const [isBatchSending, setIsBatchSending] = useState(false);
     const [isBatchReceiving, setIsBatchReceiving] = useState(false);
     const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+
+    useEffect(() => {
+        setCurrentPage(1);
+        setSelectedIds(new Set());
+    }, [data.length]);
+
+    const totalOrders = data.length;
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    const pagedData = data.slice(startIndex, startIndex + PAGE_SIZE);
+    const visibleSelectableIds = pagedData.filter((d) => !d.deleted_at).map((order) => order.id);
 
     // Batch Action Handlers
     const handleBatchSend = async () => {
@@ -113,7 +126,7 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
-            setSelectedIds(new Set(data.filter(d => !d.deleted_at).map(order => order.id)));
+            setSelectedIds(new Set(visibleSelectableIds));
         } else {
             setSelectedIds(new Set());
         }
@@ -128,6 +141,8 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
         }
         setSelectedIds(newSelected);
     };
+    const allVisibleSelected = visibleSelectableIds.length > 0 && visibleSelectableIds.every((id) => selectedIds.has(id));
+    const someVisibleSelected = visibleSelectableIds.some((id) => selectedIds.has(id));
 
     const getStatusBadge = (order: PurchaseOrder) => {
         if (order.receiving_blocked) {
@@ -268,11 +283,11 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
             <Card className="bg-white overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm text-left">
-                        <thead className="bg-gray-50 text-gray-500 font-semibold border-b border-gray-200">
+                        <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
                             <tr>
                                 <th className="px-6 py-4 w-10">
                                     <Checkbox
-                                        checked={data.length > 0 && selectedIds.size === data.length}
+                                        checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
                                         onCheckedChange={(checked) => handleSelectAll(checked as boolean)}
                                         aria-label="Select all"
                                     />
@@ -288,7 +303,7 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {data.map((order) => (
+                            {pagedData.map((order) => (
                                 <tr
                                     key={order.id}
                                     className="hover:bg-gray-50 cursor-pointer transition-colors"
@@ -432,6 +447,17 @@ export function PurchasesTable({ data, isLoading, onEdit, onRefresh }: Purchases
 
 
             </Card>
+            <ListPagination
+                page={currentPage}
+                pageSize={PAGE_SIZE}
+                total={totalOrders}
+                onPageChange={(page) => {
+                    setSelectedIds(new Set());
+                    setCurrentPage(page);
+                }}
+                label="pedidos"
+                disabled={isLoading}
+            />
         </>
     );
 }

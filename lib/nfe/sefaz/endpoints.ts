@@ -8,13 +8,15 @@ export const SEFAZ_ENDPOINTS = {
             NFeAutorizacao4: "https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx",
             NFeRetAutorizacao4: "https://homologacao.nfe.fazenda.sp.gov.br/ws/nferetautorizacao4.asmx",
             NFeStatusServico4: "https://homologacao.nfe.fazenda.sp.gov.br/ws/nfestatusservico4.asmx",
-            NFeConsultaProtocolo4: "https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx"
+            NFeConsultaProtocolo4: "https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx",
+            NFeRecepcaoEvento4: "https://homologacao.nfe.fazenda.sp.gov.br/ws/nferecepcaoevento4.asmx"
         },
         producao: {
             NFeAutorizacao4: "https://nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx",
             NFeRetAutorizacao4: "https://nfe.fazenda.sp.gov.br/ws/nferetautorizacao4.asmx",
             NFeStatusServico4: "https://nfe.fazenda.sp.gov.br/ws/nfestatusservico4.asmx",
-            NFeConsultaProtocolo4: "https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx"
+            NFeConsultaProtocolo4: "https://nfe.fazenda.sp.gov.br/ws/nfeconsultaprotocolo4.asmx",
+            NFeRecepcaoEvento4: "https://nfe.fazenda.sp.gov.br/ws/nferecepcaoevento4.asmx"
         }
     },
     GO: {
@@ -22,18 +24,20 @@ export const SEFAZ_ENDPOINTS = {
             NFeAutorizacao4: "https://homolog.sefaz.go.gov.br/nfe/services/NFeAutorizacao4",
             NFeRetAutorizacao4: "https://homolog.sefaz.go.gov.br/nfe/services/NFeRetAutorizacao4",
             NFeStatusServico4: "https://homolog.sefaz.go.gov.br/nfe/services/NFeStatusServico4",
-            NFeConsultaProtocolo4: "https://homolog.sefaz.go.gov.br/nfe/services/NFeConsultaProtocolo4"
+            NFeConsultaProtocolo4: "https://homolog.sefaz.go.gov.br/nfe/services/NFeConsultaProtocolo4",
+            NFeRecepcaoEvento4: "https://homolog.sefaz.go.gov.br/nfe/services/NFeRecepcaoEvento4"
         },
         producao: {
             NFeAutorizacao4: "https://nfe.sefaz.go.gov.br/nfe/services/NFeAutorizacao4",
             NFeRetAutorizacao4: "https://nfe.sefaz.go.gov.br/nfe/services/NFeRetAutorizacao4",
             NFeStatusServico4: "https://nfe.sefaz.go.gov.br/nfe/services/NFeStatusServico4",
-            NFeConsultaProtocolo4: "https://nfe.sefaz.go.gov.br/nfe/services/NFeConsultaProtocolo4"
+            NFeConsultaProtocolo4: "https://nfe.sefaz.go.gov.br/nfe/services/NFeConsultaProtocolo4",
+            NFeRecepcaoEvento4: "https://nfe.sefaz.go.gov.br/nfe/services/NFeRecepcaoEvento4"
         }
     }
 };
 
-export type SefazService = "NFeAutorizacao4" | "NFeRetAutorizacao4" | "NFeStatusServico4" | "NFeConsultaProtocolo4";
+export type SefazService = "NFeAutorizacao4" | "NFeRetAutorizacao4" | "NFeStatusServico4" | "NFeConsultaProtocolo4" | "NFeRecepcaoEvento4";
 
 export function getSefazUrl(uf: string, amb: "1" | "2", service: SefazService): string {
     const env = amb === "2" ? "homologacao" : "producao";

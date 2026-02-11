@@ -14,6 +14,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { formatCNPJ } from "@/lib/cnpj";
 import { useToast } from "@/components/ui/use-toast";
+import { ListPagination } from "@/components/ui/ListPagination";
 
 
 
@@ -40,6 +41,8 @@ function PessoasEmpresasContent() {
     const [data, setData] = useState<OrganizationList[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [search, setSearch] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 100;
     const [allData, setAllData] = useState<OrganizationList[]>([]); // Store all records
     const [filteredData, setFilteredData] = useState<OrganizationList[]>([]); // Store filtered records
     // const [searchDebounced, setSearchDebounced] = useState(""); // Removed server-side debounce
@@ -111,6 +114,14 @@ function PessoasEmpresasContent() {
         setFilteredData(result);
 
     }, [search, allData]);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, allData.length]);
+
+    const totalFiltered = filteredData.length;
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    const pagedData = filteredData.slice(startIndex, startIndex + PAGE_SIZE);
 
 
 
@@ -236,11 +247,19 @@ function PessoasEmpresasContent() {
                 </div>
 
                 <DataTable
-                    data={filteredData}
+                    data={pagedData}
                     columns={columns}
                     isLoading={isLoading}
                     onRowClick={(row) => router.push(`/app/cadastros/pessoas-e-empresas/${row.id}`)}
                     emptyMessage="Nenhum cadastro encontrado."
+                />
+                <ListPagination
+                    page={currentPage}
+                    pageSize={PAGE_SIZE}
+                    total={totalFiltered}
+                    onPageChange={setCurrentPage}
+                    label="cadastros"
+                    disabled={isLoading}
                 />
             </div>
         </div>

@@ -25,9 +25,10 @@ export default async function SalesOrdersPage({
 
     // Parse Filters
     const page = Number(params.page) || 1;
+    const pageSize = 100;
     const filters: FilterType = {
         page,
-        limit: 20,
+        limit: pageSize,
         search: (params.search as string) || undefined,
         docType: (params.docType as string) || 'all',
         dateFrom: (params.dateFrom as string) || undefined,
@@ -52,6 +53,24 @@ export default async function SalesOrdersPage({
         console.error("Error loading sales orders:", e);
         error = e;
     }
+
+    const totalPages = Math.max(1, Math.ceil((count || 0) / pageSize));
+    const pageWindowStart = Math.max(1, page - 2);
+    const pageWindowEnd = Math.min(totalPages, pageWindowStart + 4);
+
+    const buildPageHref = (targetPage: number) => {
+        const search = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => {
+            if (value === undefined) return;
+            if (Array.isArray(value)) {
+                value.forEach((item) => search.append(key, String(item)));
+                return;
+            }
+            search.set(key, String(value));
+        });
+        search.set("page", String(targetPage));
+        return `?${search.toString()}`;
+    };
 
     return (
         <div className="space-y-6">
@@ -82,14 +101,27 @@ export default async function SalesOrdersPage({
                 {/* Pagination (Simple Implementation) */}
                 <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
                     <div>
-                        Mostrando {(page - 1) * 20 + 1} a {Math.min(page * 20, count || 0)} de {count} resultados
+                        Mostrando {(page - 1) * pageSize + 1} a {Math.min(page * pageSize, count || 0)} de {count} resultados
                     </div>
-                    <div className="flex gap-2">
-                        <Link href={`?page=${Math.max(1, page - 1)}`} className={page <= 1 ? "pointer-events-none opacity-50" : ""}>
+                    <div className="flex items-center gap-2">
+                        <Link href={buildPageHref(Math.max(1, page - 1))} className={page <= 1 ? "pointer-events-none opacity-50" : ""}>
                             <Button variant="outline" size="sm" disabled={page <= 1}>Anterior</Button>
                         </Link>
-                        <Link href={`?page=${page + 1}`} className={20 * page >= (count || 0) ? "pointer-events-none opacity-50" : ""}>
-                            <Button variant="outline" size="sm" disabled={20 * page >= (count || 0)}>Próxima</Button>
+                        <div className="flex items-center gap-1">
+                            {Array.from({ length: Math.max(0, pageWindowEnd - pageWindowStart + 1) }).map((_, index) => {
+                                const pageNumber = pageWindowStart + index;
+                                const isActive = pageNumber === page;
+                                return (
+                                    <Link key={pageNumber} href={buildPageHref(pageNumber)}>
+                                        <Button variant={isActive ? "primary" : "outline"} size="sm" className="min-w-9">
+                                            {pageNumber}
+                                        </Button>
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                        <Link href={buildPageHref(page + 1)} className={pageSize * page >= (count || 0) ? "pointer-events-none opacity-50" : ""}>
+                            <Button variant="outline" size="sm" disabled={pageSize * page >= (count || 0)}>Próxima</Button>
                         </Link>
                     </div>
                 </div>

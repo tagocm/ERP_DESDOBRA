@@ -149,6 +149,14 @@ export class JobWorker {
 
             console.log(`[Worker] Emission Success: ${result.status} - ${result.message}`);
 
+        } else if (this.jobType === 'NFE_CCE') {
+            const { processCorrectionLetterJob } = await import('@/lib/fiscal/nfe/correction-letter-worker');
+            await processCorrectionLetterJob(job.payload || {});
+            console.log(`[Worker] CC-e processed successfully for payload ${JSON.stringify({ correctionLetterId: job.payload?.correctionLetterId })}`);
+        } else if (this.jobType === 'NFE_CANCEL') {
+            const { processNfeCancellationJob } = await import('@/lib/fiscal/nfe/cancellation-worker');
+            await processNfeCancellationJob(job.payload || {});
+            console.log(`[Worker] NFE cancel processed successfully for payload ${JSON.stringify({ cancellationId: job.payload?.cancellationId })}`);
         } else {
             console.warn(`[Worker] No handler for job type: ${this.jobType}`);
         }

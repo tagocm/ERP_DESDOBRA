@@ -39,17 +39,17 @@ export function DataTable<T>({
 
     if (!data.length) {
         return (
-            <div className="p-12 text-center border-dashed border border-gray-200 rounded-2xl bg-gray-50/50">
+            <div className="p-12 text-center border border-gray-200 rounded-2xl bg-white">
                 <p className="text-gray-500 font-medium">{emptyMessage}</p>
             </div>
         );
     }
 
     return (
-        <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white shadow-sm">
+        <div className="overflow-hidden border border-gray-200 rounded-2xl bg-white">
             <Table>
-                <TableHeader className="bg-gray-50/50">
-                    <TableRow className="hover:bg-transparent border-gray-100">
+                <TableHeader className="bg-white">
+                    <TableRow className="hover:bg-transparent border-gray-200">
                         {columns.map((col, idx) => (
                             <TableHead
                                 key={idx}
@@ -69,7 +69,7 @@ export function DataTable<T>({
                             key={rowIdx}
                             onClick={() => onRowClick && onRowClick(item)}
                             className={cn(
-                                "group border-gray-50 hover:bg-gray-50/50 transition-colors",
+                                "group border-gray-100 hover:bg-gray-50 transition-colors",
                                 onRowClick ? "cursor-pointer" : ""
                             )}
                         >

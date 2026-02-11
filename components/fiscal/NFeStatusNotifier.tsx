@@ -25,6 +25,26 @@ type SalesDocumentNfeRealtime = {
     } | null;
 };
 
+type NfeCorrectionLetterRealtime = {
+    id: string;
+    company_id: string;
+    sales_document_id: string | null;
+    sequence: number;
+    status: string;
+    c_stat?: string | null;
+    x_motivo?: string | null;
+};
+
+type NfeCancellationRealtime = {
+    id: string;
+    company_id: string;
+    sales_document_id: string | null;
+    sequence: number;
+    status: string;
+    c_stat?: string | null;
+    x_motivo?: string | null;
+};
+
 const INTERESTING_STATUSES = new Set([
     "authorized",
     "cancelled",
@@ -33,12 +53,26 @@ const INTERESTING_STATUSES = new Set([
     "error"
 ]);
 
+const INTERESTING_CCE_STATUSES = new Set([
+    "authorized",
+    "rejected",
+    "failed"
+]);
+
+const INTERESTING_CANCEL_STATUSES = new Set([
+    "authorized",
+    "rejected",
+    "failed"
+]);
+
 export function NFeStatusNotifier() {
     const { selectedCompany } = useCompany();
     const { toast } = useToast();
     const supabaseRef = useRef(createClient());
     const statusByEmissionIdRef = useRef<Map<string, string>>(new Map());
     const statusByLegacyNfeIdRef = useRef<Map<string, string>>(new Map());
+    const statusByCorrectionIdRef = useRef<Map<string, string>>(new Map());
+    const statusByCancellationIdRef = useRef<Map<string, string>>(new Map());
     const orderNumberCacheRef = useRef<Map<string, string>>(new Map());
     const orderCompanyCacheRef = useRef<Map<string, string>>(new Map());
     const mountedAtRef = useRef(Date.now());
@@ -50,6 +84,8 @@ export function NFeStatusNotifier() {
         if (!companyId) {
             statusByEmissionIdRef.current.clear();
             statusByLegacyNfeIdRef.current.clear();
+            statusByCorrectionIdRef.current.clear();
+            statusByCancellationIdRef.current.clear();
             orderNumberCacheRef.current.clear();
             orderCompanyCacheRef.current.clear();
             return;
@@ -83,6 +119,34 @@ export function NFeStatusNotifier() {
             for (const row of legacyNfes || []) {
                 if (row?.id && row?.status) {
                     statusByLegacyNfeIdRef.current.set(row.id, row.status);
+                }
+            }
+
+            const { data: corrections } = await supabase
+                .from("nfe_correction_letters")
+                .select("id,status")
+                .eq("company_id", companyId)
+                .order("updated_at", { ascending: false })
+                .limit(100);
+
+            if (!isMounted) return;
+            for (const row of corrections || []) {
+                if (row?.id && row?.status) {
+                    statusByCorrectionIdRef.current.set(row.id, row.status);
+                }
+            }
+
+            const { data: cancellations } = await supabase
+                .from("nfe_cancellations")
+                .select("id,status")
+                .eq("company_id", companyId)
+                .order("updated_at", { ascending: false })
+                .limit(100);
+
+            if (!isMounted) return;
+            for (const row of cancellations || []) {
+                if (row?.id && row?.status) {
+                    statusByCancellationIdRef.current.set(row.id, row.status);
                 }
             }
         };
@@ -199,6 +263,60 @@ export function NFeStatusNotifier() {
             });
         };
 
+        const notifyCorrectionStatus = async (row: NfeCorrectionLetterRealtime) => {
+            const previousStatus = statusByCorrectionIdRef.current.get(row.id);
+            if (previousStatus === row.status) return;
+            statusByCorrectionIdRef.current.set(row.id, row.status);
+
+            if (!INTERESTING_CCE_STATUSES.has(row.status)) return;
+
+            const orderLabel = await fetchOrderNumber(row.sales_document_id);
+            const suffix = orderLabel ? ` (${orderLabel})` : "";
+            const sequenceLabel = Number.isFinite(row.sequence) ? ` #${row.sequence}` : "";
+            const reason = row.x_motivo || "Sem detalhes adicionais.";
+
+            if (row.status === "authorized") {
+                toast({
+                    title: `CC-e autorizada${sequenceLabel}${suffix}`,
+                    description: row.c_stat ? `SEFAZ cStat ${row.c_stat}.` : "Carta de correção registrada."
+                });
+                return;
+            }
+
+            toast({
+                title: `CC-e com falha${sequenceLabel}${suffix}`,
+                description: reason,
+                variant: "destructive"
+            });
+        };
+
+        const notifyCancellationStatus = async (row: NfeCancellationRealtime) => {
+            const previousStatus = statusByCancellationIdRef.current.get(row.id);
+            if (previousStatus === row.status) return;
+            statusByCancellationIdRef.current.set(row.id, row.status);
+
+            if (!INTERESTING_CANCEL_STATUSES.has(row.status)) return;
+
+            const orderLabel = await fetchOrderNumber(row.sales_document_id);
+            const suffix = orderLabel ? ` (${orderLabel})` : "";
+            const sequenceLabel = Number.isFinite(row.sequence) ? ` #${row.sequence}` : "";
+            const reason = row.x_motivo || "Sem detalhes adicionais.";
+
+            if (row.status === "authorized") {
+                toast({
+                    title: `Cancelamento autorizado${sequenceLabel}${suffix}`,
+                    description: row.c_stat ? `SEFAZ cStat ${row.c_stat}.` : "NF-e cancelada com sucesso."
+                });
+                return;
+            }
+
+            toast({
+                title: `Falha no cancelamento${sequenceLabel}${suffix}`,
+                description: reason,
+                variant: "destructive"
+            });
+        };
+
         const pollRecentStatuses = async () => {
             const windowStartIso = new Date(mountedAtRef.current - (10 * 60 * 1000)).toISOString();
 
@@ -218,6 +336,22 @@ export function NFeStatusNotifier() {
                     .limit(30)
             ]);
 
+            const { data: recentCorrections } = await supabase
+                .from("nfe_correction_letters")
+                .select("id,company_id,sales_document_id,sequence,status,c_stat,x_motivo,updated_at")
+                .eq("company_id", companyId)
+                .gte("updated_at", windowStartIso)
+                .order("updated_at", { ascending: false })
+                .limit(30);
+
+            const { data: recentCancellations } = await supabase
+                .from("nfe_cancellations")
+                .select("id,company_id,sales_document_id,sequence,status,c_stat,x_motivo,updated_at")
+                .eq("company_id", companyId)
+                .gte("updated_at", windowStartIso)
+                .order("updated_at", { ascending: false })
+                .limit(30);
+
             for (const row of recentEmissions || []) {
                 if (!row?.id || !row?.status) continue;
                 if (!INTERESTING_STATUSES.has(row.status)) continue;
@@ -232,6 +366,22 @@ export function NFeStatusNotifier() {
                 const prev = statusByLegacyNfeIdRef.current.get(row.id);
                 if (prev === row.status) continue;
                 void notifyLegacyStatus(row as SalesDocumentNfeRealtime);
+            }
+
+            for (const row of recentCorrections || []) {
+                if (!row?.id || !row?.status) continue;
+                if (!INTERESTING_CCE_STATUSES.has(row.status)) continue;
+                const prev = statusByCorrectionIdRef.current.get(row.id);
+                if (prev === row.status) continue;
+                void notifyCorrectionStatus(row as NfeCorrectionLetterRealtime);
+            }
+
+            for (const row of recentCancellations || []) {
+                if (!row?.id || !row?.status) continue;
+                if (!INTERESTING_CANCEL_STATUSES.has(row.status)) continue;
+                const prev = statusByCancellationIdRef.current.get(row.id);
+                if (prev === row.status) continue;
+                void notifyCancellationStatus(row as NfeCancellationRealtime);
             }
         };
 
@@ -264,6 +414,34 @@ export function NFeStatusNotifier() {
                     const row = payload?.new as SalesDocumentNfeRealtime | undefined;
                     if (!row?.id || !row?.status) return;
                     void notifyLegacyStatus(row);
+                }
+            )
+            .on(
+                "postgres_changes",
+                {
+                    event: "*",
+                    schema: "public",
+                    table: "nfe_correction_letters",
+                    filter: `company_id=eq.${companyId}`
+                },
+                (payload: any) => {
+                    const row = payload?.new as NfeCorrectionLetterRealtime | undefined;
+                    if (!row?.id || !row?.status) return;
+                    void notifyCorrectionStatus(row);
+                }
+            )
+            .on(
+                "postgres_changes",
+                {
+                    event: "*",
+                    schema: "public",
+                    table: "nfe_cancellations",
+                    filter: `company_id=eq.${companyId}`
+                },
+                (payload: any) => {
+                    const row = payload?.new as NfeCancellationRealtime | undefined;
+                    if (!row?.id || !row?.status) return;
+                    void notifyCancellationStatus(row);
                 }
             )
             .subscribe();
@@ -312,6 +490,76 @@ export function NFeStatusNotifier() {
 
         window.addEventListener("nfe-emit-feedback", handler as EventListener);
         return () => window.removeEventListener("nfe-emit-feedback", handler as EventListener);
+    }, [toast]);
+
+    useEffect(() => {
+        const handler = (event: Event) => {
+            const payload = (event as CustomEvent<{
+                type?: string;
+                message?: string;
+                sequence?: number | null;
+                orderNumber?: number | string | null;
+            }>).detail;
+
+            if (!payload?.type) return;
+
+            const orderSuffix = payload.orderNumber ? ` (#${payload.orderNumber})` : "";
+            const sequenceSuffix = payload.sequence ? ` #${payload.sequence}` : "";
+
+            if (payload.type === "queued") {
+                toast({
+                    title: `Cancelamento enviado para fila${sequenceSuffix}${orderSuffix}`,
+                    description: "Você será notificado quando a SEFAZ responder."
+                });
+                return;
+            }
+
+            if (payload.type === "enqueue_error") {
+                toast({
+                    title: `Falha ao enviar cancelamento${orderSuffix}`,
+                    description: payload.message || "Não foi possível enfileirar o cancelamento da NF-e.",
+                    variant: "destructive"
+                });
+            }
+        };
+
+        window.addEventListener("nfe-cancel-feedback", handler as EventListener);
+        return () => window.removeEventListener("nfe-cancel-feedback", handler as EventListener);
+    }, [toast]);
+
+    useEffect(() => {
+        const handler = (event: Event) => {
+            const payload = (event as CustomEvent<{
+                type?: string;
+                message?: string;
+                sequence?: number | null;
+                orderNumber?: number | string | null;
+            }>).detail;
+
+            if (!payload?.type) return;
+
+            const orderSuffix = payload.orderNumber ? ` (#${payload.orderNumber})` : "";
+            const sequenceSuffix = payload.sequence ? ` #${payload.sequence}` : "";
+
+            if (payload.type === "queued") {
+                toast({
+                    title: `CC-e enviada para fila${sequenceSuffix}${orderSuffix}`,
+                    description: "Você será notificado quando a SEFAZ responder."
+                });
+                return;
+            }
+
+            if (payload.type === "enqueue_error") {
+                toast({
+                    title: `Falha ao enviar CC-e${orderSuffix}`,
+                    description: payload.message || "Não foi possível enfileirar a carta de correção.",
+                    variant: "destructive"
+                });
+            }
+        };
+
+        window.addEventListener("nfe-cce-feedback", handler as EventListener);
+        return () => window.removeEventListener("nfe-cce-feedback", handler as EventListener);
     }, [toast]);
 
     return null;
