@@ -4,6 +4,7 @@ export interface NfeDraft {
     dest: NfeDest;
     itens: NfeItem[];
     transp?: NfeTransp;
+    cobr?: NfeCobr;
     pag: NfePag;
     infAdic?: NfeInfAdic;
 }
@@ -138,6 +139,20 @@ export interface NfePag {
         xPag?: string; // Descrição para tPag=99
     }>;
     vTroco?: number;
+}
+
+export interface NfeCobr {
+    fat?: {
+        nFat?: string;
+        vOrig: number;
+        vDesc?: number;
+        vLiq: number;
+    };
+    dup?: Array<{
+        nDup: string;
+        dVenc: string; // YYYY-MM-DD
+        vDup: number;
+    }>;
 }
 
 export interface NfeInfAdic {

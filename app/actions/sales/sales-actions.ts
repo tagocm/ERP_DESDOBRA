@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { createClient } from '@/utils/supabase/server';
+import { createAdminClient } from '@/lib/supabaseServer';
 import {
     getSalesDocumentById,
     upsertSalesDocument,
@@ -486,6 +487,52 @@ export async function getQuickItemMetaAction(params: {
         };
     } catch (e) {
         return { packagings: [] };
+    }
+}
+
+export async function searchSalesProductsAction(params: {
+    term: string;
+    companyId?: string;
+    limit?: number;
+}): Promise<Array<{
+    id: string;
+    name: string;
+    sku: string | null;
+    uom: string | null;
+    sale_price: number | null;
+    net_weight_kg_base: number | null;
+    gross_weight_kg_base: number | null;
+}>> {
+    try {
+        const term = (params.term || '').trim();
+        if (term.length < 2) return [];
+
+        const companyId = await getCompanyId(params.companyId, {
+            skipMembershipValidation: Boolean(params.companyId),
+        });
+        const supabase = createAdminClient();
+        const max = Math.min(Math.max(Number(params.limit || 20), 1), 50);
+
+        const { data, error } = await supabase
+            .from('items')
+            .select('id, name, sku, uom, sale_price, net_weight_kg_base, gross_weight_kg_base')
+            .eq('company_id', companyId)
+            .eq('is_active', true)
+            .is('deleted_at', null)
+            .in('type', ['finished_good', 'product'])
+            .or(`name.ilike.%${term}%,sku.ilike.%${term}%`)
+            .order('name', { ascending: true })
+            .limit(max);
+
+        if (error) {
+            console.error('[searchSalesProductsAction] query error:', error.message);
+            return [];
+        }
+
+        return Array.isArray(data) ? data : [];
+    } catch (e: any) {
+        console.error('[searchSalesProductsAction] fatal:', e?.message || e);
+        return [];
     }
 }
 

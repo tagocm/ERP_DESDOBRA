@@ -11,6 +11,7 @@ import { buildDest } from "./sections/dest";
 import { buildDet } from "./sections/det";
 import { buildTotal } from "./sections/total";
 import { buildTransp } from "./sections/transp";
+import { buildCobr } from "./sections/cobr";
 import { buildPag } from "./sections/pag";
 import { buildInfAdic } from "./sections/infAdic";
 
@@ -89,6 +90,7 @@ export function buildNfeXml(draft: NfeDraft, opts: BuildOptions = {}): BuildResu
             det: draft.itens.map(buildDet),
             total: buildTotal(totals),
             transp: draft.transp ? buildTransp(draft.transp) : { modFrete: "9" },
+            cobr: draft.cobr ? buildCobr(draft.cobr) : undefined,
             pag: buildPag(draft.pag),
             infAdic: draft.infAdic ? buildInfAdic(draft.infAdic) : undefined
         }

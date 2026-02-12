@@ -5,6 +5,7 @@ import { Check, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabaseBrowser";
 import { useCompany } from "@/contexts/CompanyContext";
+import { searchSalesProductsAction } from "@/app/actions/sales/sales-actions";
 
 interface ProductSelectorProps {
     value?: string;
@@ -95,16 +96,17 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
 
         const fetchProducts = async () => {
             try {
-                const query = supabase
-                    .from('items')
-                    .select('id, name, sku, uom, sale_price, net_weight_kg_base, gross_weight_kg_base')
-                    .eq('company_id', activeCompanyId)
-                    .or(`name.ilike.%${search}%,sku.ilike.%${search}%`)
-                    .limit(20);
-
-                const { data } = await query;
+                const data = await searchSalesProductsAction({
+                    term: search,
+                    companyId: activeCompanyId,
+                    limit: 20
+                });
                 if (cancelled) return;
                 setOptions(data ? data.map((d: any) => ({ ...d, un: d.uom, price: Number(d.sale_price || 0) })) : []);
+            } catch (error) {
+                if (cancelled) return;
+                console.error("[ProductSelector] search error:", error);
+                setOptions([]);
             } finally {
                 if (cancelled) return;
                 setLoading(false);

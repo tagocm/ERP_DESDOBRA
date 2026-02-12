@@ -1,5 +1,5 @@
 
-import { NfeDraft, NfeIde, NfeEmit, NfeDest, NfeItem, NfePag, NfeEndereco, NfeProd, NfeImposto } from '@/lib/nfe/domain/types';
+import { NfeDraft, NfeIde, NfeEmit, NfeDest, NfeItem, NfePag, NfeEndereco, NfeProd, NfeImposto, NfeCobr } from '@/lib/nfe/domain/types';
 import { buildNfeProductDescription, resolveUomAbbrev } from '@/lib/fiscal/nfe-description';
 
 interface MapperContext {
@@ -368,6 +368,42 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
         }]
     };
 
+    // --- 5.1. COBR / DUPLICATAS ---
+    const payments = (order.payments || [])
+        .filter((payment: any) => payment && payment.amount > 0 && payment.due_date)
+        .sort((a: any, b: any) => {
+            const ia = Number(a.installment_number || 0);
+            const ib = Number(b.installment_number || 0);
+            if (ia !== ib) return ia - ib;
+            return String(a.due_date).localeCompare(String(b.due_date));
+        });
+
+    let cobr: NfeCobr | undefined;
+    if (payments.length > 0) {
+        const totalDuplicatas = payments.reduce((sum: number, payment: any) => sum + Number(payment.amount || 0), 0);
+
+        cobr = {
+            fat: {
+                nFat: String(ide.nNF || ''),
+                vOrig: totalDuplicatas,
+                vDesc: 0,
+                vLiq: totalDuplicatas
+            },
+            dup: payments.map((payment: any) => ({
+                nDup: String(Number(payment.installment_number || 0)).padStart(3, '0'),
+                dVenc: String(payment.due_date).slice(0, 10),
+                vDup: Number(payment.amount || 0)
+            }))
+        };
+    } else if (NFE_DEBUG && totalAmount > 0) {
+        console.warn('[NFE_DEBUG] Pedido sem sales_document_payments; XML será emitido sem cobr/dup.', {
+            order_id: order.id,
+            total_amount: totalAmount,
+            payment_terms_id: order.payment_terms_id,
+            payment_mode_id: order.payment_mode_id
+        });
+    }
+
     // --- 6. TRANSP ---
     // Map freight mode
     const modeMap: Record<string, string> = {
@@ -392,6 +428,7 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
         emit,
         dest,
         itens,
+        cobr,
         pag,
         transp: {
             modFrete,

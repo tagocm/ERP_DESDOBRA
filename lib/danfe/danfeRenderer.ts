@@ -44,6 +44,14 @@ function formatChave(chave: string) {
     return chave.replace(/(\d{4})/g, '$1 ').trim();
 }
 
+function formatParcelaNumero(valor?: string) {
+    if (!valor) return '-';
+    const digits = String(valor).replace(/\D/g, '');
+    if (!digits) return valor;
+    const normalized = digits.padStart(5, '0').slice(-5);
+    return `${normalized.slice(0, 4)}-${normalized.slice(4)}`;
+}
+
 // Helper to get CST or CSOSN based on CRT
 function getCST(item: any, crt: string): string {
     const icms = item.imposto?.ICMS;
@@ -115,24 +123,24 @@ export async function renderDanfeHtml(data: DanfeData): Promise<string> {
 
         /* Field */
         .field {
-            padding: 0.8mm 1mm;
-            min-height: 8.5mm;
+            padding: 0.5mm 0.8mm;
+            min-height: 6.5mm;
             position: relative;
         }
         .field-label {
-            font-size: 6pt;
+            font-size: 5.5pt;
             font-weight: 600;
             text-transform: uppercase;
-            margin-bottom: 0.3mm;
+            margin-bottom: 0.2mm;
             color: #333;
         }
         .field-value {
-            font-size: 8pt;
+            font-size: 7.3pt;
             font-weight: 600;
             color: #000;
-            min-height: 3mm; /* Garante altura mesmo sem valor */
+            min-height: 2.2mm; /* Garante altura mesmo sem valor */
         }
-        .field-small .field-value { font-size: 7pt; }
+        .field-small .field-value { font-size: 6.5pt; }
 
         /* Header blocks */
         .canhoto {
@@ -212,13 +220,13 @@ export async function renderDanfeHtml(data: DanfeData): Promise<string> {
             background: #f0f0f0;
             font-weight: 700;
             text-transform: uppercase;
-            padding: 1mm;
+            padding: 0.7mm;
             border: 0.2mm solid #000;
             text-align: center;
         }
         
         td {
-            padding: 0.8mm;
+            padding: 0.6mm;
             border: 0.2mm solid #000;
         }
 
@@ -230,11 +238,11 @@ export async function renderDanfeHtml(data: DanfeData): Promise<string> {
         .section-title {
             background: #000;
             color: #fff;
-            padding: 1mm 2mm;
-            font-size: 7pt;
+            padding: 0.6mm 1.6mm;
+            font-size: 6.5pt;
             font-weight: bold;
             text-transform: uppercase;
-            margin-top: 1mm;
+            margin-top: 0.6mm;
         }
 
         /* Watermark */
@@ -263,6 +271,41 @@ export async function renderDanfeHtml(data: DanfeData): Promise<string> {
         .w-50 { width: 50%; }
         .w-60 { width: 60%; }
         .w-70 { width: 70%; }
+
+        .parcelas-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 0;
+            border: 0.2mm solid #000;
+            border-top: none; 
+        }
+
+        .parcela-card {
+            border-right: 0.2mm solid #000;
+            border-bottom: 0.2mm solid #000;
+            padding: 0.5mm 0.8mm 0.6mm 0.8mm;
+            min-height: 9mm;
+        }
+
+        .parcela-card:nth-child(4n) {
+            border-right: none;
+        }
+
+        .parcela-line-label {
+            font-size: 5.5pt;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #333;
+            margin-bottom: 0.2mm;
+            line-height: 1.1;
+        }
+
+        .parcela-line-value {
+            font-size: 6.8pt;
+            font-weight: 700;
+            margin-bottom: 0.3mm;
+            line-height: 1.1;
+        }
     `;
 
     return `
@@ -505,6 +548,31 @@ export async function renderDanfeHtml(data: DanfeData): Promise<string> {
                 <div class="field-value text-right">${formatMoeda(data.total.vNF)}</div>
             </div>
         </div>
+
+        <!-- FATURA / PARCELAS -->
+        <div class="section-title">FATURA / PARCELAS</div>
+
+        ${(data.cobr?.dup?.length || 0) > 0 ? `
+            <div class="parcelas-grid">
+                ${data.cobr!.dup!.map((dup) => `
+                    <div class="parcela-card">
+                        <div class="parcela-line-label">PARCELA</div>
+                        <div class="parcela-line-value">${formatParcelaNumero(dup.nDup)}</div>
+                        <div class="parcela-line-label">VENCIMENTO</div>
+                        <div class="parcela-line-value">${dup.dVenc ? formatDate(dup.dVenc) : '-'}</div>
+                        <div class="parcela-line-label">VALOR</div>
+                        <div class="parcela-line-value">R$ ${formatMoeda(dup.vDup || 0)}</div>
+                    </div>
+                `).join('')}
+            </div>
+        ` : `
+            <div class="flex border-thin" style="border-top: none;">
+                <div class="field field-small" style="width: 100%;">
+                    <div class="field-label">PARCELAS</div>
+                    <div class="field-value">Sem parcelas informadas</div>
+                </div>
+            </div>
+        `}
 
         <!-- DADOS DOS PRODUTOS -->
         <div class="section-title">DADOS DO PRODUTO / SERVIÇO</div>
