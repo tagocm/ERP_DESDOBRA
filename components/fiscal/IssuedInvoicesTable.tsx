@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { ListPagination } from '@/components/ui/ListPagination';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/DropdownMenu';
 
 interface Props {
     data: any[];
@@ -136,6 +137,79 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
         }
     };
 
+    const fetchCorrectionLetterArtifact = async (nfeId: string) => {
+        const response = await fetch('/api/fiscal/nfe/correction-letter/artifact', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emissionId: nfeId }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || !payload?.success || !payload?.data?.xml) {
+            throw new Error(payload?.details || payload?.error || 'Carta de correção não disponível para esta NF-e.');
+        }
+
+        return payload.data as {
+            accessKey: string;
+            number: string | number | null;
+            series: string | number | null;
+            sequence: number;
+            xml: string;
+        };
+    };
+
+    const handlePrintCorrectionLetter = async (nfeId: string) => {
+        setPrintingId(nfeId);
+        try {
+            const artifact = await fetchCorrectionLetterArtifact(nfeId);
+            const printWindow = window.open('', '_blank');
+            if (!printWindow) {
+                throw new Error('O navegador bloqueou a abertura da janela de impressão.');
+            }
+
+            const escapedXml = artifact.xml
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+
+            const title = `CCe_${artifact.accessKey || nfeId}_seq_${String(artifact.sequence || 1).padStart(2, '0')}`;
+
+            printWindow.document.write(`
+                <!doctype html>
+                <html>
+                <head>
+                    <meta charset="utf-8" />
+                    <title>${title}</title>
+                    <style>
+                        body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; color: #111827; }
+                        h1 { font-size: 18px; margin: 0 0 8px 0; }
+                        .meta { font-size: 12px; color: #4b5563; margin-bottom: 12px; }
+                        pre { white-space: pre-wrap; word-break: break-word; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; background: #f9fafb; font-size: 11px; }
+                    </style>
+                </head>
+                <body>
+                    <h1>Carta de Correção Eletrônica (CC-e)</h1>
+                    <div class="meta">
+                        Chave: ${artifact.accessKey || '-'}<br/>
+                        Sequência: ${artifact.sequence || 1}
+                    </div>
+                    <pre>${escapedXml}</pre>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            setTimeout(() => {
+                printWindow.focus();
+                printWindow.print();
+            }, 200);
+        } catch (error: any) {
+            console.error('CC-e Print Error:', error);
+            alert(error?.message || 'Erro ao imprimir carta de correção.');
+        } finally {
+            setPrintingId(null);
+        }
+    };
+
     const handleVerifySefaz = async (nfeId: string) => {
         setVerifyingId(nfeId);
         try {
@@ -228,6 +302,31 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
         } catch (error: any) {
             console.error('Download error:', error);
             alert(error.message || 'Erro ao fazer download do XML');
+        } finally {
+            setDownloadingId(null);
+        }
+    };
+
+    const handleDownloadCorrectionLetterXml = async (nfeId: string) => {
+        setDownloadingId(nfeId);
+        try {
+            const artifact = await fetchCorrectionLetterArtifact(nfeId);
+            const blob = new Blob([artifact.xml], { type: 'application/xml;charset=utf-8' });
+            const blobUrl = window.URL.createObjectURL(blob);
+            const filename = `CCe-${artifact.accessKey}-seq-${String(artifact.sequence || 1).padStart(2, '0')}.xml`;
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            setTimeout(() => {
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(blobUrl);
+            }, 100);
+        } catch (error: any) {
+            console.error('CC-e Download error:', error);
+            alert(error?.message || 'Erro ao baixar XML da carta de correção.');
         } finally {
             setDownloadingId(null);
         }
@@ -676,26 +775,72 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
 
                                 {/* Print DANFE - Only for Authorized or Issued */}
                                 {(nfe.status === 'authorized' || nfe.status === 'issued') && (
+                                    nfe.has_correction_letter ? (
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={printingId === nfe.id}
+                                                    title="Imprimir arquivos da NF-e"
+                                                >
+                                                    <Printer className={`w-4 h-4 ${printingId === nfe.id ? 'animate-spin' : ''}`} />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuItem onSelect={() => handlePrintDanfe(nfe.id)}>
+                                                    Imprimir DANFE (PDF)
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => handlePrintCorrectionLetter(nfe.id)}>
+                                                    Imprimir Carta de Correção (CC-e)
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    ) : (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => handlePrintDanfe(nfe.id)}
+                                            disabled={printingId === nfe.id}
+                                            title="Imprimir DANFE (PDF)"
+                                        >
+                                            <Printer className={`w-4 h-4 ${printingId === nfe.id ? 'animate-spin' : ''}`} />
+                                        </Button>
+                                    )
+                                )}
+
+                                {nfe.has_correction_letter ? (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                disabled={downloadingId === nfe.id || !nfe.nfe_key}
+                                                title="Baixar XML da NF-e ou da CC-e"
+                                            >
+                                                <Download className="w-4 h-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onSelect={() => handleDownload(nfe.id)}>
+                                                Baixar XML da NF-e
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onSelect={() => handleDownloadCorrectionLetterXml(nfe.id)}>
+                                                Baixar XML da Carta de Correção
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                ) : (
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => handlePrintDanfe(nfe.id)}
-                                        disabled={printingId === nfe.id}
-                                        title="Imprimir DANFE (PDF)"
+                                        onClick={() => handleDownload(nfe.id)}
+                                        disabled={downloadingId === nfe.id || !nfe.nfe_key}
+                                        title="Baixar XML"
                                     >
-                                        <Printer className={`w-4 h-4 ${printingId === nfe.id ? 'animate-spin' : ''}`} />
+                                        <Download className="w-4 h-4" />
                                     </Button>
                                 )}
-
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleDownload(nfe.id)}
-                                    disabled={downloadingId === nfe.id || !nfe.nfe_key}
-                                    title="Baixar XML"
-                                >
-                                    <Download className="w-4 h-4" />
-                                </Button>
 
                                 {/* Verify on SEFAZ - For authorized notes */}
                                     {nfe.status === 'authorized' && (

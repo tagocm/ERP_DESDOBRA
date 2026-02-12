@@ -256,6 +256,50 @@ export async function fetchIssuedInvoices(
         new Date(b.issued_at || 0).getTime() - new Date(a.issued_at || 0).getTime()
     );
 
+    const emissionIds = merged
+        .map((row: any) => row?._source === 'emission' ? row.id : null)
+        .filter((value: string | null): value is string => Boolean(value));
+    const accessKeys = merged
+        .map((row: any) => row?.nfe_key || null)
+        .filter((value: string | null): value is string => Boolean(value));
+
+    const cceByEmissionId = new Set<string>();
+    const cceByAccessKey = new Set<string>();
+
+    if (emissionIds.length > 0) {
+        const { data: lettersByEmission } = await supabase
+            .from('nfe_correction_letters')
+            .select('nfe_emission_id')
+            .eq('company_id', companyId)
+            .eq('status', 'authorized')
+            .in('nfe_emission_id', emissionIds);
+
+        (lettersByEmission || []).forEach((row: any) => {
+            if (row?.nfe_emission_id) cceByEmissionId.add(row.nfe_emission_id);
+        });
+    }
+
+    if (accessKeys.length > 0) {
+        const { data: lettersByAccessKey } = await supabase
+            .from('nfe_correction_letters')
+            .select('access_key')
+            .eq('company_id', companyId)
+            .eq('status', 'authorized')
+            .in('access_key', accessKeys);
+
+        (lettersByAccessKey || []).forEach((row: any) => {
+            if (row?.access_key) cceByAccessKey.add(row.access_key);
+        });
+    }
+
+    merged = merged.map((row: any) => ({
+        ...row,
+        has_correction_letter:
+            (row?._source === 'emission' && cceByEmissionId.has(row.id)) ||
+            (row?.nfe_key && cceByAccessKey.has(row.nfe_key)) ||
+            false,
+    }));
+
     const searchTerm = filters?.clientSearch?.trim().toLowerCase();
     if (searchTerm) {
         const normalized = searchTerm.replace(/[^\d]/g, '');
