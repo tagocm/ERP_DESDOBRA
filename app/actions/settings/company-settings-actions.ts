@@ -17,23 +17,32 @@ export type ActionResult<T = void> =
     | { success: false; error: string };
 
 // ============================================================================
-// HELPER: Get Company ID
+// HELPER: Resolve Company ID from membership
 // ============================================================================
-async function getCompanyId(): Promise<string> {
+async function getCompanyId(requestedCompanyId?: string): Promise<string> {
     const supabase = await createClient();
     const { data: { user }, error: userError } = await supabase.auth.getUser();
 
     if (userError || !user) throw new Error('Usuário não autenticado');
 
-    const { data: companies, error: companyError } = await supabase
-        .from('companies')
-        .select('id')
-        .eq('owner_id', user.id)
-        .single();
+    let query = supabase
+        .from('company_members')
+        .select('company_id, created_at')
+        .eq('auth_user_id', user.id);
 
-    if (companyError || !companies) throw new Error('Empresa não encontrada');
+    if (requestedCompanyId) {
+        query = query.eq('company_id', requestedCompanyId);
+    }
 
-    return companies.id;
+    const { data: memberships, error: membershipError } = await query
+        .order('created_at', { ascending: true })
+        .limit(1);
+
+    if (membershipError || !memberships || memberships.length === 0) {
+        throw new Error('Empresa não encontrada');
+    }
+
+    return memberships[0].company_id;
 }
 
 // ============================================================================
@@ -81,26 +90,26 @@ const UpdateNameSchema = z.object({
 // ACTIONS
 // ============================================================================
 
-export async function getCompanySettingsAction(): Promise<ActionResult<any>> {
+export async function getCompanySettingsAction(companyId?: string): Promise<ActionResult<any>> {
     try {
-        const companyId = await getCompanyId();
+        const resolvedCompanyId = await getCompanyId(companyId);
         const supabase = await createClient();
-        const data = await getCompanySettings(supabase, companyId);
+        const data = await getCompanySettings(supabase, resolvedCompanyId);
         return { success: true, data };
     } catch (e: any) {
         return { success: false, error: e.message };
     }
 }
 
-export async function updateCompanySettingsAction(data: z.infer<typeof UpdateSettingsSchema>): Promise<ActionResult<any>> {
+export async function updateCompanySettingsAction(data: z.infer<typeof UpdateSettingsSchema>, companyId?: string): Promise<ActionResult<any>> {
     try {
-        const companyId = await getCompanyId();
+        const resolvedCompanyId = await getCompanyId(companyId);
         const supabase = await createClient();
 
         const validated = UpdateSettingsSchema.parse(data);
 
         // Filter out nulls/undefined if needed, but data layer handles Partial
-        const result = await updateCompanySettings(supabase, companyId, validated);
+        const result = await updateCompanySettings(supabase, resolvedCompanyId, validated);
 
         revalidatePath('/app/configuracoes/empresa');
         return { success: true, data: result };
@@ -113,14 +122,14 @@ export async function updateCompanySettingsAction(data: z.infer<typeof UpdateSet
     }
 }
 
-export async function updateCompanyNameAction(name: string): Promise<ActionResult<void>> {
+export async function updateCompanyNameAction(name: string, companyId?: string): Promise<ActionResult<void>> {
     try {
-        const companyId = await getCompanyId();
+        const resolvedCompanyId = await getCompanyId(companyId);
         const supabase = await createClient();
 
         const validated = UpdateNameSchema.parse({ name });
 
-        await updateCompanyName(supabase, companyId, validated.name);
+        await updateCompanyName(supabase, resolvedCompanyId, validated.name);
 
         revalidatePath('/app/configuracoes/empresa');
         return { success: true, data: undefined };

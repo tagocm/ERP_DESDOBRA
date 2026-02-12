@@ -42,20 +42,15 @@ export function CompanySettingsForm() {
 
     // Fetch Data
     useEffect(() => {
-        console.log("CompanySettingsForm Effect Triggered. Company:", selectedCompany?.id, "User:", user?.id);
-
         if (!selectedCompany || !user) {
-            console.log("Aborting load: Missing company or user");
             return;
         }
 
         const load = async () => {
-            console.log("Starting load function...");
             setLoading(true);
 
             try {
                 // Check Role: Use maybeSingle to avoid errors on empty result
-                console.log("Fetching member role...");
                 const { data: member, error: roleError } = await supabase
                     .from('company_members')
                     .select('role')
@@ -64,18 +59,15 @@ export function CompanySettingsForm() {
                     .maybeSingle();
 
                 if (roleError) console.error("Error fetching role:", roleError);
-                console.log("Member found:", member);
 
                 const admin = member?.role === 'owner' || member?.role === 'admin';
                 setIsAdmin(admin);
 
                 // Load Settings
-                console.log("Fetching company settings...");
-                const res = await getCompanySettingsAction();
+                const res = await getCompanySettingsAction(selectedCompany.id);
                 if (!res.success) throw new Error(res.error);
 
                 const data = res.data;
-                console.log("Settings data:", data);
 
                 setSettings({
                     ...(data || { company_id: selectedCompany.id }),
@@ -90,7 +82,6 @@ export function CompanySettingsForm() {
                     variant: "destructive"
                 });
             } finally {
-                console.log("Finished loading. Setting loading=false");
                 setLoading(false);
             }
         };
@@ -151,16 +142,13 @@ export function CompanySettingsForm() {
     };
 
     const handleConfirmSave = async () => {
-        console.log("handleConfirmSave called. Company:", selectedCompany?.id);
         if (!selectedCompany) return;
         setSaving(true);
 
         try {
             // Validation
-            console.log("Validating settings...");
             const error = validateSettings();
             if (error) {
-                console.log("Validation failed:", error);
                 toast({
                     title: "Atenção",
                     description: error,
@@ -170,30 +158,23 @@ export function CompanySettingsForm() {
             }
 
             // Save Settings
-            console.log("Saving settings to DB...");
-
             // Map settings to action schema if needed, but action currently matches CompanySettings Partial
             // except we need to be careful with nulls vs undefined if Zod is strict
             // The action takes Partial<CompanySettings>, Zod schema validation happens inside.
 
-            const res = await updateCompanySettingsAction(settings);
+            const res = await updateCompanySettingsAction(settings, selectedCompany.id);
             if (!res.success) throw new Error(res.error);
-
-            const result = res.data;
-            console.log("Save result:", result);
 
             // Update Company Name (Secondary, non-blocking)
             if (settings.trade_name) {
                 try {
-                    console.log("Updating trade name...");
-                    await updateCompanyNameAction(settings.trade_name);
+                    await updateCompanyNameAction(settings.trade_name, selectedCompany.id);
                 } catch (nameErr) {
                     console.warn("Failed to update company name in 'companies' table:", nameErr);
                     // Do not block the user if this fails
                 }
             }
 
-            console.log("Save successful. Showing toast.");
             toast({
                 title: "Sucesso!",
                 description: "Configurações salvas com sucesso.",
