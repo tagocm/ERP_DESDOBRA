@@ -476,6 +476,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     emissionId: selectedCancellationNfe.id,
+                    accessKey: selectedCancellationNfe.nfe_key || null,
                     reason: normalized,
                 }),
             });
@@ -547,6 +548,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     emissionId: selectedCorrectionNfe.id,
+                    accessKey: selectedCorrectionNfe.nfe_key || null,
                     correctionText: normalized,
                 }),
             });

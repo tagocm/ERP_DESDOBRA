@@ -7,6 +7,7 @@ import { normalizeCorrectionText, validateCorrectionText } from '@/lib/fiscal/nf
 
 type Payload = {
     emissionId?: string;
+    accessKey?: string;
     correctionText?: string;
 };
 
@@ -31,11 +32,24 @@ export async function POST(request: NextRequest) {
         }
 
         const admin = createAdminClient();
-        const { data: emission, error: emissionError } = await admin
+        let { data: emission, error: emissionError } = await admin
             .from('nfe_emissions')
             .select('id, company_id, sales_document_id, access_key, status')
             .eq('id', body.emissionId)
             .maybeSingle();
+
+        if ((!emission || emissionError) && body.accessKey) {
+            const fallback = await admin
+                .from('nfe_emissions')
+                .select('id, company_id, sales_document_id, access_key, status')
+                .eq('access_key', body.accessKey)
+                .order('updated_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+
+            emission = fallback.data || null;
+            emissionError = fallback.error || null;
+        }
 
         if (emissionError || !emission) {
             return NextResponse.json({ error: 'NF-e não encontrada.' }, { status: 404 });
