@@ -12,6 +12,7 @@ BEGIN
         FROM pg_trigger
         WHERE tgrelid = 'public.price_tables'::regclass
         AND tgname != 'handle_updated_at'
+        AND tgname NOT LIKE 'RI_ConstraintTrigger%' -- Skip FK constraint triggers
     LOOP
         EXECUTE 'DROP TRIGGER ' || quote_ident(r.tgname) || ' ON public.price_tables';
         RAISE NOTICE 'Dropped trigger % on price_tables', r.tgname;

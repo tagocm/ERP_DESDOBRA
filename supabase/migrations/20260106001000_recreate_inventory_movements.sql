@@ -4,7 +4,7 @@
 DROP TABLE IF EXISTS public.inventory_movements CASCADE;
 
 -- 2. Recreate Table with Correct FK
-CREATE TABLE public.inventory_movements (
+CREATE TABLE IF NOT EXISTS public.inventory_movements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE RESTRICT,
     item_id UUID NOT NULL REFERENCES public.items(id) ON DELETE RESTRICT,

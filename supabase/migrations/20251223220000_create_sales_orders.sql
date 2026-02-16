@@ -49,22 +49,23 @@ ALTER TABLE public.sales_documents ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view sales docs of their company" ON public.sales_documents
     FOR SELECT USING (company_id IN (
-        SELECT company_id FROM public.company_users WHERE user_id = auth.uid()
+        SELECT company_id FROM public.users WHERE id = auth.uid()
     ));
 
 CREATE POLICY "Users can insert sales docs for their company" ON public.sales_documents
     FOR INSERT WITH CHECK (company_id IN (
-        SELECT company_id FROM public.company_users WHERE user_id = auth.uid()
+        SELECT company_id FROM public.users WHERE id = auth.uid()
     ));
 
 CREATE POLICY "Users can update sales docs of their company" ON public.sales_documents
     FOR UPDATE USING (company_id IN (
-        SELECT company_id FROM public.company_users WHERE user_id = auth.uid()
+        SELECT company_id FROM public.users WHERE id = auth.uid()
     ));
 
 -- 2. Sales Document Items
 CREATE TABLE IF NOT EXISTS public.sales_document_items (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE, -- Denormalized for RLS/Perf
     document_id UUID NOT NULL REFERENCES public.sales_documents(id) ON DELETE CASCADE,
     
     item_id UUID NOT NULL REFERENCES public.items(id), -- Product/Service
@@ -90,7 +91,7 @@ CREATE POLICY "Users can manage items of their company docs" ON public.sales_doc
     FOR ALL USING (
         document_id IN (
             SELECT id FROM public.sales_documents WHERE company_id IN (
-                SELECT company_id FROM public.company_users WHERE user_id = auth.uid()
+                SELECT company_id FROM public.users WHERE id = auth.uid()
             )
         )
     );
@@ -98,6 +99,7 @@ CREATE POLICY "Users can manage items of their company docs" ON public.sales_doc
 -- 3. Sales Payments (Installments)
 CREATE TABLE IF NOT EXISTS public.sales_document_payments (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     document_id UUID NOT NULL REFERENCES public.sales_documents(id) ON DELETE CASCADE,
 
     installment_number INTEGER NOT NULL,
@@ -117,14 +119,15 @@ CREATE POLICY "Users can manage payments of their company docs" ON public.sales_
     FOR ALL USING (
         document_id IN (
             SELECT id FROM public.sales_documents WHERE company_id IN (
-                SELECT company_id FROM public.company_users WHERE user_id = auth.uid()
+                SELECT company_id FROM public.users WHERE id = auth.uid()
             )
         )
     );
 
--- 4. Sales NFes (Linked Fiscal Docs)
+-- 4. Sales Document NFes
 CREATE TABLE IF NOT EXISTS public.sales_document_nfes (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     document_id UUID NOT NULL REFERENCES public.sales_documents(id) ON DELETE CASCADE,
 
     nfe_number BIGINT,
@@ -147,7 +150,7 @@ CREATE POLICY "Users can manage nfes of their company docs" ON public.sales_docu
     FOR ALL USING (
         document_id IN (
             SELECT id FROM public.sales_documents WHERE company_id IN (
-                SELECT company_id FROM public.company_users WHERE user_id = auth.uid()
+                SELECT company_id FROM public.users WHERE id = auth.uid()
             )
         )
     );
@@ -173,7 +176,7 @@ CREATE POLICY "Users can view history of their company docs" ON public.sales_doc
     FOR SELECT USING (
         document_id IN (
             SELECT id FROM public.sales_documents WHERE company_id IN (
-                SELECT company_id FROM public.company_users WHERE user_id = auth.uid()
+                SELECT company_id FROM public.users WHERE id = auth.uid()
             )
         )
     );

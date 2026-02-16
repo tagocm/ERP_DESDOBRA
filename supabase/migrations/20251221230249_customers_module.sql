@@ -1,34 +1,9 @@
 
--- 1) ORGANIZATIONS (Clients)
-CREATE TABLE public.organizations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE RESTRICT,
-    legal_name TEXT,
-    trade_name TEXT NOT NULL,
-    document TEXT,
-    state_registration TEXT,
-    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
-    default_payment_terms_days INTEGER,
-    notes TEXT,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now(),
-    deleted_at TIMESTAMPTZ
-);
+-- NOTE: Organizations table is created by 20251221224000_create_organizations_table.sql
+-- This migration only creates dependent tables (people, addresses, tags)
 
--- Indexes for Organizations
-CREATE INDEX idx_organizations_company_trade_name ON public.organizations(company_id, trade_name);
-CREATE UNIQUE INDEX idx_organizations_company_document ON public.organizations(company_id, document) WHERE document IS NOT NULL;
-CREATE INDEX idx_organizations_deleted_at ON public.organizations(deleted_at);
-
--- Trigger for Organizations updated_at
-CREATE TRIGGER update_organizations_updated_at
-    BEFORE UPDATE ON public.organizations
-    FOR EACH ROW
-    EXECUTE PROCEDURE update_updated_at_column();
-
-
--- 2) PEOPLE (Contacts)
-CREATE TABLE public.people (
+-- 1) PEOPLE (Contacts)
+CREATE TABLE IF NOT EXISTS public.people (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE RESTRICT,
     organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
@@ -54,8 +29,8 @@ CREATE TRIGGER update_people_updated_at
     EXECUTE PROCEDURE update_updated_at_column();
 
 
--- 3) ADDRESSES
-CREATE TABLE public.addresses (
+-- 2) ADDRESSES
+CREATE TABLE IF NOT EXISTS public.addresses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE RESTRICT,
     organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
@@ -86,8 +61,8 @@ CREATE TRIGGER update_addresses_updated_at
     EXECUTE PROCEDURE update_updated_at_column();
 
 
--- 4) ORGANIZATION TAGS
-CREATE TABLE public.organization_tags (
+-- 3) ORGANIZATION TAGS
+CREATE TABLE IF NOT EXISTS public.organization_tags (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE RESTRICT,
     name TEXT NOT NULL,
@@ -104,8 +79,8 @@ CREATE TRIGGER update_organization_tags_updated_at
     EXECUTE PROCEDURE update_updated_at_column();
 
 
--- 5) ORGANIZATION TAG LINKS (N:N)
-CREATE TABLE public.organization_tag_links (
+-- 4) ORGANIZATION TAG LINKS (N:N)
+CREATE TABLE IF NOT EXISTS public.organization_tag_links (
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE RESTRICT,
     organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
     tag_id UUID NOT NULL REFERENCES public.organization_tags(id) ON DELETE CASCADE,

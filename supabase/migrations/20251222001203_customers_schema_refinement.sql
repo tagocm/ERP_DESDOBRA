@@ -4,17 +4,9 @@ ALTER TABLE public.organizations
 ADD COLUMN IF NOT EXISTS document_type TEXT CHECK (document_type IN ('cpf', 'cnpj', 'other')),
 ADD COLUMN IF NOT EXISTS document_number TEXT; -- Stores only digits
 
--- Migrate existing data (Normalize)
--- Attempt to strip non-digits from old 'document' column
-UPDATE public.organizations
-SET 
-  document_number = regexp_replace(document, '\D', '', 'g'),
-  document_type = CASE 
-    WHEN length(regexp_replace(document, '\D', '', 'g')) = 11 THEN 'cpf'
-    WHEN length(regexp_replace(document, '\D', '', 'g')) = 14 THEN 'cnpj'
-    ELSE 'other'
-  END
-WHERE document IS NOT NULL;
+-- NOTE: Foundation migration (20251221224000) already creates document_number.
+-- No data migration needed from legacy 'document' column as it never existed in this migration path.
+
 
 -- Create Unique Partial Index for new document structure
 CREATE UNIQUE INDEX idx_organizations_doc_type_number 
@@ -23,7 +15,7 @@ WHERE deleted_at IS NULL AND document_number IS NOT NULL;
 
 
 -- B) ORGANIZATION BRANCHES (Filiais)
-CREATE TABLE public.organization_branches (
+CREATE TABLE IF NOT EXISTS public.organization_branches (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE RESTRICT,
     organization_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,

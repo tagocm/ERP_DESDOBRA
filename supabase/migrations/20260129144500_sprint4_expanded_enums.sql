@@ -30,15 +30,26 @@ ADD COLUMN IF NOT EXISTS financial_status_new public.financial_status_enum;
 
 -- 4. Backfill Logistic Status
 UPDATE public.sales_documents
-SET status_logistic_new = status_logistic::public.sales_logistic_status
+SET status_logistic_new = 
+  CASE status_logistic::text
+    WHEN 'pending' THEN 'pending'::public.sales_logistic_status
+    WHEN 'separation' THEN 'roteirizado'::public.sales_logistic_status  -- EN separation maps to PT roteirizado (organized/scheduled)
+    WHEN 'expedition' THEN 'expedition'::public.sales_logistic_status
+    WHEN 'delivered' THEN 'entregue'::public.sales_logistic_status
+    ELSE status_logistic::text::public.sales_logistic_status  -- Direct cast for PT values
+  END
 WHERE status_logistic IS NOT NULL 
-  AND status_logistic IN ('pending', 'roteirizado', 'agendado', 'expedition', 'em_rota', 'entregue', 'nao_entregue', 'devolvido', 'parcial', 'cancelado');
+  AND status_logistic::text IN ('pending', 'roteirizado', 'agendado', 'separation', 'expedition', 'em_rota', 'entregue', 'delivered', 'nao_entregue', 'devolvido', 'parcial', 'cancelado');
 
 -- 5. Backfill Financial Status
 UPDATE public.sales_documents
-SET financial_status_new = financial_status::public.financial_status_enum
+SET financial_status_new = 
+  CASE financial_status::text
+    WHEN 'pending' THEN 'pending'::public.financial_status_enum
+    ELSE financial_status::text::public.financial_status_enum  -- Direct cast for PT values
+  END
 WHERE financial_status IS NOT NULL 
-  AND financial_status IN ('pending', 'pre_lancado', 'approved', 'em_revisao', 'cancelado', 'pago', 'atrasado', 'parcial');
+  AND financial_status::text IN ('pending', 'pre_lancado', 'approved', 'em_revisao', 'cancelado', 'pago', 'atrasado', 'parcial');
 
 -- 6. Set Defaults/Fallback for mismatches
 UPDATE public.sales_documents

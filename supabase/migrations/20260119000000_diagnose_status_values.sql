@@ -202,10 +202,10 @@ BEGIN
     -- Check for EN values in status_logistic
     RAISE NOTICE 'Checking status_logistic for EN values...';
     
-    SELECT COUNT(*), STRING_AGG(DISTINCT status_logistic, ', ')
+    SELECT COUNT(*), COALESCE(STRING_AGG(DISTINCT status_logistic::text, ', '), '')
     INTO v_count, v_values
     FROM public.sales_documents
-    WHERE status_logistic IN ('pending', 'separation', 'expedition', 'delivered');
+    WHERE status_logistic::text IN ('pending', 'separation', 'expedition', 'delivered');
     
     IF v_count > 0 THEN
         RAISE WARNING '  Found % records with EN values: %', v_count, v_values;
@@ -214,10 +214,10 @@ BEGIN
     END IF;
 
     -- Check for unknown values in status_logistic
-    SELECT COUNT(*), STRING_AGG(DISTINCT status_logistic, ', ')
+    SELECT COUNT(*), COALESCE(STRING_AGG(DISTINCT status_logistic::text, ', '), '')
     INTO v_count, v_values
     FROM public.sales_documents
-    WHERE status_logistic NOT IN (
+    WHERE status_logistic::text NOT IN (
         'pending', 'roteirizado', 'agendado', 'em_rota', 'entregue', 'devolvido', 'parcial',
         'pending', 'separation', 'expedition', 'delivered'
     );
@@ -234,10 +234,10 @@ BEGIN
     -- Check for EN values in financial_status
     RAISE NOTICE 'Checking financial_status for EN values...';
     
-    SELECT COUNT(*), STRING_AGG(DISTINCT financial_status, ', ')
+    SELECT COUNT(*), COALESCE(STRING_AGG(DISTINCT financial_status::text, ', '), '')
     INTO v_count, v_values
     FROM public.sales_documents
-    WHERE financial_status = 'pending';
+    WHERE financial_status::text = 'pending';
     
     IF v_count > 0 THEN
         RAISE WARNING '  Found % records with "pending"', v_count;
@@ -246,7 +246,7 @@ BEGIN
     END IF;
 
     -- Check for unknown values in financial_status
-    SELECT COUNT(*), STRING_AGG(DISTINCT financial_status, ', ')
+    SELECT COUNT(*), COALESCE(STRING_AGG(DISTINCT financial_status::text, ', '), '')
     INTO v_count, v_values
     FROM public.sales_documents
     WHERE financial_status IS NOT NULL
@@ -289,7 +289,7 @@ BEGIN
     -- Count how many 'expedition' records exist
     SELECT COUNT(*) INTO v_count_total
     FROM public.sales_documents
-    WHERE status_logistic = 'expedition';
+    WHERE status_logistic::text = 'expedition';
 
     IF v_count_total > 0 THEN
         RAISE NOTICE 'Found % records with status_logistic = "expedition"', v_count_total;
@@ -300,7 +300,7 @@ BEGIN
             FROM public.sales_documents sd
             LEFT JOIN public.delivery_route_orders dro ON dro.sales_document_id = sd.id
             LEFT JOIN public.delivery_routes dr ON dr.id = dro.route_id
-            WHERE sd.status_logistic = 'expedition'
+            WHERE sd.status_logistic::text = 'expedition'
             AND dr.id IS NOT NULL
             AND dr.status NOT IN ('cancelled', 'completed');
 

@@ -4,6 +4,13 @@
 
 BEGIN;
 
+-- Pre-step: Drop dependent triggers before dropping old columns
+DROP TRIGGER IF EXISTS trg_validate_order_confirmation ON public.sales_documents;
+DROP TRIGGER IF EXISTS on_sales_logistic_update_ar ON public.sales_documents;
+DROP TRIGGER IF EXISTS trg_sales_event_sync ON public.sales_documents;
+DROP TRIGGER IF EXISTS on_financial_status_audit ON public.sales_documents;
+DROP TRIGGER IF EXISTS trigger_update_weights ON public.sales_document_items;
+
 -- 1. Drop old columns
 ALTER TABLE public.sales_documents DROP COLUMN IF EXISTS status_commercial;
 ALTER TABLE public.sales_documents DROP COLUMN IF EXISTS status_logistic;

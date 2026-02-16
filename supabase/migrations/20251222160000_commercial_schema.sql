@@ -2,7 +2,7 @@
 -- Created at: 2025-12-22 16:00:00
 
 -- 1. Create Price Tables
-CREATE TABLE public.price_tables (
+CREATE TABLE IF NOT EXISTS public.price_tables (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE RESTRICT,
     name TEXT NOT NULL,
@@ -25,7 +25,7 @@ CREATE POLICY "Enable all for devs" ON public.price_tables FOR ALL USING (true);
 
 
 -- 2. Create Payment Terms
-CREATE TABLE public.payment_terms (
+CREATE TABLE IF NOT EXISTS public.payment_terms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE RESTRICT,
     name TEXT NOT NULL, -- e.g. "30/60/90 days"

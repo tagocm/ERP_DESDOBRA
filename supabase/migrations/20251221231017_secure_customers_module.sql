@@ -44,8 +44,8 @@ ALTER TABLE public.organization_tag_links ALTER COLUMN created_at SET NOT NULL;
 -- Organizations Document (Remove old index, create new partial one)
 DROP INDEX IF EXISTS idx_organizations_company_document;
 CREATE UNIQUE INDEX idx_organizations_company_document
-    ON public.organizations(company_id, document)
-    WHERE document IS NOT NULL AND deleted_at IS NULL;
+    ON public.organizations(company_id, document_number)
+    WHERE document_number IS NOT NULL AND deleted_at IS NULL;
 
 -- Organization Tags (Remove table constraint if exists, use partial index)
 -- Note: We don't know the exact constraint name if it was created via UNIQUE(..).

@@ -28,8 +28,8 @@ BEGIN
 END $$;
 
 -- 2. Drop Trigger and Function to clear cache
-DROP TRIGGER IF EXISTS trigger_update_weights ON sales_document_items;
-DROP FUNCTION IF EXISTS compute_sales_document_item_weight();
+-- Drop problematic weight calculation function (and its triggers)
+DROP FUNCTION IF EXISTS compute_sales_document_item_weight() CASCADE;
 
 -- 3. Recreate Function (Safe Version)
 CREATE OR REPLACE FUNCTION public.compute_sales_document_item_weight() RETURNS TRIGGER AS $$

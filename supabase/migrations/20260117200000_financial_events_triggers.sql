@@ -298,8 +298,8 @@ CREATE TRIGGER trg_purchase_event_sync
 UPDATE financial_events fe
 SET operational_status = 
     CASE 
-        WHEN sd.status_commercial = 'confirmed' THEN sd.status_logistic
-        ELSE sd.status_commercial
+        WHEN sd.status_commercial = 'confirmed' THEN sd.status_logistic::text
+        ELSE sd.status_commercial::text
     END
 FROM sales_documents sd
 WHERE fe.origin_type = 'SALE' AND fe.origin_id = sd.id;

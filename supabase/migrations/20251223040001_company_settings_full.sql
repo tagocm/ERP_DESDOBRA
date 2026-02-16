@@ -5,17 +5,17 @@ ADD COLUMN is_branch BOOLEAN DEFAULT false;
 
 -- Enhance Company Settings
 ALTER TABLE public.company_settings
-ADD COLUMN whatsapp TEXT,
-ADD COLUMN instagram TEXT,
-ADD COLUMN cert_password_encrypted TEXT,
-ADD COLUMN is_cert_password_saved BOOLEAN DEFAULT false,
-ADD COLUMN default_penalty_percent NUMERIC(5,2) DEFAULT 0,
-ADD COLUMN default_interest_percent NUMERIC(5,2) DEFAULT 0,
-ADD COLUMN city_code_ibge TEXT,
-ADD COLUMN nfe_flags JSONB DEFAULT '{}'::jsonb;
+ADD COLUMN IF NOT EXISTS whatsapp TEXT,
+ADD COLUMN IF NOT EXISTS instagram TEXT,
+ADD COLUMN IF NOT EXISTS cert_password_encrypted TEXT,
+ADD COLUMN IF NOT EXISTS is_cert_password_saved BOOLEAN DEFAULT false,
+ADD COLUMN IF NOT EXISTS default_penalty_percent NUMERIC(5,2) DEFAULT 0,
+ADD COLUMN IF NOT EXISTS default_interest_percent NUMERIC(5,2) DEFAULT 0,
+ADD COLUMN IF NOT EXISTS city_code_ibge TEXT,
+ADD COLUMN IF NOT EXISTS nfe_flags JSONB DEFAULT '{}'::jsonb;
 
 -- Company Bank Accounts
-CREATE TABLE public.company_bank_accounts (
+CREATE TABLE IF NOT EXISTS public.company_bank_accounts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     bank_name TEXT NOT NULL,
@@ -33,7 +33,7 @@ CREATE TABLE public.company_bank_accounts (
 );
 
 -- Company Payment Terms Settings (Accepted Terms)
-CREATE TABLE public.company_payment_terms_settings (
+CREATE TABLE IF NOT EXISTS public.company_payment_terms_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     name TEXT NOT NULL,

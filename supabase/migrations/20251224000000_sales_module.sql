@@ -2,7 +2,7 @@
 -- Created at: 2025-12-24 00:00:00
 
 -- 1. Sales Documents (Header)
-CREATE TABLE public.sales_documents (
+CREATE TABLE IF NOT EXISTS public.sales_documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE RESTRICT,
     
@@ -51,14 +51,14 @@ CREATE TABLE public.sales_documents (
 );
 
 -- Unique constraint for number per company (partial index where number is not null)
-CREATE UNIQUE INDEX idx_sales_docs_number ON public.sales_documents(company_id, document_number) WHERE document_number IS NOT NULL;
-CREATE INDEX idx_sales_docs_company ON public.sales_documents(company_id);
-CREATE INDEX idx_sales_docs_client ON public.sales_documents(client_id);
-CREATE INDEX idx_sales_docs_status ON public.sales_documents(status_commercial);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sales_docs_number ON public.sales_documents(company_id, document_number) WHERE document_number IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_sales_docs_company ON public.sales_documents(company_id);
+CREATE INDEX IF NOT EXISTS idx_sales_docs_client ON public.sales_documents(client_id);
+CREATE INDEX IF NOT EXISTS idx_sales_docs_status ON public.sales_documents(status_commercial);
 
 
 -- 2. Sales Items
-CREATE TABLE public.sales_document_items (
+CREATE TABLE IF NOT EXISTS public.sales_document_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE, -- Denormalized for RLS/Perf
     document_id UUID NOT NULL REFERENCES public.sales_documents(id) ON DELETE CASCADE,
@@ -76,11 +76,11 @@ CREATE TABLE public.sales_document_items (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_sales_items_doc ON public.sales_document_items(document_id);
+CREATE INDEX IF NOT EXISTS idx_sales_items_doc ON public.sales_document_items(document_id);
 
 
 -- 3. Sales Payments (Installments)
-CREATE TABLE public.sales_document_payments (
+CREATE TABLE IF NOT EXISTS public.sales_document_payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     document_id UUID NOT NULL REFERENCES public.sales_documents(id) ON DELETE CASCADE,
@@ -97,11 +97,11 @@ CREATE TABLE public.sales_document_payments (
     updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_sales_payments_doc ON public.sales_document_payments(document_id);
+CREATE INDEX IF NOT EXISTS idx_sales_payments_doc ON public.sales_document_payments(document_id);
 
 
 -- 4. Sales NF-e Links
-CREATE TABLE public.sales_document_nfes (
+CREATE TABLE IF NOT EXISTS public.sales_document_nfes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     document_id UUID NOT NULL REFERENCES public.sales_documents(id) ON DELETE CASCADE,
@@ -118,11 +118,11 @@ CREATE TABLE public.sales_document_nfes (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_sales_nfes_doc ON public.sales_document_nfes(document_id);
+CREATE INDEX IF NOT EXISTS idx_sales_nfes_doc ON public.sales_document_nfes(document_id);
 
 
 -- 5. Audit Log / Events
-CREATE TABLE public.sales_document_events (
+CREATE TABLE IF NOT EXISTS public.sales_document_events (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
     document_id UUID NOT NULL REFERENCES public.sales_documents(id) ON DELETE CASCADE,
@@ -135,11 +135,11 @@ CREATE TABLE public.sales_document_events (
     created_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX idx_sales_events_doc ON public.sales_document_events(document_id);
+CREATE INDEX IF NOT EXISTS idx_sales_events_doc ON public.sales_document_events(document_id);
 
 
 -- 6. Sequence Table (Per Company)
-CREATE TABLE public.sales_sequences (
+CREATE TABLE IF NOT EXISTS public.sales_sequences (
     company_id UUID PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
     last_number BIGINT DEFAULT 0,
     updated_at TIMESTAMPTZ DEFAULT now()

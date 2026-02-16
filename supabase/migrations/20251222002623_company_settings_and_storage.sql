@@ -1,6 +1,6 @@
 
 -- Create table for extended company settings
-CREATE TABLE public.company_settings (
+CREATE TABLE IF NOT EXISTS public.company_settings (
     company_id UUID PRIMARY KEY REFERENCES public.companies(id) ON DELETE CASCADE,
     
     -- Identification
