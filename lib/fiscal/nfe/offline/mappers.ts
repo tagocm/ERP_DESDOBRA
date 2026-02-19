@@ -175,7 +175,7 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
         // 2. Legacy Strategy (Packaging)
         else if (pkg) {
             // Use TYPE (code like 'BOX', 'PACK') not LABEL (descriptive like 'Caixa 12xPc')
-            uCom = (pkg.type || 'UN').trim().toUpperCase();
+            uCom = resolveUomAbbrev(null, pkg.type, null).toUpperCase();
             uTrib = (prod.un || item.uom || 'UN').trim(); // Fallback
         }
         // 3. Fallback (Product)

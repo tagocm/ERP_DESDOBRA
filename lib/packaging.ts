@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { resolveUomAbbrev } from "./fiscal/nfe-description";
 
 /**
  * Resolves the default packaging ID for a given item.
@@ -97,7 +98,11 @@ export async function resolvePackagingSnapshot(
     // factor: qty_in_base
     // label: "Caixa (12xPc)" or specialized
 
-    const sellAbbrev = (pkg.sell_uom as any)?.abbrev || (pkg.type === 'BOX' ? 'Cx' : 'Un');
+    // factor: qty_in_base
+    // label: "Caixa (12xPc)" or specialized
+
+    // Use shared mapper to ensure BALE -> FD, BOX -> CX, etc.
+    const sellAbbrev = (pkg.sell_uom as any)?.abbrev || resolveUomAbbrev(null, pkg.type, null);
     const baseAbbrev = (pkg.item as any)?.base_uom?.abbrev || (pkg.item as any)?.uom || 'Un';
     const factor = pkg.qty_in_base || 1;
 
