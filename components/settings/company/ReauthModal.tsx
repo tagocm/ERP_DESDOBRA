@@ -20,6 +20,20 @@ export function ReauthModal({ isOpen, onClose, onConfirm }: ReauthModalProps) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
+    const resolveReauthEmail = (authUser: any): string | null => {
+        const candidates = [
+            authUser?.email,
+            authUser?.user_metadata?.email,
+            ...(Array.isArray(authUser?.identities)
+                ? authUser.identities.map((identity: any) => identity?.identity_data?.email)
+                : []),
+        ];
+
+        const selected = candidates.find((value) => typeof value === "string" && value.trim().length > 0);
+        if (!selected) return null;
+        return selected.trim().toLowerCase();
+    };
+
     const handleConfirm = async () => {
         if (!password) {
             setError("Digite sua senha.");
@@ -32,14 +46,41 @@ export function ReauthModal({ isOpen, onClose, onConfirm }: ReauthModalProps) {
         try {
             // Validate password
             const { data: { user } } = await supabase.auth.getUser();
-            if (!user || !user.email) throw new Error("Usuário não identificado");
+            const email = resolveReauthEmail(user);
+            if (!user || !email) {
+                throw new Error("Não foi possível reautenticar: usuário sem e-mail válido.");
+            }
 
-            const { error: signInError } = await supabase.auth.signInWithPassword({
-                email: user.email,
-                password: password
-            });
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) {
+                throw new Error("Não foi possível reautenticar: e-mail inválido no cadastro.");
+            }
 
-            if (signInError) throw new Error("Senha incorreta.");
+            let signInError: any = null;
+            try {
+                const result = await supabase.auth.signInWithPassword({
+                    email,
+                    password
+                });
+                signInError = result.error;
+            } catch (signInException: any) {
+                const message = String(signInException?.message || "").toLowerCase();
+                if (message.includes("invalid email")) {
+                    throw new Error("Não foi possível reautenticar: e-mail inválido no cadastro.");
+                }
+                throw signInException;
+            }
+
+            if (signInError) {
+                const signInMessage = String(signInError.message || "").toLowerCase();
+                if (signInMessage.includes("invalid login credentials")) {
+                    throw new Error("Senha incorreta.");
+                }
+                if (signInMessage.includes("invalid email")) {
+                    throw new Error("Não foi possível reautenticar: e-mail inválido no cadastro.");
+                }
+                throw new Error(signInError.message || "Falha ao reautenticar.");
+            }
 
             // Proceed
             await onConfirm();
