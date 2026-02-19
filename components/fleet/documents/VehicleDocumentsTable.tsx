@@ -49,7 +49,7 @@ export function VehicleDocumentsTable({ records, onEdit, onDelete }: VehicleDocu
             setConfirmId(null);
             onDelete?.();
         } else {
-            toast({ title: "Erro", description: result.error.message, variant: "destructive" });
+            toast({ title: "Erro", description: result.error?.message ?? "Não foi possível concluir a operação.", variant: "destructive" });
         }
     };
 
