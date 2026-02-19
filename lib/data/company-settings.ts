@@ -134,26 +134,83 @@ export async function updateCompanySettings(supabase: SupabaseClient, companyId:
 
         // Only sync when we have minimally valid fiscal address.
         if (street && city && state) {
+            const cnpjRaw = String(cleanUpdates.cnpj ?? data?.cnpj ?? '').replace(/\D/g, '');
+            const tradeNameRaw = String(cleanUpdates.trade_name ?? data?.trade_name ?? '').trim();
+            const legalNameRaw = String(cleanUpdates.legal_name ?? data?.legal_name ?? '').trim();
+
+            // Resolve the organization that represents the issuer itself.
+            // Never update addresses without a deterministic organization_id,
+            // otherwise we risk mutating customer/vendor addresses.
+            let issuerOrganizationId: string | null = null;
+
+            if (cnpjRaw) {
+                const { data: orgByDoc, error: orgByDocError } = await supabase
+                    .from('organizations')
+                    .select('id')
+                    .eq('company_id', companyId)
+                    .eq('document_number', cnpjRaw)
+                    .is('deleted_at', null)
+                    .limit(1)
+                    .maybeSingle();
+
+                if (orgByDocError) throw orgByDocError;
+                issuerOrganizationId = orgByDoc?.id ?? null;
+            }
+
+            if (!issuerOrganizationId && tradeNameRaw) {
+                const { data: orgByTradeName, error: orgByTradeNameError } = await supabase
+                    .from('organizations')
+                    .select('id')
+                    .eq('company_id', companyId)
+                    .eq('trade_name', tradeNameRaw)
+                    .is('deleted_at', null)
+                    .limit(1)
+                    .maybeSingle();
+
+                if (orgByTradeNameError) throw orgByTradeNameError;
+                issuerOrganizationId = orgByTradeName?.id ?? null;
+            }
+
+            if (!issuerOrganizationId && legalNameRaw) {
+                const { data: orgByLegalName, error: orgByLegalNameError } = await supabase
+                    .from('organizations')
+                    .select('id')
+                    .eq('company_id', companyId)
+                    .eq('legal_name', legalNameRaw)
+                    .is('deleted_at', null)
+                    .limit(1)
+                    .maybeSingle();
+
+                if (orgByLegalNameError) throw orgByLegalNameError;
+                issuerOrganizationId = orgByLegalName?.id ?? null;
+            }
+
+            if (!issuerOrganizationId) {
+                // Keep save flow successful even when issuer organization is not found.
+                // company_settings remains source of truth for fiscal emitter address.
+                return data;
+            }
+
             const { data: rows, error: listError } = await supabase
                 .from('addresses')
-                .select('id, organization_id, is_main, is_default, deleted_at')
+                .select('id, organization_id, is_default, deleted_at, type, label')
                 .eq('company_id', companyId)
+                .eq('organization_id', issuerOrganizationId)
+                .eq('type', 'billing')
                 .is('deleted_at', null)
+                .order('is_default', { ascending: false })
                 .order('created_at', { ascending: true });
 
             if (listError) throw listError;
 
             const addresses = (rows || []) as any[];
-            const target = addresses.find((a) => a?.is_main)
-                || addresses.find((a) => a?.organization_id == null)
-                || addresses.find((a) => a?.is_default)
-                || null;
+            const target = addresses.find((a) => a?.is_default) || addresses[0] || null;
 
             const addressPayload: any = {
                 company_id: companyId,
-                organization_id: target?.organization_id ?? null,
+                organization_id: issuerOrganizationId,
                 branch_id: null,
-                type: target?.type || 'billing',
+                type: 'billing',
                 label: target?.label || 'Matriz',
                 zip: cleanUpdates.address_zip ?? data?.address_zip ?? null,
                 street: cleanUpdates.address_street ?? data?.address_street ?? null,
@@ -165,7 +222,6 @@ export async function updateCompanySettings(supabase: SupabaseClient, companyId:
                 country: cleanUpdates.address_country ?? data?.address_country ?? 'BR',
                 city_code_ibge: cleanUpdates.city_code_ibge ?? data?.city_code_ibge ?? null,
                 is_default: true,
-                is_main: true,
                 deleted_at: null,
             };
 
