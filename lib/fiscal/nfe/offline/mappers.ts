@@ -452,11 +452,17 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
                 vDesc: 0,
                 vLiq: totalDuplicatas
             },
-            dup: payments.map((payment: any) => ({
-                nDup: String(Number(payment.installment_number || 0)).padStart(3, '0'),
-                dVenc: String(payment.due_date).slice(0, 10),
-                vDup: Number(payment.amount || 0)
-            }))
+            dup: payments.map((payment: any, idx: number) => {
+                const seq = Number(payment.installment_number) || (idx + 1);
+                // Format: NNNN-SS (NFe Number - Sequence)
+                const nDup = `${ide.nNF}-${String(seq).padStart(2, '0')}`;
+
+                return {
+                    nDup,
+                    dVenc: String(payment.due_date).slice(0, 10),
+                    vDup: Number(payment.amount || 0)
+                };
+            })
         };
     } else if (NFE_DEBUG && totalAmount > 0) {
         console.warn('[NFE_DEBUG] XML emitido sem cobr/dup (sem parcelas financeiras vinculadas).', {
