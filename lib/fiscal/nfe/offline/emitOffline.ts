@@ -9,7 +9,7 @@ import { normalizeDetails } from './normalization';
 import { buildDraftFromDb } from './mappers';
 import crypto from 'crypto';
 import { syncSalesDocumentFiscalStatus } from '@/lib/fiscal/nfe/sync-sales-document-fiscal-status';
-
+import { upsertNfeEmission } from '@/lib/nfe/sefaz/services/persistence';
 import { emitirNfeHomolog } from '@/lib/nfe/sefaz/services/emitir';
 import { loadCompanyCertificate } from '@/lib/nfe/sefaz/services/certificateLoader';
 
@@ -259,6 +259,7 @@ export async function emitOffline(orderId: string, companyId: string, transmit: 
         let protocol: string | undefined;
         let cStat: string | undefined;
         let xMotivo: string | undefined;
+        let nProt: string | undefined;
 
         if (transmit) {
             console.log(`[OnlineEmit] Transmitting to SEFAZ...`);
@@ -335,6 +336,29 @@ ${cleanProtocol}
 
                 nfeProcPath = await uploadNfeArtifact(companyId, orderId, nfeRecord.id, 'nfe-proc.xml', nfeProcXml);
                 console.log(`[OfflineEmit] nfeProc saved:`, nfeProcPath.path);
+
+                // Extract nProt to persist
+                const nProtMatch = protocol.match(/<(?:\w+:)?nProt>\s*([0-9]+)\s*<\/(?:\w+:)?nProt>/i);
+                const nProt = nProtMatch?.[1];
+
+                if (nProt) {
+                    await upsertNfeEmission({
+                        company_id: companyId,
+                        sales_document_id: orderId,
+                        access_key: chNFe,
+                        numero: String(nNF),
+                        serie: String(serie),
+                        tp_amb: tpAmb as any,
+                        uf: ufState,
+                        xml_signed: signedXml,
+                        status: 'authorized',
+                        c_stat: cStat,
+                        x_motivo: xMotivo,
+                        n_prot: nProt,
+                        xml_nfe_proc: nfeProcXml
+                    });
+                    console.log(`[OfflineEmit] nfe_emissions upserted with nProt: ${nProt}`);
+                }
             }
         }
 
@@ -368,7 +392,8 @@ ${cleanProtocol}
                 signed_xml: signedPath.path,
                 protocol: protocolPath?.path,
                 nfe_proc: nfeProcPath?.path // NEW: nfeProc when authorized
-            }
+            },
+            authorization: nProt ? { nProt } : undefined // Fix: Add nProt to details for legacy extraction
         };
 
         // Clear previous error messages
