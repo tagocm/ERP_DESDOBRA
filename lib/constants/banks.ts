@@ -31,4 +31,5 @@ export const BRAZILIAN_BANKS: Bank[] = [
     { code: "604", name: "Banco Industrial do Brasil S.A." },
     { code: "212", name: "Banco Original S.A." },
     { code: "623", name: "Banco Pan S.A." },
+    { code: "403", name: "Cora Sociedade De Crédito Direto S.A." },
 ];
