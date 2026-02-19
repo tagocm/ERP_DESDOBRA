@@ -106,7 +106,7 @@ export async function generateARTitle(event: FinancialEvent): Promise<string> {
     if (titleError) {
         // Race-safe fallback: another process may have created the same title
         // between existence check and insert.
-        if (titleError.code === '23505' || (titleError.message || '').includes('ar_titles_sales_doc_unique')) {
+        if (titleError.code === '23505' || (String(titleError) || '').includes('ar_titles_sales_doc_unique')) {
             const { data: concurrentTitle, error: concurrentFetchError } = await supabase
                 .from('ar_titles')
                 .select('id')
@@ -115,18 +115,18 @@ export async function generateARTitle(event: FinancialEvent): Promise<string> {
                 .maybeSingle();
 
             if (concurrentFetchError || !concurrentTitle?.id) {
-                throw new Error(`Failed to create AR title: ${titleError.message}`);
+                throw new Error(`Failed to create AR title: ${String(titleError)}`);
             }
 
             await ensureInstallmentsForTitle(concurrentTitle.id);
             return concurrentTitle.id;
         }
 
-        throw new Error(`Failed to create AR title: ${titleError.message}`);
+        throw new Error(`Failed to create AR title: ${String(titleError)}`);
     }
 
     if (!title) {
-        throw new Error('Failed to create AR title: insert returned no data');
+        throw new Error(`Failed to create AR title: ${String(titleError)}`);
     }
 
     // 2. Create ar_installments from event installments (if absent)
@@ -171,7 +171,7 @@ export async function generateAPTitle(event: FinancialEvent): Promise<string> {
         .single();
 
     if (titleError || !title) {
-        throw new Error(`Failed to create AP title: ${titleError?.message}`);
+        throw new Error(`Failed to create AP title: ${String(titleError)}`);
     }
 
     // 2. Create ap_installments from event installments
