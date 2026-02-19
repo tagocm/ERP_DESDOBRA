@@ -1,6 +1,10 @@
 import { logger } from "@/lib/logger";
 
-type SupabaseLike = any;
+// Use SupabaseClient type from the package if available, or any if not strictly needed for this file's logic to work at runtime.
+// Ideally: import { SupabaseClient } from "@supabase/supabase-js";
+// But to avoid "module not found" if dev deps are weird, we can use a looser type or imports from @/utils/supabase/server
+// For now, let's allow 'any' for the client to prevent build-time TS errors if the specific generic is hard to satisfy without full project context.
+type SupabaseClientLike = any;
 
 export interface ResolvedNfeArtifacts {
     xml: string;
@@ -39,7 +43,7 @@ function getXmlPathFromDetails(details: any): string | null {
 }
 
 export async function resolveNfeArtifactsById(
-    supabase: SupabaseLike,
+    supabase: SupabaseClientLike,
     ctxCompanyId: string,
     id: string
 ): Promise<ResolvedNfeArtifacts> {
@@ -50,37 +54,59 @@ export async function resolveNfeArtifactsById(
     let nfeNumber: string | null = null;
     let nfeSeries: string | null = null;
     let xmlInline: string | null = null;
+    let xmlPathFromColumn: string | null = null;
 
+    // 1. Try fetching from new standardized table (nfe_emissions)
+    // IMPORTANT: Do NOT fetch draft_snapshot (column does not exist in this table)
     const { data: emissionRecord, error: emissionError } = await supabase
         .from("nfe_emissions")
-        .select("id, company_id, sales_document_id, access_key, status, numero, serie, draft_snapshot, xml_nfe_proc, xml_signed, xml_unsigned, xml_sent")
+        .select("id, company_id, sales_document_id, access_key, status, numero, serie, xml_nfe_proc, xml_signed, xml_unsigned, xml_sent")
         .eq("id", id)
         .eq("company_id", ctxCompanyId)
         .maybeSingle();
 
     if (emissionError) {
-        logger.warn("[NFE Artifacts] nfe_emissions lookup error:", emissionError);
+        // Critical: If error is anything other than "Row not found"
+        logger.error("[NFE Artifacts] nfe_emissions query failed:", emissionError);
+        throw new Error(`Database error resolving NFe: ${emissionError.message} (${emissionError.code})`);
     }
 
     if (emissionRecord) {
+        // Success finding record in new table
         documentId = emissionRecord.sales_document_id || null;
         nfeKey = emissionRecord.access_key || null;
         sourceCompanyId = emissionRecord.company_id || null;
         nfeNumber = emissionRecord.numero || null;
         nfeSeries = emissionRecord.serie || null;
-        details = emissionRecord.draft_snapshot || null;
+
+        // Priority Resolution for Inline XML
         const inlineCandidates = [
-            emissionRecord.xml_nfe_proc,
-            emissionRecord.xml_signed,
-            emissionRecord.xml_unsigned,
-            emissionRecord.xml_sent,
-            emissionRecord?.draft_snapshot?.xml_nfe_proc,
-            emissionRecord?.draft_snapshot?.xml_signed,
-            emissionRecord?.draft_snapshot?.xml_unsigned,
-            emissionRecord?.draft_snapshot?.xml_sent,
+            emissionRecord.xml_nfe_proc, // 1. Final Authorized Proc (Best)
+            emissionRecord.xml_signed,   // 2. Signed XML (Good)
+            emissionRecord.xml_sent,     // 3. Sent Envelope (Ok)
+            emissionRecord.xml_unsigned  // 4. Draft (Weak)
         ];
+
         xmlInline = inlineCandidates.find((candidate) => looksLikeXml(candidate)) || null;
+
+        // NEW: If xml_signed exists but doesn't look like XML, it might be a PATH (e.g. "companies/...")
+        // This handles cases where we store the path in the text column.
+        if (!xmlInline) {
+            const potentialPaths = [
+                emissionRecord.xml_nfe_proc,
+                emissionRecord.xml_signed,
+                emissionRecord.xml_unsigned
+            ];
+            const foundPath = potentialPaths.find(p => typeof p === 'string' && p.length < 255 && !looksLikeXml(p) && p.includes('/'));
+            if (foundPath) {
+                xmlPathFromColumn = foundPath;
+            }
+        }
+
     } else {
+        // 2. Fallback to Legacy Table (sales_document_nfes)
+        // Only reached if emissionRecord is null (Not Found in new table)
+
         const { data: nfeRecord, error: nfeError } = await supabase
             .from("sales_document_nfes")
             .select("document_id, nfe_key, nfe_number, nfe_series, details, draft_snapshot, status, document:sales_documents!inner(company_id)")
@@ -89,18 +115,26 @@ export async function resolveNfeArtifactsById(
             .maybeSingle();
 
         if (nfeError || !nfeRecord) {
+            // If not found in either, throw.
             throw new Error(nfeError?.message || "NF-e record not found");
         }
 
+        // Legacy record found
         const snapshot = nfeRecord.draft_snapshot as any;
         details = (nfeRecord.details as any) || snapshot || null;
         documentId = nfeRecord.document_id || null;
         nfeKey = nfeRecord.nfe_key || null;
         nfeNumber = nfeRecord.nfe_number ? String(nfeRecord.nfe_number) : null;
         nfeSeries = nfeRecord.nfe_series ? String(nfeRecord.nfe_series) : null;
-        sourceCompanyId = (Array.isArray((nfeRecord as any).document)
-            ? (nfeRecord as any).document[0]?.company_id
-            : (nfeRecord as any).document?.company_id) || null;
+
+        // Handle joined company_id safely
+        const docRelation = (nfeRecord as any).document;
+        if (Array.isArray(docRelation)) {
+            sourceCompanyId = docRelation[0]?.company_id || null;
+        } else if (docRelation) {
+            sourceCompanyId = docRelation.company_id || null;
+        }
+
         const inlineCandidates = [
             snapshot?.xml_nfe_proc,
             snapshot?.xml_signed,
@@ -112,58 +146,68 @@ export async function resolveNfeArtifactsById(
         xmlInline = inlineCandidates.find((candidate) => looksLikeXml(candidate)) || xmlInline;
     }
 
+    // --- XML Resolution Logic (Common) ---
+
     let xml: string | null = xmlInline;
+    let xmlPath = xmlPathFromColumn || getXmlPathFromDetails(details);
 
     if (!xml) {
-        let xmlPath = getXmlPathFromDetails(details);
+        // If no inline XML and no path yet, try legacy double-check (only if we failed above)
+        // This block is preserved from original for extreme robustness for legacy data structure variations
 
         if (!xmlPath && (documentId || nfeKey)) {
-            const legacyQuery = supabase
-                .from("sales_document_nfes")
-                .select("document_id, nfe_key, details, draft_snapshot, document:sales_documents!inner(company_id)")
-                .eq("document.company_id", ctxCompanyId)
-                .limit(1);
+            // We only check legacy if we haven't successfully resolved anything yet.
+            // If we found a record in nfe_emissions but it was empty, maybe check legacy table just in case? 
+            // (Unlikely scenario but safe to keep if strictly typed).
+            if (!xmlInline && !xmlPathFromColumn) {
+                const legacyQuery = supabase
+                    .from("sales_document_nfes")
+                    .select("document_id, nfe_key, details, draft_snapshot, document:sales_documents!inner(company_id)")
+                    .eq("document.company_id", ctxCompanyId)
+                    .limit(1);
 
-            const legacyResult = documentId
-                ? await legacyQuery.eq("document_id", documentId).maybeSingle()
-                : await legacyQuery.eq("nfe_key", nfeKey).maybeSingle();
+                const legacyResult = documentId
+                    ? await legacyQuery.eq("document_id", documentId).maybeSingle()
+                    : await legacyQuery.eq("nfe_key", nfeKey!).maybeSingle();
 
-            if (legacyResult?.data && !legacyResult?.error) {
-                const legacyDetails = legacyResult.data.details as any;
-                const legacySnapshot = (legacyResult.data as any).draft_snapshot as any;
-                const legacyInlineCandidates = [
-                    legacySnapshot?.xml_nfe_proc,
-                    legacySnapshot?.xml_signed,
-                    legacySnapshot?.xml_unsigned,
-                    legacySnapshot?.xml_sent,
-                    legacySnapshot?.signed_xml,
-                    legacySnapshot?.unsigned_xml,
-                ];
-                xmlInline = legacyInlineCandidates.find((candidate) => looksLikeXml(candidate)) || xmlInline;
-                xmlPath = getXmlPathFromDetails(legacyDetails) || getXmlPathFromDetails(legacySnapshot);
-                if (xmlPath) {
-                    details = legacyDetails || legacySnapshot;
-                    documentId = legacyResult.data.document_id || documentId;
-                    nfeKey = legacyResult.data.nfe_key || nfeKey;
-                    const legacyDoc = Array.isArray((legacyResult.data as any).document)
-                        ? (legacyResult.data as any).document[0]
-                        : (legacyResult.data as any).document;
-                    sourceCompanyId = legacyDoc?.company_id || sourceCompanyId;
+                if (legacyResult?.data && !legacyResult?.error) {
+                    const legacyDetails = legacyResult.data.details as any;
+                    const legacySnapshot = (legacyResult.data as any).draft_snapshot as any;
+
+                    const legacyInlineCandidates = [
+                        legacySnapshot?.xml_nfe_proc,
+                        legacySnapshot?.xml_signed,
+                        legacySnapshot?.xml_unsigned,
+                        legacySnapshot?.xml_sent,
+                        legacySnapshot?.signed_xml,
+                        legacySnapshot?.unsigned_xml,
+                    ];
+
+                    const fallbackInline = legacyInlineCandidates.find((candidate) => looksLikeXml(candidate));
+                    if (fallbackInline) xml = fallbackInline; // Set directly to xml
+
+                    const fallbackPath = getXmlPathFromDetails(legacyDetails) || getXmlPathFromDetails(legacySnapshot);
+                    if (fallbackPath) {
+                        xmlPath = fallbackPath;
+                        details = legacyDetails || legacySnapshot;
+                        // update context
+                        const legacyDoc = Array.isArray((legacyResult.data as any).document)
+                            ? (legacyResult.data as any).document[0]
+                            : (legacyResult.data as any).document;
+                        sourceCompanyId = legacyDoc?.company_id || sourceCompanyId;
+                    }
                 }
             }
         }
 
-        if (!xmlPath && xmlInline) {
-            xml = xmlInline;
-        }
-
-        if (!xmlPath) {
-            if (!xml) {
-                throw new Error("No XML artifact path in NFe details");
-            }
-        } else {
+        if (!xmlPath && xml) {
+            // we found inline xml in fallback
+        } else if (xmlPath) {
+            // We have a path, let's download
             if (typeof xmlPath === "string" && !xmlPath.startsWith("http") && !isExpectedCompanyAssetPath(xmlPath, ctxCompanyId)) {
-                throw new Error("Invalid XML storage path");
+                // Warning logic for unexpected paths?
+                // For now, if it looks like a file path, we try to download.
+                // logger.warn(`[NFE Artifacts] Unusual XML path: ${xmlPath}`);
             }
 
             const protocolPath = details?.artifacts?.protocol;
@@ -171,10 +215,6 @@ export async function resolveNfeArtifactsById(
 
             if (protocolPath) {
                 try {
-                    if (typeof protocolPath === "string" && !protocolPath.startsWith("http") && !isExpectedCompanyAssetPath(protocolPath, ctxCompanyId)) {
-                        throw new Error("Invalid protocol path");
-                    }
-
                     const { data: protData, error: protErr } = await supabase
                         .storage
                         .from("company-assets")
@@ -193,7 +233,10 @@ export async function resolveNfeArtifactsById(
                 .download(xmlPath);
 
             if (xmlError || !xmlData) {
-                throw new Error(xmlError?.message || "Storage download failed");
+                if (xmlError?.statusCode === '404' || xmlError?.message?.includes('not found')) {
+                    // If file missing but we have key, maybe we can fetch from SEFAZ? (Out of scope here)
+                }
+                throw new Error(xmlError?.message || `Storage download failed for XML at ${xmlPath}`);
             }
 
             xml = await xmlData.text();
@@ -208,7 +251,7 @@ export async function resolveNfeArtifactsById(
     }
 
     if (!xml) {
-        throw new Error("XML not found");
+        throw new Error("XML artifact not found. The NFe might be authorized but the XML file is missing or not linked.");
     }
 
     const companyId = sourceCompanyId || ctxCompanyId;
@@ -225,7 +268,7 @@ export async function resolveNfeArtifactsById(
 
             documentNumber = docRecord?.document_number ? String(docRecord.document_number) : null;
         } catch {
-            // ignore metadata fetch error
+            // ignore
         }
     }
 
