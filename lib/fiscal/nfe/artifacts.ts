@@ -1,9 +1,6 @@
 import { logger } from "@/lib/logger";
 
 // Use SupabaseClient type from the package if available, or any if not strictly needed for this file's logic to work at runtime.
-// Ideally: import { SupabaseClient } from "@supabase/supabase-js";
-// But to avoid "module not found" if dev deps are weird, we can use a looser type or imports from @/utils/supabase/server
-// For now, let's allow 'any' for the client to prevent build-time TS errors if the specific generic is hard to satisfy without full project context.
 type SupabaseClientLike = any;
 
 export interface ResolvedNfeArtifacts {
@@ -20,7 +17,7 @@ function isExpectedCompanyAssetPath(path: string, companyId: string): boolean {
     return prefixes.some((p) => path.startsWith(p));
 }
 
-function looksLikeXml(value: unknown): value is string {
+function looksLikeXml(value: unknown): boolean {
     if (typeof value !== "string") return false;
     const trimmed = value.trim();
     if (!trimmed) return false;
@@ -29,6 +26,18 @@ function looksLikeXml(value: unknown): value is string {
         trimmed.includes("<nfeProc") ||
         trimmed.includes("<enviNFe")
     );
+}
+
+// Helper to validate if a string looks like a storage path and NOT XML
+// This avoids complex inline type narrowing issues in .find()
+function isValidStoragePath(value: unknown): value is string {
+    if (typeof value !== 'string') return false;
+    // Assign to a new variable to prevent TS from narrowing 'value' to never 
+    // based on looksLikeXml's predicate result in the negative case.
+    const str: string = value;
+    if (looksLikeXml(str)) return false;
+    if (str === 'legacy-backfill') return false; // Explicitly invalid placeholder
+    return str.length < 255 && str.includes('/');
 }
 
 function getXmlPathFromDetails(details: any): string | null {
@@ -66,18 +75,21 @@ export async function resolveNfeArtifactsById(
         .maybeSingle();
 
     if (emissionError) {
-        // Critical: If error is anything other than "Row not found"
-        logger.error("[NFE Artifacts] nfe_emissions query failed:", emissionError);
-        throw new Error(`Database error resolving NFe: ${emissionError.message} (${emissionError.code})`);
+        // Critical: If error is strictly Schema Mismatch (42703), we MUST fail to avoid infinite recursion or bad state.
+        if (emissionError.code === '42703') {
+            logger.error("[NFE Artifacts] FATAL SCHEMA ERROR in nfe_emissions:", emissionError);
+            throw new Error(`Critical Schema Mismatch: ${emissionError.message}`);
+        }
+
+        // For other errors (timeout, connection, permissions), we log a warning but ALLOW fallback to legacy table.
+        // This ensures resilience against transient issues in the new table if the ID might exist in the old one.
+        logger.warn("[NFE Artifacts] nfe_emissions query failed (non-fatal), attempting fallback:", emissionError);
     }
 
+    let foundInNewTable = false;
+
     if (emissionRecord) {
-        // Success finding record in new table
-        documentId = emissionRecord.sales_document_id || null;
-        nfeKey = emissionRecord.access_key || null;
-        sourceCompanyId = emissionRecord.company_id || null;
-        nfeNumber = emissionRecord.numero || null;
-        nfeSeries = emissionRecord.serie || null;
+        // Attempt to resolve XML from new table record
 
         // Priority Resolution for Inline XML
         const inlineCandidates = [
@@ -97,15 +109,30 @@ export async function resolveNfeArtifactsById(
                 emissionRecord.xml_signed,
                 emissionRecord.xml_unsigned
             ];
-            const foundPath = potentialPaths.find(p => typeof p === 'string' && p.length < 255 && !looksLikeXml(p) && p.includes('/'));
-            if (foundPath) {
+
+            // Loose filter to get candidates, then validate with helper
+            const foundPath = potentialPaths.find((p) => isValidStoragePath(p));
+
+            if (foundPath && typeof foundPath === 'string') {
                 xmlPathFromColumn = foundPath;
             }
         }
 
-    } else {
+        // Only consider it "Found" if we actually got an XML or a Path
+        // If we found the record but it only has 'legacy-backfill', we treat it as NOT FOUND for artifact purposes, triggering fallback.
+        if (xmlInline || xmlPathFromColumn) {
+            foundInNewTable = true;
+            documentId = emissionRecord.sales_document_id || null;
+            nfeKey = emissionRecord.access_key || null;
+            sourceCompanyId = emissionRecord.company_id || null;
+            nfeNumber = emissionRecord.numero || null;
+            nfeSeries = emissionRecord.serie || null;
+        }
+    }
+
+    if (!foundInNewTable) {
         // 2. Fallback to Legacy Table (sales_document_nfes)
-        // Only reached if emissionRecord is null (Not Found in new table)
+        // Reached if emissionRecord NOT found OR found but empty/invalid (e.g. 'legacy-backfill')
 
         const { data: nfeRecord, error: nfeError } = await supabase
             .from("sales_document_nfes")
@@ -158,7 +185,6 @@ export async function resolveNfeArtifactsById(
         if (!xmlPath && (documentId || nfeKey)) {
             // We only check legacy if we haven't successfully resolved anything yet.
             // If we found a record in nfe_emissions but it was empty, maybe check legacy table just in case? 
-            // (Unlikely scenario but safe to keep if strictly typed).
             if (!xmlInline && !xmlPathFromColumn) {
                 const legacyQuery = supabase
                     .from("sales_document_nfes")
