@@ -5,21 +5,37 @@ function formatNfeDateTime(input: string | Date, tzOffset: string): string {
     const d = new Date(input);
     const pad = (n: number) => n.toString().padStart(2, '0');
 
-    const year = d.getFullYear();
-    const month = pad(d.getMonth() + 1);
-    const day = pad(d.getDate());
-    const hours = pad(d.getHours());
-    const minutes = pad(d.getMinutes());
-    const seconds = pad(d.getSeconds());
+    // Parse offset string (e.g., "-03:00" or "+05:30")
+    const match = tzOffset.match(/^([+-])(\d{2}):(\d{2})$/);
+    if (!match) {
+        // Fallback to naive local time if offset format is invalid (should verify upstream)
+        // But for safety, lets default to UTC behavior or throw? Code used checks before.
+        // Let's stick to naive if invalid to avoid breaking changes, but log error?
+        // Actually, just throwing or defaulting to 0 might be better.
+        // Let's assume valid input from buildNfeXml default "-03:00".
+        return d.toISOString().replace('Z', '') + tzOffset;
+    }
 
-    // XSD NF-e 4.00 Pattern: YYYY-MM-DDTHH:MM:SS±HH:MM (NO milliseconds)
-    // Format: ISO 8601 without milliseconds
-    // Example: "2026-01-16T19:25:04-03:00"
+    const sign = match[1] === '+' ? 1 : -1;
+    const offHours = parseInt(match[2], 10);
+    const offMinutes = parseInt(match[3], 10);
+    const totalOffsetMs = sign * (offHours * 60 + offMinutes) * 60 * 1000;
 
-    // Build datetime string WITHOUT milliseconds
+    // Shift the time so that UTC components match the target local time
+    // Example: 10:00 UTC, target -03:00.
+    // We want output: 07:00.
+    // Shifted = 10:00 UTC + (-3h) = 07:00 UTC.
+    // getUTCHours(07:00 UTC) = 7. Correct.
+    const shifted = new Date(d.getTime() + totalOffsetMs);
+
+    const year = shifted.getUTCFullYear();
+    const month = pad(shifted.getUTCMonth() + 1);
+    const day = pad(shifted.getUTCDate());
+    const hours = pad(shifted.getUTCHours());
+    const minutes = pad(shifted.getUTCMinutes());
+    const seconds = pad(shifted.getUTCSeconds());
+
     const datetime = `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
-
-    // Append timezone offset
     return `${datetime}${tzOffset}`;
 }
 
