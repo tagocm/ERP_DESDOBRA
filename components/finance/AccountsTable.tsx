@@ -29,12 +29,14 @@ import { Checkbox } from "@/components/ui/Checkbox";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/use-toast";
 import { ListPagination } from "@/components/ui/ListPagination";
+import { useCompany } from "@/contexts/CompanyContext";
 
 type Direction = 'IN' | 'OUT' | 'ALL';
 type ViewMode = 'INSTALLMENT' | 'ORDER';
 
 export function AccountsTable({ companyId }: { companyId: string }) {
     const { toast } = useToast();
+    const { selectedCompany } = useCompany();
     const [direction, setDirection] = useState<Direction>('IN');
     const [installments, setInstallments] = useState<ArInstallmentDTO[]>([]);
     const [loading, setLoading] = useState(false);
@@ -63,6 +65,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
     });
 
     const supabase = createClient();
+    const effectiveCompanyId = selectedCompany?.id || companyId;
 
     useEffect(() => {
         const savedMode = localStorage.getItem('finance_accounts_view_mode') as ViewMode;
@@ -75,6 +78,11 @@ export function AccountsTable({ companyId }: { companyId: string }) {
     };
 
     const fetchInstallments = async () => {
+        if (!effectiveCompanyId) {
+            setInstallments([]);
+            return;
+        }
+
         if (direction === 'OUT') {
             setInstallments([]);
             return;
@@ -106,10 +114,10 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                     ar_payments(*)
                 )
             `)
-            .eq('ar_title.company_id', companyId);
+            .eq('ar_title.company_id', effectiveCompanyId);
 
         if (statusFilter !== 'ALL') {
-            if (statusFilter === 'OPEN') query = query.in('status', ['OPEN', 'PARTIAL']);
+            if (statusFilter === 'OPEN') query = query.in('status', ['OPEN', 'PARTIAL', 'OVERDUE']);
             else query = query.eq('status', statusFilter);
         }
 
@@ -137,7 +145,19 @@ export function AccountsTable({ companyId }: { companyId: string }) {
 
         const { data, error } = await query;
 
-        if (!error && data) {
+        if (error) {
+            console.error("[AccountsTable] Erro ao carregar lançamentos:", error);
+            toast({
+                title: "Erro ao carregar lançamentos",
+                description: error.message || "Não foi possível carregar os dados financeiros.",
+                variant: "destructive"
+            });
+            setInstallments([]);
+            setLoading(false);
+            return;
+        }
+
+        if (data) {
             let filtered = data as unknown as ArInstallmentDTO[];
             filtered = filtered.filter(i => i.ar_title?.status !== 'PENDING_APPROVAL');
 
@@ -158,7 +178,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
     useEffect(() => {
         setSelectedIds(new Set());
         fetchInstallments();
-    }, [direction, statusFilter, dateRange, dateTypeFilter]);
+    }, [direction, statusFilter, dateRange, dateTypeFilter, effectiveCompanyId]);
 
     useEffect(() => {
         setCurrentPage(1);

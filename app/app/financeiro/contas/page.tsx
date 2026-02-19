@@ -35,17 +35,17 @@ export default async function AccountsPage() {
     }
 
     return (
-        <div className="max-w-screen-2xl mx-auto pb-10 space-y-6 animate-in fade-in duration-500">
+        <div className="space-y-6 pb-10 animate-in fade-in duration-500">
             <PageHeader
                 title="Contas"
                 subtitle="Gerencie suas contas a receber e a pagar em um único lugar."
             />
 
-            <div className="px-6">
+            <main className="px-6">
                 <Suspense fallback={<div className="p-10 text-center text-gray-500">Carregando dados financeiros...</div>}>
                     <AccountsTable companyId={companyId} />
                 </Suspense>
-            </div>
+            </main>
         </div>
     );
 }
