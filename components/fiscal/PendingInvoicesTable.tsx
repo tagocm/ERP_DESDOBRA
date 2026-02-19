@@ -58,24 +58,24 @@ export function PendingInvoicesTable({
                 <tbody className="bg-white divide-y divide-gray-200">
                     {data.map((order) => (
                         <tr key={order.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
                                 <span className="text-sm font-medium text-gray-900">#{order.document_number}</span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
                                 <span className="text-sm text-gray-900">{new Date(order.date_issued).toLocaleDateString('pt-BR')}</span>
                             </td>
                             <td className="px-6 py-4">
                                 <span className="text-sm text-gray-900">{order.client?.trade_name || '-'}</span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
                                 <span className="text-sm text-gray-500 font-mono">{order.client?.document_number || '-'}</span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
                                 <span className="text-sm font-medium text-gray-900">
                                     {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total_amount)}
                                 </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <td className="px-6 py-4 whitespace-nowrap text-center">
                                 <Link href={`/app/fiscal/nfe/emitir/${order.id}`}>
                                     <Button size="sm">
                                         <FileText className="w-4 h-4 mr-2" />
