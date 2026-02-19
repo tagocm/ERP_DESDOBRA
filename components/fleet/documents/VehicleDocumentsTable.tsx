@@ -43,13 +43,15 @@ export function VehicleDocumentsTable({ records, onEdit, onDelete }: VehicleDocu
             toast({
                 title: "Sucesso!",
                 description: "Documento excluído. Lançamentos financeiros pendentes removidos.",
-                // @ts-ignore
-                className: "bg-green-600 text-white border-none"
             });
             setConfirmId(null);
             onDelete?.();
         } else {
-            toast({ title: "Erro", description: result.error.message, variant: "destructive" });
+            toast({
+                title: "Erro",
+                description: result.error?.message || "Falha ao excluir documento.",
+                variant: "destructive",
+            });
         }
     };
 

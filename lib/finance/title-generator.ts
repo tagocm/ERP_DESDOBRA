@@ -126,7 +126,7 @@ export async function generateARTitle(event: FinancialEvent): Promise<string> {
     }
 
     if (!title) {
-        throw new Error(`Failed to create AR title: ${titleError?.message}`);
+        throw new Error('Failed to create AR title: insert returned no data');
     }
 
     // 2. Create ar_installments from event installments (if absent)
