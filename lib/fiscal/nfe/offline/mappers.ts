@@ -503,14 +503,19 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
     };
     const modFrete = (modeMap[order.freight_mode?.toLowerCase()] || '9') as any;
 
-    const vol = (order.volumes_qty || order.volumes_gross_weight_kg) ? [{
-        qVol: order.volumes_qty,
+    // Fallback to total weight if specific volume weight is missing
+    const hasWeight = (order.volumes_gross_weight_kg || order.total_gross_weight_kg) > 0;
+    const hasVolQty = (order.volumes_qty || 0) > 0;
+
+    const vol = (hasVolQty || hasWeight) ? [{
+        qVol: order.volumes_qty || (hasWeight ? 1 : 0),
         esp: order.volumes_species,
         marca: order.volumes_brand,
-        nVol: order.volumes_number, // Ensure this exists on order or is ignored
-        pesoL: order.volumes_net_weight_kg || 0,
-        pesoB: order.volumes_gross_weight_kg || 0
+        nVol: order.volumes_number,
+        pesoL: order.volumes_net_weight_kg || order.total_weight_kg || 0,
+        pesoB: order.volumes_gross_weight_kg || order.total_gross_weight_kg || 0
     }] : undefined;
+
 
     return {
         ide,
