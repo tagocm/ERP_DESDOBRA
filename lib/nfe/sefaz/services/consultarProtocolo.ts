@@ -12,6 +12,11 @@ export interface ConsultaProtocoloResult {
     rawResponse?: any;
 }
 
+function extractProtNFeXml(xml: string): string | undefined {
+    const match = xml.match(/<(?:\w+:)?protNFe\b[\s\S]*?<\/(?:\w+:)?protNFe>/i);
+    return match?.[0];
+}
+
 export async function consultarProtocolo(
     accessKey: string,
     envConfig: Pick<SefazEnvConfig, 'uf' | 'tpAmb'>,
@@ -53,11 +58,7 @@ export async function consultarProtocolo(
     const ret = parsed;
 
     // Extract protNFe XML directly from raw response body to ensure signature integrity
-    let protNFeXml: string | undefined;
-    const match = body.match(/<protNFe[^>]*>[\s\S]*?<\/protNFe>/);
-    if (match) {
-        protNFeXml = match[0];
-    }
+    const protNFeXml = extractProtNFeXml(body);
 
     return {
         cStat: ret.cStat,
@@ -66,4 +67,3 @@ export async function consultarProtocolo(
         rawResponse: ret
     };
 }
-

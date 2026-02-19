@@ -493,9 +493,9 @@ export async function getExpeditionRoutes(
     if (filters?.dateFrom) query = query.gte('scheduled_date', filters.dateFrom);
     if (filters?.dateTo) query = query.lte('scheduled_date', filters.dateTo);
 
-    // Filter: Expedição only shows PLANNED routes (not yet started)
-    // Routes in 'in_route' status should appear in Retorno screen instead
-    query = query.neq('status', 'in_route').neq('status', 'completed');
+    // Keep started routes visible in Expedição for printing (manifest/labels),
+    // but hide finished/cancelled routes from this screen.
+    query = query.neq('status', 'completed').neq('status', 'cancelled');
 
     query = query.order('scheduled_date');
 

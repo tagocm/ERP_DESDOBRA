@@ -2,6 +2,11 @@ import { XMLParser } from "fast-xml-parser";
 import { SefazResponse } from "../types";
 import { NfeSefazError } from "../errors";
 
+function extractProtNFeXml(xml: string): string | undefined {
+    const match = xml.match(/<(?:\w+:)?protNFe\b[\s\S]*?<\/(?:\w+:)?protNFe>/i);
+    return match?.[0];
+}
+
 // Extract logic
 export function parseSefazResponse(xml: string, step: "enviarLote" | "consultarRecibo" | "consultarProtocolo"): SefazResponse {
     const parser = new XMLParser({
@@ -85,9 +90,9 @@ export function parseSefazResponse(xml: string, step: "enviarLote" | "consultarR
         // In Async Return (104), protNFe is present in retConsReciNFe.
         if (ret.protNFe) {
             // We want the raw XML of protNFe
-            const match = xml.match(/<protNFe[\s\S]*?<\/protNFe>/);
-            if (match) {
-                result.protNFeXml = match[0];
+            const protXml = extractProtNFeXml(xml);
+            if (protXml) {
+                result.protNFeXml = protXml;
             }
         }
 

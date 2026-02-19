@@ -17,7 +17,8 @@ interface PageProps {
     };
 }
 
-export default async function FrotaPage({ searchParams }: PageProps) {
+export default async function FrotaPage(props: PageProps) {
+    const searchParams = await props.searchParams;
     const search = searchParams.q || "";
     const status = searchParams.status || "active";
     const type = searchParams.type || "all";

@@ -60,25 +60,13 @@ export function OrganizationSelector({
 
     // Fetch initial organization if value exists
     useEffect(() => {
-        if (value && (!selectedCompany || selectedCompany.id !== value)) {
-            const loadInitial = async () => {
-                setLoading(true);
-                try {
-                    const res = await getClientDetailsAction(value, companyId);
-                    if (res && !res.error) {
-                        setSelectedCompany(res);
-                        setSearch(res.trade_name || "");
-                        setOptions(prev => (prev.some(option => option.id === res.id) ? prev : [res, ...prev]));
-                    }
-                } catch (e) {
-                    console.error("Error loading initial org:", e);
-                } finally {
-                    setLoading(false);
-                }
-            };
-            loadInitial();
-        } else if (
-            currentOrganization &&
+        const canHydrateFromCurrent =
+            !!currentOrganization &&
+            (!value || currentOrganization.id === value) &&
+            !!currentOrganization.trade_name;
+
+        if (
+            canHydrateFromCurrent &&
             (
                 !selectedCompany ||
                 selectedCompany.id !== currentOrganization.id ||
@@ -88,6 +76,33 @@ export function OrganizationSelector({
             setSelectedCompany(currentOrganization);
             setSearch(currentOrganization.trade_name || "");
             setOptions(prev => (prev.some(o => o.id === currentOrganization.id) ? prev : [currentOrganization, ...prev]));
+        }
+
+        if (value && (!selectedCompany || selectedCompany.id !== value || !selectedCompany.trade_name)) {
+            const loadInitial = async () => {
+                setLoading(true);
+                try {
+                    const res = await getClientDetailsAction(value, companyId);
+                    if (res && !res.error) {
+                        setSelectedCompany(res);
+                        setSearch(res.trade_name || "");
+                        setOptions(prev => (prev.some(option => option.id === res.id) ? prev : [res, ...prev]));
+                        return;
+                    }
+                } catch (e) {
+                    console.error("Error loading initial org:", e);
+                } finally {
+                    setLoading(false);
+                }
+
+                // Keep selector hydrated from order payload when details fetch fails.
+                if (canHydrateFromCurrent) {
+                    setSelectedCompany(currentOrganization);
+                    setSearch(currentOrganization.trade_name || "");
+                    setOptions(prev => (prev.some(o => o.id === currentOrganization.id) ? prev : [currentOrganization, ...prev]));
+                }
+            };
+            loadInitial();
         }
     }, [value, currentOrganization, selectedCompany, companyId]);
 
@@ -109,7 +124,7 @@ export function OrganizationSelector({
         setOpen(true);
         const requestId = ++searchRequestRef.current;
         const normalizedQuery = search.trim().toLowerCase();
-        const cacheKey = `${type}:${normalizedQuery}`;
+        const cacheKey = `${companyId || 'no-company'}:${type}:${normalizedQuery}`;
         const cached = searchCacheRef.current.get(cacheKey);
         const now = Date.now();
 
@@ -130,7 +145,6 @@ export function OrganizationSelector({
                     searchCacheRef.current.set(cacheKey, { ts: Date.now(), data: res.data });
                 } else {
                     setOptions([]);
-                    searchCacheRef.current.set(cacheKey, { ts: Date.now(), data: [] });
                 }
             } catch (error) {
                 console.error("Error searching organizations:", error);

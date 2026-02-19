@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             success: true,
             data: {
+                id: letter.id,
                 emissionId,
                 accessKey: emission.access_key,
                 number: emission.numero,
@@ -80,4 +81,3 @@ export async function POST(req: NextRequest) {
         });
     }
 }
-

@@ -117,6 +117,13 @@ interface QuickItemProduct {
     sale_price?: number;
     net_weight_kg_base?: number;
     gross_weight_kg_base?: number;
+    fiscal?: {
+        tax_group_id?: string | null;
+        ncm?: string | null;
+        cest?: string | null;
+        origin?: number | null;
+        cfop_code?: string | null;
+    } | null;
     packagings?: ItemPackagingDTO[];
 }
 
@@ -129,6 +136,12 @@ interface PendingFreightData {
 interface SalesOrderDTOFormProps {
     initialData?: SalesOrderDTO;
     mode: 'create' | 'edit';
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isPersistedUuid(id?: string | null): id is string {
+    return typeof id === 'string' && UUID_REGEX.test(id);
 }
 
 export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps) {
@@ -246,6 +259,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
     const quickAddQtyRef = useRef<HTMLInputElement>(null);
     const quickItemMetaCacheRef = useRef<Map<string, { price?: number; packagings: ItemPackagingDTO[] }>>(new Map());
     const quickItemRequestRef = useRef(0);
+    const didInitialRehydrateRef = useRef(false);
 
     // Expanded fiscal details state (track which items show fiscal info)
     const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
@@ -253,7 +267,6 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
     // Fiscal calculation state for automatic recalculation
     const [fiscalStatus, setFiscalStatus] = useState<'idle' | 'pending' | 'calculating' | 'calculated' | 'error'>('idle');
     const [fiscalError, setFiscalError] = useState<string | null>(null);
-    const [fiscalDeps, setFiscalDeps] = useState<string>('');
 
     // Refs for debouncing and abort control
     const fiscalAbortController = useRef<AbortController | null>(null);
@@ -276,49 +289,6 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             setActiveTab('separation');
         }
     }, [searchParams]);
-
-    // --- EFFECT: Auto-Calculate Fiscal (with debounce) ---
-    useEffect(() => {
-        const hasBaseContext = Boolean(formData.id && formData.client_id && selectedCompany?.id);
-        const hasItems = Boolean(formData.items && formData.items.length > 0);
-        const hasTempItems = Boolean(formData.items?.some(i => i.id?.startsWith('temp-') || !i.id));
-
-        // Avoid pending/idle loops on brand-new orders (main source of noisy renders on page entry).
-        if (!hasBaseContext || !hasItems || hasTempItems) {
-            if (fiscalStatus !== 'idle') setFiscalStatus('idle');
-            return;
-        }
-
-        // Build dependency hash from fiscal-relevant data
-        const newDeps = JSON.stringify({
-            client_id: formData.client_id,
-            company_id: selectedCompany?.id,
-            delivery_uf: formData.delivery_address_json?.state,
-            items: formData.items?.map(i => ({
-                id: i.id,
-                product_id: i.product?.id,
-                quantity: i.quantity,
-                unit_price: i.unit_price,
-                discount_amount: i.discount_amount
-            })),
-            discount_total: formData.discount_amount,
-            freight_total: formData.freight_amount
-        });
-
-        // Only trigger if dependencies actually changed
-        if (newDeps === fiscalDeps) return;
-
-        setFiscalDeps(newDeps);
-        setFiscalStatus('pending');
-
-        // Debounce: wait 600ms before actually calculating
-        const timer = setTimeout(() => {
-            triggerFiscalCalculation();
-        }, 600);
-
-        return () => clearTimeout(timer);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [formData.client_id, formData.delivery_address_json?.state, formData.items, formData.discount_amount, formData.freight_amount, selectedCompany?.id, formData.id]);
 
     // --- EFFECT: Detect Dirty State (FASE 1) ---
     useEffect(() => {
@@ -824,6 +794,11 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                 // Pre-populate weights for local calculation
                 unit_weight_kg: itemNetWeight,
                 gross_weight_kg_snapshot: itemGrossWeight,
+                ncm_snapshot: quickItem.product.fiscal?.ncm || null,
+                cest_snapshot: quickItem.product.fiscal?.cest || null,
+                origin_snapshot: quickItem.product.fiscal?.origin ?? null,
+                cfop_code: quickItem.product.fiscal?.cfop_code || null,
+                fiscal_status: quickItem.product.fiscal?.tax_group_id ? 'pending' : 'no_rule_found',
 
                 product: {
                     id: quickItem.product.id,
@@ -863,7 +838,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         try {
             // PHASE 2: Autosave removed
             // Delete from database if it's a saved item
-            if (item.id && !item.id.startsWith('temp-')) {
+            if (isPersistedUuid(item.id)) {
                 const res = await deleteSalesItemAction(item.id, formData.id!);
                 if (!res.success) throw new Error(res.error);
             }
@@ -876,7 +851,6 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             // Recalculate fiscal if order exists
             if (formData.id) {
                 setTimeout(() => {
-                    triggerFiscalCalculation();
                     refreshTotals();
                 }, 100);
             }
@@ -1051,10 +1025,15 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             throw new Error("Erro Crítico: Empresa não identificada. Recarregue a página.");
         }
 
+        const isConfirmingNow =
+            status === 'confirmed' &&
+            (formData.status_commercial || 'draft') !== 'confirmed';
+
         const payload = {
             ...formData,
             company_id: selectedCompany.id,
-            status_commercial: status,
+            // Two-phase confirm: keep as draft until all items persist successfully.
+            status_commercial: isConfirmingNow ? 'draft' : status,
             doc_type: docTypeOverride || formData.doc_type || 'order'
         };
         let savedOrder;
@@ -1087,7 +1066,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         // Identify items that were in original snapshot but represent persistent IDs
         // and are missing from current items list.
         const itemsToDelete = originalItems.filter(orgItem => {
-            const isPersistent = orgItem.id && !orgItem.id.startsWith('temp-');
+            const isPersistent = isPersistedUuid(orgItem.id);
             const isStillPresent = currentItems.some(curr => curr.id === orgItem.id);
             return isPersistent && !isStillPresent;
         });
@@ -1101,7 +1080,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         // 2. Handle Upserts (Inserts + Updates)
         if (currentItems.length > 0) {
             for (const item of currentItems) {
-                const isTemp = item.id && item.id.startsWith('temp-');
+                const isTemp = !isPersistedUuid(item.id);
 
                 const itemToSave = {
                     ...item,
@@ -1112,9 +1091,25 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                 };
 
                 const res = await upsertSalesItemAction(itemToSave);
-                if (!res.success) console.error("Error saving item:", res.error);
+                if (!res.success) {
+                    const itemLabel = item.product?.name || item.item_id || 'item';
+                    throw new Error(`Falha ao salvar ${itemLabel}: ${res.error || 'erro desconhecido'}`);
+                }
             }
         }
+
+        if (currentItems.length > 0) {
+            await triggerFiscalCalculation(savedOrder.id);
+        }
+
+        // Confirm only after item sync succeeds to avoid partial "confirmed" state.
+        if (isConfirmingNow) {
+            const confirmRes = await confirmOrderAction(savedOrder.id);
+            if (!confirmRes.success) {
+                throw new Error(confirmRes.error || 'Falha ao confirmar pedido após salvar os itens.');
+            }
+        }
+
         return savedOrder;
     };
 
@@ -1529,8 +1524,13 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
     };
 
     // --- FISCAL CALCULATION (automatic & manual) ---
-    const triggerFiscalCalculation = async () => {
-        if (!formData.id || !selectedCompany || !formData.client_id) {
+    const triggerFiscalCalculation = async (orderIdOverride?: string) => {
+        if (!selectedCompany || !formData.client_id) {
+            setFiscalStatus('idle');
+            return;
+        }
+        const targetOrderId = orderIdOverride || formData.id;
+        if (!targetOrderId) {
             setFiscalStatus('idle');
             return;
         }
@@ -1557,65 +1557,58 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             if (companyError || !companyData) {
                 throw new Error(`Configurações da empresa não encontradas: ${companyError?.message || ''}`);
             }
+            const normalizedTaxRegime: 'simples' | 'normal' = String(companyData.tax_regime || '')
+                .toLowerCase()
+                .includes('simples')
+                ? 'simples'
+                : 'normal';
 
-            // Get customer data
-            const { data: customerDataRaw, error: customerError } = await supabase
-                .from('organizations')
-                .select(`addresses!inner(state), icms_contributor, is_final_consumer`)
-                .eq('id', formData.client_id)
-                .single();
-
-            interface CustomerResult {
-                addresses: { state: string }[];
-                icms_contributor: boolean;
-                is_final_consumer: boolean;
-            }
-            const customerData = customerDataRaw as unknown as CustomerResult;
-
-            if (customerError || !customerData) {
-                throw new Error(`Dados do cliente não encontrados: ${customerError?.message || ''}`);
-            }
-
-            const customerUF = customerData.addresses?.[0]?.state || 'SP';
-            const customerType = customerData.icms_contributor ? 'contribuinte' : 'nao_contribuinte';
-            const isFinalConsumer = customerData.is_final_consumer || false;
-
-            // Fetch full organization data for more precise customer type
+            // Get full organization data (without inner join on addresses) for robust fiscal context
             const fullOrg = await getClientDetailsAction(formData.client_id);
-            if (!fullOrg) {
-                // Warning only? Or throw?
-                // For now, proceed with partial data if fails, or throw.
-                // throw new Error(`Dados completos do cliente não encontrados`);
-                console.warn("Client details not found for fiscal calculation");
+            if (!fullOrg || fullOrg.error) {
+                throw new Error(`Dados do cliente não encontrados: ${fullOrg?.error || ''}`);
             }
 
-            if (formData.id && fullOrg) {
-                await recalculateFiscalAction({
-                    orderId: formData.id,
-                    companyUF: companyData.address_state || 'SP',
-                    companyTaxRegime: (companyData.tax_regime as any) || 'simples', // tax_regime might be string in DB but constrained in domain
-                    customerUF: fullOrg.addresses?.[0]?.state || 'SP',
-                    customerType: fullOrg.ie_indicator === 'contributor' ? 'contribuinte' :
-                        fullOrg.ie_indicator === 'exempt' ? 'isento' : 'nao_contribuinte',
-                    customerIsFinalConsumer: fullOrg.is_final_consumer
-                });
-                await refreshTotals();
+            const fallbackCustomerType = fullOrg?.icms_contributor ? 'contribuinte' : 'nao_contribuinte';
+            const fallbackCustomerIsFinalConsumer = Boolean(fullOrg?.is_final_consumer);
+            const resolvedCustomerUF = fullOrg?.addresses?.[0]?.state || 'SP';
+            const resolvedCustomerType = fullOrg?.ie_indicator === 'contributor'
+                ? 'contribuinte'
+                : fullOrg?.ie_indicator === 'exempt'
+                    ? 'isento'
+                    : fallbackCustomerType;
+            const resolvedCustomerIsFinalConsumer = fullOrg?.is_final_consumer ?? fallbackCustomerIsFinalConsumer;
+
+            const fiscalResult = await recalculateFiscalAction({
+                orderId: targetOrderId,
+                companyUF: companyData.address_state || 'SP',
+                companyTaxRegime: normalizedTaxRegime,
+                customerUF: resolvedCustomerUF,
+                customerType: resolvedCustomerType,
+                customerIsFinalConsumer: resolvedCustomerIsFinalConsumer
+            });
+            if (!fiscalResult.success) {
+                throw new Error(fiscalResult.error || 'Falha ao recalcular dados fiscais');
             }
+            await refreshTotals();
             // Reload items from database to get updated fiscal data
             const { data: updatedItems, error: itemsError } = await supabase
                 .from('sales_document_items')
                 .select(`
                     *,
+                    fiscal_operation:fiscal_operations!sales_document_items_fiscal_operation_id_fkey(
+                        id, icms_rate_percent, icms_reduction_bc_percent, st_rate_percent, st_mva_percent, st_reduction_bc_percent
+                    ),
                     packaging:item_packaging(id, label, gross_weight_kg, net_weight_kg),
                     product:items!fk_sales_item_product(
                         id, name, sku, un:uom,
                         net_weight_kg_base, gross_weight_kg_base,
                         net_weight_g_base, gross_weight_g_base,
                         base_weight_kg,
-                        packagings:item_packaging(*)
+                        packagings:item_packaging!item_packaging_item_id_fkey(*)
                     )
                 `)
-                .eq('document_id', formData.id)
+                .eq('document_id', targetOrderId)
                 .order('created_at');
 
             if (!itemsError && updatedItems) {
@@ -1640,10 +1633,6 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             }
 
             setFiscalStatus('calculated');
-            toast({
-                title: "Fiscal calculado",
-                description: "Dados fiscais atualizados"
-            });
         } catch (error: unknown) {
             console.error('Fiscal calculation error:', error);
             const message = error instanceof Error ? error.message : String(error);
@@ -1673,14 +1662,114 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             .from('sales_documents')
             .select(`
                 *,
-                items:sales_document_items(*, product:items!fk_sales_item_product(*, packagings:item_packaging(*))),
+                client:organizations!client_id(id, trade_name, document_number),
+                items:sales_document_items(
+                    *,
+                    fiscal_operation:fiscal_operations!sales_document_items_fiscal_operation_id_fkey(
+                        id, icms_rate_percent, icms_reduction_bc_percent, st_rate_percent, st_mva_percent, st_reduction_bc_percent
+                    ),
+                    product:items!fk_sales_item_product(*, packagings:item_packaging!item_packaging_item_id_fkey(*))
+                ),
                 adjustments:sales_document_adjustments(*)
             `)
             .eq('id', id)
             .single();
 
-        if (!error && data) setFormData(data as SalesOrderDTO);
+        if (!error && data) {
+            setFormData(data as SalesOrderDTO);
+            setCustomerInfo(prev => ({
+                ...prev,
+                tradeName: (data as any).client?.trade_name || prev.tradeName,
+                doc: (data as any).client?.document_number || prev.doc
+            }));
+            return;
+        }
+
+        console.error('[loadOrder] primary query failed, trying fallback:', error?.message);
+
+        // Fallback path: split queries to avoid breaking on nested relationship issues.
+        const { data: doc, error: docError } = await supabase
+            .from('sales_documents')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (docError || !doc) {
+            console.error('[loadOrder] fallback document query failed:', docError?.message);
+            return;
+        }
+
+        const [clientRes, itemsRes, adjustmentsRes] = await Promise.all([
+            doc.client_id
+                ? supabase
+                    .from('organizations')
+                    .select('id, trade_name, document_number')
+                    .eq('id', doc.client_id)
+                    .maybeSingle()
+                : Promise.resolve({ data: null, error: null } as any),
+            supabase
+                .from('sales_document_items')
+                .select('*')
+                .eq('document_id', id),
+            supabase
+                .from('sales_document_adjustments')
+                .select('*')
+                .eq('sales_document_id', id)
+        ]);
+
+        if (itemsRes.error) {
+            console.error('[loadOrder] fallback items query failed:', itemsRes.error.message);
+        }
+
+        const rawItems = itemsRes.data || [];
+        const productIds = Array.from(new Set(rawItems.map((item: any) => item.item_id).filter(Boolean)));
+        const fiscalOperationIds = Array.from(new Set(rawItems.map((item: any) => item.fiscal_operation_id).filter(Boolean)));
+        const { data: products } = productIds.length > 0
+            ? await supabase
+                .from('items')
+                .select('*')
+                .in('id', productIds)
+            : { data: [] as any[] };
+        const { data: fiscalOperations } = fiscalOperationIds.length > 0
+            ? await supabase
+                .from('fiscal_operations')
+                .select('id, icms_rate_percent, icms_reduction_bc_percent, st_rate_percent, st_mva_percent, st_reduction_bc_percent')
+                .in('id', fiscalOperationIds)
+            : { data: [] as any[] };
+
+        const productsById = new Map((products || []).map((p: any) => [p.id, p]));
+        const fiscalOperationsById = new Map((fiscalOperations || []).map((fo: any) => [fo.id, fo]));
+        const hydratedItems = rawItems.map((item: any) => ({
+            ...item,
+            product: productsById.get(item.item_id) || null,
+            fiscal_operation: fiscalOperationsById.get(item.fiscal_operation_id) || null
+        }));
+
+        const hydrated = {
+            ...doc,
+            client: clientRes.data || null,
+            items: hydratedItems,
+            adjustments: adjustmentsRes.data || []
+        };
+
+        setFormData(hydrated as SalesOrderDTO);
+        setCustomerInfo(prev => ({
+            ...prev,
+            tradeName: (hydrated as any).client?.trade_name || prev.tradeName,
+            doc: (hydrated as any).client?.document_number || prev.doc
+        }));
     };
+
+    // Rehydrate once on edit to avoid opening partially loaded orders.
+    useEffect(() => {
+        if (mode !== 'edit') return;
+        if (!formData.id) return;
+        if (didInitialRehydrateRef.current) return;
+
+        didInitialRehydrateRef.current = true;
+        loadOrder(formData.id);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [mode, formData.id]);
 
     const executeCancel = async () => {
         if (!formData.id || !selectedCompany) return;
@@ -1694,7 +1783,15 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             if (!res.success) throw new Error(res.error);
 
             toast({ title: "Pedido cancelado com sucesso." });
-            setFormData(prev => ({ ...prev, status_commercial: 'cancelled' })); // Redirect or refresh
+            setFormData(prev => ({ ...prev, status_commercial: 'cancelled' }));
+
+            toast({
+                title: "Pedido cancelado",
+                description: "O pedido foi cancelado com sucesso. Redirecionando...",
+            });
+
+            // Redirect to list
+            router.push('/app/vendas/pedidos');
             router.refresh();
         } catch (error: unknown) {
             console.error(error);
@@ -1975,7 +2072,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                                                             companyId={selectedCompany?.id}
                                                             currentOrganization={formData.client_id ? {
                                                                 id: formData.client_id,
-                                                                trade_name: customerInfo.tradeName || ''
+                                                                trade_name: customerInfo.tradeName || initialData?.client?.trade_name || ''
                                                             } : undefined}
                                                             onChange={(_, org) => handleCustomerSelect(org)}
                                                             type="customer"
@@ -2457,7 +2554,19 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                                                                                             </div>
                                                                                             <div>
                                                                                                 <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Alíquota (%)</div>
-                                                                                                <div className="font-mono text-slate-700">-</div>
+                                                                                                <div className="font-mono text-slate-700">
+                                                                                                    {item.fiscal_operation?.icms_rate_percent !== null && item.fiscal_operation?.icms_rate_percent !== undefined
+                                                                                                        ? `${item.fiscal_operation.icms_rate_percent}%`
+                                                                                                        : '-'}
+                                                                                                </div>
+                                                                                            </div>
+                                                                                            <div>
+                                                                                                <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Redução BC (%)</div>
+                                                                                                <div className="font-mono text-slate-700">
+                                                                                                    {item.fiscal_operation?.icms_reduction_bc_percent !== null && item.fiscal_operation?.icms_reduction_bc_percent !== undefined
+                                                                                                        ? `${item.fiscal_operation.icms_reduction_bc_percent}%`
+                                                                                                        : '-'}
+                                                                                                </div>
                                                                                             </div>
                                                                                         </div>
                                                                                     </div>
@@ -2473,12 +2582,20 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                                                                                             <div>
                                                                                                 <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">MVA (%) / Alíq ST</div>
                                                                                                 <div className="font-mono text-slate-700">
-                                                                                                    {item.st_aliquot ? formatCurrency(item.st_aliquot).replace('R$', '') + '%' : '-'}
+                                                                                                    {item.fiscal_operation?.st_mva_percent !== null && item.fiscal_operation?.st_mva_percent !== undefined
+                                                                                                        ? `${item.fiscal_operation.st_mva_percent}%`
+                                                                                                        : (item.fiscal_operation?.st_rate_percent !== null && item.fiscal_operation?.st_rate_percent !== undefined
+                                                                                                            ? `${item.fiscal_operation.st_rate_percent}%`
+                                                                                                            : (item.st_aliquot ? `${item.st_aliquot}%` : '-'))}
                                                                                                 </div>
                                                                                             </div>
                                                                                             <div>
                                                                                                 <div className="text-[10px] text-slate-400 uppercase tracking-wide mb-0.5">Redução Base ST (%)</div>
-                                                                                                <div className="font-mono text-slate-700">-</div>
+                                                                                                <div className="font-mono text-slate-700">
+                                                                                                    {item.fiscal_operation?.st_reduction_bc_percent !== null && item.fiscal_operation?.st_reduction_bc_percent !== undefined
+                                                                                                        ? `${item.fiscal_operation.st_reduction_bc_percent}%`
+                                                                                                        : '-'}
+                                                                                                </div>
                                                                                             </div>
                                                                                         </div>
                                                                                     </div>

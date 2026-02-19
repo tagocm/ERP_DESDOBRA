@@ -31,6 +31,24 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
         if (isNaN(n)) throw new Error(`Valor numérico inválido para: ${fieldName}`);
         return n;
     };
+    const toNumber = (val: unknown, fallback = 0) => {
+        if (val === null || val === undefined || val === '') return fallback;
+        const n = Number(val);
+        return Number.isFinite(n) ? n : fallback;
+    };
+    const round2 = (val: number) => Math.round((val + Number.EPSILON) * 100) / 100;
+    const normalizeTwoDigits = (value: unknown, fallback: string) =>
+        String(value ?? fallback).replace(/\D/g, '').padStart(2, '0').slice(-2);
+    const normalizeThreeDigits = (value: unknown, fallback: string) =>
+        String(value ?? fallback).replace(/\D/g, '').padStart(3, '0').slice(-3);
+    const normalizeCBenef = (value: unknown) =>
+        String(value ?? '')
+            .trim()
+            .replace(/\s+/g, ' ')
+            .toUpperCase();
+    const isValidCBenef = (value: string) =>
+        value === 'SEM CBENEF' || value.length === 8 || value.length === 10;
+    const spCstRequiringCBenef = new Set(['20', '30', '40', '41', '50', '51', '53', '70', '90']);
 
     // --- 1. EMIT (Build first to extract cMun for cMunFG) ---
     const crt = settings.tax_regime === 'simples_nacional' ? '1' : '3';
@@ -68,7 +86,7 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
 
     // --- 2. IDE (Use emitter's cMun for cMunFG) ---
     // Rule: idDest: 1=Internal, 2=Interstate
-    const emitState = company.addresses?.[0]?.state || 'SP';
+    const emitState = emit.enderEmit.uf || 'SP';
     const destState = order.client.addresses?.[0]?.state || 'SP';
     const idDest = (emitState === destState) ? '1' : '2';
 
@@ -127,7 +145,10 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
     // --- 4. ITEMS ---
     const itens: NfeItem[] = order.items.map((item: any, idx: number) => {
         const prod = item.product;
-        const fiscal = prod.fiscal || {};
+        const fiscalRaw = prod?.fiscal;
+        const fiscal = Array.isArray(fiscalRaw) ? (fiscalRaw[0] || {}) : (fiscalRaw || {});
+        const fiscalOp = item.fiscal_operation || {};
+        const emitUf = String(emit.enderEmit.uf || '').toUpperCase();
 
         // Product Data
         const pkg = item.packaging;
@@ -206,10 +227,10 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
         });
 
         const nfeProd: NfeProd = {
-            cProd: requireString(truncate(prod.sku || prod.code || item.product_id, 60), `Código do Produto (Item ${idx + 1})`),
+            cProd: requireString(truncate(prod?.sku || prod?.code || item.item_id || item.product_id, 60), `Código do Produto (Item ${idx + 1})`),
             xProd: descResult.xProd, // Use generated description
-            ncm: requireString(strip(fiscal.ncm), `NCM do Product (Item ${idx + 1})`),
-            cfop: requireString(strip(fiscal.cfop_internal || '5102'), `CFOP do Produto (Item ${idx + 1})`),
+            ncm: requireString(strip(item.ncm_snapshot || fiscal.ncm), `NCM do Product (Item ${idx + 1})`),
+            cfop: requireString(strip(item.cfop_code || fiscalOp.cfop || fiscal.cfop_internal || '5102'), `CFOP do Produto (Item ${idx + 1})`),
             uCom: uCom,
             qCom: qCom,
             vUnCom: vUnCom,
@@ -222,49 +243,87 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
             infAdProd: descResult.infAdProd || undefined // Additional info if overflow
         };
 
-        // Tax Data (Simplified for now - using generic fallback if snapshots missing)
-        // If we have calculated taxes in item (from order items table), use them.
-        // sales_document_items columns: icms_base, icms_rate, icms_value, etc.
-
         const imposto: NfeImposto = {
             vTotTrib: 0 // Calculate approximate?
         };
 
+        const itemTotal = Number(item.total_amount) || (qCom * vUnCom);
+        const itemOrigin = String(item.origin_snapshot ?? fiscal.origin ?? '0') as any;
+        let itemCstIcms: string | null = null;
+
         // ICMS
         if (crt === '1') {
             // Simples Nacional
-            const csosn = fiscal.csosn_internal || '102'; // Default
+            const csosn = normalizeThreeDigits(item.csosn || fiscalOp.icms_csosn || fiscal.csosn_internal, '102');
             imposto.icms = {
-                orig: (String(fiscal.origin || '0') as any),
+                orig: itemOrigin,
                 csosn: csosn,
                 // If 101, needs credits, etc. 
                 // Allow fallback to 102 (no credits) for safety unless data is present.
             };
         } else {
             // Normal Regime
-            const cst = fiscal.cst_icms_internal || '00';
+            const cst = normalizeTwoDigits(item.cst_icms || fiscalOp.icms_cst || fiscal.cst_icms_internal, '00');
+            itemCstIcms = cst;
+            const reductionBcPercent = toNumber(fiscalOp.icms_reduction_bc_percent, 0);
+            const icmsRate = toNumber((item as any).icms_aliquot, toNumber(fiscalOp.icms_rate_percent, 0));
+            const icmsIsTaxed = ['00', '10', '20', '70', '90'].includes(cst);
+            const calculatedBase = icmsIsTaxed
+                ? round2(itemTotal * (1 - Math.min(Math.max(reductionBcPercent, 0), 100) / 100))
+                : 0;
+            const itemIcmsBase = toNumber((item as any).icms_base, calculatedBase);
+            const itemIcmsValue = toNumber((item as any).icms_value, round2(itemIcmsBase * (icmsRate / 100)));
+
             imposto.icms = {
-                orig: (String(fiscal.origin || '0') as any),
+                orig: itemOrigin,
                 cst: cst,
-                modBC: '3', // Valor da Operação
-                vBC: Number(item.icms_base || 0),
-                pICMS: Number(item.icms_rate || 0),
-                vICMS: Number(item.icms_value || 0)
+                modBC: String(fiscalOp.icms_modal_bc || '3') as any,
+                pRedBC: ['20', '70'].includes(cst)
+                    ? reductionBcPercent
+                    : (reductionBcPercent > 0 ? reductionBcPercent : undefined),
+                vBC: itemIcmsBase,
+                pICMS: icmsRate,
+                vICMS: itemIcmsValue
             };
         }
 
+        // cBenef (tag prod.cBenef): required in some UF/CST combinations (e.g. SP).
+        const rawCBenef = normalizeCBenef(
+            (item as any).cBenef
+            || (item as any).cbenef
+            || (item as any).c_benef
+            || (fiscalOp as any).cBenef
+            || (fiscalOp as any).cbenef
+            || (fiscal as any).cBenef
+            || (fiscal as any).cbenef
+        );
+        if (rawCBenef && isValidCBenef(rawCBenef)) {
+            nfeProd.cBenef = rawCBenef;
+        } else if (emitUf === 'SP' && itemCstIcms && spCstRequiringCBenef.has(itemCstIcms)) {
+            nfeProd.cBenef = 'SEM CBENEF';
+        }
+
         // PIS/COF
+        const pisCst = normalizeTwoDigits(item.pis_cst || fiscalOp.pis_cst || fiscal.cst_pis_internal, '07');
+        const pisRate = toNumber(item.pis_aliquot, toNumber(fiscalOp.pis_rate_percent, 0));
+        const pisTaxed = ['01', '02'].includes(pisCst);
+        const pisBase = pisTaxed ? itemTotal : 0;
         imposto.pis = {
-            cst: fiscal.cst_pis_internal || '07', // 07 Isento Default
-            vBC: 0,
-            pPIS: 0,
-            vPIS: 0
+            cst: pisCst,
+            vBC: pisBase,
+            pPIS: pisTaxed ? pisRate : 0,
+            vPIS: toNumber(item.pis_value, pisTaxed ? round2(pisBase * (pisRate / 100)) : 0)
         };
+
+        const cofinsCst = normalizeTwoDigits(item.cofins_cst || fiscalOp.cofins_cst || fiscal.cst_cofins_internal, '07');
+        const cofinsRate = toNumber(item.cofins_aliquot, toNumber(fiscalOp.cofins_rate_percent, 0));
+        const cofinsTaxed = ['01', '02'].includes(cofinsCst);
+        const cofinsBase = cofinsTaxed ? itemTotal : 0;
         imposto.cofins = {
-            cst: fiscal.cst_cofins_internal || '07',
-            vBC: 0,
-            pCOFINS: 0,
-            vCOFINS: 0
+            cst: cofinsCst,
+            vBC: cofinsBase,
+            pCOFINS: cofinsTaxed ? cofinsRate : 0,
+            vCOFINS: toNumber(item.cofins_value, cofinsTaxed ? round2(cofinsBase * (cofinsRate / 100)) : 0)
         };
 
         return {
@@ -361,13 +420,6 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
         });
     }
 
-    const pag: NfePag = {
-        detPag: [{
-            tPag: tPag === '99' ? '15' : tPag, // Fallback 99 -> 15 (Boleto) to avoid Schema/Desc issues
-            vPag: totalAmount
-        }]
-    };
-
     // --- 5.1. COBR / DUPLICATAS ---
     const payments = (order.payments || [])
         .filter((payment: any) => payment && payment.amount > 0 && payment.due_date)
@@ -379,7 +431,18 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
         });
 
     let cobr: NfeCobr | undefined;
-    if (payments.length > 0) {
+    const emissionDate = String(ide.dhEmi || '').slice(0, 10);
+    const hasFutureDueDate = payments.some((payment: any) => {
+        const due = String(payment.due_date || '').slice(0, 10);
+        return !!due && !!emissionDate && due > emissionDate;
+    });
+    const hasInstallmentNumberGt1 = payments.some((payment: any) => Number(payment.installment_number || 0) > 1);
+    const hasMultipleInstallments = payments.length > 1;
+    const shouldEmitCobr =
+        payments.length > 0 &&
+        (hasFutureDueDate || hasMultipleInstallments || hasInstallmentNumberGt1);
+
+    if (shouldEmitCobr) {
         const totalDuplicatas = payments.reduce((sum: number, payment: any) => sum + Number(payment.amount || 0), 0);
 
         cobr = {
@@ -396,13 +459,33 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
             }))
         };
     } else if (NFE_DEBUG && totalAmount > 0) {
-        console.warn('[NFE_DEBUG] Pedido sem sales_document_payments; XML será emitido sem cobr/dup.', {
+        console.warn('[NFE_DEBUG] XML emitido sem cobr/dup (sem parcelas financeiras vinculadas).', {
             order_id: order.id,
             total_amount: totalAmount,
+            payments_count: payments.length,
             payment_terms_id: order.payment_terms_id,
             payment_mode_id: order.payment_mode_id
         });
     }
+
+    // --- 5.2. PAG ---
+    const normalizedTPag = tPag === '99' ? '15' : tPag; // Preserve legacy fallback.
+    const pagDet: NonNullable<NfePag['detPag']>[number] = {
+        indPag: shouldEmitCobr ? '1' : '0',
+        tPag: normalizedTPag,
+        vPag: totalAmount
+    };
+
+    // Some electronic means require card/PIX group details (SEFAZ 391).
+    if (['03', '04', '17', '18', '19'].includes(normalizedTPag)) {
+        pagDet.card = {
+            tpIntegra: '2'
+        };
+    }
+
+    const pag: NfePag = {
+        detPag: [pagDet]
+    };
 
     // --- 6. TRANSP ---
     // Map freight mode

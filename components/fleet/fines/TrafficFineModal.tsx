@@ -39,6 +39,7 @@ export function TrafficFineModal({ isOpen, onClose, vehicleId, initialData, onSu
             id: initialData.id,
             vehicle_id: initialData.vehicle_id,
             fine_date: initialData.fine_date,
+            due_date: initialData.due_date,
             city: initialData.city,
             reason: initialData.reason,
             amount: initialData.amount,
@@ -95,14 +96,25 @@ export function TrafficFineModal({ isOpen, onClose, vehicleId, initialData, onSu
                     <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
                         <h3 className="text-sm font-semibold text-gray-900">Dados da multa</h3>
 
-                        <div className="space-y-1.5">
-                            <Label className="text-sm font-medium text-gray-700">Data</Label>
-                            <Input
-                                type="date"
-                                {...register("fine_date")}
-                                className="h-10 border-gray-200"
-                            />
-                            {errors.fine_date && <p className="text-xs text-red-500">{errors.fine_date.message}</p>}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label className="text-sm font-medium text-gray-700">Data da Infração</Label>
+                                <Input
+                                    type="date"
+                                    {...register("fine_date")}
+                                    className="h-10 border-gray-200"
+                                />
+                                {errors.fine_date && <p className="text-xs text-red-500">{errors.fine_date.message}</p>}
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label className="text-sm font-medium text-gray-700">Vencimento (Opcional)</Label>
+                                <Input
+                                    type="date"
+                                    {...register("due_date")}
+                                    className="h-10 border-gray-200"
+                                />
+                            </div>
                         </div>
 
                         <div className="space-y-1.5">

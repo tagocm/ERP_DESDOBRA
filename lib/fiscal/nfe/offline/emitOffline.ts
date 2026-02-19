@@ -34,7 +34,12 @@ export async function emitOffline(orderId: string, companyId: string, transmit: 
             .select(`
                 *,
                 client:organizations!client_id(*, addresses(*)),
-                items:sales_document_items!sales_document_items_document_id_fkey(*, product:items!sales_document_items_item_id_fkey(*, fiscal:item_fiscal_profiles(*)), packaging:item_packaging(*)),
+                items:sales_document_items!sales_document_items_document_id_fkey(
+                    *,
+                    product:items!sales_document_items_item_id_fkey(*, fiscal:item_fiscal_profiles(*)),
+                    packaging:item_packaging(*),
+                    fiscal_operation:fiscal_operations(*)
+                ),
                 payments:sales_document_payments(*),
                 carrier:organizations!carrier_id(*, addresses(*))
             `)
@@ -83,6 +88,87 @@ export async function emitOffline(orderId: string, companyId: string, transmit: 
 
         if (nfeError || !nfeRecord) throw new Error('Registro de NF-e não encontrado.');
 
+        // Resolve installments source with explicit precedence:
+        // 1) NF-e draft snapshot (UI card state before emission)
+        // 2) sales_document_payments (legacy)
+        // 3) financial_event_installments (latest non-rejected financial event)
+        const normalizePaymentMethod = (method?: string | null) => {
+            const raw = String(method || '').trim().toUpperCase();
+            if (!raw) return 'BOLETO';
+            if (raw.includes('PIX')) return 'PIX';
+            if (raw.includes('DINHEIRO')) return 'DINHEIRO';
+            if (raw.includes('CARTAO') || raw.includes('CARTÃO') || raw.includes('CARD')) return 'CARTAO';
+            if (raw.includes('BOLETO')) return 'BOLETO';
+            return raw;
+        };
+
+        const normalizeInstallmentsToPayments = (list: any[] | undefined) =>
+            (Array.isArray(list) ? list : [])
+                .map((inst: any) => ({
+                    installment_number: Number(inst.installment_number || inst.number || 0),
+                    due_date: String(inst.due_date || inst.dueDate || '').slice(0, 10),
+                    amount: Number(inst.amount || 0),
+                    payment_method: normalizePaymentMethod(inst.payment_method || inst.payment_condition || inst.method || null)
+                }))
+                .filter((inst: any) => inst.installment_number > 0 && !!inst.due_date && inst.amount > 0);
+
+        const snapshotInstallments = normalizeInstallmentsToPayments(
+            (nfeRecord as any)?.draft_snapshot?.billing?.installments
+        );
+
+        if (snapshotInstallments.length > 0) {
+            (order as any).payments = snapshotInstallments;
+            console.log(`[OfflineEmit] Using ${snapshotInstallments.length} installments from draft_snapshot.billing`);
+        } else {
+            const currentOrderPayments = normalizeInstallmentsToPayments((order as any).payments);
+            if (currentOrderPayments.length > 0) {
+                (order as any).payments = currentOrderPayments;
+                console.log(`[OfflineEmit] Using ${currentOrderPayments.length} installments from sales_document_payments`);
+            } else {
+                const { data: latestEvent, error: eventError } = await adminSupabase
+                    .from('financial_events')
+                    .select(`
+                        id,
+                        status,
+                        created_at,
+                        installments:financial_event_installments(
+                            installment_number,
+                            due_date,
+                            amount,
+                            payment_method,
+                            payment_condition
+                        )
+                    `)
+                    .eq('company_id', companyId)
+                    .eq('origin_type', 'SALE')
+                    .eq('origin_id', orderId)
+                    .neq('status', 'rejected')
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (eventError) {
+                    console.warn('[OfflineEmit] Failed to load financial_event_installments fallback:', eventError.message);
+                } else {
+                    const eventInstallments = normalizeInstallmentsToPayments((latestEvent as any)?.installments);
+                    if (eventInstallments.length > 0) {
+                        (order as any).payments = eventInstallments;
+                        console.log(`[OfflineEmit] Using ${eventInstallments.length} installments from financial_event_installments`);
+                    } else {
+                        (order as any).payments = [];
+                    }
+                }
+            }
+        }
+
+        const resolvedPayments = normalizeInstallmentsToPayments((order as any).payments);
+        const today = new Date().toISOString().slice(0, 10);
+        const isPrazo = resolvedPayments.some((p: any) => String(p.due_date) > today || Number(p.installment_number) > 1) || resolvedPayments.length > 1;
+        (order as any).billing = {
+            ...(order as any).billing,
+            paymentMode: isPrazo ? 'prazo' : 'avista'
+        };
+
         // 2. Prepare Key Params & Draft
 
         const serie = nfeRecord.nfe_series || company.settings?.nfe_series || "1";
@@ -94,11 +180,22 @@ export async function emitOffline(orderId: string, companyId: string, transmit: 
 
         const cNF = generateRandomCNF();
 
-        // Address Selection: Prioritize (Main & SP) -> SP -> Main -> First
-        // This ensures we pick the correct Fiscal Address even if there is garbage data (e.g. Test addresses in GO)
+        // Address Selection: prefer fiscal address from company_settings, then main address, then first.
         const addresses = company.addresses || [];
-        const selectedAddress = addresses.find((a: { is_main: boolean; state: string }) => a.is_main && (a.state === 'SP' || a.state === 'Sao Paulo'))
-            || addresses.find((a: { state: string }) => a.state === 'SP' || a.state === 'Sao Paulo')
+        const settingsAddress = (company.settings?.address_street && company.settings?.address_city && company.settings?.address_state && company.settings?.address_zip)
+            ? {
+                street: company.settings.address_street,
+                number: company.settings.address_number || 'SN',
+                neighborhood: company.settings.address_neighborhood || 'GERAL',
+                city: company.settings.address_city,
+                state: company.settings.address_state,
+                zip: company.settings.address_zip,
+                city_code_ibge: company.settings.city_code_ibge || undefined,
+                is_main: true
+            }
+            : null;
+
+        const selectedAddress = settingsAddress
             || addresses.find((a: { is_main: boolean }) => a.is_main)
             || addresses[0];
 

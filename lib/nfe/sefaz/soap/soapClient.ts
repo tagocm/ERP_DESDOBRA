@@ -93,8 +93,17 @@ export async function soapRequest(
         // Prepare mTLS Agent
         // In production, we always enforce strict TLS.
         const isProduction = process.env.NODE_ENV === "production";
-        const requestedRejectUnauthorized = process.env.SEFAZ_REJECT_UNAUTHORIZED !== "false";
+
+        let requestedRejectUnauthorized = process.env.SEFAZ_REJECT_UNAUTHORIZED !== "false";
+
+        // Auto-relax for development on macOS (common issue with government roots)
+        if (!isProduction && process.env.SEFAZ_REJECT_UNAUTHORIZED === undefined && process.platform === "darwin") {
+            requestedRejectUnauthorized = false;
+            if (isDebug) logger.info("[SEFAZ] Auto-disabling rejectUnauthorized for macOS development environment.");
+        }
+
         const shouldRejectUnauthorized = isProduction ? true : requestedRejectUnauthorized;
+
         if (isProduction && !requestedRejectUnauthorized) {
             logger.warn("[SEFAZ] Ignoring SEFAZ_REJECT_UNAUTHORIZED=false in production.");
         }

@@ -17,16 +17,51 @@ function buildImposto(imposto: NfeImposto) {
                 }
             };
         } else { // Normal
-            res.ICMS = {
-                ICMS00: {
-                    orig: imposto.icms.orig,
-                    CST: imposto.icms.cst || "00",
-                    modBC: imposto.icms.modBC,
-                    vBC: formatDecimal(imposto.icms.vBC || 0, 2),
-                    pICMS: formatDecimal(imposto.icms.pICMS || 0, 2),
-                    vICMS: formatDecimal(imposto.icms.vICMS || 0, 2),
-                }
+            const cst = imposto.icms.cst || "00";
+            const icmsBase = {
+                orig: imposto.icms.orig,
+                CST: cst,
+                modBC: imposto.icms.modBC || "3",
+                vBC: formatDecimal(imposto.icms.vBC || 0, 2),
+                pICMS: formatDecimal(imposto.icms.pICMS || 0, 2),
+                vICMS: formatDecimal(imposto.icms.vICMS || 0, 2),
             };
+
+            if (cst === "00") {
+                res.ICMS = {
+                    ICMS00: icmsBase
+                };
+            } else if (cst === "20") {
+                res.ICMS = {
+                    ICMS20: {
+                        orig: imposto.icms.orig,
+                        CST: cst,
+                        modBC: imposto.icms.modBC || "3",
+                        pRedBC: formatDecimal(imposto.icms.pRedBC ?? 0, 2),
+                        vBC: formatDecimal(imposto.icms.vBC || 0, 2),
+                        pICMS: formatDecimal(imposto.icms.pICMS || 0, 2),
+                        vICMS: formatDecimal(imposto.icms.vICMS || 0, 2),
+                    }
+                };
+            } else if (["40", "41", "50"].includes(cst)) {
+                res.ICMS = {
+                    ICMS40: {
+                        orig: imposto.icms.orig,
+                        CST: cst,
+                    }
+                };
+            } else if (cst === "90") {
+                res.ICMS = {
+                    ICMS90: {
+                        ...icmsBase,
+                        ...(imposto.icms.pRedBC !== undefined
+                            ? { pRedBC: formatDecimal(imposto.icms.pRedBC, 2) }
+                            : {}),
+                    }
+                };
+            } else {
+                throw new Error(`CST ICMS '${cst}' não suportado no XML da NF-e`);
+            }
         }
     }
 
@@ -94,24 +129,28 @@ function buildImposto(imposto: NfeImposto) {
 }
 
 export function buildDet(item: NfeItem) {
+    const prod: any = {
+        cProd: item.prod.cProd,
+        cEAN: item.prod.cean || "SEM GTIN",
+        xProd: item.prod.xProd,
+        NCM: item.prod.ncm,
+        ...(item.prod.cest ? { CEST: item.prod.cest } : {}),
+        ...(item.prod.cBenef ? { cBenef: item.prod.cBenef } : {}),
+        CFOP: item.prod.cfop,
+        uCom: item.prod.uCom,
+        qCom: formatDecimal(item.prod.qCom, 4),
+        vUnCom: formatDecimal(item.prod.vUnCom, 4),
+        vProd: formatDecimal(item.prod.vProd, 2),
+        cEANTrib: item.prod.ceanTrib || "SEM GTIN",
+        uTrib: item.prod.uTrib,
+        qTrib: formatDecimal(item.prod.qTrib, 4),
+        vUnTrib: formatDecimal(item.prod.vUnTrib, 4),
+        indTot: "1"
+    };
+
     return {
         "@_nItem": item.nItem,
-        prod: {
-            cProd: item.prod.cProd,
-            cEAN: item.prod.cean || "SEM GTIN",
-            xProd: item.prod.xProd,
-            NCM: item.prod.ncm,
-            CFOP: item.prod.cfop,
-            uCom: item.prod.uCom,
-            qCom: formatDecimal(item.prod.qCom, 4),
-            vUnCom: formatDecimal(item.prod.vUnCom, 4),
-            vProd: formatDecimal(item.prod.vProd, 2),
-            cEANTrib: item.prod.ceanTrib || "SEM GTIN",
-            uTrib: item.prod.uTrib,
-            qTrib: formatDecimal(item.prod.qTrib, 4),
-            vUnTrib: formatDecimal(item.prod.vUnTrib, 4),
-            indTot: "1"
-        },
+        prod,
         imposto: buildImposto(item.imposto)
     };
 }

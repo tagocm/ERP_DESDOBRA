@@ -29,9 +29,17 @@ const CreateRecurringRuleSchema = z.object({
     // Values
     amount_type: z.enum(['FIXO', 'VARIAVEL']),
     fixed_amount: z.number().optional().nullable(),
+    contract_amount: z.number().optional().nullable(),
     estimated_amount: z.number().optional().nullable(),
 
     status: z.enum(['ATIVO', 'RASCUNHO']),
+    manual_installments: z.array(
+        z.object({
+            installment_number: z.coerce.number().int().positive("Número da parcela deve ser maior que zero"),
+            due_date: z.string().min(1, "Data da parcela obrigatória"),
+            amount: z.number().positive("Valor da parcela deve ser maior que zero"),
+        })
+    ).optional().default([]),
 }).refine(data => {
     if (data.valid_to && data.valid_to < data.valid_from) return false;
     return true;
@@ -55,13 +63,24 @@ const CreateRecurringRuleSchema = z.object({
     message: "Quantidade de lançamentos deve ser maior que zero",
     path: ["installments_count"]
 }).refine(data => {
-    if (data.amount_type === 'FIXO' && (!data.fixed_amount || data.fixed_amount <= 0)) {
+    if (data.generation_mode === 'AUTOMATICO' && data.amount_type === 'FIXO') {
+        const recurring = Number(data.fixed_amount || 0);
+        const contract = Number(data.contract_amount || 0);
+        if (recurring > 0 || contract > 0) return true;
         return false;
     }
     return true;
 }, {
-    message: "Valor fixo obrigatório para contratos fixos",
+    message: "No modo automático, preencha o Valor Recorrente ou o Valor do Contrato",
     path: ["fixed_amount"]
+}).refine(data => {
+    if (data.generation_mode === 'MANUAL') {
+        return (data.manual_installments?.length || 0) > 0;
+    }
+    return true;
+}, {
+    message: "Adicione ao menos uma parcela no modo manual",
+    path: ["manual_installments"]
 });
 
 export type CreateRecurringRuleInput = z.infer<typeof CreateRecurringRuleSchema>;
@@ -97,7 +116,9 @@ export async function createRecurringRuleAction(input: CreateRecurringRuleInput)
                 frequency: result.data.frequency,
                 amount_type: result.data.amount_type,
                 fixed_amount: result.data.fixed_amount || null,
+                contract_amount: result.data.contract_amount || null,
                 estimated_amount: result.data.estimated_amount || null,
+                manual_installments: result.data.generation_mode === 'MANUAL' ? result.data.manual_installments : [],
                 status: result.data.status,
                 updated_at: new Date().toISOString()
             });

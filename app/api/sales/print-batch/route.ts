@@ -61,6 +61,11 @@ export async function POST(request: Request) {
                     *,
                     addresses (*)
                 ),
+                deliveries:deliveries(
+                    status,
+                    created_at,
+                    updated_at
+                ),
                 items:sales_document_items (
                     *,
                     product:items!fk_sales_item_product (*)
@@ -74,6 +79,85 @@ export async function POST(request: Request) {
                 message: fetchError?.message
             });
             return NextResponse.json({ error: 'Erro ao buscar dados dos pedidos.' }, { status: 500 });
+        }
+
+        // 1.1 Fetch financial titles/installments linked to orders
+        const orderIds = orders.map((o: any) => o.id).filter(Boolean);
+        const financialEntriesByOrder = new Map<string, any[]>();
+        const financialEventEntriesByOrder = new Map<string, any[]>();
+        if (orderIds.length > 0) {
+            const { data: arTitles, error: titlesError } = await supabase
+                .from('ar_titles')
+                .select(`
+                    id,
+                    sales_document_id,
+                    installments:ar_installments(
+                        installment_number,
+                        due_date,
+                        amount_original,
+                        amount_open,
+                        status,
+                        payment_method
+                    )
+                `)
+                .in('sales_document_id', orderIds);
+
+            if (titlesError) {
+                logger.warn('[sales/print-batch] Failed loading financial entries (non-blocking)', {
+                    code: titlesError.code,
+                    message: titlesError.message
+                });
+            } else {
+                for (const title of arTitles || []) {
+                    const docId = (title as any).sales_document_id as string;
+                    if (!docId) continue;
+                    const rows = Array.isArray((title as any).installments) ? (title as any).installments : [];
+                    const prev = financialEntriesByOrder.get(docId) || [];
+                    financialEntriesByOrder.set(docId, [...prev, ...rows]);
+                }
+            }
+
+            // Fallback for non-approved orders: financial pre-approval events/installments.
+            const { data: financialEvents, error: eventsError } = await supabase
+                .from('financial_events')
+                .select(`
+                    id,
+                    origin_id,
+                    status,
+                    installments:financial_event_installments(
+                        installment_number,
+                        due_date,
+                        amount,
+                        payment_method
+                    )
+                `)
+                .eq('origin_type', 'SALE')
+                .eq('direction', 'AR')
+                .in('origin_id', orderIds)
+                .neq('status', 'rejected');
+
+            if (eventsError) {
+                logger.warn('[sales/print-batch] Failed loading financial events (non-blocking)', {
+                    code: eventsError.code,
+                    message: eventsError.message
+                });
+            } else {
+                for (const ev of financialEvents || []) {
+                    const docId = (ev as any).origin_id as string;
+                    if (!docId) continue;
+                    const rows = Array.isArray((ev as any).installments) ? (ev as any).installments : [];
+                    const normalizedRows = rows.map((inst: any) => ({
+                        installment_number: inst.installment_number,
+                        due_date: inst.due_date,
+                        amount_original: Number(inst.amount || 0),
+                        amount_open: Number(inst.amount || 0),
+                        payment_method: inst.payment_method,
+                        status: String((ev as any).status || 'pending').toUpperCase()
+                    }));
+                    const prev = financialEventEntriesByOrder.get(docId) || [];
+                    financialEventEntriesByOrder.set(docId, [...prev, ...normalizedRows]);
+                }
+            }
         }
 
         // 1.5 Fetch Actual Company Data & Process Logo
@@ -175,7 +259,15 @@ export async function POST(request: Request) {
 
                 const html = renderOrderA4Html({
                     company: companyData,
-                    order: { ...order, client_address_resolved: clientAddr },
+                    order: {
+                        ...order,
+                        client_address_resolved: clientAddr,
+                        financial_entries:
+                            (financialEntriesByOrder.get(order.id)?.length
+                                ? financialEntriesByOrder.get(order.id)
+                                : financialEventEntriesByOrder.get(order.id)) || [],
+                        is_partial_order: order.status_logistic === 'partial'
+                    },
                     items: order.items || []
                 });
 
@@ -213,7 +305,14 @@ export async function POST(request: Request) {
             const orderHtmls = orders.map(order =>
                 renderOrderA4Html({
                     company: companyData,
-                    order,
+                    order: {
+                        ...order,
+                        financial_entries:
+                            (financialEntriesByOrder.get(order.id)?.length
+                                ? financialEntriesByOrder.get(order.id)
+                                : financialEventEntriesByOrder.get(order.id)) || [],
+                        is_partial_order: order.status_logistic === 'partial'
+                    },
                     items: order.items || []
                 })
             );

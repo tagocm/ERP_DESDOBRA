@@ -1,5 +1,5 @@
 
-import { createClient } from "@/lib/supabaseBrowser";
+import { createClient } from "@/utils/supabase/server";
 
 export interface PaymentMode {
     id: string;
@@ -10,8 +10,7 @@ export interface PaymentMode {
 }
 
 export async function getPaymentModes(companyId: string) {
-    const supabase = createClient();
-    // note: filtering by company_id is automatic via RLS but explicit check is good practice or if using service role
+    const supabase = await createClient();
     const { data, error } = await supabase
         .from('payment_modes')
         .select(`
@@ -32,7 +31,7 @@ export async function getPaymentModes(companyId: string) {
 }
 
 export async function createPaymentMode(companyId: string, name: string) {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data, error } = await supabase
         .from('payment_modes')
         .insert({ company_id: companyId, name })
@@ -49,7 +48,7 @@ export async function createPaymentMode(companyId: string, name: string) {
 }
 
 export async function updatePaymentMode(id: string, name: string) {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data, error } = await supabase
         .from('payment_modes')
         .update({ name })
@@ -67,7 +66,7 @@ export async function updatePaymentMode(id: string, name: string) {
 }
 
 export async function deletePaymentMode(id: string) {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { error } = await supabase
         .from('payment_modes')
         .delete()

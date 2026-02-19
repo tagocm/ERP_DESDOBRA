@@ -77,6 +77,7 @@ export interface NfeProd {
     xProd: string;
     ncm: string;
     cest?: string;
+    cBenef?: string;
     cfop: string;
     uCom: string;
     qCom: number;
@@ -137,6 +138,14 @@ export interface NfePag {
         tPag: string; // 01-Dinheiro, 03-Cartão...
         vPag: number;
         xPag?: string; // Descrição para tPag=99
+        card?: {
+            tpIntegra: "1" | "2";
+            CNPJ?: string;
+            tBand?: string;
+            cAut?: string;
+            CNPJReceb?: string;
+            idTermPag?: string;
+        };
     }>;
     vTroco?: number;
 }

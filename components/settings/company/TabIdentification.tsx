@@ -8,9 +8,8 @@ import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
 import { Search, Loader2, Upload, Trash2, MapPin, Phone, Building2, UserCircle, Image as ImageIcon, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { CompanySettings } from "@/lib/types/settings-types";
 import { extractDigits, formatCNPJ } from "@/lib/cnpj";
-import { useState, useRef } from "react";
-import { createClient } from "@/lib/supabaseBrowser";
-import { validateLogoFile, generateFilePath } from "@/lib/upload-helpers";
+import { useEffect, useState, useRef } from "react";
+import { validateLogoFile } from "@/lib/upload-helpers";
 import { useCompany } from "@/contexts/CompanyContext";
 import { cn, toTitleCase } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
@@ -23,7 +22,6 @@ interface TabIdentificationProps {
 
 export function TabIdentification({ data, onChange, isAdmin }: TabIdentificationProps) {
     const { selectedCompany } = useCompany();
-    const supabase = createClient();
     const { toast } = useToast();
     const [loadingCnpj, setLoadingCnpj] = useState(false);
     const [loadingCep, setLoadingCep] = useState(false);
@@ -33,20 +31,47 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
     const [uploadingLogo, setUploadingLogo] = useState(false);
     const [logoError, setLogoError] = useState<string | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
+    const [logoSignedUrl, setLogoSignedUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!selectedCompany || !data.logo_path) {
+            setLogoSignedUrl(null);
+            return;
+        }
+
+        let mounted = true;
+        const loadSignedUrl = async () => {
+            try {
+                const response = await fetch('/api/company/logo/signed-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ companyId: selectedCompany.id })
+                });
+                if (!response.ok) {
+                    if (mounted) setLogoSignedUrl(null);
+                    return;
+                }
+                const payload = await response.json();
+                if (mounted) setLogoSignedUrl(payload.signedUrl || null);
+            } catch {
+                if (mounted) setLogoSignedUrl(null);
+            }
+        };
+
+        if (String(data.logo_path).startsWith('data:')) {
+            setLogoSignedUrl(String(data.logo_path));
+            return;
+        }
+
+        void loadSignedUrl();
+        return () => { mounted = false; };
+    }, [selectedCompany?.id, data.logo_path]);
 
     const processLogoUpload = async (file: File) => {
         if (!selectedCompany) return;
 
-        console.log('🔵 Upload started:', {
-            fileName: file.name,
-            fileType: file.type,
-            fileSize: file.size,
-            companyId: selectedCompany.id
-        });
-
         const validation = validateLogoFile(file);
         if (!validation.valid) {
-            console.error('❌ Validation failed:', validation.error);
             setLogoError(validation.error || "Arquivo inválido");
             return;
         }
@@ -55,34 +80,24 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
         setUploadingLogo(true);
 
         try {
-            const path = generateFilePath(selectedCompany.id, 'logo', file.name);
-            console.log('📁 Upload path:', path);
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('companyId', selectedCompany.id);
 
-            const { error, data } = await supabase.storage
-                .from('company-assets')
-                .upload(path, file, {
-                    upsert: true,
-                    contentType: file.type
-                });
+            const response = await fetch('/api/company/logo/upload', {
+                method: 'POST',
+                body: formData
+            });
 
-            if (error) {
-                console.error('❌ Upload error:', error);
-                throw error;
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.error || 'Erro ao enviar logo');
             }
 
-            console.log('✅ Upload successful:', data);
-
-            const { data: { publicUrl } } = supabase.storage
-                .from('company-assets')
-                .getPublicUrl(path);
-
-            console.log('🔗 Public URL generated:', publicUrl);
-            console.log('📝 Calling onChange with URL');
-
-            onChange('logo_path', publicUrl);
+            onChange('logo_path', payload.logoPath || null);
+            setLogoSignedUrl(null);
 
         } catch (err: any) {
-            console.error('💥 Upload catch error:', err);
             setLogoError("Erro ao enviar logo: " + err.message);
         } finally {
             setUploadingLogo(false);
@@ -117,6 +132,26 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
 
         const file = e.dataTransfer.files?.[0];
         if (file) await processLogoUpload(file);
+    };
+
+    const handleDeleteLogo = async () => {
+        if (!selectedCompany) return;
+        try {
+            const response = await fetch('/api/company/logo/delete', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ companyId: selectedCompany.id })
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.error || 'Erro ao remover logo');
+            }
+            onChange('logo_path', null);
+            setLogoSignedUrl(null);
+            setLogoError(null);
+        } catch (err: any) {
+            setLogoError("Erro ao remover logo: " + err.message);
+        }
     };
 
     // --- Identification Logic ---
@@ -281,7 +316,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                                 {data.logo_path ? (
                                     <>
                                         <img
-                                            src={data.logo_path}
+                                            src={logoSignedUrl || ''}
                                             alt="Logo"
                                             className="absolute inset-0 w-full h-full object-contain p-2"
                                         />
@@ -290,7 +325,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                                                 <Button
                                                     variant="danger"
                                                     size="sm"
-                                                    onClick={() => onChange('logo_path', null)}
+                                                    onClick={handleDeleteLogo}
                                                     className="h-9 w-9 p-0 rounded-2xl"
                                                 >
                                                     <Trash2 className="w-5 h-5" />

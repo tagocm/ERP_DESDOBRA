@@ -4,10 +4,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 import { createAdminClient } from '@/lib/supabaseServer';
 import { normalizeCorrectionText, validateCorrectionText } from '@/lib/fiscal/nfe/correction-letter-rules';
+import { resolveEmissionForFiscalAction } from '@/lib/fiscal/nfe/resolve-emission';
+import { ensureEmissionProtocol } from '@/lib/fiscal/nfe/ensure-emission-protocol';
 
 type Payload = {
     emissionId?: string;
     accessKey?: string;
+    salesDocumentId?: string;
+    nfeNumber?: string | number;
+    nfeSeries?: string | number;
     correctionText?: string;
 };
 
@@ -32,42 +37,53 @@ export async function POST(request: NextRequest) {
         }
 
         const admin = createAdminClient();
-        let { data: emission, error: emissionError } = await admin
-            .from('nfe_emissions')
-            .select('id, company_id, sales_document_id, access_key, status')
-            .eq('id', body.emissionId)
-            .maybeSingle();
 
-        if ((!emission || emissionError) && body.accessKey) {
-            const fallback = await admin
-                .from('nfe_emissions')
-                .select('id, company_id, sales_document_id, access_key, status')
-                .eq('access_key', body.accessKey)
-                .order('updated_at', { ascending: false })
-                .limit(1)
-                .maybeSingle();
+        // Get the companies the user is a member of to scope the search
+        const { data: userCompanies } = await supabase
+            .from("company_members")
+            .select("company_id")
+            .eq("auth_user_id", user.id);
 
-            emission = fallback.data || null;
-            emissionError = fallback.error || null;
+        const companyIds = (userCompanies || []).map(m => m.company_id);
+
+        if (companyIds.length === 0) {
+            return NextResponse.json({ error: "Usuário não vinculado a nenhuma empresa." }, { status: 403 });
         }
 
-        if (emissionError || !emission) {
-            return NextResponse.json({ error: 'NF-e não encontrada.' }, { status: 404 });
+        // Use the robust utility to find the emission (handles legacy and auto-backfill)
+        const emission = await resolveEmissionForFiscalAction({
+            admin,
+            companyIds,
+            payload: {
+                emissionId: body.emissionId,
+                accessKey: body.accessKey,
+                salesDocumentId: body.salesDocumentId,
+                nfeNumber: body.nfeNumber,
+                nfeSeries: body.nfeSeries,
+            }
+        });
+
+        // Re-check permission and existence
+        if (!emission) {
+            return NextResponse.json({ error: "NF-e não encontrada." }, { status: 404 });
         }
 
-        if (emission.status !== 'authorized') {
-            return NextResponse.json({ error: 'Somente NF-e autorizada pode receber carta de correção.' }, { status: 400 });
+        // Double check permission (utility already filters by companyIds)
+        if (!companyIds.includes(emission.company_id)) {
+            return NextResponse.json({ error: "Sem permissão para esta empresa." }, { status: 403 });
         }
 
-        const { data: membership } = await supabase
-            .from('company_members')
-            .select('company_id')
-            .eq('auth_user_id', user.id)
-            .eq('company_id', emission.company_id)
-            .maybeSingle();
+        // Ensure protocol exists (handles legacy/missing)
+        const nProt = await ensureEmissionProtocol({
+            admin,
+            emissionId: emission.id,
+            companyId: emission.company_id,
+            accessKey: emission.access_key,
+            existingNProt: (emission as any).n_prot,
+        });
 
-        if (!membership) {
-            return NextResponse.json({ error: 'Sem permissão para esta empresa.' }, { status: 403 });
+        if (!nProt) {
+            return NextResponse.json({ error: "NF-e sem protocolo de autorização (nProt). Tente 'Consultar Situação' antes de enviar a CC-e." }, { status: 400 });
         }
 
         const { data: latestSequence } = await admin

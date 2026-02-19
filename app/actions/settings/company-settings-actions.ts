@@ -8,6 +8,7 @@ import {
     updateCompanySettings,
     updateCompanyName
 } from '@/lib/data/company-settings';
+import { CompanySettings } from '@/lib/types/settings-types';
 
 // ============================================================================
 // TYPES
@@ -54,32 +55,32 @@ const UpdateSettingsSchema = z.object({
     cnpj: z.string().nullable().optional(),
     ie: z.string().nullable().optional(),
     im: z.string().nullable().optional(),
-    cnae_code: z.string().nullable().optional(),
+    cnae_code: z.coerce.string().nullable().optional(),
     cnae_description: z.string().nullable().optional(),
     phone: z.string().nullable().optional(),
     email: z.string().email().nullable().optional().or(z.literal('')),
     website: z.string().nullable().optional(),
-    address_zip: z.string().nullable().optional(),
+    address_zip: z.coerce.string().nullable().optional(),
     address_street: z.string().nullable().optional(),
-    address_number: z.string().nullable().optional(),
+    address_number: z.coerce.string().nullable().optional(),
     address_complement: z.string().nullable().optional(),
     address_neighborhood: z.string().nullable().optional(),
     address_city: z.string().nullable().optional(),
     address_state: z.string().nullable().optional(),
     address_country: z.string().nullable().optional(),
-    city_code_ibge: z.string().nullable().optional(),
+    city_code_ibge: z.coerce.string().nullable().optional(),
     tax_regime: z.enum(['simples_nacional', 'lucro_presumido', 'lucro_real']).nullable().optional(),
     nfe_environment: z.enum(['homologation', 'production']).nullable().optional(),
-    nfe_series: z.string().nullable().optional(),
-    nfe_next_number: z.number().int().optional(),
-    default_penalty_percent: z.number().min(0).optional(),
-    default_interest_percent: z.number().min(0).optional(),
+    nfe_series: z.coerce.string().nullable().optional(),
+    nfe_next_number: z.coerce.number().int().optional(),
+    default_penalty_percent: z.coerce.number().min(0).optional(),
+    default_interest_percent: z.coerce.number().min(0).optional(),
     // Certificate fields
     cert_a1_storage_path: z.string().nullable().optional(),
     cert_a1_uploaded_at: z.string().nullable().optional(),
     cert_a1_expires_at: z.string().nullable().optional(),
     is_cert_password_saved: z.boolean().optional(),
-    cert_password_encrypted: z.string().optional()
+    cert_password_encrypted: z.string().nullable().optional()
 }).passthrough(); // Allow other fields if DB model expands without schema update
 
 const UpdateNameSchema = z.object({
@@ -107,18 +108,26 @@ export async function updateCompanySettingsAction(data: z.infer<typeof UpdateSet
         const supabase = await createClient();
 
         const validated = UpdateSettingsSchema.parse(data);
+        const { cert_password_encrypted, ...rest } = validated;
+        const normalized: Partial<CompanySettings> = {
+            ...(rest as Partial<CompanySettings>),
+            ...(cert_password_encrypted != null ? { cert_password_encrypted } : {})
+        };
 
         // Filter out nulls/undefined if needed, but data layer handles Partial
-        const result = await updateCompanySettings(supabase, resolvedCompanyId, validated);
+        const result = await updateCompanySettings(supabase, resolvedCompanyId, normalized);
 
         revalidatePath('/app/configuracoes/empresa');
         return { success: true, data: result };
     } catch (e: any) {
+        console.error('UpdateSettings Error:', e);
         // Friendly error message for Zod errors
         if (e instanceof z.ZodError) {
-            return { success: false, error: (e as any).errors.map((err: any) => err.message).join(', ') };
+            const issues = (e as any).issues || (e as any).errors;
+            const messages = issues?.map((err: any) => err.message).join(', ');
+            return { success: false, error: messages || JSON.stringify(issues) || "Erro de validação desconhecido" };
         }
-        return { success: false, error: e.message };
+        return { success: false, error: e.message || "Erro desconhecido" };
     }
 }
 

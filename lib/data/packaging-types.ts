@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabaseBrowser";
+import { createClient } from "@/utils/supabase/server";
 
 export interface PackagingType {
     id: string;
@@ -11,7 +11,7 @@ export interface PackagingType {
 }
 
 export async function getPackagingTypes(companyId: string, search?: string): Promise<PackagingType[]> {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     let query = supabase
         .from('packaging_types')
@@ -36,7 +36,7 @@ export async function getPackagingTypes(companyId: string, search?: string): Pro
 }
 
 export async function getAllPackagingTypesIncludingInactive(companyId: string): Promise<PackagingType[]> {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data, error } = await supabase
         .from('packaging_types')
@@ -49,14 +49,11 @@ export async function getAllPackagingTypesIncludingInactive(companyId: string): 
         return [];
     }
 
-    // Since we don't have a direct FK for count (text column), we skip usage count for now or implement a separate query
-    // To support deleting, we should ideally count usage.
-    // For now we return basic data.
     return data as PackagingType[];
 }
 
 export async function createPackagingType(type: Partial<PackagingType>): Promise<PackagingType | null> {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     if (!type.company_id) {
         throw new Error("Company ID is required");
@@ -78,7 +75,7 @@ export async function createPackagingType(type: Partial<PackagingType>): Promise
 }
 
 export async function updatePackagingType(id: string, updates: Partial<PackagingType>): Promise<PackagingType | null> {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data, error } = await supabase
         .from('packaging_types')
@@ -97,7 +94,7 @@ export async function updatePackagingType(id: string, updates: Partial<Packaging
 }
 
 export async function deletePackagingType(id: string): Promise<void> {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // First get the code to check usage
     const { data: typeData, error: fetchError } = await supabase.from('packaging_types').select('code').eq('id', id).single();

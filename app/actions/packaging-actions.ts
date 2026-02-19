@@ -8,7 +8,7 @@
 
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/utils/supabase/server';
+import { getActiveCompanyId } from '@/lib/auth/get-active-company';
 import {
     getPackagingTypes,
     getAllPackagingTypesIncludingInactive,
@@ -30,26 +30,8 @@ export type ActionResult<T = void> =
 // HELPER: Get Company ID from Auth
 // ============================================================================
 
-async function getCompanyId(): Promise<string> {
-    const supabase = await createClient();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-        throw new Error('Usuário não autenticado');
-    }
-
-    const { data: companies, error: companyError } = await supabase
-        .from('companies')
-        .select('id')
-        .eq('owner_id', user.id)
-        .single();
-
-    if (companyError || !companies) {
-        throw new Error('Empresa não encontrada');
-    }
-
-    return companies.id;
-}
+// Usa getActiveCompanyId (company_members) para suportar membros que não são owners
+const getCompanyId = getActiveCompanyId;
 
 // ============================================================================
 // VALIDATION SCHEMAS

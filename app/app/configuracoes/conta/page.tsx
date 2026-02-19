@@ -13,6 +13,7 @@ import { AlertCircle, CheckCircle, Loader2, Save, Lock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Alert } from "@/components/ui/Alert";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/Dialog";
+import { useToast } from "@/components/ui/use-toast";
 
 // Tabs definitions removed
 
@@ -20,6 +21,7 @@ export default function AccountSettingsPage() {
     // We use 'user' from context which we fixed to be exposed
     const { user } = useCompany();
     const supabase = createClient();
+    const { toast } = useToast();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -33,9 +35,6 @@ export default function AccountSettingsPage() {
     // Or fetch from public.users if it exists? 
     // Let's rely on auth metadata or defaults since we are migrating.
     const [role, setRole] = useState("USER");
-
-    // Toast / Feedback
-    const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     // Fetch Profile
     useEffect(() => {
@@ -69,23 +68,30 @@ export default function AccountSettingsPage() {
                 console.error("Error fetching profile full:", err);
                 console.error("Error Code:", err.code);
                 console.error("Error Message:", err.message);
-                setMessage({ type: 'error', text: `Erro ao carregar dados do perfil: ${err.message || 'Desconhecido'}` });
+                toast({
+                    title: "Erro ao carregar perfil",
+                    description: err.message || "Desconhecido",
+                    variant: "destructive"
+                });
             } finally {
                 setLoading(false);
             }
         }
         fetchProfile();
-    }, [user]);
+    }, [user, toast]);
 
     const handleSaveProfile = async () => {
         if (!user) return;
         if (!fullName.trim()) {
-            setMessage({ type: 'error', text: "Nome é obrigatório." });
+            toast({
+                title: "Nome obrigatório",
+                description: "Preencha o nome completo para salvar.",
+                variant: "destructive"
+            });
             return;
         }
 
         setSaving(true);
-        setMessage(null);
 
         try {
             // UPSERT profile
@@ -100,14 +106,17 @@ export default function AccountSettingsPage() {
 
             if (error) throw error;
 
-            setMessage({ type: 'success', text: "Dados atualizados com sucesso." });
-
-            // Clear message after 3s
-            setTimeout(() => setMessage(null), 3000);
+            toast({
+                title: "Dados atualizados com sucesso."
+            });
 
         } catch (err: any) {
             console.error("Error updating profile:", err);
-            setMessage({ type: 'error', text: "Erro ao salvar perfil: " + err.message });
+            toast({
+                title: "Erro ao salvar perfil",
+                description: err.message || "Erro desconhecido",
+                variant: "destructive"
+            });
         } finally {
             setSaving(false);
         }
@@ -121,19 +130,6 @@ export default function AccountSettingsPage() {
             />
 
             <div className="max-w-screen-2xl mx-auto px-6 space-y-6">
-
-                {/* Global Message */}
-                {/* Global Message - Floating */}
-                {message && (
-                    <div className={cn(
-                        "fixed top-24 right-6 z-50 p-4 rounded-2xl flex items-center gap-2 text-sm font-medium animate-in fade-in slide-in-from-right-5 shadow-float max-w-md",
-                        message.type === 'success' ? "bg-green-50 text-green-700 border border-green-200" : "bg-red-50 text-red-700 border border-red-200"
-                    )}>
-                        {message.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                        {message.text}
-                    </div>
-                )}
-
                 {loading ? (
                     <div className="flex h-40 items-center justify-center">
                         <Loader2 className="w-8 h-8 animate-spin text-gray-300" />

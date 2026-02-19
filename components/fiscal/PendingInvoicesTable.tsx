@@ -9,9 +9,17 @@ interface Props {
     data: PendingInvoice[];
     isLoading: boolean;
     onInvoiceIssued: () => void;
+    emptyTitle?: string;
+    emptyDescription?: string;
 }
 
-export function PendingInvoicesTable({ data, isLoading, onInvoiceIssued }: Props) {
+export function PendingInvoicesTable({
+    data,
+    isLoading,
+    onInvoiceIssued,
+    emptyTitle = 'Nenhum pedido pendente',
+    emptyDescription = 'Não há pedidos confirmados sem NF-e no momento.',
+}: Props) {
     if (isLoading) {
         return (
             <div className="flex items-center justify-center py-12">
@@ -25,10 +33,10 @@ export function PendingInvoicesTable({ data, isLoading, onInvoiceIssued }: Props
             <div className="text-center py-12">
                 <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Nenhum pedido pendente
+                    {emptyTitle}
                 </h3>
                 <p className="text-gray-500">
-                    Não há pedidos confirmados sem NF-e no momento.
+                    {emptyDescription}
                 </p>
             </div>
         );

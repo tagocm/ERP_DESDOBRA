@@ -52,6 +52,33 @@ function formatParcelaNumero(valor?: string) {
     return `${normalized.slice(0, 4)}-${normalized.slice(4)}`;
 }
 
+function formatFaturaParcelaFromNfe(nfeNumber?: string | number | null) {
+    const digits = String(nfeNumber ?? '').replace(/\D/g, '');
+    return `${digits || '0'}-00`;
+}
+
+function mapTPagLabel(tPag?: string) {
+    const map: Record<string, string> = {
+        '01': 'DINHEIRO',
+        '02': 'CHEQUE',
+        '03': 'CARTAO CREDITO',
+        '04': 'CARTAO DEBITO',
+        '05': 'CREDITO LOJA',
+        '10': 'VALE ALIMENTACAO',
+        '11': 'VALE REFEICAO',
+        '12': 'VALE PRESENTE',
+        '13': 'VALE COMBUSTIVEL',
+        '15': 'BOLETO',
+        '16': 'DEPOSITO',
+        '17': 'PIX',
+        '18': 'TRANSFERENCIA',
+        '19': 'PROGRAMA FIDELIDADE',
+        '90': 'SEM PAGAMENTO',
+        '99': 'OUTROS',
+    };
+    return map[String(tPag || '')] || '-';
+}
+
 // Helper to get CST or CSOSN based on CRT
 function getCST(item: any, crt: string): string {
     const icms = item.imposto?.ICMS;
@@ -81,6 +108,7 @@ export async function renderDanfeHtml(data: DanfeData): Promise<string> {
     const chave = data.chaveAcesso || data.protNFe?.chNFe || '';
     const barcodeImg = chave ? await generateBarcodeBase64(chave, 'code128') : '';
     const isHomologacao = data.ide.tpAmb === '2' || data.protNFe?.tpAmb === '2';
+    const pagamentoVista = (data.pag?.detPag || []).find((p) => String(p?.indPag || '0') === '0');
 
     const css = `
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
@@ -274,7 +302,7 @@ export async function renderDanfeHtml(data: DanfeData): Promise<string> {
 
         .parcelas-grid {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(6, minmax(0, 1fr));
             gap: 0;
             border: 0.2mm solid #000;
             border-top: none; 
@@ -282,13 +310,27 @@ export async function renderDanfeHtml(data: DanfeData): Promise<string> {
 
         .parcela-card {
             border-right: 0.2mm solid #000;
-            border-bottom: 0.2mm solid #000;
-            padding: 0.5mm 0.8mm 0.6mm 0.8mm;
-            min-height: 9mm;
+            border-bottom: none;
+            padding: 0.45mm 0.7mm;
+            min-height: 6.2mm;
         }
 
-        .parcela-card:nth-child(4n) {
+        .parcela-card:nth-child(6n) {
             border-right: none;
+        }
+
+        .parcela-line {
+            display: grid;
+            grid-template-columns: auto auto;
+            align-items: center;
+            justify-content: start;
+            column-gap: 0.45mm;
+            margin-bottom: 0.2mm;
+            line-height: 1.1;
+        }
+
+        .parcela-line:last-child {
+            margin-bottom: 0;
         }
 
         .parcela-line-label {
@@ -296,15 +338,12 @@ export async function renderDanfeHtml(data: DanfeData): Promise<string> {
             font-weight: 600;
             text-transform: uppercase;
             color: #333;
-            margin-bottom: 0.2mm;
-            line-height: 1.1;
         }
 
         .parcela-line-value {
-            font-size: 6.8pt;
+            font-size: 6.5pt;
             font-weight: 700;
-            margin-bottom: 0.3mm;
-            line-height: 1.1;
+            text-align: left;
         }
     `;
 
@@ -556,14 +595,29 @@ export async function renderDanfeHtml(data: DanfeData): Promise<string> {
             <div class="parcelas-grid">
                 ${data.cobr!.dup!.map((dup) => `
                     <div class="parcela-card">
-                        <div class="parcela-line-label">PARCELA</div>
-                        <div class="parcela-line-value">${formatParcelaNumero(dup.nDup)}</div>
-                        <div class="parcela-line-label">VENCIMENTO</div>
-                        <div class="parcela-line-value">${dup.dVenc ? formatDate(dup.dVenc) : '-'}</div>
-                        <div class="parcela-line-label">VALOR</div>
-                        <div class="parcela-line-value">R$ ${formatMoeda(dup.vDup || 0)}</div>
+                        <div class="parcela-line">
+                            <span class="parcela-line-label">PARCELA</span>
+                            <span class="parcela-line-value">${formatFaturaParcelaFromNfe(data.ide?.nNF)}</span>
+                        </div>
+                        <div class="parcela-line">
+                            <span class="parcela-line-label">VENCIMENTO</span>
+                            <span class="parcela-line-value">${dup.dVenc ? formatDate(dup.dVenc) : '-'}</span>
+                        </div>
+                        <div class="parcela-line">
+                            <span class="parcela-line-label">VALOR</span>
+                            <span class="parcela-line-value">R$ ${formatMoeda(dup.vDup || 0)}</span>
+                        </div>
                     </div>
                 `).join('')}
+            </div>
+        ` : pagamentoVista ? `
+            <div class="flex border-thin" style="border-top: none;">
+                <div class="field field-small" style="width: 100%;">
+                    <div class="field-label">PAGAMENTO</div>
+                    <div class="field-value">
+                        À vista - ${mapTPagLabel(pagamentoVista.tPag)} - R$ ${formatMoeda(pagamentoVista.vPag || 0)}
+                    </div>
+                </div>
             </div>
         ` : `
             <div class="flex border-thin" style="border-top: none;">

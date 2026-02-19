@@ -76,6 +76,7 @@ export function NFeStatusNotifier() {
     const orderNumberCacheRef = useRef<Map<string, string>>(new Map());
     const orderCompanyCacheRef = useRef<Map<string, string>>(new Map());
     const mountedAtRef = useRef(Date.now());
+    const suppressGenericNfeToastUntilRef = useRef(0);
 
     useEffect(() => {
         const supabase = supabaseRef.current;
@@ -201,6 +202,7 @@ export function NFeStatusNotifier() {
             const reason = row.x_motivo || row.error_message || "Sem detalhes adicionais.";
 
             if (row.status === "authorized") {
+                if (Date.now() < suppressGenericNfeToastUntilRef.current) return;
                 toast({
                     title: `NF-e autorizada${suffix}`,
                     description: row.c_stat ? `SEFAZ cStat ${row.c_stat}.` : "Autorização concluída."
@@ -240,6 +242,7 @@ export function NFeStatusNotifier() {
             const cStat = row.details?.cStat;
 
             if (row.status === "authorized") {
+                if (Date.now() < suppressGenericNfeToastUntilRef.current) return;
                 toast({
                     title: `NF-e autorizada${suffix}`,
                     description: cStat ? `SEFAZ cStat ${cStat}.` : "Autorização concluída."
@@ -507,6 +510,7 @@ export function NFeStatusNotifier() {
             const sequenceSuffix = payload.sequence ? ` #${payload.sequence}` : "";
 
             if (payload.type === "queued") {
+                suppressGenericNfeToastUntilRef.current = Date.now() + 30_000;
                 toast({
                     title: `Cancelamento enviado para fila${sequenceSuffix}${orderSuffix}`,
                     description: "Você será notificado quando a SEFAZ responder."
@@ -542,6 +546,7 @@ export function NFeStatusNotifier() {
             const sequenceSuffix = payload.sequence ? ` #${payload.sequence}` : "";
 
             if (payload.type === "queued") {
+                suppressGenericNfeToastUntilRef.current = Date.now() + 30_000;
                 toast({
                     title: `CC-e enviada para fila${sequenceSuffix}${orderSuffix}`,
                     description: "Você será notificado quando a SEFAZ responder."

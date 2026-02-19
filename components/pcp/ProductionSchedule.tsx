@@ -259,7 +259,11 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
     const handleStatusParams = async (newStatus: string, reason?: string) => {
         if (!selectedOrder) return
         try {
-            await changeWorkOrderStatusAction(selectedOrder.id, newStatus, reason)
+            const normalizedReason =
+                (reason && reason.trim()) ||
+                (newStatus === 'done' ? editNotes.trim() : undefined)
+
+            await changeWorkOrderStatusAction(selectedOrder.id, newStatus, normalizedReason)
             toast({ title: "Status Atualizado", description: `Ordem atualizada para ${newStatus}.` })
             setIsEditOpen(false)
             fetchOrders()

@@ -36,6 +36,10 @@ function escapeXml(input: string): string {
         .replace(/'/g, "&apos;");
 }
 
+function sanitizeSignedEventXmlForSoap(input: string): string {
+    return input.replace(/^\s*<\?xml[^>]*\?>\s*/i, "").trim();
+}
+
 function formatBrazilOffsetDate(date: Date): string {
     const pad = (value: number) => String(value).padStart(2, "0");
     const year = date.getFullYear();
@@ -82,6 +86,41 @@ function parseCancelResponse(xml: string): {
     };
 }
 
+function extractHttpCancelErrorDetail(xml: string): string | null {
+    const parser = new XMLParser({
+        ignoreAttributes: false,
+        attributeNamePrefix: "@_",
+        removeNSPrefix: true,
+        parseTagValue: false,
+    });
+
+    try {
+        const parsed = parser.parse(xml);
+        const envelope = parsed?.Envelope || parsed?.soap12Envelope || parsed?.["soap:Envelope"];
+        const body = envelope?.Body || envelope?.["soap:Body"];
+
+        const fault = body?.Fault || body?.["soap:Fault"];
+        const faultString = fault?.faultstring || fault?.Reason?.Text || fault?.reason?.text;
+        if (typeof faultString === "string" && faultString.trim()) {
+            return faultString.trim();
+        }
+
+        const retEnv = body?.nfeResultMsg?.retEnvEvento;
+        const event = Array.isArray(retEnv?.retEvento) ? retEnv?.retEvento?.[0] : retEnv?.retEvento;
+        const xMotivo = event?.infEvento?.xMotivo || retEnv?.xMotivo;
+        if (typeof xMotivo === "string" && xMotivo.trim()) {
+            return xMotivo.trim();
+        }
+    } catch {
+        // ignore parse failures here; fallback below
+    }
+
+    const textMatch = xml.match(/<xMotivo>([\s\S]*?)<\/xMotivo>/i);
+    if (textMatch?.[1]) return textMatch[1].trim();
+
+    return null;
+}
+
 export async function submitNfeCancellation(
     input: CancelNfeInput,
     cert: SefazCertConfig,
@@ -120,13 +159,17 @@ export async function submitNfeCancellation(
         pfxPassword: cert.pfxPassword,
     });
 
-    const soapBody = buildSoapEnvelope(signedXml, input.uf, "NFeRecepcaoEvento4");
+    const soapBody = buildSoapEnvelope(sanitizeSignedEventXmlForSoap(signedXml), input.uf, "NFeRecepcaoEvento4");
     const url = getSefazUrl(input.uf, input.tpAmb, "NFeRecepcaoEvento4");
     const soapAction = "http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEventoNF";
 
     const { body, status } = await soapRequest(url, soapAction, soapBody, cert, options);
     if (status !== 200) {
-        throw new NfeSefazError(`Erro HTTP ao cancelar NF-e: ${status}`, "HTTP", { body });
+        const detail = extractHttpCancelErrorDetail(body);
+        const message = detail
+            ? `Erro HTTP ao cancelar NF-e: ${status} - ${detail}`
+            : `Erro HTTP ao cancelar NF-e: ${status}`;
+        throw new NfeSefazError(message, "HTTP", { body, status, detail });
     }
 
     const parsed = parseCancelResponse(body);

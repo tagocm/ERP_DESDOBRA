@@ -8,7 +8,7 @@
 
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/utils/supabase/server';
+import { getActiveCompanyId } from '@/lib/auth/get-active-company';
 import {
     getUoms,
     getAllUomsIncludingInactive,
@@ -30,27 +30,8 @@ export type ActionResult<T = void> =
 // HELPER: Get Company ID from Auth
 // ============================================================================
 
-async function getCompanyId(): Promise<string> {
-    const supabase = await createClient();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-        throw new Error('Usuário não autenticado');
-    }
-
-    // Get company_id from user metadata or companies table
-    const { data: companies, error: companyError } = await supabase
-        .from('companies')
-        .select('id')
-        .eq('owner_id', user.id)
-        .single();
-
-    if (companyError || !companies) {
-        throw new Error('Empresa não encontrada');
-    }
-
-    return companies.id;
-}
+// Usa getActiveCompanyId (company_members) para suportar membros que não são owners
+const getCompanyId = getActiveCompanyId;
 
 // ============================================================================
 // VALIDATION SCHEMAS
@@ -122,9 +103,12 @@ export async function createUomAction(
         const companyId = await getCompanyId();
         const validated = CreateUomSchema.parse(input);
 
+        // Capitalize Name
+        const name = validated.name.charAt(0).toUpperCase() + validated.name.slice(1);
+
         const uom = await createUom({
             company_id: companyId,
-            name: validated.name,
+            name: name,
             abbrev: validated.abbrev,
             is_active: validated.is_active,
         });
@@ -156,6 +140,11 @@ export async function updateUomAction(
     try {
         await getCompanyId(); // Verify auth
         const validated = UpdateUomSchema.parse(input);
+
+        // Capitalize Name if present
+        if (validated.name) {
+            validated.name = validated.name.charAt(0).toUpperCase() + validated.name.slice(1);
+        }
 
         const { id, ...updates } = validated;
         const uom = await updateUom(id, updates);

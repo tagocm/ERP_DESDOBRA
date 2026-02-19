@@ -277,11 +277,7 @@ export default function ItemsPage() {
                                                     {item.uoms?.abbrev || item.uom}
                                                 </span>
                                                 {/* Dev-Only Inconsistency Warning */}
-                                                {(process.env.NODE_ENV === 'development' && item.uoms?.abbrev && item.uoms.abbrev !== item.uom) && (
-                                                    <span className="text-[10px] text-red-500 bg-red-50 px-1 rounded border border-red-100 w-fit" title={`Legacy UOM: ${item.uom} vs Ref: ${item.uoms.abbrev}`}>
-                                                        Inconsistente
-                                                    </span>
-                                                )}
+
                                             </div>
                                         </TableCell>
                                         <TableCell className="px-6 py-4 text-right">

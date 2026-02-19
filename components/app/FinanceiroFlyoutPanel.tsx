@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpCircle, ArrowDownCircle, CheckCircle, BarChart3, LineChart } from "lucide-react";
+import { ArrowUpCircle, ArrowDownCircle, CheckCircle, BarChart3, LineChart, Repeat } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FinanceiroFlyoutPanelProps {
@@ -34,6 +34,11 @@ const menuItems = [
         name: "DRE",
         href: "/app/financeiro/dre",
         icon: BarChart3
+    },
+    {
+        name: "Fatos Geradores",
+        href: "/app/financeiro/fatos-geradores",
+        icon: Repeat
     }
 ];
 

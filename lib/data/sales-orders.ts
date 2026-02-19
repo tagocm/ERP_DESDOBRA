@@ -8,6 +8,10 @@ import { SalesFilters } from '@/lib/types/sales-dto';
 
 export type { SalesFilters };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isUuid = (value: unknown): value is string =>
+    typeof value === 'string' && UUID_REGEX.test(value);
+
 
 export async function getSalesDocuments(supabase: SupabaseClient, filters: SalesFilters) {
     const page = filters.page || 1;
@@ -133,7 +137,11 @@ export async function getSalesDocumentById(supabase: SupabaseClient, id: string)
             *,
             client:organizations!client_id(trade_name, document_number, sales_channel, payment_terms_id),
             sales_rep:users!sales_rep_id(full_name),
-            items:sales_document_items(*, packaging:item_packaging(label), product:items!fk_sales_item_product(name, gtin_ean_base, id, sku, un:uom, net_weight_kg_base, gross_weight_kg_base)),
+            items:sales_document_items(*,
+                packaging:item_packaging(label),
+                product:items!fk_sales_item_product(name, gtin_ean_base, id, sku, un:uom, net_weight_kg_base, gross_weight_kg_base),
+                fiscal_operation:fiscal_operations(icms_rate_percent, icms_reduction_bc_percent, st_rate_percent, st_mva_percent, st_reduction_bc_percent)
+            ),
             payments:sales_document_payments(*),
             adjustments:sales_document_adjustments(*),
             route_info:delivery_route_orders(
@@ -240,16 +248,52 @@ export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<Sa
     });
 
     // Remove frontend-only fields or joins
-    const { product, packaging, unit_weight_kg, gross_weight_kg_snapshot, ...cleanItem } = item as any;
+    const {
+        product,
+        packaging,
+        unit_weight_kg,
+        gross_weight_kg_snapshot,
+        total_amount,
+        ...cleanItem
+    } = item as any;
 
-    // Fix: Remove temp IDs so Supabase generates a real UUID
-    if (cleanItem.id && cleanItem.id.startsWith('temp-')) {
+    // DB computes/maintains derived totals; never send them on insert/update.
+    delete (cleanItem as any).total_amount;
+
+    // Frontend may use temporary IDs like temp-* / copy-*.
+    // Persist only real UUIDs; otherwise let DB generate.
+    if (!isUuid(cleanItem.id)) {
         delete cleanItem.id;
     }
 
-    // Fallback: Populate qty_base with quantity if missing (for legacy or simple items)
-    if (cleanItem.qty_base === undefined && cleanItem.quantity !== undefined) {
-        cleanItem.qty_base = cleanItem.quantity;
+    // Guard against non-UUID packaging references (e.g. "base" from UI selects).
+    if (cleanItem.packaging_id && !isUuid(cleanItem.packaging_id)) {
+        cleanItem.packaging_id = null;
+    }
+
+    // Resolve packaging conversion early to keep qty_base consistent with selected sales unit.
+    // This prevents stock errors such as treating "2 fardos" as "2 UN".
+    let resolvedConversionFactor: number | null = null;
+    if (cleanItem.packaging_id) {
+        if (cleanItem.conversion_factor_snapshot && Number(cleanItem.conversion_factor_snapshot) > 0) {
+            resolvedConversionFactor = Number(cleanItem.conversion_factor_snapshot);
+        } else {
+            const { data: pkg, error: pkgFactorError } = await supabase
+                .from('item_packaging')
+                .select('qty_in_base')
+                .eq('id', cleanItem.packaging_id)
+                .single();
+            if (!pkgFactorError && pkg?.qty_in_base) {
+                resolvedConversionFactor = Number(pkg.qty_in_base);
+            }
+        }
+    }
+    if (cleanItem.quantity !== undefined) {
+        if (resolvedConversionFactor && resolvedConversionFactor > 0) {
+            cleanItem.qty_base = Number(cleanItem.quantity) * resolvedConversionFactor;
+        } else if (cleanItem.qty_base === undefined) {
+            cleanItem.qty_base = cleanItem.quantity;
+        }
     }
 
     // Populate NFe description snapshots for packaging integrity
@@ -316,13 +360,58 @@ export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<Sa
         }
     }
 
-    const { data, error } = await supabase
-        .from('sales_document_items')
-        .upsert(cleanItem)
-        .select()
-        .single();
-    if (error) throw error;
-    return data as SalesOrderItem;
+    const hasPersistentId = Boolean(cleanItem.id && !String(cleanItem.id).startsWith('temp-'));
+    const writeQuery = hasPersistentId
+        ? supabase
+            .from('sales_document_items')
+            .update(cleanItem)
+            .eq('id', cleanItem.id)
+            .select()
+            .single()
+        : supabase
+            .from('sales_document_items')
+            .insert(cleanItem)
+            .select()
+            .single();
+
+    const { data, error } = await writeQuery;
+
+    if (!error) {
+        return data as SalesOrderItem;
+    }
+
+    // Legacy compatibility:
+    // Some environments still have an outdated trigger path that raises
+    // `record "new" has no field "updated_at"` on UPDATE.
+    // In this case, replace item via INSERT + DELETE to avoid update trigger path.
+    const msg = String((error as any)?.message || '');
+    if (msg.toLowerCase().includes('updated_at') && cleanItem.id) {
+        logger.warn('[upsertSalesItem] fallback insert+delete due to legacy updated_at trigger mismatch', {
+            id: cleanItem.id,
+            document_id: cleanItem.document_id
+        });
+
+        const legacyId = cleanItem.id;
+        delete cleanItem.id;
+
+        const { data: inserted, error: insertError } = await supabase
+            .from('sales_document_items')
+            .insert(cleanItem)
+            .select()
+            .single();
+
+        if (insertError) throw insertError;
+
+        const { error: deleteError } = await supabase
+            .from('sales_document_items')
+            .delete()
+            .eq('id', legacyId);
+        if (deleteError) throw deleteError;
+
+        return inserted as SalesOrderItem;
+    }
+
+    throw error;
 }
 
 /**
@@ -579,46 +668,45 @@ export async function recalculateFiscalForOrder(
     customerType: 'contribuinte' | 'isento' | 'nao_contribuinte',
     customerIsFinalConsumer: boolean
 ) {
-    // Fetch order items with product fiscal data
     const { data: items, error } = await supabase
         .from('sales_document_items')
-        .select(`
-            *,
-            packaging:item_packaging(gross_weight_kg, net_weight_kg),
-            product:items!fk_sales_item_product!inner(
-                id,
-                name,
-                net_weight_kg_base,
-                gross_weight_kg_base,
-                net_weight_g_base,
-                gross_weight_g_base,
-                fiscal:item_fiscal_profiles!inner(
-                    tax_group_id,
-                    ncm,
-                    cest,
-                    origin
-                )
-            )
-        `)
+        .select('id, item_id, quantity, unit_price')
         .eq('document_id', orderId);
 
     if (error || !items || items.length === 0) {
-        if (error) {
-            logger.warn('[recalculateFiscalForOrder] fetch items failed', { message: error.message, code: error.code });
-        }
+        if (error) logger.warn('[recalculateFiscalForOrder] fetch items failed', { message: error.message, code: error.code });
         return;
     }
 
-    // Prepare items for fiscal resolution
-    const itemsForResolution = items.map(item => ({
-        itemId: item.id,
-        taxGroupId: (item.product as any)?.fiscal?.tax_group_id || '',
-        ncm: (item.product as any)?.fiscal?.ncm,
-        cest: (item.product as any)?.fiscal?.cest,
-        origin: (item.product as any)?.fiscal?.origin,
-        unitPrice: item.unit_price,
-        quantity: item.quantity
-    }));
+    const productIds = Array.from(new Set(items.map((item: any) => item.item_id).filter(Boolean)));
+    const { data: profiles, error: profilesError } = await supabase
+        .from('item_fiscal_profiles')
+        .select('item_id, tax_group_id, ncm, cest, origin')
+        .in('item_id', productIds);
+
+    if (profilesError) {
+        throw profilesError;
+    }
+
+    const profileByItemId = new Map<string, any>();
+    for (const profile of profiles || []) {
+        if (!profileByItemId.has(profile.item_id)) {
+            profileByItemId.set(profile.item_id, profile);
+        }
+    }
+
+    const itemsForResolution = items.map((item: any) => {
+        const profile = profileByItemId.get(item.item_id);
+        return {
+            itemId: item.id,
+            taxGroupId: profile?.tax_group_id || '',
+            ncm: profile?.ncm,
+            cest: profile?.cest,
+            origin: profile?.origin,
+            unitPrice: item.unit_price,
+            quantity: item.quantity
+        };
+    });
 
     // Resolve fiscal rules
     const results = await resolveFiscalRulesForOrder(
@@ -632,13 +720,13 @@ export async function recalculateFiscalForOrder(
         itemsForResolution
     );
 
-    // Update each item with fiscal data
-    for (const item of items) {
+    for (const item of items as any[]) {
+        const profile = profileByItemId.get(item.item_id);
         const fiscalResult = results.get(item.id);
         if (!fiscalResult) continue;
 
         const updatePayload: Partial<SalesOrderItem> = {
-            fiscal_status: fiscalResult.status === 'error' ? 'pending' : fiscalResult.status,
+            fiscal_status: fiscalResult.status === 'error' ? 'no_rule_found' : fiscalResult.status,
             fiscal_operation_id: fiscalResult.operation?.id || null,
             cfop_code: fiscalResult.cfop || null,
             cst_icms: fiscalResult.cst_icms || null,
@@ -653,112 +741,19 @@ export async function recalculateFiscalForOrder(
             ipi_cst: fiscalResult.ipi_cst || null,
             ipi_aliquot: fiscalResult.ipi_aliquot || null,
             fiscal_notes: fiscalResult.error || null,
-            // Snapshots - use the data we already fetched
-            ncm_snapshot: (item.product as any)?.fiscal?.ncm || null,
-            cest_snapshot: (item.product as any)?.fiscal?.cest || null,
-            origin_snapshot: (item.product as any)?.fiscal?.origin !== undefined ? (item.product as any)?.fiscal?.origin : null
+            ncm_snapshot: profile?.ncm || null,
+            cest_snapshot: profile?.cest || null,
+            origin_snapshot: profile?.origin ?? null
         };
+ 
+        const { error: updateError } = await supabase
+            .from('sales_document_items')
+            .update(updatePayload)
+            .eq('id', item.id);
 
-        // EXPLICIT WEIGHT RECALCULATION
-        // Ensure we don't zero out weights during fiscal update
-        const product = item.product as any;
-        const qty = Number(item.quantity) || 0;
-
-        let unitWeight = 0;
-
-        if (item.packaging_id) {
-            const pkg = (item as any).packaging;
-            if (pkg) {
-                // Prioritize gross, then net
-                unitWeight = Number(pkg.gross_weight_kg) || Number(pkg.net_weight_kg) || 0;
-            }
-            // Fallback to existing or product base
-            if (unitWeight === 0) unitWeight = Number(item.unit_weight_kg) || 0;
-        } else {
-            // Base Product Logic
-            const grossKg = Number(product.gross_weight_kg_base);
-            const grossG = Number(product.gross_weight_g_base);
-            const netKg = Number(product.net_weight_kg_base);
-            const netG = Number(product.net_weight_g_base);
-            if (!isNaN(grossKg) && grossKg > 0) unitWeight = grossKg;
-            else if (!isNaN(grossG) && grossG > 0) unitWeight = grossG / 1000.0;
-            else if (!isNaN(netKg) && netKg > 0) unitWeight = netKg;
-            else if (!isNaN(netG) && netG > 0) unitWeight = netG / 1000.0;
+        if (updateError) {
+            throw updateError;
         }
-
-        if (unitWeight > 0) {
-            (updatePayload as any).unit_weight_kg = unitWeight;
-            (updatePayload as any).total_weight_kg = Number((unitWeight * qty).toFixed(3));
-        }
-
-        // Actually, the user said "when the client updates fiscal data". 
-        // This likely calls `recalculateFiscalForOrder`.
-
-        // Let's look at `updatePayload` again.
-        /*
-            const updatePayload = {
-             fiscal_status: fiscalResult.status,
-             fiscal_operation_id: fiscalResult.operation?.id || null,
-             cfop_code: fiscalResult.cfop || null,
-             cst_icms: fiscalResult.cst_icms || null,
-             ...
-             ncm_snapshot: ...,
-             ...
-            }
-        */
-        // This looks correct (Patch).
-
-        // WAIT! Migration 20260104248000_ensure_sales_items_columns.sql or similar might have added NOT NULL constraints or defaults?
-
-        // Another possibility: The trigger that updates the PARENT total sums up items.
-        // If `recalculateFiscalForOrder` updates items one by one in a loop:
-        //   for (const item of items) { update(...) }
-        // It fires the trigger N times.
-
-        // If the item data being read in the trigger is somehow incomplete...
-        // The trigger reads from `sales_document_items` table directly.
-
-        // START OF FIX:
-        // Let's fetch the EXISTING weight-related columns for the item and include them in the payload just to be safe?
-        // No, that's redundant if Patch works.
-
-        // Maybe the issue is simpler: The `recalculateFiscalForOrder` does NOT fetch weight info in its select:
-        /*
-            .select(`
-                 *,
-                 product:items!inner(...)
-            `)
-        */
-        // `*` fetches all columns of `sales_document_items`.
-        // So `item` variable has `qty_base`, `quantity`, etc.
-
-        // Let's sanity check if `recalculateFiscalForOrder` is overwriting with defaults.
-        // No.
-
-        // Let's check `resolveFiscalRule` - maybe it errors out and we write error status?
-
-        // NEW CLUE: "o peso é para aparecer em pedidos que ja foram lançados?" -> "Continua zerado" -> "Quando atualiza os dados fiscais, ele zera".
-        // This strongly suggests an interaction between the fiscal update mechanism and the weight columns.
-
-        // In `20260105180000_backfill_order_weights.sql`, we used `SUM(...)`.
-
-        // Let's look at `trigger_update_weights` in `20260105151000...` or whichever is latest.
-        // I can't see the trigger code here, but I recall it sums `net_weight_kg_base * qty_base`.
-        // Those columns in `sales_document_items` are NOT being touched by this update.
-
-        // Wait! `recalculateFiscalForOrder` is ONLY updating `sales_document_items`.
-        // Is it possible that `sales_document_items` DOES NOT HAVE `net_weight_kg_base` stored?
-        // Weights are on the `items` (products) table mostly, but we might have cached them or used them in the view?
-        // The migration for backfill joined `items`.
-
-        // IF the trigger relies on columns in `sales_document_items` that are actually NULL (because weights are in `items` table),
-        // then the trigger computes 0.
-        // BUT, the trigger should join `items`?
-
-        // Let's verify the trigger definition. I'll read the latest trigger migration.
-        // `20260104223000_fix_weight_trigger.sql`
-
-        // I will read that migration file now.
     }
 }
 

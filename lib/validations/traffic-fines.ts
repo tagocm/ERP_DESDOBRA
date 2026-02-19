@@ -4,6 +4,7 @@ export const trafficFineSchema = z.object({
     id: z.string().uuid().optional(),
     vehicle_id: z.string().uuid({ message: "Veículo é obrigatório" }),
     fine_date: z.string().min(1, "Data é obrigatória"),
+    due_date: z.string().nullable().optional(),
     city: z.string().min(1, "Cidade é obrigatória"),
     reason: z.string().min(1, "Motivo é obrigatório"),
     amount: z.number().positive("Valor deve ser maior que zero"),

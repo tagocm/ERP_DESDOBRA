@@ -3,11 +3,29 @@ import { renderDanfeHtml } from './danfeRenderer';
 import { parseNfe } from './danfeParser';
 import { logger } from "@/lib/logger";
 
+export interface DanfeEmitterOverride {
+    xNome?: string | null;
+    cnpj?: string | null;
+    ie?: string | null;
+    enderEmit?: {
+        xLgr?: string | null;
+        nro?: string | null;
+        xBairro?: string | null;
+        xMun?: string | null;
+        uf?: string | null;
+        cep?: string | null;
+    };
+}
+
 /**
  * Fetch logo from URL and convert to base64 data URI
  * Returns null if fetch fails (fallback to placeholder)
  */
 async function fetchLogoAsDataUri(logoUrl: string): Promise<string | null> {
+    if (logoUrl.startsWith('data:image/')) {
+        return logoUrl;
+    }
+
     try {
         logger.info('[Logo Pipeline] Fetching logo:', logoUrl);
 
@@ -33,12 +51,31 @@ async function fetchLogoAsDataUri(logoUrl: string): Promise<string | null> {
     }
 }
 
-export async function generateDanfePdf(xmlString: string, companyId?: string, logoUrl?: string): Promise<Buffer> {
+export async function generateDanfePdf(
+    xmlString: string,
+    companyId?: string,
+    logoUrl?: string,
+    emitterOverride?: DanfeEmitterOverride
+): Promise<Buffer> {
     logger.info('[PDF Service] Generating DANFE from XML...');
 
     // 1. Parse XML
     const data = parseNfe(xmlString);
     logger.info('[PDF Service] Parsed NFe data');
+
+    // 1.1 Override emitter header fields (block below logo) when provided by current company settings
+    if (emitterOverride) {
+        data.emit.xNome = emitterOverride.xNome || data.emit.xNome;
+        data.emit.cnpj = emitterOverride.cnpj || data.emit.cnpj;
+        data.emit.ie = emitterOverride.ie || data.emit.ie;
+
+        data.emit.enderEmit.xLgr = emitterOverride.enderEmit?.xLgr || data.emit.enderEmit.xLgr;
+        data.emit.enderEmit.nro = emitterOverride.enderEmit?.nro || data.emit.enderEmit.nro;
+        data.emit.enderEmit.xBairro = emitterOverride.enderEmit?.xBairro || data.emit.enderEmit.xBairro;
+        data.emit.enderEmit.xMun = emitterOverride.enderEmit?.xMun || data.emit.enderEmit.xMun;
+        data.emit.enderEmit.uf = emitterOverride.enderEmit?.uf || data.emit.enderEmit.uf;
+        data.emit.enderEmit.cep = emitterOverride.enderEmit?.cep || data.emit.enderEmit.cep;
+    }
 
     // 2. Asset Pipeline: caller provides a pre-authorized logo URL (e.g., signed URL from storage)
     // so this function doesn't need DB/service-role access.

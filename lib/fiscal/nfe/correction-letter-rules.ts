@@ -1,29 +1,57 @@
-export const CCE_MIN_LENGTH = 15;
-export const CCE_MAX_LENGTH = 1000;
+/**
+ * Regras para Carta de Correção Eletrônica (CC-e)
+ * Baseado no Manual de Orientação do Contribuinte da SEFAZ
+ */
 
-export const CCE_USAGE_CONDITIONS =
-    "A Carta de Correcao e disciplinada pelo paragrafo 1o-A do art. 7o do Convenio S/N, de 15 de dezembro de 1970 e pode ser utilizada para regularizacao de erro ocorrido na emissao de documento fiscal, desde que o erro nao esteja relacionado com: I - as variaveis que determinam o valor do imposto tais como: base de calculo, aliquota, diferenca de preco, quantidade, valor da operacao ou da prestacao; II - a correcao de dados cadastrais que implique mudanca do remetente ou do destinatario; III - a data de emissao ou de saida.";
+export const CCE_USAGE_CONDITIONS = "A Carta de Correção é disciplinada pelo § 1º-A do art. 7º do Convênio S/N, de 15 de dezembro de 1970 e pode ser utilizada para regularização de erro ocorrido na emissão de documento fiscal, desde que o erro não esteja relacionado com: I - as variáveis que determinam o valor do imposto tais como: base de cálculo, alíquota, diferença de preço, quantidade, valor da operação ou da prestação; II - a correção de dados cadastrais que implique mudança do remetente ou do destinatário; III - a data de emissão ou de saída.";
 
-export function normalizeCorrectionText(input: string): string {
-    return String(input || "")
-        .replace(/\r\n/g, "\n")
-        .replace(/\s+/g, " ")
-        .trim();
+export function normalizeCorrectionText(text: string): string {
+    return (text || "")
+        .trim()
+        .replace(/\s+/g, " ");
 }
 
-export function validateCorrectionText(input: string): { valid: true } | { valid: false; message: string } {
-    const normalized = normalizeCorrectionText(input);
+export function validateCorrectionText(text: string): { valid: boolean; message?: string } {
+    const normalized = normalizeCorrectionText(text);
 
-    if (!normalized) {
-        return { valid: false, message: "A descrição da correção é obrigatória." };
+    if (normalized.length < 15) {
+        return {
+            valid: false,
+            message: "O texto da correção deve ter no mínimo 15 caracteres."
+        };
     }
 
-    if (normalized.length < CCE_MIN_LENGTH) {
-        return { valid: false, message: `A descrição deve ter no mínimo ${CCE_MIN_LENGTH} caracteres.` };
+    if (normalized.length > 1000) {
+        return {
+            valid: false,
+            message: "O texto da correção deve ter no máximo 1000 caracteres."
+        };
     }
 
-    if (normalized.length > CCE_MAX_LENGTH) {
-        return { valid: false, message: `A descrição deve ter no máximo ${CCE_MAX_LENGTH} caracteres.` };
+    const forbiddenChars = /[<>'"&]/;
+    if (forbiddenChars.test(normalized)) {
+        return {
+            valid: false,
+            message: "O texto contém caracteres especiais não permitidos pela SEFAZ (<, >, ', \", &)."
+        };
+    }
+
+    return { valid: true };
+}
+
+export function validateCorrectionSequence(sequence: number): { valid: boolean; message?: string } {
+    if (!sequence || sequence < 1) {
+        return {
+            valid: false,
+            message: "Sequência da correção inválida."
+        };
+    }
+
+    if (sequence > 20) {
+        return {
+            valid: false,
+            message: "Atingido o limite máximo de 20 cartas de correção para esta NF-e."
+        };
     }
 
     return { valid: true };

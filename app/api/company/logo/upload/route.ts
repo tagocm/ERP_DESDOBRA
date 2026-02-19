@@ -3,6 +3,31 @@ import { validateLogoFile, generateFilePath } from '@/lib/upload-helpers';
 import { logger } from '@/lib/logger';
 import { resolveCompanyContext } from '@/lib/auth/resolve-company';
 
+function normalizeLogoPath(rawPath: string): string | null {
+    const value = String(rawPath || '').trim();
+    if (!value) return null;
+
+    if (!/^https?:\/\//i.test(value)) {
+        return value.replace(/^\/+/, '').replace(/^company-assets\//, '');
+    }
+
+    try {
+        const url = new URL(value);
+        const normalizedHref = `${url.origin}${url.pathname}`;
+        const markerPublic = '/storage/v1/object/public/company-assets/';
+        const markerSigned = '/storage/v1/object/sign/company-assets/';
+        if (normalizedHref.includes(markerPublic)) {
+            return normalizedHref.split(markerPublic)[1]?.replace(/^\/+/, '') || null;
+        }
+        if (normalizedHref.includes(markerSigned)) {
+            return normalizedHref.split(markerSigned)[1]?.replace(/^\/+/, '') || null;
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
 export async function POST(request: NextRequest) {
     try {
         let ctx: Awaited<ReturnType<typeof resolveCompanyContext>>;
@@ -57,11 +82,15 @@ export async function POST(request: NextRequest) {
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
+        // Determine content type (force svg for .svg files to ensure correct rendering)
+        const isSvg = file.name.toLowerCase().endsWith('.svg');
+        const contentType = isSvg ? 'image/svg+xml' : file.type;
+
         // Upload to Storage
         const { error: uploadError } = await supabaseUser.storage
             .from('company-assets')
             .upload(filePath, buffer, {
-                contentType: file.type,
+                contentType: contentType,
                 upsert: false
             });
 
@@ -77,11 +106,12 @@ export async function POST(request: NextRequest) {
 
         // Delete old logo if exists
         if (existingSettings?.logo_path) {
+            const normalizedOldLogoPath = normalizeLogoPath(existingSettings.logo_path);
             const expectedPrefixes = [`companies/${companyId}/`, `${companyId}/`];
-            if (expectedPrefixes.some((p) => existingSettings.logo_path.startsWith(p))) {
+            if (normalizedOldLogoPath && expectedPrefixes.some((p) => normalizedOldLogoPath.startsWith(p))) {
                 await supabaseUser.storage
                     .from('company-assets')
-                    .remove([existingSettings.logo_path]);
+                    .remove([normalizedOldLogoPath]);
             }
         }
 

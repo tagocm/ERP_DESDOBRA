@@ -36,6 +36,10 @@ function escapeXml(input: string): string {
         .replace(/'/g, "&apos;");
 }
 
+function sanitizeSignedEventXmlForSoap(input: string): string {
+    return input.replace(/^\s*<\?xml[^>]*\?>\s*/i, "").trim();
+}
+
 function formatBrazilOffsetDate(date: Date): string {
     const pad = (value: number) => String(value).padStart(2, "0");
     const year = date.getFullYear();
@@ -120,7 +124,7 @@ export async function submitCorrectionLetter(
         pfxPassword: cert.pfxPassword,
     });
 
-    const soapBody = buildSoapEnvelope(signedXml, input.uf, "NFeRecepcaoEvento4");
+    const soapBody = buildSoapEnvelope(sanitizeSignedEventXmlForSoap(signedXml), input.uf, "NFeRecepcaoEvento4");
     const url = getSefazUrl(input.uf, input.tpAmb, "NFeRecepcaoEvento4");
     const soapAction = "http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEventoNF";
 

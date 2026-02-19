@@ -20,6 +20,7 @@ import {
     getSalesOrderTotals
 } from '@/lib/data/sales-orders';
 import { SalesOrder, SalesOrderItem } from '@/types/sales';
+import { resolveFiscalRule } from '@/lib/data/fiscal-engine';
 
 // ============================================================================
 // HELPER: Get Company ID
@@ -137,6 +138,18 @@ const RecalculateFiscalSchema = z.object({
     customerUF: z.string(),
     customerType: z.enum(['contribuinte', 'isento', 'nao_contribuinte']),
     customerIsFinalConsumer: z.boolean()
+});
+
+const PreviewFiscalSchema = z.object({
+    companyUF: z.string(),
+    companyTaxRegime: z.enum(['simples', 'normal']),
+    customerUF: z.string(),
+    customerType: z.enum(['contribuinte', 'isento', 'nao_contribuinte']),
+    customerIsFinalConsumer: z.boolean(),
+    items: z.array(z.object({
+        clientItemId: z.string(),
+        itemId: z.string().uuid()
+    }))
 });
 
 const CleanupDraftsSchema = z.object({
@@ -293,6 +306,136 @@ export async function recalculateFiscalAction(input: z.infer<typeof RecalculateF
         revalidatePath(`/app/vendas/pedidos/${checked.orderId}`);
 
         return { success: true, data: undefined };
+    } catch (e: any) {
+        return { success: false, error: e.message };
+    }
+}
+
+export async function previewFiscalForItemsAction(
+    input: z.infer<typeof PreviewFiscalSchema>
+): Promise<ActionResult<Array<{
+    clientItemId: string;
+    status: 'calculated' | 'no_rule_found' | 'error';
+    cfop_code: string | null;
+    cst_icms: string | null;
+    csosn: string | null;
+    st_applies: boolean;
+    st_aliquot: number | null;
+    pis_cst: string | null;
+    pis_aliquot: number | null;
+    cofins_cst: string | null;
+    cofins_aliquot: number | null;
+    ipi_applies: boolean;
+    ipi_cst: string | null;
+    ipi_aliquot: number | null;
+    fiscal_notes: string | null;
+    ncm_snapshot: string | null;
+    cest_snapshot: string | null;
+    origin_snapshot: number | null;
+}>>> {
+    try {
+        const companyId = await getCompanyId();
+        const supabase = await createClient();
+        const checked = PreviewFiscalSchema.parse(input);
+
+        const itemIds = Array.from(new Set(checked.items.map(i => i.itemId)));
+        const { data: profiles, error: profilesError } = await supabase
+            .from('item_fiscal_profiles')
+            .select('item_id, tax_group_id, ncm, cest, origin')
+            .in('item_id', itemIds);
+
+        if (profilesError) throw profilesError;
+
+        const profileByItem = new Map<string, any>();
+        for (const profile of profiles || []) {
+            if (!profileByItem.has(profile.item_id)) {
+                profileByItem.set(profile.item_id, profile);
+            }
+        }
+
+        const out: Array<{
+            clientItemId: string;
+            status: 'calculated' | 'no_rule_found' | 'error';
+            cfop_code: string | null;
+            cst_icms: string | null;
+            csosn: string | null;
+            st_applies: boolean;
+            st_aliquot: number | null;
+            pis_cst: string | null;
+            pis_aliquot: number | null;
+            cofins_cst: string | null;
+            cofins_aliquot: number | null;
+            ipi_applies: boolean;
+            ipi_cst: string | null;
+            ipi_aliquot: number | null;
+            fiscal_notes: string | null;
+            ncm_snapshot: string | null;
+            cest_snapshot: string | null;
+            origin_snapshot: number | null;
+        }> = [];
+
+        for (const item of checked.items) {
+            const profile = profileByItem.get(item.itemId);
+
+            if (!profile?.tax_group_id) {
+                out.push({
+                    clientItemId: item.clientItemId,
+                    status: 'no_rule_found',
+                    cfop_code: null,
+                    cst_icms: null,
+                    csosn: null,
+                    st_applies: false,
+                    st_aliquot: null,
+                    pis_cst: null,
+                    pis_aliquot: null,
+                    cofins_cst: null,
+                    cofins_aliquot: null,
+                    ipi_applies: false,
+                    ipi_cst: null,
+                    ipi_aliquot: null,
+                    fiscal_notes: 'Produto sem grupo tributário.',
+                    ncm_snapshot: profile?.ncm || null,
+                    cest_snapshot: profile?.cest || null,
+                    origin_snapshot: profile?.origin ?? null
+                });
+                continue;
+            }
+
+            const result = await resolveFiscalRule(supabase, companyId, {
+                companyUF: checked.companyUF,
+                companyTaxRegime: checked.companyTaxRegime,
+                customerUF: checked.customerUF,
+                customerType: checked.customerType,
+                customerIsFinalConsumer: checked.customerIsFinalConsumer,
+                productTaxGroupId: profile.tax_group_id,
+                productNCM: profile.ncm,
+                productCEST: profile.cest,
+                productOrigin: profile.origin
+            });
+
+            out.push({
+                clientItemId: item.clientItemId,
+                status: result.status,
+                cfop_code: result.cfop || null,
+                cst_icms: result.cst_icms || null,
+                csosn: result.csosn || null,
+                st_applies: result.st_applies || false,
+                st_aliquot: result.st_aliquot || null,
+                pis_cst: result.pis_cst || null,
+                pis_aliquot: result.pis_aliquot || null,
+                cofins_cst: result.cofins_cst || null,
+                cofins_aliquot: result.cofins_aliquot || null,
+                ipi_applies: result.ipi_applies || false,
+                ipi_cst: result.ipi_cst || null,
+                ipi_aliquot: result.ipi_aliquot || null,
+                fiscal_notes: result.error || null,
+                ncm_snapshot: profile?.ncm || null,
+                cest_snapshot: profile?.cest || null,
+                origin_snapshot: profile?.origin ?? null
+            });
+        }
+
+        return { success: true, data: out };
     } catch (e: any) {
         return { success: false, error: e.message };
     }
@@ -499,9 +642,16 @@ export async function searchSalesProductsAction(params: {
     name: string;
     sku: string | null;
     uom: string | null;
-    sale_price: number | null;
+    avg_cost: number | null;
     net_weight_kg_base: number | null;
     gross_weight_kg_base: number | null;
+    fiscal?: {
+        tax_group_id?: string | null;
+        ncm?: string | null;
+        cest?: string | null;
+        origin?: number | null;
+        cfop_code?: string | null;
+    } | null;
 }>> {
     try {
         const term = (params.term || '').trim();
@@ -510,26 +660,59 @@ export async function searchSalesProductsAction(params: {
         const companyId = await getCompanyId(params.companyId, {
             skipMembershipValidation: Boolean(params.companyId),
         });
-        const supabase = createAdminClient();
         const max = Math.min(Math.max(Number(params.limit || 20), 1), 50);
+        const preferredSalesTypes = ['finished_good', 'product', 'resale', 'service', 'wip', 'raw_material', 'packaging', 'other'];
 
-        const { data, error } = await supabase
-            .from('items')
-            .select('id, name, sku, uom, sale_price, net_weight_kg_base, gross_weight_kg_base')
-            .eq('company_id', companyId)
-            .eq('is_active', true)
-            .is('deleted_at', null)
-            .in('type', ['finished_good', 'product'])
-            .or(`name.ilike.%${term}%,sku.ilike.%${term}%`)
-            .order('name', { ascending: true })
-            .limit(max);
+        // Prefer service-role client for performance, but fallback to session client if unavailable.
+        let supabase: any;
+        try {
+            supabase = createAdminClient();
+        } catch {
+            supabase = await createClient();
+        }
+
+        const buildQuery = (limit: number, restrictTypes: boolean) => {
+            let queryBuilder = supabase
+                .from('items')
+                .select('id, name, sku, uom, avg_cost, net_weight_kg_base, gross_weight_kg_base, fiscal:item_fiscal_profiles(tax_group_id, ncm, cest, origin, cfop_code)')
+                .eq('company_id', companyId)
+                .eq('is_active', true)
+                .is('deleted_at', null)
+                .or(`name.ilike.%${term}%,sku.ilike.%${term}%`)
+                .order('name', { ascending: true });
+
+            if (restrictTypes) {
+                queryBuilder = queryBuilder.in('type', preferredSalesTypes);
+            }
+
+            return queryBuilder.limit(limit);
+        };
+
+        let { data, error } = await buildQuery(max, true);
+        if (error) {
+            console.error('[searchSalesProductsAction] preferred query error:', error.message);
+            const fallback = await buildQuery(max, false);
+            data = fallback.data;
+            error = fallback.error;
+        } else if (!data || data.length === 0) {
+            const fallback = await buildQuery(max, false);
+            if (!fallback.error && fallback.data) {
+                data = fallback.data;
+            }
+        }
 
         if (error) {
-            console.error('[searchSalesProductsAction] query error:', error.message);
+            console.error('[searchSalesProductsAction] fallback query error:', error.message);
             return [];
         }
 
-        return Array.isArray(data) ? data : [];
+        return Array.isArray(data)
+            ? data.map((row: any) => {
+                const rawFiscal = row?.fiscal;
+                const fiscal = Array.isArray(rawFiscal) ? (rawFiscal[0] || null) : (rawFiscal || null);
+                return { ...row, fiscal };
+            })
+            : [];
     } catch (e: any) {
         console.error('[searchSalesProductsAction] fatal:', e?.message || e);
         return [];

@@ -54,6 +54,12 @@ export async function POST(request: NextRequest) {
 
         const nowIso = new Date().toISOString();
         const baseDate = new Date().toLocaleDateString();
+        const { data: userProfile } = await supabase
+            .from('user_profiles')
+            .select('auth_user_id')
+            .eq('auth_user_id', user.id)
+            .maybeSingle();
+        const movementCreatedBy = userProfile?.auth_user_id || null;
 
         // 2. Process Outcomes
         for (const ro of scopedRouteOrders) {
@@ -66,29 +72,62 @@ export async function POST(request: NextRequest) {
             const actionFlags = payload.actionFlags || {};
             const order = ro.sales_order as any;
             if (!order) continue;
+            const shouldCreateReturnMovement =
+                actionFlags.create_devolution !== false &&
+                actionFlags.generate_return_movement !== false;
 
-            const createReturnMovement = async (item: any, qty: number, reasonText: string) => {
-                // Calculate proportional weight if qty_base exists
-                let finalQtyBase = qty;
-                if (item.qty_base && item.quantity > 0) {
-                    const unitWeight = item.qty_base / item.quantity;
-                    finalQtyBase = unitWeight * qty;
+            const toBaseQty = (item: any, qtyDisplay: number) => {
+                if (item?.qty_base !== null && item?.qty_base !== undefined && Number(item.quantity) > 0) {
+                    return (Number(item.qty_base) / Number(item.quantity)) * qtyDisplay;
+                }
+                return qtyDisplay;
+            };
+
+            const createReturnMovement = async (
+                item: any,
+                qtyDisplay: number,
+                reasonText: string,
+                referenceType: string,
+                referenceId: string
+            ) => {
+                if (!shouldCreateReturnMovement || qtyDisplay <= 0) return;
+
+                const qtyBase = toBaseQty(item, qtyDisplay);
+                if (!Number.isFinite(qtyBase) || qtyBase <= 0) return;
+
+                // Idempotency: avoid duplicate return movement for the same reference.
+                const { data: existingMovement, error: findMovementError } = await supabase
+                    .from('inventory_movements')
+                    .select('id')
+                    .eq('company_id', order.company_id)
+                    .eq('movement_type', 'ENTRADA')
+                    .eq('reference_type', referenceType)
+                    .eq('reference_id', referenceId)
+                    .eq('reason', 'customer_return')
+                    .maybeSingle();
+                if (findMovementError) {
+                    throw new Error(`Falha ao verificar movimentação existente: ${findMovementError.message}`);
                 }
 
-                await supabase.from('inventory_movements').insert({
+                if (existingMovement?.id) return;
+
+                const { error: insertMovementError } = await supabase.from('inventory_movements').insert({
                     company_id: order.company_id,
                     item_id: item.item_id,
                     movement_type: 'ENTRADA',
-                    qty_base: finalQtyBase,
-                    reference_type: 'pedido',
-                    reference_id: order.id,
+                    qty_base: qtyBase,
+                    reference_type: referenceType,
+                    reference_id: referenceId,
                     source_ref: `#${order.document_number} (Retorno)`,
                     notes: `Retorno de Rota: ${reasonText}`,
-                    created_by: user.id,
-                    reason: 'return_in',
-                    qty_in: qty,
+                    created_by: movementCreatedBy,
+                    reason: 'customer_return',
+                    qty_in: qtyBase,
                     qty_out: 0
                 });
+                if (insertMovementError) {
+                    throw new Error(`Falha ao inserir devolução no estoque: ${insertMovementError.message}`);
+                }
             };
 
             await supabase.from('order_occurrence_logs').insert({
@@ -154,7 +193,13 @@ export async function POST(request: NextRequest) {
                             if (qtyReturned > 0) {
                                 const originalItem = itemMap.get(di.sales_document_item_id);
                                 if (originalItem) {
-                                    await createReturnMovement(originalItem, qtyReturned, payload.reason || 'Devolução Total');
+                                    await createReturnMovement(
+                                        originalItem,
+                                        qtyReturned,
+                                        payload.reason || 'Devolução Total',
+                                        'delivery_item',
+                                        di.id
+                                    );
                                 }
                             }
                         }
@@ -203,8 +248,13 @@ export async function POST(request: NextRequest) {
                             if (returned > 0) {
                                 const originalItem = itemMap.get(di.sales_document_item_id);
                                 if (originalItem) {
-                                    // Assuming anything not delivered from the LOADED amount is returned
-                                    await createReturnMovement(originalItem, returned, payload.reason || 'Devolução Parcial');
+                                    await createReturnMovement(
+                                        originalItem,
+                                        returned,
+                                        payload.reason || 'Devolução Parcial',
+                                        'delivery_item',
+                                        di.id
+                                    );
                                 }
                             }
                         }
@@ -214,6 +264,56 @@ export async function POST(request: NextRequest) {
                             returnedItemsCount
                         });
                         await updateDeliveryItemQuantities(supabase, deliveryId, updates);
+                    }
+                }
+            } else if (shouldCreateReturnMovement && (outcome === 'not_delivered' || outcome === 'partial')) {
+                // Fallback for legacy/inconsistent rows where delivery record was not found.
+                // Derive returned quantity from route payload + order items.
+                const { data: originalItems } = await supabase
+                    .from('sales_document_items')
+                    .select('id, item_id, quantity, qty_base')
+                    .eq('document_id', order.id);
+
+                const items = originalItems || [];
+                if (items.length > 0) {
+                    const loadedMap = new Map<string, number>();
+                    const deliveredMap = new Map<string, number>();
+
+                    if (Array.isArray(payload.items)) {
+                        payload.items.forEach((pi: any) => {
+                            const key = String(pi.orderItemId || pi.itemId || '');
+                            if (!key) return;
+                            loadedMap.set(key, Number(pi.qtyLoaded ?? pi.qty_loaded ?? 0));
+                        });
+                    }
+                    if (Array.isArray(payload.deliveredItems)) {
+                        payload.deliveredItems.forEach((di: any) => {
+                            const key = String(di.itemId || '');
+                            if (!key) return;
+                            deliveredMap.set(key, Number(di.deliveredQty ?? 0));
+                        });
+                    }
+
+                    for (const item of items as any[]) {
+                        const itemId = String(item.id);
+                        const fallbackLoaded = Number(item.quantity || 0);
+                        const loadedQty = loadedMap.has(itemId) ? Number(loadedMap.get(itemId) || 0) : fallbackLoaded;
+                        const deliveredQty = outcome === 'partial'
+                            ? Number(deliveredMap.get(itemId) || 0)
+                            : 0;
+                        const returnedQty = outcome === 'partial'
+                            ? Math.max(0, loadedQty - deliveredQty)
+                            : Math.max(0, loadedQty);
+
+                        if (returnedQty > 0) {
+                            await createReturnMovement(
+                                item,
+                                returnedQty,
+                                payload.reason || (outcome === 'partial' ? 'Devolução Parcial (Fallback)' : 'Devolução Total (Fallback)'),
+                                'pedido_item_return',
+                                itemId
+                            );
+                        }
                     }
                 }
             }

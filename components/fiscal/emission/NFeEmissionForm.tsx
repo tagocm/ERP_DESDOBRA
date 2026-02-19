@@ -28,12 +28,58 @@ export function NFeEmissionForm({ data, orderId }: Props) {
     const [isSaving, setIsSaving] = useState(false);
     const [isEmitting, setIsEmitting] = useState(false);
     const emitInFlightRef = useRef(false);
+    const normalizeBillingMethod = (method?: string | null): string => {
+        const raw = String(method || '').trim().toUpperCase();
+        if (!raw) return 'BOLETO';
+        if (raw.includes('PIX')) return 'PIX';
+        if (raw.includes('DINHEIRO')) return 'DINHEIRO';
+        if (raw.includes('CARTAO') || raw.includes('CARTÃO') || raw.includes('CARD')) return 'CARTAO';
+        if (raw.includes('BOLETO')) return 'BOLETO';
+        return 'OUTROS';
+    };
+    const resolvePaymentMode = (installments: Array<{ number: number; dueDate: string }> = []): string => {
+        if (!installments.length) return 'avista';
+        const today = new Date().toISOString().split('T')[0];
+        const hasPrazo =
+            installments.length > 1 ||
+            installments.some((inst) => Number(inst.number || 0) > 1 || String(inst.dueDate || '').slice(0, 10) > today);
+        return hasPrazo ? 'prazo' : 'avista';
+    };
 
     // --- Draft Initialization ---
     const [draft, setDraft] = useState<NFeDraftData>(() => {
+        const eventInstallments = (((data.order as any).financial_event_installments || []) as any[])
+            .map((inst: any) => ({
+                number: Number(inst.installment_number || 0),
+                dueDate: inst.due_date,
+                amount: Number(inst.amount || 0),
+                type: (inst.due_date <= new Date().toISOString().split('T')[0] ? 'HOJE' : 'FUTURO') as 'HOJE' | 'FUTURO',
+                method: normalizeBillingMethod(inst.payment_method || inst.payment_condition)
+            }))
+            .filter((inst: any) => inst.number > 0 && !!inst.dueDate);
+
+        const paymentInstallments = ((data.order.payments || []) as any[]).map((p: any) => ({
+            number: Number(p.installment_number || 0),
+            dueDate: p.due_date,
+            amount: Number(p.amount),
+            type: (p.due_date <= new Date().toISOString().split('T')[0] ? 'HOJE' : 'FUTURO') as 'HOJE' | 'FUTURO',
+            method: normalizeBillingMethod(p.payment_method)
+        })).filter((inst: any) => inst.number > 0 && !!inst.dueDate);
+
+        const sourceInstallments = eventInstallments.length > 0 ? eventInstallments : paymentInstallments;
+
         if (data.draft) {
+            const preferredInstallments =
+                sourceInstallments.length > 0
+                    ? sourceInstallments
+                    : ((data.draft.billing?.installments || []) as any[]);
             return {
                 ...data.draft,
+                billing: {
+                    ...data.draft.billing,
+                    paymentMode: resolvePaymentMode(preferredInstallments as any),
+                    installments: preferredInstallments as any
+                },
                 transport: data.draft.transport || {
                     modality: Number(data.order.freight_amount) > 0 ? '0' : '9',
                     volumes_qty: data.order.volumes_qty || 0,
@@ -94,15 +140,6 @@ export function NFeEmissionForm({ data, orderId }: Props) {
             };
         });
 
-        // Map existing payments
-        const installments = (data.order.payments || []).map((p: any) => ({
-            number: p.installment_number,
-            dueDate: p.due_date,
-            amount: Number(p.amount),
-            type: (p.due_date <= new Date().toISOString().split('T')[0] ? 'HOJE' : 'FUTURO') as 'HOJE' | 'FUTURO',
-            method: 'BOLETO'
-        }));
-
         return {
             issuer: data.company,
             recipient: {
@@ -111,8 +148,8 @@ export function NFeEmissionForm({ data, orderId }: Props) {
             },
             items,
             billing: {
-                paymentMode: 'prazo', // TODO: Map from payment_terms
-                installments: installments.length > 0 ? installments : []
+                paymentMode: resolvePaymentMode(sourceInstallments as any),
+                installments: sourceInstallments
             },
             transport: {
                 modality: Number(data.order.freight_amount) > 0 ? '0' : '9',

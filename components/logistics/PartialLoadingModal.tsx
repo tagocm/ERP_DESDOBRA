@@ -96,6 +96,16 @@ export function PartialLoadingModal({ isOpen, onClose, order, companyId, onSucce
             return;
         }
 
+        const hasPartialItem = itemsState.some(item => Number(item.qtyLoaded) < Number(item.qtyOrdered));
+        if (!hasPartialItem) {
+            toast({
+                title: "Sem parcial",
+                description: "Para confirmar, a quantidade carregada deve ser menor que o saldo pendente em pelo menos um item.",
+                variant: "destructive"
+            });
+            return;
+        }
+
         const payload = {
             reasonId: selectedReasonId,
             reasonName: reason?.name || 'Motivo',
@@ -184,7 +194,14 @@ export function PartialLoadingModal({ isOpen, onClose, order, companyId, onSucce
                     <Button variant="outline" onClick={onClose} disabled={submitting}>
                         Cancelar
                     </Button>
-                    <Button onClick={handleConfirm} disabled={submitting}>
+                    <Button
+                        onClick={handleConfirm}
+                        disabled={
+                            submitting ||
+                            itemsState.some(item => Number(item.qtyLoaded) > Number(item.qtyOrdered) || Number(item.qtyLoaded) < 0) ||
+                            !itemsState.some(item => Number(item.qtyLoaded) < Number(item.qtyOrdered))
+                        }
+                    >
                         {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                         Confirmar
                     </Button>

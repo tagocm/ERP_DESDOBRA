@@ -11,10 +11,25 @@ import { errorResponse } from "@/lib/api/response";
 import { resolveCompanyContext } from "@/lib/auth/resolve-company";
 import { resolveNfeArtifactsById } from "@/lib/fiscal/nfe/artifacts";
 import { generateDanfePdf } from "@/lib/danfe/pdfService";
+import { resolveCompanyLogoDataUri, resolveCompanyLogoUrl } from "@/lib/fiscal/nfe/logo-resolver";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { DanfeEmitterOverride } from "@/lib/danfe/pdfService";
 
-function isExpectedCompanyAssetPath(path: string, companyId: string): boolean {
-    const prefixes = [`companies/${companyId}/`, `${companyId}/`];
-    return prefixes.some((p) => path.startsWith(p));
+function buildEmitterOverride(settings: any): DanfeEmitterOverride | undefined {
+    if (!settings) return undefined;
+    return {
+        xNome: settings.legal_name || settings.trade_name || null,
+        cnpj: settings.cnpj || null,
+        ie: settings.ie || null,
+        enderEmit: {
+            xLgr: settings.address_street || null,
+            nro: settings.address_number || null,
+            xBairro: settings.address_neighborhood || null,
+            xMun: settings.address_city || null,
+            uf: settings.address_state || null,
+            cep: settings.address_zip || null,
+        },
+    };
 }
 
 function sanitizeFileNamePart(value: string | null | undefined, fallback: string): string {
@@ -32,6 +47,7 @@ export async function POST(req: NextRequest) {
         const ctx = await resolveCompanyContext();
         const supabase = ctx.supabase;
         const companyId = ctx.companyId;
+        const adminSupabase = createAdminClient();
 
         let body: unknown;
         try {
@@ -54,33 +70,31 @@ export async function POST(req: NextRequest) {
         const bundle = parsed.data.bundle;
 
         const logoUrlCache = new Map<string, string | undefined>();
+        const emitterOverrideCache = new Map<string, DanfeEmitterOverride | undefined>();
         const resolveLogoUrl = async (targetCompanyId: string): Promise<string | undefined> => {
             if (logoUrlCache.has(targetCompanyId)) {
                 return logoUrlCache.get(targetCompanyId);
             }
 
-            const { data: settings } = await supabase
-                .from("company_settings")
-                .select("logo_path")
-                .eq("company_id", targetCompanyId)
-                .maybeSingle();
-
-            const logoPath = settings?.logo_path;
-            let logoUrl: string | undefined;
-
-            if (logoPath) {
-                if (logoPath.startsWith("http")) {
-                    logoUrl = logoPath;
-                } else if (isExpectedCompanyAssetPath(logoPath, targetCompanyId)) {
-                    const { data: signedUrlData } = await supabase.storage
-                        .from("company-assets")
-                        .createSignedUrl(logoPath, 3600);
-                    logoUrl = signedUrlData?.signedUrl;
-                }
-            }
+            const logoUrl =
+                await resolveCompanyLogoDataUri(adminSupabase, targetCompanyId) ||
+                await resolveCompanyLogoUrl(adminSupabase, targetCompanyId);
 
             logoUrlCache.set(targetCompanyId, logoUrl);
             return logoUrl;
+        };
+        const resolveEmitterOverride = async (targetCompanyId: string): Promise<DanfeEmitterOverride | undefined> => {
+            if (emitterOverrideCache.has(targetCompanyId)) {
+                return emitterOverrideCache.get(targetCompanyId);
+            }
+            const { data: settings } = await adminSupabase
+                .from('company_settings')
+                .select('legal_name,trade_name,cnpj,ie,address_street,address_number,address_neighborhood,address_city,address_state,address_zip')
+                .eq('company_id', targetCompanyId)
+                .maybeSingle();
+            const emitterOverride = buildEmitterOverride(settings);
+            emitterOverrideCache.set(targetCompanyId, emitterOverride);
+            return emitterOverride;
         };
 
         const archive = archiver("zip", { zlib: { level: 9 } });
@@ -106,8 +120,10 @@ export async function POST(req: NextRequest) {
                     if (bundle === "xml") {
                         archive.append(Buffer.from(artifacts.xml, "utf-8"), { name: `${baseName}.xml` });
                     } else {
-                        const logoUrl = await resolveLogoUrl(artifacts.companyId || companyId);
-                        const pdfBuffer = await generateDanfePdf(artifacts.xml, artifacts.companyId || companyId, logoUrl);
+                        const targetCompanyId = artifacts.companyId || companyId;
+                        const logoUrl = await resolveLogoUrl(targetCompanyId);
+                        const emitterOverride = await resolveEmitterOverride(targetCompanyId);
+                        const pdfBuffer = await generateDanfePdf(artifacts.xml, targetCompanyId, logoUrl, emitterOverride);
                         archive.append(Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer), { name: `${baseName}.pdf` });
                     }
 

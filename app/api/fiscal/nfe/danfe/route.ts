@@ -6,13 +6,28 @@ import { z } from "zod";
 import { rateLimit } from "@/lib/rate-limit";
 import { errorResponse } from "@/lib/api/response";
 import { resolveNfeArtifactsById } from "@/lib/fiscal/nfe/artifacts";
+import { resolveCompanyLogoDataUri, resolveCompanyLogoUrl } from "@/lib/fiscal/nfe/logo-resolver";
+import { createAdminClient } from "@/lib/supabase/admin";
+import type { DanfeEmitterOverride } from "@/lib/danfe/pdfService";
+
+function buildEmitterOverride(settings: any): DanfeEmitterOverride | undefined {
+    if (!settings) return undefined;
+    return {
+        xNome: settings.legal_name || settings.trade_name || null,
+        cnpj: settings.cnpj || null,
+        ie: settings.ie || null,
+        enderEmit: {
+            xLgr: settings.address_street || null,
+            nro: settings.address_number || null,
+            xBairro: settings.address_neighborhood || null,
+            xMun: settings.address_city || null,
+            uf: settings.address_state || null,
+            cep: settings.address_zip || null,
+        },
+    };
+}
 
 export const maxDuration = 60; // Allow sufficient time for Chromium launch
-
-function isExpectedCompanyAssetPath(path: string, companyId: string): boolean {
-    const prefixes = [`companies/${companyId}/`, `${companyId}/`];
-    return prefixes.some((p) => path.startsWith(p));
-}
 
 export async function POST(req: NextRequest) {
     try {
@@ -71,28 +86,18 @@ export async function POST(req: NextRequest) {
         // Generate PDF with better error handling
         try {
             logger.info('[DANFE API] Generating PDF with companyId:', companyId);
-            let logoUrl: string | undefined;
-            if (companyId) {
-                const { data: settings } = await supabase
-                    .from('company_settings')
-                    .select('logo_path')
-                    .eq('company_id', companyId)
-                    .maybeSingle();
+            const adminSupabase = createAdminClient();
+            const { data: settings } = await adminSupabase
+                .from('company_settings')
+                .select('legal_name,trade_name,cnpj,ie,address_street,address_number,address_neighborhood,address_city,address_state,address_zip')
+                .eq('company_id', companyId)
+                .maybeSingle();
+            const logoUrl =
+                await resolveCompanyLogoDataUri(adminSupabase, companyId) ||
+                await resolveCompanyLogoUrl(adminSupabase, companyId);
+            const emitterOverride = buildEmitterOverride(settings);
 
-                const logoPath = settings?.logo_path;
-                if (logoPath) {
-                    if (logoPath.startsWith('http')) {
-                        logoUrl = logoPath;
-                    } else if (isExpectedCompanyAssetPath(logoPath, companyId)) {
-                        const { data: signedUrlData } = await supabase.storage
-                            .from('company-assets')
-                            .createSignedUrl(logoPath, 3600);
-                        logoUrl = signedUrlData?.signedUrl;
-                    }
-                }
-            }
-
-            const pdfBuffer = await generateDanfePdf(xmlString, companyId, logoUrl);
+            const pdfBuffer = await generateDanfePdf(xmlString, companyId, logoUrl, emitterOverride);
 
             // Cast to any because NextResponse supports Buffer in Node.js runtime even if types strictly say BodyInit
             return new NextResponse(pdfBuffer as any, {

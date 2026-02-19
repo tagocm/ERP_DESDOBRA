@@ -117,13 +117,18 @@ export function TabCertificate({ data, onChange, isAdmin }: TabCertificateProps)
 
         try {
             console.log("Sending password to API...");
+
+            // Send storage path if available in local state (it might not be saved in DB yet)
+            const payload = {
+                companyId: selectedCompany.id,
+                password: certPassword,
+                storagePath: data.cert_a1_storage_path
+            };
+
             const response = await fetch('/api/company/cert-a1/password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    companyId: selectedCompany.id,
-                    password: certPassword
-                })
+                body: JSON.stringify(payload)
             });
 
             console.log("API Response Status:", response.status);

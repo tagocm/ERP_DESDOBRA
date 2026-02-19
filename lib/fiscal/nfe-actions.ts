@@ -30,6 +30,43 @@ export interface FetchIssuedInvoicesResult {
     pageSize: number;
 }
 
+export type IssuedInvoiceStatusFilter = 'authorized' | 'cancelled' | 'processing';
+export type NfeEventType = 'cancellation' | 'correction_letter';
+
+export interface NfeEventListItem {
+    id: string;
+    type: NfeEventType;
+    emissionId: string | null;
+    salesDocumentId: string | null;
+    accessKey: string | null;
+    nfeNumber: number | null;
+    nfeSeries: number | null;
+    sequence: number | null;
+    status: string;
+    cStat: string | null;
+    xMotivo: string | null;
+    protocol: string | null;
+    correctionText: string | null;
+    occurredAt: string;
+    createdAt: string | null;
+    document: {
+        id: string;
+        document_number: number | null;
+        total_amount: number | null;
+        client: {
+            trade_name: string | null;
+            document_number: string | null;
+        } | null;
+    } | null;
+}
+
+export interface FetchNfeEventsResult {
+    data: NfeEventListItem[];
+    total: number;
+    page: number;
+    pageSize: number;
+}
+
 // Listar pedidos confirmados sem NF-e
 export async function fetchPendingInvoices(
     companyId: string,
@@ -81,7 +118,6 @@ export async function fetchPendingInvoices(
     const { data: nfeRecords } = await supabase
         .from('sales_document_nfes')
         .select('document_id')
-        .select('document_id')
         .in('status', ['processing', 'authorized', 'rejected']); // Exclude cancelled AND drafts
 
     const idsWithNfe = new Set(nfeRecords?.map(r => r.document_id) || []);
@@ -112,10 +148,23 @@ export async function fetchPendingInvoices(
 // Listar NF-e emitidas
 export async function fetchIssuedInvoices(
     companyId: string,
-    filters?: { startDate?: Date; endDate?: Date; clientSearch?: string },
+    filters?: {
+        startDate?: Date;
+        endDate?: Date;
+        clientSearch?: string;
+        status?: IssuedInvoiceStatusFilter | IssuedInvoiceStatusFilter[];
+    },
     options?: { page?: number; pageSize?: number }
 ): Promise<FetchIssuedInvoicesResult> {
     const supabase = await createClient();
+    const issuedStatusesInput = filters?.status;
+    const issuedStatuses = (
+        Array.isArray(issuedStatusesInput)
+            ? issuedStatusesInput
+            : issuedStatusesInput
+                ? [issuedStatusesInput]
+                : ['authorized', 'cancelled']
+    ) as IssuedInvoiceStatusFilter[];
     const page = Math.max(1, options?.page || 1);
     const pageSize = Math.max(1, Math.min(100, options?.pageSize || 100));
 
@@ -126,7 +175,7 @@ export async function fetchIssuedInvoices(
         ? new Date(filters.endDate.getFullYear(), filters.endDate.getMonth(), filters.endDate.getDate() + 1, 0, 0, 0, 0).toISOString()
         : undefined;
 
-    let legacyQuery = supabase
+    const legacyQuery = supabase
         .from('sales_document_nfes')
         .select(`
             id,
@@ -149,7 +198,7 @@ export async function fetchIssuedInvoices(
             )
         `)
         .eq('document.company_id', companyId)
-        .neq('status', 'draft') // Exclude drafts
+        .in('status', issuedStatuses)
         .order('updated_at', { ascending: false });
 
     const { data: legacyData, error: legacyError } = await legacyQuery;
@@ -189,7 +238,7 @@ export async function fetchIssuedInvoices(
         .from('nfe_emissions')
         .select('id, sales_document_id, access_key, numero, serie, status, authorized_at, updated_at, created_at, xml_nfe_proc, xml_signed')
         .eq('company_id', companyId)
-        .neq('status', 'draft')
+        .in('status', issuedStatuses)
         .order('updated_at', { ascending: false });
 
     if (startDateIso) {
@@ -306,6 +355,216 @@ export async function fetchIssuedInvoices(
         merged = merged.filter((row: any) => {
             const tradeName = String(row?.document?.client?.trade_name || '').toLowerCase();
             const legalDoc = String(row?.document?.client?.document_number || '').replace(/[^\d]/g, '');
+            return tradeName.includes(searchTerm) || (normalized.length > 0 && legalDoc.includes(normalized));
+        });
+    }
+
+    const total = merged.length;
+    const startIndex = (page - 1) * pageSize;
+    const pagedData = merged.slice(startIndex, startIndex + pageSize);
+
+    return {
+        data: pagedData,
+        total,
+        page,
+        pageSize,
+    };
+}
+
+// Listar eventos da NF-e (cancelamento e carta de correção)
+export async function fetchNfeEvents(
+    companyId: string,
+    filters?: {
+        startDate?: Date;
+        endDate?: Date;
+        clientSearch?: string;
+    },
+    options?: { page?: number; pageSize?: number }
+): Promise<FetchNfeEventsResult> {
+    const supabase = await createClient();
+    const page = Math.max(1, options?.page || 1);
+    const pageSize = Math.max(1, Math.min(100, options?.pageSize || 50));
+
+    const startDateIso = filters?.startDate
+        ? new Date(filters.startDate.getFullYear(), filters.startDate.getMonth(), filters.startDate.getDate(), 0, 0, 0, 0).toISOString()
+        : undefined;
+    const endDateExclusiveIso = filters?.endDate
+        ? new Date(filters.endDate.getFullYear(), filters.endDate.getMonth(), filters.endDate.getDate() + 1, 0, 0, 0, 0).toISOString()
+        : undefined;
+
+    let cancellationQuery = supabase
+        .from('nfe_cancellations')
+        .select('id,nfe_emission_id,sales_document_id,access_key,sequence,status,c_stat,x_motivo,protocol,created_at,updated_at,processed_at')
+        .eq('company_id', companyId)
+        .order('updated_at', { ascending: false });
+
+    let correctionQuery = supabase
+        .from('nfe_correction_letters')
+        .select('id,nfe_emission_id,sales_document_id,access_key,sequence,correction_text,status,c_stat,x_motivo,protocol,created_at,updated_at,processed_at')
+        .eq('company_id', companyId)
+        .order('updated_at', { ascending: false });
+
+    if (startDateIso) {
+        cancellationQuery = cancellationQuery.gte('updated_at', startDateIso);
+        correctionQuery = correctionQuery.gte('updated_at', startDateIso);
+    }
+
+    if (endDateExclusiveIso) {
+        cancellationQuery = cancellationQuery.lt('updated_at', endDateExclusiveIso);
+        correctionQuery = correctionQuery.lt('updated_at', endDateExclusiveIso);
+    }
+
+    const [
+        { data: cancellationsData, error: cancellationsError },
+        { data: correctionsData, error: correctionsError }
+    ] = await Promise.all([
+        cancellationQuery,
+        correctionQuery
+    ]);
+
+    if (cancellationsError && cancellationsError.code !== '42P01') {
+        console.error('Error fetching nfe cancellations:', cancellationsError);
+        throw new Error('Erro ao buscar eventos de cancelamento da NF-e');
+    }
+
+    if (correctionsError && correctionsError.code !== '42P01') {
+        console.error('Error fetching nfe correction letters:', correctionsError);
+        throw new Error('Erro ao buscar cartas de correção da NF-e');
+    }
+
+    const cancellations = cancellationsData || [];
+    const corrections = correctionsData || [];
+
+    const emissionIds = Array.from(new Set([
+        ...cancellations.map((row: any) => row.nfe_emission_id),
+        ...corrections.map((row: any) => row.nfe_emission_id),
+    ].filter(Boolean)));
+
+    let emissionsById = new Map<string, any>();
+    if (emissionIds.length > 0) {
+        const { data: emissions, error: emissionsError } = await supabase
+            .from('nfe_emissions')
+            .select('id,sales_document_id,access_key,numero,serie')
+            .in('id', emissionIds as string[]);
+
+        if (emissionsError && emissionsError.code !== '42P01') {
+            console.error('Error fetching emissions for nfe events:', emissionsError);
+            throw new Error('Erro ao buscar emissões vinculadas aos eventos da NF-e');
+        }
+
+        emissionsById = new Map((emissions || []).map((row: any) => [row.id, row]));
+    }
+
+    const salesDocumentIds = new Set<string>();
+    [...cancellations, ...corrections].forEach((row: any) => {
+        const emission = row?.nfe_emission_id ? emissionsById.get(row.nfe_emission_id) : null;
+        const salesDocumentId = row?.sales_document_id || emission?.sales_document_id || null;
+        if (salesDocumentId) salesDocumentIds.add(salesDocumentId);
+    });
+
+    let documentsById = new Map<string, any>();
+    if (salesDocumentIds.size > 0) {
+        const { data: docs, error: docsError } = await supabase
+            .from('sales_documents')
+            .select(`
+                id,
+                document_number,
+                total_amount,
+                client:organizations!client_id(
+                    trade_name,
+                    document_number
+                )
+            `)
+            .in('id', Array.from(salesDocumentIds));
+
+        if (docsError && docsError.code !== '42P01') {
+            console.error('Error fetching sales documents for nfe events:', docsError);
+            throw new Error('Erro ao buscar pedidos vinculados aos eventos da NF-e');
+        }
+
+        documentsById = new Map((docs || []).map((row: any) => {
+            const client = Array.isArray(row.client) ? row.client[0] : row.client;
+            return [row.id, { ...row, client: client || null }];
+        }));
+    }
+
+    const normalizeNumber = (value: unknown): number | null => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const toOccurredAt = (row: any) => row?.processed_at || row?.updated_at || row?.created_at || new Date().toISOString();
+
+    const mappedCancellations: NfeEventListItem[] = cancellations.map((row: any) => {
+        const emission = row?.nfe_emission_id ? emissionsById.get(row.nfe_emission_id) : null;
+        const salesDocumentId = row?.sales_document_id || emission?.sales_document_id || null;
+        const document = salesDocumentId ? documentsById.get(salesDocumentId) || null : null;
+
+        return {
+            id: row.id,
+            type: 'cancellation',
+            emissionId: row.nfe_emission_id || null,
+            salesDocumentId,
+            accessKey: row.access_key || emission?.access_key || null,
+            nfeNumber: normalizeNumber(emission?.numero),
+            nfeSeries: normalizeNumber(emission?.serie),
+            sequence: normalizeNumber(row.sequence),
+            status: row.status || 'pending',
+            cStat: row.c_stat || null,
+            xMotivo: row.x_motivo || null,
+            protocol: row.protocol || null,
+            correctionText: null,
+            occurredAt: toOccurredAt(row),
+            createdAt: row.created_at || null,
+            document,
+        };
+    });
+
+    const mappedCorrections: NfeEventListItem[] = corrections.map((row: any) => {
+        const emission = row?.nfe_emission_id ? emissionsById.get(row.nfe_emission_id) : null;
+        const salesDocumentId = row?.sales_document_id || emission?.sales_document_id || null;
+        const document = salesDocumentId ? documentsById.get(salesDocumentId) || null : null;
+
+        return {
+            id: row.id,
+            type: 'correction_letter',
+            emissionId: row.nfe_emission_id || null,
+            salesDocumentId,
+            accessKey: row.access_key || emission?.access_key || null,
+            nfeNumber: normalizeNumber(emission?.numero),
+            nfeSeries: normalizeNumber(emission?.serie),
+            sequence: normalizeNumber(row.sequence),
+            status: row.status || 'pending',
+            cStat: row.c_stat || null,
+            xMotivo: row.x_motivo || null,
+            protocol: row.protocol || null,
+            correctionText: row.correction_text || null,
+            occurredAt: toOccurredAt(row),
+            createdAt: row.created_at || null,
+            document,
+        };
+    });
+
+    let merged = [...mappedCancellations, ...mappedCorrections].sort((a, b) =>
+        new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
+    );
+
+    if (startDateIso || endDateExclusiveIso) {
+        merged = merged.filter((row) => {
+            const occurredAt = new Date(row.occurredAt).getTime();
+            if (Number.isNaN(occurredAt)) return false;
+            if (startDateIso && occurredAt < new Date(startDateIso).getTime()) return false;
+            if (endDateExclusiveIso && occurredAt >= new Date(endDateExclusiveIso).getTime()) return false;
+            return true;
+        });
+    }
+
+    const searchTerm = filters?.clientSearch?.trim().toLowerCase();
+    if (searchTerm) {
+        const normalized = searchTerm.replace(/[^\d]/g, '');
+        merged = merged.filter((row) => {
+            const tradeName = String(row.document?.client?.trade_name || '').toLowerCase();
+            const legalDoc = String(row.document?.client?.document_number || '').replace(/[^\d]/g, '');
             return tradeName.includes(searchTerm) || (normalized.length > 0 && legalDoc.includes(normalized));
         });
     }
@@ -456,7 +715,8 @@ export async function cancelInvoice(invoiceId: string, reason: string) {
     if (invoice?.document_id) {
         await supabase
             .from('sales_documents')
-            .update({ status_fiscal: 'cancelled' })
+            // Business rule: cancelled NF-e returns order to pending emission state
+            .update({ status_fiscal: 'none' })
             .eq('id', invoice.document_id);
     }
 

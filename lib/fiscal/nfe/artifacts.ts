@@ -16,6 +16,28 @@ function isExpectedCompanyAssetPath(path: string, companyId: string): boolean {
     return prefixes.some((p) => path.startsWith(p));
 }
 
+function looksLikeXml(value: unknown): value is string {
+    if (typeof value !== "string") return false;
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    return trimmed.startsWith("<") && (
+        trimmed.includes("<NFe") ||
+        trimmed.includes("<nfeProc") ||
+        trimmed.includes("<enviNFe")
+    );
+}
+
+function getXmlPathFromDetails(details: any): string | null {
+    if (!details || typeof details !== "object") return null;
+    return (
+        details?.artifacts?.nfe_proc ||
+        details?.artifacts?.signed_xml ||
+        details?.artifacts?.xml ||
+        details?.xml_url ||
+        null
+    );
+}
+
 export async function resolveNfeArtifactsById(
     supabase: SupabaseLike,
     ctxCompanyId: string,
@@ -31,7 +53,7 @@ export async function resolveNfeArtifactsById(
 
     const { data: emissionRecord, error: emissionError } = await supabase
         .from("nfe_emissions")
-        .select("id, company_id, sales_document_id, access_key, draft_snapshot, status, numero, serie, xml_nfe_proc, xml_signed")
+        .select("id, company_id, sales_document_id, access_key, status, numero, serie, draft_snapshot, xml_nfe_proc, xml_signed, xml_unsigned, xml_sent")
         .eq("id", id)
         .eq("company_id", ctxCompanyId)
         .maybeSingle();
@@ -41,17 +63,27 @@ export async function resolveNfeArtifactsById(
     }
 
     if (emissionRecord) {
-        details = emissionRecord.draft_snapshot;
         documentId = emissionRecord.sales_document_id || null;
         nfeKey = emissionRecord.access_key || null;
         sourceCompanyId = emissionRecord.company_id || null;
         nfeNumber = emissionRecord.numero || null;
         nfeSeries = emissionRecord.serie || null;
-        xmlInline = emissionRecord.xml_nfe_proc || emissionRecord.xml_signed || null;
+        details = emissionRecord.draft_snapshot || null;
+        const inlineCandidates = [
+            emissionRecord.xml_nfe_proc,
+            emissionRecord.xml_signed,
+            emissionRecord.xml_unsigned,
+            emissionRecord.xml_sent,
+            emissionRecord?.draft_snapshot?.xml_nfe_proc,
+            emissionRecord?.draft_snapshot?.xml_signed,
+            emissionRecord?.draft_snapshot?.xml_unsigned,
+            emissionRecord?.draft_snapshot?.xml_sent,
+        ];
+        xmlInline = inlineCandidates.find((candidate) => looksLikeXml(candidate)) || null;
     } else {
         const { data: nfeRecord, error: nfeError } = await supabase
             .from("sales_document_nfes")
-            .select("document_id, nfe_key, nfe_number, nfe_series, details, status, document:sales_documents!inner(company_id)")
+            .select("document_id, nfe_key, nfe_number, nfe_series, details, draft_snapshot, status, document:sales_documents!inner(company_id)")
             .eq("id", id)
             .eq("document.company_id", ctxCompanyId)
             .maybeSingle();
@@ -60,7 +92,8 @@ export async function resolveNfeArtifactsById(
             throw new Error(nfeError?.message || "NF-e record not found");
         }
 
-        details = nfeRecord.details as any;
+        const snapshot = nfeRecord.draft_snapshot as any;
+        details = (nfeRecord.details as any) || snapshot || null;
         documentId = nfeRecord.document_id || null;
         nfeKey = nfeRecord.nfe_key || null;
         nfeNumber = nfeRecord.nfe_number ? String(nfeRecord.nfe_number) : null;
@@ -68,17 +101,26 @@ export async function resolveNfeArtifactsById(
         sourceCompanyId = (Array.isArray((nfeRecord as any).document)
             ? (nfeRecord as any).document[0]?.company_id
             : (nfeRecord as any).document?.company_id) || null;
+        const inlineCandidates = [
+            snapshot?.xml_nfe_proc,
+            snapshot?.xml_signed,
+            snapshot?.xml_unsigned,
+            snapshot?.xml_sent,
+            snapshot?.signed_xml,
+            snapshot?.unsigned_xml,
+        ];
+        xmlInline = inlineCandidates.find((candidate) => looksLikeXml(candidate)) || xmlInline;
     }
 
     let xml: string | null = xmlInline;
 
     if (!xml) {
-        let xmlPath = details?.artifacts?.nfe_proc || details?.artifacts?.signed_xml || details?.artifacts?.xml;
+        let xmlPath = getXmlPathFromDetails(details);
 
         if (!xmlPath && (documentId || nfeKey)) {
             const legacyQuery = supabase
                 .from("sales_document_nfes")
-                .select("document_id, nfe_key, details, document:sales_documents!inner(company_id)")
+                .select("document_id, nfe_key, details, draft_snapshot, document:sales_documents!inner(company_id)")
                 .eq("document.company_id", ctxCompanyId)
                 .limit(1);
 
@@ -88,9 +130,19 @@ export async function resolveNfeArtifactsById(
 
             if (legacyResult?.data && !legacyResult?.error) {
                 const legacyDetails = legacyResult.data.details as any;
-                xmlPath = legacyDetails?.artifacts?.nfe_proc || legacyDetails?.artifacts?.signed_xml || legacyDetails?.artifacts?.xml;
+                const legacySnapshot = (legacyResult.data as any).draft_snapshot as any;
+                const legacyInlineCandidates = [
+                    legacySnapshot?.xml_nfe_proc,
+                    legacySnapshot?.xml_signed,
+                    legacySnapshot?.xml_unsigned,
+                    legacySnapshot?.xml_sent,
+                    legacySnapshot?.signed_xml,
+                    legacySnapshot?.unsigned_xml,
+                ];
+                xmlInline = legacyInlineCandidates.find((candidate) => looksLikeXml(candidate)) || xmlInline;
+                xmlPath = getXmlPathFromDetails(legacyDetails) || getXmlPathFromDetails(legacySnapshot);
                 if (xmlPath) {
-                    details = legacyDetails;
+                    details = legacyDetails || legacySnapshot;
                     documentId = legacyResult.data.document_id || documentId;
                     nfeKey = legacyResult.data.nfe_key || nfeKey;
                     const legacyDoc = Array.isArray((legacyResult.data as any).document)
@@ -101,51 +153,57 @@ export async function resolveNfeArtifactsById(
             }
         }
 
+        if (!xmlPath && xmlInline) {
+            xml = xmlInline;
+        }
+
         if (!xmlPath) {
-            throw new Error("No XML artifact path in NFe details");
-        }
-
-        if (typeof xmlPath === "string" && !xmlPath.startsWith("http") && !isExpectedCompanyAssetPath(xmlPath, ctxCompanyId)) {
-            throw new Error("Invalid XML storage path");
-        }
-
-        const protocolPath = details?.artifacts?.protocol;
-        let protocolXml: string | null = null;
-
-        if (protocolPath) {
-            try {
-                if (typeof protocolPath === "string" && !protocolPath.startsWith("http") && !isExpectedCompanyAssetPath(protocolPath, ctxCompanyId)) {
-                    throw new Error("Invalid protocol path");
-                }
-
-                const { data: protData, error: protErr } = await supabase
-                    .storage
-                    .from("company-assets")
-                    .download(protocolPath);
-
-                if (!protErr && protData) {
-                    protocolXml = await protData.text();
-                }
-            } catch (error) {
-                logger.warn("[NFE Artifacts] protocol download error:", error);
+            if (!xml) {
+                throw new Error("No XML artifact path in NFe details");
             }
-        }
+        } else {
+            if (typeof xmlPath === "string" && !xmlPath.startsWith("http") && !isExpectedCompanyAssetPath(xmlPath, ctxCompanyId)) {
+                throw new Error("Invalid XML storage path");
+            }
 
-        const { data: xmlData, error: xmlError } = await supabase.storage
-            .from("company-assets")
-            .download(xmlPath);
+            const protocolPath = details?.artifacts?.protocol;
+            let protocolXml: string | null = null;
 
-        if (xmlError || !xmlData) {
-            throw new Error(xmlError?.message || "Storage download failed");
-        }
+            if (protocolPath) {
+                try {
+                    if (typeof protocolPath === "string" && !protocolPath.startsWith("http") && !isExpectedCompanyAssetPath(protocolPath, ctxCompanyId)) {
+                        throw new Error("Invalid protocol path");
+                    }
 
-        xml = await xmlData.text();
+                    const { data: protData, error: protErr } = await supabase
+                        .storage
+                        .from("company-assets")
+                        .download(protocolPath);
 
-        const isNfeProc = (xml as string).includes("<nfeProc");
-        if (!isNfeProc && protocolXml && protocolXml.includes("<protNFe")) {
-            const cleanNFe = (xml as string).replace(/<\?xml[^>]*\?>/g, "").trim();
-            const cleanProtocol = protocolXml.replace(/<\?xml[^>]*\?>/g, "").trim();
-            xml = `<?xml version="1.0" encoding="UTF-8"?>\n<nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">\n${cleanNFe}\n${cleanProtocol}\n</nfeProc>`;
+                    if (!protErr && protData) {
+                        protocolXml = await protData.text();
+                    }
+                } catch (error) {
+                    logger.warn("[NFE Artifacts] protocol download error:", error);
+                }
+            }
+
+            const { data: xmlData, error: xmlError } = await supabase.storage
+                .from("company-assets")
+                .download(xmlPath);
+
+            if (xmlError || !xmlData) {
+                throw new Error(xmlError?.message || "Storage download failed");
+            }
+
+            xml = await xmlData.text();
+
+            const isNfeProc = (xml as string).includes("<nfeProc");
+            if (!isNfeProc && protocolXml && protocolXml.includes("<protNFe")) {
+                const cleanNFe = (xml as string).replace(/<\?xml[^>]*\?>/g, "").trim();
+                const cleanProtocol = protocolXml.replace(/<\?xml[^>]*\?>/g, "").trim();
+                xml = `<?xml version="1.0" encoding="UTF-8"?>\n<nfeProc versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe">\n${cleanNFe}\n${cleanProtocol}\n</nfeProc>`;
+            }
         }
     }
 

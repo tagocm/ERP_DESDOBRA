@@ -1,9 +1,9 @@
-import { createClient } from "@/lib/supabaseBrowser";
+import { createClient } from "@/utils/supabase/server";
 import { Uom } from "@/types/product";
 export type { Uom };
 
 export async function getUoms(companyId: string, search?: string): Promise<Uom[]> {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     let query = supabase
         .from('uoms')
@@ -28,7 +28,7 @@ export async function getUoms(companyId: string, search?: string): Promise<Uom[]
 }
 
 export async function getAllUomsIncludingInactive(companyId: string): Promise<Uom[]> {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data, error } = await supabase
         .from('uoms')
@@ -52,24 +52,9 @@ export async function getAllUomsIncludingInactive(companyId: string): Promise<Uo
 }
 
 export async function createUom(uom: Partial<Uom>): Promise<Uom | null> {
-    const supabase = createClient();
+    const supabase = await createClient();
 
-    // Get company_id from context/auth usually, but here we assume it's handled by RLS or passed in.
-    // For this client-side call, we might rely on the API to set it or pass it explicitly if we are in a context.
-    // However, the standard here seems to be RLS context or passed arg.
-    // Let's assume we need to fetch the current user's company or it's inserted via stored proc/trigger if defaults.
-    // But standard insert:
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("User not authenticated");
-
-    // Fetch company_id from user metadata or context if needed, but often we query companies table.
-    // Simplifying assumption: The backend handles company check or we pass it? 
-    // In `categories.ts` we didn't pass company_id explicitly in `createProductCategory`. Let's check how it worked.
-    // Actually `categories.ts` uses `useCompany` context in UI and passes it? No, `createProductCategory` took `company_id`.
-
-    // So we need company_id here.
     if (!uom.company_id) {
-        // Using a workaround or requiring it.
         throw new Error("Company ID is required");
     }
 
@@ -89,7 +74,7 @@ export async function createUom(uom: Partial<Uom>): Promise<Uom | null> {
 }
 
 export async function updateUom(id: string, updates: Partial<Uom>): Promise<Uom | null> {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     const { data, error } = await supabase
         .from('uoms')
@@ -108,7 +93,7 @@ export async function updateUom(id: string, updates: Partial<Uom>): Promise<Uom 
 }
 
 export async function deleteUom(id: string): Promise<void> {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Check usage first
     const { count, error: countError } = await supabase

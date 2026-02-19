@@ -23,10 +23,16 @@ export interface RecurringRule {
     first_due_date?: string | null;
     installments_count?: number | null;
     frequency: string;
+    manual_installments?: Array<{
+        installment_number: number;
+        due_date: string;
+        amount: number;
+    }>;
 
     // Amount
     amount_type: AmountType;
     fixed_amount?: number | null;
+    contract_amount?: number | null;
     estimated_amount?: number | null;
 
     status: RecurringRuleStatus;

@@ -178,97 +178,86 @@ export function TaxGroupManagerModal({ onClose, onChange }: TaxGroupManagerModal
                         Gerencie os agrupadores de regras fiscais.
                     </DialogDescription>
                 </div>
-                <Button
-                    onClick={() => {
-                        resetForm();
-                        setAddBoxOpen(!addBoxOpen);
-                    }}
-                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-full px-4 text-xs h-8 transition-all"
-                >
-                    <Plus className="w-3.5 h-3.5 mr-1.5" />
-                    Novo Grupo
-                </Button>
             </div>
 
             <div className="flex-1 p-6 overflow-y-auto">
                 {/* Create/Edit Form Inline */}
-                {(addBoxOpen || editingId) && (
-                    <Card className="mb-6 p-4 border-gray-200 shadow-none animate-in fade-in slide-in-from-top-2">
-                        <div className="text-sm font-semibold text-gray-900 mb-4 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                {editingId ? <Edit className="w-4 h-4 text-blue-500" /> : <Plus className="w-4 h-4 text-brand-500" />}
-                                {editingId ? "Editar Grupo Tributário" : "Novo Grupo Tributário"}
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <label className="text-xs text-gray-500 font-medium">Status:</label>
-                                <button
-                                    onClick={() => setFormIsActive(!formIsActive)}
-                                    className={cn(
-                                        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-                                        formIsActive ? "bg-green-500" : "bg-gray-200"
-                                    )}
-                                >
-                                    <span
-                                        className={cn(
-                                            "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ml-1",
-                                            formIsActive && "translate-x-3.5"
-                                        )}
-                                    />
-                                </button>
-                                <span className="text-xs font-medium text-gray-700">{formIsActive ? "Ativo" : "Inativo"}</span>
-                            </div>
+                <Card className="mb-6 p-4 border-gray-200 shadow-none animate-in fade-in slide-in-from-top-2">
+                    <div className="text-sm font-semibold text-gray-900 mb-4 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            {editingId ? <Edit className="w-4 h-4 text-blue-500" /> : <Plus className="w-4 h-4 text-brand-500" />}
+                            {editingId ? "Editar Grupo Tributário" : "Novo Grupo Tributário"}
                         </div>
 
-                        <div className="grid grid-cols-12 gap-4">
-                            <div className="col-span-12 md:col-span-6">
-                                <label className="text-xs text-gray-500 mb-1.5 block">Nome do Grupo *</label>
-                                <Input
-                                    value={formName}
-                                    onChange={(e) => setFormName(e.target.value)}
-                                    onBlur={() => setFormName(toTitleCase(formName) || "")}
-                                    placeholder="Ex: Revenda 18%, Produção Própria..."
-                                    className="h-9 text-sm rounded-2xl"
-                                    autoFocus
-                                />
-                            </div>
-                            {/* NCM/CEST/Origin removed */}
-                            <div className="col-span-12 md:col-span-6">
-                                <label className="text-xs text-gray-500 mb-1.5 block">Observação Fiscal</label>
-                                <Input
-                                    value={formObservation}
-                                    onChange={(e) => setFormObservation(e.target.value)}
-                                    placeholder="Ex: Base reduzida conf art. X..."
-                                    className="h-9 text-sm rounded-2xl"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="mt-4 flex gap-2">
-                            <Button
-                                onClick={() => editingId ? handleUpdate(editingId) : handleCreate()}
-                                disabled={isCreating || isUpdating}
-                                className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-medium transition-all"
-                            >
-                                {(isCreating || isUpdating) ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    editingId ? "Salvar Alterações" : "Criar Grupo"
+                        <div className="flex items-center gap-2">
+                            <label className="text-xs text-gray-500 font-medium">Status:</label>
+                            <button
+                                onClick={() => setFormIsActive(!formIsActive)}
+                                className={cn(
+                                    "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+                                    formIsActive ? "bg-green-500" : "bg-gray-200"
                                 )}
-                            </Button>
+                            >
+                                <span
+                                    className={cn(
+                                        "inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ml-1",
+                                        formIsActive && "translate-x-3.5"
+                                    )}
+                                />
+                            </button>
+                            <span className="text-xs font-medium text-gray-700">{formIsActive ? "Ativo" : "Inativo"}</span>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-12 gap-4">
+                        <div className="col-span-12 md:col-span-6">
+                            <label className="text-xs text-gray-500 mb-1.5 block">Nome do Grupo *</label>
+                            <Input
+                                value={formName}
+                                onChange={(e) => setFormName(e.target.value)}
+                                onBlur={() => setFormName(toTitleCase(formName) || "")}
+                                placeholder="Ex: Revenda 18%, Produção Própria..."
+                                className="h-9 text-sm rounded-2xl"
+                                autoFocus
+                            />
+                        </div>
+                        {/* NCM/CEST/Origin removed */}
+                        <div className="col-span-12 md:col-span-6">
+                            <label className="text-xs text-gray-500 mb-1.5 block">Observação Fiscal</label>
+                            <Input
+                                value={formObservation}
+                                onChange={(e) => setFormObservation(e.target.value)}
+                                placeholder="Ex: Base reduzida conf art. X..."
+                                className="h-9 text-sm rounded-2xl"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="mt-4 flex gap-2">
+                        <Button
+                            onClick={() => editingId ? handleUpdate(editingId) : handleCreate()}
+                            disabled={isCreating || isUpdating}
+                            className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-medium transition-all"
+                        >
+                            {(isCreating || isUpdating) ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                editingId ? "Salvar Alterações" : "Criar Grupo"
+                            )}
+                        </Button>
+                        {editingId && (
                             <Button
                                 variant="outline"
                                 onClick={() => {
                                     resetForm();
-                                    setAddBoxOpen(false);
                                 }}
                                 className="h-9 w-9 p-0 bg-gray-50 hover:bg-white text-gray-500 rounded-2xl border-gray-200"
                             >
                                 <X className="w-4 h-4" />
                             </Button>
-                        </div>
-                    </Card>
-                )}
+                        )}
+                    </div>
+                </Card>
 
                 {/* List Container */}
                 <Card className="border-gray-200 overflow-hidden shadow-none">

@@ -6,13 +6,15 @@ import { Button } from '@/components/ui/Button';
 import { Plus, FileText } from 'lucide-react';
 import Link from 'next/link';
 
+type NfeListView = 'pending' | 'issued' | 'cancelled' | 'processing' | 'events';
+
 const tabs = [
     {
-        name: 'NF-e',
+        name: 'Notas de Saída',
         href: '/app/fiscal/nfe'
     },
     {
-        name: 'Configurações',
+        name: 'Notas de Entrada',
         href: '/app/fiscal/configuracoes'
     }
 ];
@@ -41,7 +43,11 @@ export default async function NFePage({
     const companyId = member?.company_id;
 
     // Parse filters
-    const view = (params.view as string) || 'pending'; // 'pending' or 'issued'
+    const rawView = typeof params.view === 'string' ? params.view : 'pending';
+    const allowedViews: NfeListView[] = ['pending', 'issued', 'cancelled', 'processing', 'events'];
+    const view: NfeListView = allowedViews.includes(rawView as NfeListView)
+        ? (rawView as NfeListView)
+        : 'pending';
     const dateFrom = (params.dateFrom as string) || undefined;
     const dateTo = (params.dateTo as string) || undefined;
     const clientSearch = (params.clientSearch as string) || undefined;
@@ -69,7 +75,7 @@ export default async function NFePage({
             <div className="px-6">
                 <InvoiceListClient
                     companyId={companyId!}
-                    initialView={view as 'pending' | 'issued'}
+                    initialView={view}
                     initialFilters={{
                         dateFrom,
                         dateTo,

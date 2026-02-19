@@ -18,6 +18,36 @@ function mapLegacyStatusForUi(status: string): 'authorized' | 'processing' | 'er
     return 'error';
 }
 
+function extractNProtFromResult(result: any): string | null {
+    const fromRaw = result?.rawResponse?.protNFe?.infProt?.nProt
+        || result?.rawResponse?.infProt?.nProt
+        || result?.rawResponse?.nProt;
+
+    if (typeof fromRaw === 'string' && fromRaw.trim()) return fromRaw.trim();
+    if (typeof fromRaw === 'number') return String(fromRaw);
+
+    const xml = result?.protNFeXml;
+    if (typeof xml === 'string' && xml) {
+        const match = xml.match(/<(?:\w+:)?nProt>\s*([0-9]+)\s*<\/(?:\w+:)?nProt>/i);
+        if (match?.[1]) return match[1];
+    }
+
+    return null;
+}
+
+function mapUfFromAccessKey(accessKey?: string | null): string | null {
+    if (!accessKey || accessKey.length < 2) return null;
+    const cUF = accessKey.slice(0, 2);
+    const ufMap: Record<string, string> = {
+        '11': 'RO', '12': 'AC', '13': 'AM', '14': 'RR', '15': 'PA', '16': 'AP', '17': 'TO',
+        '21': 'MA', '22': 'PI', '23': 'CE', '24': 'RN', '25': 'PB', '26': 'PE', '27': 'AL', '28': 'SE', '29': 'BA',
+        '31': 'MG', '32': 'ES', '33': 'RJ', '35': 'SP',
+        '41': 'PR', '42': 'SC', '43': 'RS',
+        '50': 'MS', '51': 'MT', '52': 'GO', '53': 'DF'
+    };
+    return ufMap[cUF] || null;
+}
+
 export async function POST(request: NextRequest) {
     try {
         const limitConfig = process.env.NODE_ENV === 'production'
@@ -90,10 +120,13 @@ export async function POST(request: NextRequest) {
         let result: any;
         let method = 'protocol';
 
+        const ufFromKey = mapUfFromAccessKey(accessKey);
+        const resolvedUf = ufFromKey || emission?.uf || 'SP';
+
         if (emission?.n_recibo) {
             method = 'receipt';
             result = await consultarRecibo(emission.n_recibo, {
-                uf: emission.uf || 'SP',
+                uf: resolvedUf,
                 tpAmb: emission.tp_amb || '2',
                 xmlNfeAssinado: '',
                 idLote: ''
@@ -103,7 +136,7 @@ export async function POST(request: NextRequest) {
         } else {
             const { consultarProtocolo } = await import('@/lib/nfe/sefaz/services/consultarProtocolo');
             result = await consultarProtocolo(accessKey, {
-                uf: emission?.uf || 'SP',
+                uf: resolvedUf,
                 tpAmb: emission?.tp_amb || '2'
             }, certConfig, {
                 debug: process.env.NFE_WS_DEBUG === '1'
@@ -126,12 +159,11 @@ export async function POST(request: NextRequest) {
                 updates.xml_nfe_proc = buildNfeProc(emission.xml_signed, result.protNFeXml);
             }
 
-            const nProtMatch = result.protNFeXml.match(/<nProt>(\d+)<\/nProt>/);
-            if (nProtMatch) updates.n_prot = nProtMatch[1];
-
             const dhRecbtoMatch = result.protNFeXml.match(/<dhRecbto>(.*?)<\/dhRecbto>/);
             if (dhRecbtoMatch) updates.dh_recbto = dhRecbtoMatch[1];
         }
+        const nProt = extractNProtFromResult(result);
+        if (nProt) updates.n_prot = nProt;
 
         const safeNumero = emission?.numero || (legacyNfe?.nfe_number ? String(legacyNfe.nfe_number) : null);
         const safeSerie = emission?.serie || (legacyNfe?.nfe_series ? String(legacyNfe.nfe_series) : null);
@@ -147,7 +179,7 @@ export async function POST(request: NextRequest) {
             numero: safeNumero,
             serie: safeSerie,
             tp_amb: emission?.tp_amb || '2',
-            uf: emission?.uf || 'SP',
+            uf: emission?.uf || resolvedUf,
             xml_signed: emission?.xml_signed || '',
             ...updates
         });
@@ -189,6 +221,7 @@ export async function POST(request: NextRequest) {
         if (error instanceof NfeSefazError) {
             const safeDetails = {
                 code: error.code,
+                message: error.message,
                 hint: (error.details as { hint?: unknown })?.hint,
                 status: (error.details as { status?: unknown })?.status
             };

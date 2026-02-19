@@ -14,7 +14,8 @@ type SalesDocumentFiscalStatus = "none" | "authorized" | "cancelled" | "error";
 
 function mapNfeStatusToSalesDocumentFiscalStatus(status: NfeStatus): SalesDocumentFiscalStatus {
     if (status === "authorized") return "authorized";
-    if (status === "cancelled") return "cancelled";
+    // Business rule: cancelled NF-e makes the order re-eligible for new emission.
+    if (status === "cancelled") return "none";
     if (status === "denied" || status === "rejected" || status === "error") return "error";
     return "none";
 }

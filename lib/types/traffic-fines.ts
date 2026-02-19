@@ -3,6 +3,7 @@ export interface TrafficFineRow {
     company_id: string;
     vehicle_id: string;
     fine_date: string;
+    due_date: string | null;
     city: string;
     reason: string;
     amount: number;

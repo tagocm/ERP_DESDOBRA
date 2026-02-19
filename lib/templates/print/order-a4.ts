@@ -11,6 +11,17 @@ interface TemplateData {
 export function renderOrderA4Html({ company, order, items }: TemplateData): string {
   const formatDate = (date: string) => date ? format(new Date(date), "dd/MM/yyyy") : "-";
   const formatCurrency = (val: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(val || 0);
+  const isDeliveredStatus = (status?: string | null): boolean => {
+    const s = String(status || '').toLowerCase();
+    return ['delivered', 'delivered_partial', 'returned_partial', 'returned_total', 'entregue', 'parcial', 'total'].includes(s);
+  };
+  const sealFromDeliveryStatus = (status?: string | null): 'P' | 'T' | null => {
+    const s = String(status || '').toLowerCase();
+    if (!s) return null;
+    if (['delivered_partial', 'returned_partial', 'partial', 'parcial'].includes(s)) return 'P';
+    if (['delivered', 'returned_total', 'entregue', 'total'].includes(s)) return 'T';
+    return null;
+  };
 
   // Calcula totais se não vierem prontos
   const totalItems = items.reduce((acc, item) => acc + (item.total_amount || 0), 0);
@@ -29,7 +40,24 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
   const companyStreetLine = [company?.address_street, company?.address_number].filter(Boolean).join(', ') || company?.address || "-";
   const companyNeighborhoodCityUfLine = [company?.address_neighborhood, company?.address_city, company?.address_state].filter(Boolean).join(' - ') || "-";
   const companyWebsiteLine = company?.website || "-";
-  const companyPhoneLine = company?.phone || "-";
+  const isPartialOrder = order?.is_partial_order === true || order?.loading_status === 'partial' || order?.status_logistic === 'partial';
+  const financialEntries: any[] = Array.isArray(order?.financial_entries) ? order.financial_entries : [];
+  const rawDeliveryEvents = Array.isArray(order?.delivery_events)
+    ? order.delivery_events
+    : (Array.isArray(order?.deliveries) ? order.deliveries : []);
+
+  const deliveryEvents: Array<{ date: string; seal: 'P' | 'T' }> = rawDeliveryEvents
+    .map((ev: any) => {
+      const status = ev?.status;
+      // Only include truly delivered events. If status is absent, fallback to explicit seal only.
+      if (status && !isDeliveredStatus(status)) return null;
+      const seal = (ev?.seal === 'P' || ev?.seal === 'T')
+        ? ev.seal
+        : sealFromDeliveryStatus(status);
+      if (!seal) return null;
+      return { date: formatDate(ev?.date || ev?.updated_at || ev?.created_at), seal };
+    })
+    .filter(Boolean) as Array<{ date: string; seal: 'P' | 'T' }>;
 
   return `
 <!DOCTYPE html>
@@ -62,12 +90,36 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
     
     .text-center { text-align: center; }
     .text-right { text-align: right; }
-    .text-red { color: #d00; }
+    .text-red { color: #555; }
     
     .footer-note { font-size: 8px; text-align: center; margin-top: 8px; border-top: 1px solid #eee; padding-top: 5px; color: #888; }
     .main-content { flex: 1 1 auto; display: flex; flex-direction: column; }
     .items-box { flex: 1 1 auto; display: flex; flex-direction: column; }
     .items-table-wrap { flex: 1 1 auto; }
+    .invoice-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+    .invoice-tile {
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 3px 2px;
+      background: #fafafa;
+      min-height: 42px;
+      width: 65%;
+      justify-self: center;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+    }
+    .invoice-line-1 { font-size: 9px; font-weight: 700; color: #111827; line-height: 1.05; margin: 0; }
+    .invoice-line-2 { font-size: 9px; font-weight: 600; color: #374151; line-height: 1.05; margin: 0; }
+    .invoice-line-3 { font-size: 9px; font-weight: 700; color: #111827; line-height: 1.05; margin: 0; }
+    .invoice-line-4 { font-size: 9px; font-weight: 600; color: #333; line-height: 1.05; margin: 0; text-transform: lowercase; }
+    .delivery-box { margin-top: 6px; border-top: 1px solid #e5e7eb; padding-top: 5px; height: 32px; overflow: hidden; }
+    .delivery-list { display: flex; align-items: center; gap: 8px; white-space: nowrap; overflow: hidden; }
+    .delivery-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 9px; color: #111; }
+    .delivery-seal { display: inline-flex; align-items: center; justify-content: center; min-width: 14px; height: 14px; border: 1px solid #555; border-radius: 999px; font-size: 8px; font-weight: 700; color: #111; background: #fff; }
   </style>
 </head>
 <body>
@@ -82,13 +134,24 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
          <div class="value">${companyStreetLine}</div>
          <div class="value">${companyNeighborhoodCityUfLine}</div>
          <div class="value">${companyWebsiteLine}</div>
-         <div class="value">${companyPhoneLine}</div>
       </div>
       <div class="col text-center" style="border-left: 1px solid #eee; padding-left: 10px;">
          <div class="header-title">PEDIDO DE VENDA</div>
          <div class="value bold" style="font-size: 20px; color: #444;">Nº ${String(order.document_number).padStart(6, '0')}</div>
          <div class="value" style="margin-top: 4px;">EMISSÃO: <strong>${formatDate(order.date_issued)}</strong></div>
          <div class="value">STATUS: <strong style="text-transform: uppercase;">${order.status_commercial || order.status || "Novo"}</strong></div>
+         <div class="delivery-box">
+           <div class="label">ENTREGAS EFETUADAS ANTERIORES</div>
+           ${deliveryEvents.length > 0
+             ? `<div class="delivery-list">${deliveryEvents.slice(0, 6).map((ev) => `
+                 <span class="delivery-chip">
+                   <span>${ev.date}</span>
+                   <span class="delivery-seal">${ev.seal}</span>
+                 </span>
+               `).join('')}</div>`
+             : `<div class="value">Sem entregas efetuadas.</div>`
+           }
+         </div>
       </div>
     </div>
   </div>
@@ -112,6 +175,28 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
         <div class="value">${clientAddress}</div>
       </div>
     </div>
+  </div>
+
+  <!-- Fatura -->
+  <div class="box">
+    <div class="label" style="border-bottom: 1px solid #eee; margin-bottom: 8px; padding-bottom: 4px;">FATURA</div>
+    ${isPartialOrder
+      ? `<div class="value bold">Pedido parcial.</div>`
+      : financialEntries.length > 0
+        ? `
+        <div class="invoice-grid">
+          ${financialEntries.map((entry: any) => `
+            <div class="invoice-tile">
+              <div class="invoice-line-1">Parcela ${entry.installment_number ?? '-'}</div>
+              <div class="invoice-line-2">${formatDate(entry.due_date)}</div>
+              <div class="invoice-line-3">${formatCurrency(Number(entry.amount_original || 0))}</div>
+              <div class="invoice-line-4">${entry.payment_method || '-'}</div>
+            </div>
+          `).join('')}
+        </div>
+        `
+        : `<div class="value">Sem lançamentos financeiros vinculados ao pedido.</div>`
+    }
   </div>
 
   <!-- Itens -->
@@ -138,7 +223,7 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
           <td>
             <div style="font-weight: 500;">${item.product?.name || "Produto sem nome"}</div>
             ${item.notes ? `<div style="font-size:9px; color:#666; margin-top:3px; font-style: italic;">${item.notes}</div>` : ""}
-            ${item.packaging?.label ? `<div style="font-size:9px; color:#0e7490; margin-top:2px;">Embalagem: ${item.packaging.label}</div>` : ""}
+            ${item.packaging?.label ? `<div style="font-size:9px; color:#555; margin-top:2px;">Embalagem: ${item.packaging.label}</div>` : ""}
           </td>
           <td class="text-center">${item.product?.un || "UN"}</td>
           <td class="text-right font-bold">${item.quantity}</td>

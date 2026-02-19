@@ -41,7 +41,7 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState("");
     const [isUpdating, setIsUpdating] = useState(false);
-    const [addBoxOpen, setAddBoxOpen] = useState(false);
+
 
     const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
@@ -129,66 +129,57 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                         Gerencie as formas de pagamento aceitas (ex: Pix, Boleto, Cartão).
                     </DialogDescription>
                 </div>
-                <Button
-                    onClick={() => {
-                        setEditingId(null);
-                        setAddBoxOpen(!addBoxOpen);
-                    }}
-                    className="bg-brand-600 hover:bg-brand-700 text-white rounded-2xl px-4 text-xs h-8 shadow-card transition-all"
-                >
-                    <Plus className="w-3.5 h-3.5 mr-1.5" />
-                    Nova Modalidade
-                </Button>
+
             </div>
 
             <div className="p-6 overflow-y-auto max-h-screen">
-                {/* Create/Edit Form Inline */}
-                {(addBoxOpen || editingId) && (
-                    <Card className="mb-6 bg-white p-4 border border-gray-200/70 shadow-card animate-in fade-in slide-in-from-top-2">
-                        <div className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            {editingId ? <Edit className="w-4 h-4 text-blue-500" /> : <Plus className="w-4 h-4 text-brand-500" />}
-                            {editingId ? "Editar Modalidade" : "Nova Modalidade"}
-                        </div>
+                {/* Create/Edit Form Inline (Always Visible) */}
+                <Card className="mb-6 bg-white p-4 border border-gray-200/70 shadow-card animate-in fade-in slide-in-from-top-2">
+                    <div className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                        {editingId ? <Edit className="w-4 h-4 text-blue-500" /> : <Plus className="w-4 h-4 text-brand-500" />}
+                        {editingId ? "Editar Modalidade" : "Nova Modalidade"}
+                    </div>
 
-                        <div className="grid grid-cols-1 gap-4">
-                            <div>
-                                <label className="text-xs text-gray-500 mb-1.5 block">Nome</label>
-                                <Input
-                                    value={editingId ? editName : newItemName}
-                                    onChange={(e) => editingId ? setEditName(e.target.value) : setNewItemName(e.target.value)}
-                                    placeholder="Ex: Pix, Boleto 30 Dias..."
-                                    className="h-9 text-sm rounded-2xl"
-                                    autoFocus
-                                    onKeyDown={(e) => e.key === 'Enter' && (editingId ? handleUpdate(editingId) : handleCreate())}
-                                />
-                            </div>
+                    <div className="grid grid-cols-1 gap-4">
+                        <div>
+                            <label className="text-xs text-gray-500 mb-1.5 block">Nome</label>
+                            <Input
+                                value={editingId ? editName : newItemName}
+                                onChange={(e) => editingId ? setEditName(e.target.value) : setNewItemName(e.target.value)}
+                                placeholder="Ex: Pix, Boleto 30 Dias..."
+                                className="h-9 text-sm rounded-2xl"
+                                autoFocus
+                                onKeyDown={(e) => e.key === 'Enter' && (editingId ? handleUpdate(editingId) : handleCreate())}
+                            />
                         </div>
+                    </div>
 
-                        <div className="mt-4 flex gap-2">
-                            <Button
-                                onClick={() => editingId ? handleUpdate(editingId) : handleCreate()}
-                                disabled={isCreating || isUpdating || !(editingId ? editName : newItemName).trim()}
-                                className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-medium transition-all"
-                            >
-                                {(isCreating || isUpdating) ? (
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                ) : (
-                                    editingId ? "Salvar Alterações" : "Criar Modalidade"
-                                )}
-                            </Button>
+                    <div className="mt-4 flex gap-2">
+                        <Button
+                            onClick={() => editingId ? handleUpdate(editingId) : handleCreate()}
+                            disabled={isCreating || isUpdating || !(editingId ? editName : newItemName).trim()}
+                            className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-medium transition-all"
+                        >
+                            {(isCreating || isUpdating) ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                                editingId ? "Salvar Alterações" : "Criar Modalidade"
+                            )}
+                        </Button>
+                        {editingId && (
                             <Button
                                 variant="outline"
                                 onClick={() => {
                                     setEditingId(null);
-                                    setAddBoxOpen(false);
+                                    setEditName(""); // Clear
                                 }}
                                 className="h-9 w-9 p-0 bg-gray-50 hover:bg-white text-gray-500 rounded-2xl border-gray-200"
                             >
                                 <X className="w-4 h-4" />
                             </Button>
-                        </div>
-                    </Card>
-                )}
+                        )}
+                    </div>
+                </Card>
 
                 {/* List Container */}
                 <Card className="border border-gray-200/70 overflow-hidden bg-white shadow-card">
@@ -234,7 +225,6 @@ export function PaymentModeManagerModal({ onClose, onChange }: PaymentModeManage
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={() => {
-                                                        setAddBoxOpen(false);
                                                         setEditingId(mode.id);
                                                         setEditName(mode.name);
                                                     }}

@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
         } catch {
             return errorResponse("JSON inválido", 400, "BAD_JSON");
         }
-        const { companyId, password } = (body || {}) as { companyId?: string; password?: unknown };
+        const { companyId, password, storagePath } = (body || {}) as { companyId?: string; password?: unknown; storagePath?: string };
 
         if (companyId && companyId !== ctx.companyId) {
             return errorResponse("Você não tem permissão para acessar esta empresa", 403, "FORBIDDEN");
@@ -67,12 +67,15 @@ export async function POST(request: NextRequest) {
         const encryptedPassword = await storePassword(password);
 
         // Try to update expiration date if we have the file
+        // Prioritize storagePath from body (user might have just uploaded but not saved settings yet)
+        const fileToRead = storagePath || existingSettings?.cert_a1_storage_path;
+
         let expiresAt: string | null = null;
-        if (existingSettings?.cert_a1_storage_path) {
+        if (fileToRead) {
             try {
                 const { data: fileData, error: fileError } = await supabaseUser.storage
                     .from('company-assets')
-                    .download(existingSettings.cert_a1_storage_path);
+                    .download(fileToRead);
 
                 if (!fileError && fileData) {
                     const arrayBuffer = await fileData.arrayBuffer();
@@ -84,9 +87,11 @@ export async function POST(request: NextRequest) {
                     if (pfxData.certInfo.notAfter) {
                         expiresAt = pfxData.certInfo.notAfter;
                     }
+                } else {
+                    logger.warn(`[CertPassword] File download failed for path: ${fileToRead}`, fileError);
                 }
-            } catch {
-                logger.warn('[CertPassword] Failed parsing PFX for expiration, continuing');
+            } catch (err) {
+                logger.warn('[CertPassword] Failed parsing PFX for expiration, continuing', err);
                 // Don't fail the request, just don't date update
             }
         }
@@ -101,6 +106,12 @@ export async function POST(request: NextRequest) {
 
         if (expiresAt) {
             updatePayload.cert_a1_expires_at = expiresAt;
+        }
+
+        // Ensure storage path is saved if provided
+        if (storagePath) {
+            updatePayload.cert_a1_storage_path = storagePath;
+            updatePayload.cert_a1_uploaded_at = new Date().toISOString();
         }
 
         const { error: updateError } = await supabaseUser

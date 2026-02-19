@@ -26,7 +26,8 @@ import Link from "next/link";
 import { AddressFormData } from "@/components/forms/AddressForm";
 import { toTitleCase, normalizeEmail } from "@/lib/utils";
 import { PaymentModeManagerModal } from "@/components/organizations/PaymentModeManagerModal";
-import { getPaymentModes, PaymentMode } from "@/lib/data/payment-modes";
+import { listPaymentModesAction } from "@/app/actions/payment-mode-actions";
+import type { PaymentMode } from "@/lib/data/payment-modes";
 import { Dialog, DialogContent } from "@/components/ui/Dialog";
 import { Settings } from "lucide-react";
 import { CarrierSelector } from "@/components/app/CarrierSelector";
@@ -119,12 +120,13 @@ export default function NewOrganizationPage() {
         if (!selectedCompany) return;
         const loadOptions = async () => {
             try {
-                const [pts, terms, modes, reps] = await Promise.all([
+                const [pts, terms, reps] = await Promise.all([
                     getPriceTables(supabase, selectedCompany.id),
                     getPaymentTerms(supabase, selectedCompany.id),
-                    getPaymentModes(selectedCompany.id),
                     getRepresentatives(supabase, selectedCompany.id)
                 ]);
+                const modesResult = await listPaymentModesAction();
+                const modes = modesResult.ok ? (modesResult.data ?? []) : [];
                 setPriceTables(pts);
                 setPaymentTerms(terms);
                 setPaymentModes(modes);
@@ -478,8 +480,8 @@ export default function NewOrganizationPage() {
     const reloadPaymentModes = async () => {
         if (!selectedCompany) return;
         try {
-            const data = await getPaymentModes(selectedCompany.id);
-            setPaymentModes(data);
+            const result = await listPaymentModesAction();
+            if (result.ok && result.data) setPaymentModes(result.data);
         } catch (e) {
             console.error(e);
         }

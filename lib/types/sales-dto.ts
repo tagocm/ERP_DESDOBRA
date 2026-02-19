@@ -229,6 +229,13 @@ export interface SalesOrderItemDTO {
     };
     packaging_id?: string | null;
     packaging?: ItemPackagingDTO;
+    fiscal_operation?: {
+        icms_rate_percent?: number | null;
+        icms_reduction_bc_percent?: number | null;
+        st_rate_percent?: number | null;
+        st_mva_percent?: number | null;
+        st_reduction_bc_percent?: number | null;
+    } | null;
 }
 
 export interface ItemPackagingDTO {

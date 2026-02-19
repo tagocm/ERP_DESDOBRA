@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { DecimalInput } from "@/components/ui/DecimalInput";
-import { upsertPaymentTermAction } from "@/app/actions/settings/payment-terms-actions";
 import { PaymentTerm } from "@/lib/types/settings-types";
 import { Loader2, Save, X, CalendarClock } from "lucide-react";
 import { FormErrorSummary } from "@/components/ui/FormErrorSummary";
@@ -67,24 +66,27 @@ export function PaymentTermModal({ open, onOpenChange, onSave, termToEdit }: Pay
         setIsLoading(true);
         try {
             const payload = {
-                id: termToEdit?.id, // undefined if new
+                id: termToEdit?.id,
                 installments_count: installments,
                 first_due_days: firstDueDays,
                 cadence_days: installments === 1 ? null : (cadenceDays || 0),
                 min_installment_amount: minAmount,
-                name: generatedName, // Always auto-generated
+                name: generatedName,
                 is_custom_name: false,
-                is_active: true // Always active
+                is_active: true
             };
 
-            const res = await upsertPaymentTermAction(payload);
-            if (!res.success) throw new Error(res.error);
+            // Call parent onSave which handles action + refresh
+            const success = await onSave(payload);
 
-            toast({
-                title: "Sucesso",
-                description: "Prazo de pagamento salvo.",
-            });
-            onOpenChange(false);
+            if (success) {
+                toast({
+                    title: "Sucesso",
+                    description: "Prazo de pagamento salvo.",
+                });
+                onOpenChange(false);
+            }
+            // If false, parent handles error toast usually, or we can assume parent did it.
         } catch (e: any) {
             console.error(e);
             toast({

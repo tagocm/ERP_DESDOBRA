@@ -111,6 +111,80 @@ export async function updateCompanySettings(supabase: SupabaseClient, companyId:
         .single();
 
     if (error) throw error;
+
+    // Keep fiscal address in sync with addresses table (legacy and fiscal flows still read from it).
+    const hasAddressPayload = [
+        'address_zip',
+        'address_street',
+        'address_number',
+        'address_complement',
+        'address_neighborhood',
+        'address_city',
+        'address_state',
+        'address_country',
+        'city_code_ibge',
+    ].some((key) => key in cleanUpdates);
+
+    if (hasAddressPayload) {
+        const [street, city, state] = [
+            cleanUpdates.address_street ?? data?.address_street,
+            cleanUpdates.address_city ?? data?.address_city,
+            cleanUpdates.address_state ?? data?.address_state,
+        ];
+
+        // Only sync when we have minimally valid fiscal address.
+        if (street && city && state) {
+            const { data: rows, error: listError } = await supabase
+                .from('addresses')
+                .select('id, organization_id, is_main, is_default, deleted_at')
+                .eq('company_id', companyId)
+                .is('deleted_at', null)
+                .order('created_at', { ascending: true });
+
+            if (listError) throw listError;
+
+            const addresses = (rows || []) as any[];
+            const target = addresses.find((a) => a?.is_main)
+                || addresses.find((a) => a?.organization_id == null)
+                || addresses.find((a) => a?.is_default)
+                || null;
+
+            const addressPayload: any = {
+                company_id: companyId,
+                organization_id: target?.organization_id ?? null,
+                branch_id: null,
+                type: target?.type || 'billing',
+                label: target?.label || 'Matriz',
+                zip: cleanUpdates.address_zip ?? data?.address_zip ?? null,
+                street: cleanUpdates.address_street ?? data?.address_street ?? null,
+                number: cleanUpdates.address_number ?? data?.address_number ?? null,
+                complement: cleanUpdates.address_complement ?? data?.address_complement ?? null,
+                neighborhood: cleanUpdates.address_neighborhood ?? data?.address_neighborhood ?? null,
+                city: cleanUpdates.address_city ?? data?.address_city ?? null,
+                state: cleanUpdates.address_state ?? data?.address_state ?? null,
+                country: cleanUpdates.address_country ?? data?.address_country ?? 'BR',
+                city_code_ibge: cleanUpdates.city_code_ibge ?? data?.city_code_ibge ?? null,
+                is_default: true,
+                is_main: true,
+                deleted_at: null,
+            };
+
+            if (target?.id) {
+                const { error: updateAddrError } = await supabase
+                    .from('addresses')
+                    .update(addressPayload)
+                    .eq('id', target.id)
+                    .eq('company_id', companyId);
+                if (updateAddrError) throw updateAddrError;
+            } else {
+                const { error: insertAddrError } = await supabase
+                    .from('addresses')
+                    .insert(addressPayload);
+                if (insertAddrError) throw insertAddrError;
+            }
+        }
+    }
+
     return data;
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Receipt, Download, XCircle, RefreshCw, Printer, CheckCircle2, FilePenLine, Loader2, X } from 'lucide-react';
+import { Receipt, Download, XCircle, RefreshCw, Printer, CheckCircle2, FilePenLine, Loader2, X, MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { downloadNfeXml } from '@/lib/fiscal/nfe-actions';
 import { createClient } from '@/utils/supabase/client';
@@ -17,6 +17,10 @@ interface Props {
     companyId: string;
     isLoading: boolean;
     onInvoiceCancelled: () => void;
+    emptyState?: {
+        title: string;
+        description: string;
+    };
     pagination: {
         page: number;
         pageSize: number;
@@ -25,7 +29,7 @@ interface Props {
     };
 }
 
-export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCancelled, pagination }: Props) {
+export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCancelled, emptyState, pagination }: Props) {
     const { toast } = useToast();
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
     const [printingId, setPrintingId] = useState<string | null>(null);
@@ -58,16 +62,38 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
 
     const extractErrorMessage = (payload: any): string => {
         const details = payload?.details;
+        const errorDetails = payload?.error?.details;
+        if (typeof errorDetails?.details === 'string' && errorDetails.details.trim()) return errorDetails.details;
+        if (typeof errorDetails === 'string' && errorDetails.trim()) return errorDetails;
+        if (typeof errorDetails?.message === 'string' && errorDetails.message.trim()) return errorDetails.message;
         if (typeof details === 'string' && details.trim()) return details;
+        if (typeof payload?.error?.message === 'string' && payload.error.message.trim()) return payload.error.message;
         if (typeof payload?.error === 'string' && payload.error.trim()) return payload.error;
         if (typeof details?.details === 'string' && details.details.trim()) return details.details;
         if (typeof payload?.message === 'string' && payload.message.trim()) return payload.message;
         return 'Erro ao gerar DANFE';
     };
 
+    const extractApiErrorMessage = (payload: any, fallback: string): string => {
+        if (typeof payload === 'string' && payload.trim()) return payload;
+        if (typeof payload?.error?.details?.message === 'string' && payload.error.details.message.trim()) return payload.error.details.message;
+        if (typeof payload?.error?.details?.hint === 'string' && payload.error.details.hint.trim()) return payload.error.details.hint;
+        if (typeof payload?.details === 'string' && payload.details.trim()) return payload.details;
+        if (typeof payload?.error?.details === 'string' && payload.error.details.trim()) return payload.error.details;
+        if (typeof payload?.error?.code === 'string' && payload.error.code.trim()) return `${fallback} (${payload.error.code})`;
+        if (typeof payload?.message === 'string' && payload.message.trim()) return payload.message;
+        if (typeof payload?.error === 'string' && payload.error.trim()) return payload.error;
+        if (typeof payload?.error?.message === 'string' && payload.error.message.trim()) return payload.error.message;
+        return fallback;
+    };
+
     const handleSync = async (nfeId: string, accessKey: string) => {
         if (!accessKey) {
-            alert('Chave de acesso não encontrada');
+            toast({
+                title: 'Chave de acesso ausente',
+                description: 'Não foi possível consultar sem a chave de acesso da NF-e.',
+                variant: 'destructive',
+            });
             return;
         }
 
@@ -85,17 +111,23 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                 body: JSON.stringify({ accessKey, companyId })
             });
 
-            const result = await response.json();
+            const result = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(result.error || 'Erro ao consultar status');
+                throw new Error(extractApiErrorMessage(result, 'Erro ao consultar status'));
             }
 
             if (result.success) {
-                alert(`NF-e atualizada: ${result.status} - ${result.xMotivo}`);
+                toast({
+                    title: 'Status da NF-e atualizado',
+                    description: `${result.status} - ${result.xMotivo}`,
+                });
                 onInvoiceCancelled(); // Refresh list
             } else {
-                alert(`Consulta realizada: ${result.xMotivo}`);
+                toast({
+                    title: 'Consulta realizada',
+                    description: result.xMotivo || 'SEFAZ consultada com sucesso.',
+                });
                 if (result.status !== 'processing') {
                     onInvoiceCancelled(); // Refresh list if status changed
                 }
@@ -103,7 +135,11 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
 
         } catch (error: any) {
             console.error('Sync error:', error);
-            alert(error.message || 'Erro ao sincronizar NF-e');
+            toast({
+                title: 'Erro ao sincronizar NF-e',
+                description: error?.message || 'Falha ao consultar status da NF-e.',
+                variant: 'destructive',
+            });
         } finally {
             setSyncingId(null);
         }
@@ -131,7 +167,11 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
             // Clean up? usually not for _blank unless we track it
         } catch (error: any) {
             console.error('DANFE Error:', error);
-            alert(`Erro ao gerar DANFE: ${error.message}\n\nVerifique o console (F12) para mais detalhes.`);
+            toast({
+                title: 'Erro ao gerar DANFE',
+                description: error?.message || 'Falha ao gerar DANFE da NF-e.',
+                variant: 'destructive',
+            });
         } finally {
             setPrintingId(null);
         }
@@ -150,6 +190,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
         }
 
         return payload.data as {
+            id: string;
             accessKey: string;
             number: string | number | null;
             series: string | number | null;
@@ -162,84 +203,100 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
         setPrintingId(nfeId);
         try {
             const artifact = await fetchCorrectionLetterArtifact(nfeId);
-            const printWindow = window.open('', '_blank');
+            const response = await fetch('/api/fiscal/nfe/events/pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'correction_letter',
+                    id: artifact.id,
+                }),
+            });
+
+            if (!response.ok) {
+                const payload = await response.json().catch(() => ({}));
+                throw new Error(extractApiErrorMessage(payload, 'PDF da carta de correção não disponível.'));
+            }
+
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const printWindow = window.open(blobUrl, '_blank');
             if (!printWindow) {
+                window.URL.revokeObjectURL(blobUrl);
                 throw new Error('O navegador bloqueou a abertura da janela de impressão.');
             }
 
-            const escapedXml = artifact.xml
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;');
-
-            const title = `CCe_${artifact.accessKey || nfeId}_seq_${String(artifact.sequence || 1).padStart(2, '0')}`;
-
-            printWindow.document.write(`
-                <!doctype html>
-                <html>
-                <head>
-                    <meta charset="utf-8" />
-                    <title>${title}</title>
-                    <style>
-                        body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; color: #111827; }
-                        h1 { font-size: 18px; margin: 0 0 8px 0; }
-                        .meta { font-size: 12px; color: #4b5563; margin-bottom: 12px; }
-                        pre { white-space: pre-wrap; word-break: break-word; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; background: #f9fafb; font-size: 11px; }
-                    </style>
-                </head>
-                <body>
-                    <h1>Carta de Correção Eletrônica (CC-e)</h1>
-                    <div class="meta">
-                        Chave: ${artifact.accessKey || '-'}<br/>
-                        Sequência: ${artifact.sequence || 1}
-                    </div>
-                    <pre>${escapedXml}</pre>
-                </body>
-                </html>
-            `);
-            printWindow.document.close();
             setTimeout(() => {
-                printWindow.focus();
-                printWindow.print();
+                try {
+                    printWindow.focus();
+                    printWindow.print();
+                } catch {
+                    // noop
+                }
             }, 200);
         } catch (error: any) {
             console.error('CC-e Print Error:', error);
-            alert(error?.message || 'Erro ao imprimir carta de correção.');
+            toast({
+                title: 'Erro ao imprimir CC-e',
+                description: error?.message || 'Não foi possível imprimir a carta de correção.',
+                variant: 'destructive',
+            });
         } finally {
             setPrintingId(null);
         }
     };
 
-    const handleVerifySefaz = async (nfeId: string) => {
+    const handleVerifySefaz = async (nfe: any) => {
+        const nfeId = nfe?.id;
+        if (!nfeId) {
+            toast({
+                title: 'NF-e inválida',
+                description: 'Não foi possível identificar a nota fiscal selecionada.',
+                variant: 'destructive',
+            });
+            return;
+        }
+
         setVerifyingId(nfeId);
         try {
             const response = await fetch('/api/fiscal/nfe/consulta-situacao', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: nfeId })
+                body: JSON.stringify({
+                    id: nfeId,
+                    accessKey: nfe?.nfe_key || null,
+                    salesDocumentId: nfe?.document?.id || null,
+                    nfeNumber: nfe?.nfe_number || null,
+                    nfeSeries: nfe?.nfe_series || null,
+                })
             });
 
-            const result = await response.json();
+            const result = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(result.details || result.error || 'Erro ao consultar SEFAZ');
+                throw new Error(extractApiErrorMessage(result, 'Erro ao consultar SEFAZ'));
             }
 
-            // Show result
-            alert(
-                `Consulta SEFAZ:\n\n` +
-                `Status: ${result.cStat} - ${result.xMotivo}\n` +
-                (result.nProt ? `Protocolo: ${result.nProt}\n` : '') +
-                (result.dhRecbto ? `Data: ${new Date(result.dhRecbto).toLocaleString('pt-BR')}` : '')
-            );
+            const parts = [
+                `cStat ${result.cStat} - ${result.xMotivo}`,
+                result.nProt ? `Prot. ${result.nProt}` : null,
+                result.dhRecbto ? `Data ${new Date(result.dhRecbto).toLocaleString('pt-BR')}` : null,
+            ].filter(Boolean);
 
-            // Refresh if status changed
-            if (result.success) {
-                window.location.reload();
+            toast({
+                title: 'Consulta SEFAZ concluída',
+                description: parts.join(' | '),
+            });
+
+            if (result.status !== 'processing') {
+                onInvoiceCancelled();
             }
         } catch (error: any) {
             console.error('[Verify SEFAZ] Error:', error);
-            alert(`Erro ao consultar SEFAZ: ${error.message}`);
+            toast({
+                title: 'Erro ao consultar SEFAZ',
+                description: error?.message || 'Falha ao consultar situação da NF-e.',
+                variant: 'destructive',
+            });
         } finally {
             setVerifyingId(null);
         }
@@ -301,7 +358,11 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
 
         } catch (error: any) {
             console.error('Download error:', error);
-            alert(error.message || 'Erro ao fazer download do XML');
+            toast({
+                title: 'Erro ao baixar XML',
+                description: error?.message || 'Falha ao baixar XML da NF-e.',
+                variant: 'destructive',
+            });
         } finally {
             setDownloadingId(null);
         }
@@ -326,10 +387,24 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
             }, 100);
         } catch (error: any) {
             console.error('CC-e Download error:', error);
-            alert(error?.message || 'Erro ao baixar XML da carta de correção.');
+            toast({
+                title: 'Erro ao baixar XML da CC-e',
+                description: error?.message || 'Falha ao baixar XML da carta de correção.',
+                variant: 'destructive',
+            });
         } finally {
             setDownloadingId(null);
         }
+    };
+
+    const handlePrintAll = async (nfeId: string) => {
+        await handlePrintDanfe(nfeId);
+        await handlePrintCorrectionLetter(nfeId);
+    };
+
+    const handleDownloadAllXml = async (nfeId: string) => {
+        await handleDownload(nfeId);
+        await handleDownloadCorrectionLetterXml(nfeId);
     };
 
     const toggleSelect = (nfeId: string, checked: boolean) => {
@@ -477,6 +552,9 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                 body: JSON.stringify({
                     emissionId: selectedCancellationNfe.id,
                     accessKey: selectedCancellationNfe.nfe_key || null,
+                    salesDocumentId: selectedCancellationNfe?.document?.id || null,
+                    nfeNumber: selectedCancellationNfe?.nfe_number || null,
+                    nfeSeries: selectedCancellationNfe?.nfe_series || null,
                     reason: normalized,
                 }),
             });
@@ -500,10 +578,25 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
             onInvoiceCancelled();
         } catch (error: any) {
             console.error('[NFE Cancel] enqueue error:', error);
+            const message = error?.message || 'Falha ao enfileirar cancelamento da NF-e.';
+            const normalizedMessage = String(message).toLowerCase();
+            const isAlreadyCancelled =
+                normalizedMessage.includes('já está cancelada') ||
+                normalizedMessage.includes('ja esta cancelada') ||
+                normalizedMessage.includes('já cancelada') ||
+                normalizedMessage.includes('ja cancelada');
+
+            if (isAlreadyCancelled) {
+                setCancellationModalOpen(false);
+                setSelectedCancellationNfe(null);
+                setCancellationReason('');
+                onInvoiceCancelled();
+            }
+
             window.dispatchEvent(new CustomEvent('nfe-cancel-feedback', {
                 detail: {
-                    type: 'enqueue_error',
-                    message: error?.message || 'Falha ao enfileirar cancelamento da NF-e.',
+                    type: isAlreadyCancelled ? 'already_cancelled' : 'enqueue_error',
+                    message,
                     orderNumber: selectedCancellationNfe?.document?.document_number || null,
                 }
             }));
@@ -549,6 +642,9 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                 body: JSON.stringify({
                     emissionId: selectedCorrectionNfe.id,
                     accessKey: selectedCorrectionNfe.nfe_key || null,
+                    salesDocumentId: selectedCorrectionNfe?.document?.id || null,
+                    nfeNumber: selectedCorrectionNfe?.nfe_number || null,
+                    nfeSeries: selectedCorrectionNfe?.nfe_series || null,
                     correctionText: normalized,
                 }),
             });
@@ -592,10 +688,10 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
             <div className="text-center py-12">
                 <Receipt className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    Nenhuma NF-e emitida
+                    {emptyState?.title || 'Nenhuma NF-e emitida'}
                 </h3>
                 <p className="text-gray-500">
-                    Ainda não há notas fiscais emitidas no período.
+                    {emptyState?.description || 'Ainda não há notas fiscais emitidas no período.'}
                 </p>
             </div>
         );
@@ -664,38 +760,38 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
             )}
             <div className="overflow-x-auto rounded-2xl border border-gray-200">
                 <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-white">
-                    <tr>
-                        <th className="px-4 py-3 text-center">
-                            <Checkbox
-                                checked={allSelected ? true : isIndeterminate ? "indeterminate" : false}
-                                onCheckedChange={toggleSelectAll}
-                                aria-label="Selecionar todas as NF-e"
-                            />
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Nº NF-e
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Data Emissão
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Cliente
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Pedido
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Total
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Status
-                        </th>
-                        <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Ações
-                        </th>
-                    </tr>
-                </thead>
+                    <thead className="bg-white">
+                        <tr>
+                            <th className="px-4 py-3 text-center">
+                                <Checkbox
+                                    checked={allSelected ? true : isIndeterminate ? "indeterminate" : false}
+                                    onCheckedChange={toggleSelectAll}
+                                    aria-label="Selecionar todas as NF-e"
+                                />
+                            </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Nº NF-e
+                            </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Data Emissão
+                            </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Cliente
+                            </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Pedido
+                            </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Total
+                            </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                            </th>
+                            <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Ações
+                            </th>
+                        </tr>
+                    </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                         {data.map((nfe) => (
                             <tr
@@ -709,179 +805,174 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                         aria-label={`Selecionar NF-e ${nfe.nfe_number || nfe.id}`}
                                     />
                                 </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="text-sm font-medium text-gray-900">
-                                    {nfe.nfe_number}
-                                </span>
-                                <span className="text-xs text-gray-500 ml-2">
-                                    Série {nfe.nfe_series}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="text-sm text-gray-900">
-                                    {new Date(nfe.issued_at).toLocaleDateString('pt-BR')}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="text-sm text-gray-900">
-                                    {nfe.document?.client?.trade_name || '-'}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <span className="text-sm text-gray-500">
-                                    #{nfe.document?.document_number || '-'}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                                <span className="text-sm font-medium text-gray-900">
-                                    {new Intl.NumberFormat('pt-BR', {
-                                        style: 'currency',
-                                        currency: 'BRL',
-                                    }).format(nfe.document?.total_amount || 0)}
-                                </span>
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-center">
-                                <span
-                                    className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${nfe.status === 'authorized'
-                                        ? 'bg-green-100 text-green-800'
-                                        : nfe.status === 'cancelled'
-                                            ? 'bg-red-100 text-red-800'
-                                            : nfe.status === 'processing'
-                                                ? 'bg-blue-100 text-blue-800'
-                                                : 'bg-yellow-100 text-yellow-800'
-                                        }`}
-                                >
-                                    {nfe.status === 'authorized'
-                                        ? 'Autorizada'
-                                        : nfe.status === 'cancelled'
-                                            ? 'Cancelada'
-                                            : nfe.status === 'processing'
-                                                ? 'Processando'
-                                                : nfe.status}
-                                </span>
-                            </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
-                                {/* Sync Button for Processing Status */}
-                                {nfe.status === 'processing' && (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        className="text-blue-600 hover:text-blue-700"
-                                        onClick={() => handleSync(nfe.id, nfe.nfe_key)}
-                                        disabled={syncingId === nfe.id}
-                                        title="Atualizar Status na SEFAZ"
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm font-medium text-gray-900">
+                                        {nfe.nfe_number}
+                                    </span>
+                                    <span className="text-xs text-gray-500 ml-2">
+                                        Série {nfe.nfe_series}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm text-gray-900">
+                                        {new Date(nfe.issued_at).toLocaleDateString('pt-BR')}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm text-gray-900">
+                                        {nfe.document?.client?.trade_name || '-'}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <span className="text-sm text-gray-500">
+                                        #{nfe.document?.document_number || '-'}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                    <span className="text-sm font-medium text-gray-900">
+                                        {new Intl.NumberFormat('pt-BR', {
+                                            style: 'currency',
+                                            currency: 'BRL',
+                                        }).format(nfe.document?.total_amount || 0)}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-center">
+                                    <span
+                                        className={`inline-flex items-center px-2 py-1 text-xs font-semibold rounded-full ${nfe.status === 'authorized'
+                                            ? 'bg-green-100 text-green-800'
+                                            : nfe.status === 'cancelled'
+                                                ? 'bg-red-100 text-red-800'
+                                                : nfe.status === 'processing'
+                                                    ? 'bg-blue-100 text-blue-800'
+                                                    : 'bg-yellow-100 text-yellow-800'
+                                            }`}
                                     >
-                                        <RefreshCw className={`w-4 h-4 ${syncingId === nfe.id ? 'animate-spin' : ''}`} />
-                                    </Button>
-                                )}
-
-                                {/* Print DANFE - Only for Authorized or Issued */}
-                                {(nfe.status === 'authorized' || nfe.status === 'issued') && (
-                                    nfe.has_correction_letter ? (
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    disabled={printingId === nfe.id}
-                                                    title="Imprimir arquivos da NF-e"
-                                                >
-                                                    <Printer className={`w-4 h-4 ${printingId === nfe.id ? 'animate-spin' : ''}`} />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onSelect={() => handlePrintDanfe(nfe.id)}>
-                                                    Imprimir DANFE (PDF)
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem onSelect={() => handlePrintCorrectionLetter(nfe.id)}>
-                                                    Imprimir Carta de Correção (CC-e)
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    ) : (
+                                        {nfe.status === 'authorized'
+                                            ? 'Autorizada'
+                                            : nfe.status === 'cancelled'
+                                                ? 'Cancelada'
+                                                : nfe.status === 'processing'
+                                                    ? 'Processando'
+                                                    : nfe.status}
+                                    </span>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
+                                    {/* Sync Button for Processing Status */}
+                                    {nfe.status === 'processing' && (
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            onClick={() => handlePrintDanfe(nfe.id)}
-                                            disabled={printingId === nfe.id}
-                                            title="Imprimir DANFE (PDF)"
+                                            className="h-8 w-8 p-0 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all shadow-sm"
+                                            onClick={() => handleVerifySefaz(nfe)}
+                                            disabled={verifyingId === nfe.id}
+                                            title="Sincronizar com SEFAZ"
                                         >
-                                            <Printer className={`w-4 h-4 ${printingId === nfe.id ? 'animate-spin' : ''}`} />
+                                            <RefreshCw className={`w-4 h-4 ${verifyingId === nfe.id ? 'animate-spin' : ''}`} />
                                         </Button>
-                                    )
-                                )}
+                                    )}
 
-                                {nfe.has_correction_letter ? (
+                                    {/* Print actions - Only for Authorized or Issued */}
+                                    {(nfe.status === 'authorized' || nfe.status === 'issued') && (
+                                        <>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-8 w-8 p-0 rounded-full border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-sm"
+                                                        disabled={printingId === nfe.id}
+                                                        title="Imprimir"
+                                                    >
+                                                        <Printer className={`w-4 h-4 ${printingId === nfe.id ? 'animate-spin' : ''}`} />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onSelect={() => handlePrintDanfe(nfe.id)}>
+                                                        Imprimir DANFE
+                                                    </DropdownMenuItem>
+                                                    {nfe.has_correction_letter && (
+                                                        <DropdownMenuItem onSelect={() => handlePrintCorrectionLetter(nfe.id)}>
+                                                            Imprimir Carta de Correção
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {nfe.has_correction_letter && (
+                                                        <DropdownMenuItem onSelect={() => handlePrintAll(nfe.id)}>
+                                                            Imprimir Tudo
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-8 w-8 p-0 rounded-full border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-sm"
+                                                        disabled={downloadingId === nfe.id}
+                                                        title="Baixar XML"
+                                                    >
+                                                        <Download className={`w-4 h-4 ${downloadingId === nfe.id ? 'animate-spin' : ''}`} />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onSelect={() => handleDownload(nfe.id)}>
+                                                        Baixar XML da NF-e
+                                                    </DropdownMenuItem>
+                                                    {nfe.has_correction_letter && (
+                                                        <DropdownMenuItem onSelect={() => handleDownloadCorrectionLetterXml(nfe.id)}>
+                                                            Baixar XML da Carta de Correção
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {nfe.has_correction_letter && (
+                                                        <DropdownMenuItem onSelect={() => handleDownloadAllXml(nfe.id)}>
+                                                            Baixar Tudo (XML)
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </>
+                                    )}
+
+                                    {/* General Actions Dropdown */}
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                             <Button
                                                 size="sm"
-                                                variant="outline"
-                                                disabled={downloadingId === nfe.id || !nfe.nfe_key}
-                                                title="Baixar XML da NF-e ou da CC-e"
+                                                variant="ghost"
+                                                className="h-8 w-8 p-0 rounded-full hover:bg-gray-100 text-gray-500"
                                             >
-                                                <Download className="w-4 h-4" />
+                                                <MoreHorizontal className="w-5 h-5" />
+                                                <span className="sr-only">Abrir menu</span>
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                            <DropdownMenuItem onSelect={() => handleDownload(nfe.id)}>
-                                                Baixar XML da NF-e
+                                            <DropdownMenuItem
+                                                onSelect={() => handleVerifySefaz(nfe)}
+                                                disabled={verifyingId === nfe.id}
+                                            >
+                                                <RefreshCw className={`mr-2 h-4 w-4 ${verifyingId === nfe.id ? 'animate-spin' : ''}`} />
+                                                <span>Consultar SEFAZ</span>
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => handleDownloadCorrectionLetterXml(nfe.id)}>
-                                                Baixar XML da Carta de Correção
+
+                                            <DropdownMenuItem
+                                                onSelect={() => openCorrectionModal(nfe)}
+                                                disabled={nfe.status !== 'authorized'}
+                                            >
+                                                <FilePenLine className="mr-2 h-4 w-4" />
+                                                <span>Carta de Correção</span>
+                                            </DropdownMenuItem>
+
+                                            <DropdownMenuItem
+                                                onSelect={() => openCancellationModal(nfe)}
+                                                disabled={!(nfe.status === 'authorized' || nfe.status === 'processing')}
+                                                className="text-red-600 focus:text-red-700 focus:bg-red-50"
+                                            >
+                                                <XCircle className="mr-2 h-4 w-4" />
+                                                <span>Cancelar NF-e</span>
                                             </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
-                                ) : (
-                                    <Button
-                                        size="sm"
-                                        variant="outline"
-                                        onClick={() => handleDownload(nfe.id)}
-                                        disabled={downloadingId === nfe.id || !nfe.nfe_key}
-                                        title="Baixar XML"
-                                    >
-                                        <Download className="w-4 h-4" />
-                                    </Button>
-                                )}
-
-                                {/* Verify on SEFAZ - For authorized notes */}
-                                    {nfe.status === 'authorized' && (
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="text-blue-600 hover:text-blue-700"
-                                            onClick={() => handleVerifySefaz(nfe.id)}
-                                            disabled={verifyingId === nfe.id}
-                                            title="Verificar na SEFAZ"
-                                        >
-                                            <CheckCircle2 className={`w-4 h-4 ${verifyingId === nfe.id ? 'animate-spin' : ''}`} />
-                                        </Button>
-                                    )}
-
-                                    {nfe.status === 'authorized' && (
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            className="text-amber-700 hover:text-amber-800"
-                                            onClick={() => openCorrectionModal(nfe)}
-                                            disabled={submittingCorrectionId === nfe.id}
-                                            title="Carta de Correção (CC-e)"
-                                        >
-                                            <FilePenLine className={`w-4 h-4 ${submittingCorrectionId === nfe.id ? 'animate-pulse' : ''}`} />
-                                        </Button>
-                                    )}
-
-                                    {nfe.status === 'authorized' && (
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => openCancellationModal(nfe)}
-                                            disabled={cancellingId === nfe.id}
-                                            title="Cancelar NF-e"
-                                        >
-                                            <XCircle className="w-4 h-4" />
-                                        </Button>
-                                    )}
                                 </td>
                             </tr>
                         ))}

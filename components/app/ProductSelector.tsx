@@ -49,12 +49,14 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
         const fetchProduct = async () => {
             const { data } = await supabase
                 .from('items')
-                .select('id, name, sku, uom, sale_price, net_weight_kg_base, gross_weight_kg_base')
+                .select('id, name, sku, uom, avg_cost, net_weight_kg_base, gross_weight_kg_base, fiscal:item_fiscal_profiles(tax_group_id, ncm, cest, origin, cfop_code)')
                 .eq('company_id', activeCompanyId)
                 .eq('id', value)
                 .single();
             if (data) {
-                setSelectedProduct({ ...data, un: data.uom, price: Number(data.sale_price || 0) });
+                const rawFiscal = (data as any).fiscal;
+                const fiscal = Array.isArray(rawFiscal) ? (rawFiscal[0] || null) : (rawFiscal || null);
+                setSelectedProduct({ ...data, fiscal, un: data.uom, price: Number(data.avg_cost || 0) });
                 setSearch(data.name);
             }
         };
@@ -102,7 +104,40 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
                     limit: 20
                 });
                 if (cancelled) return;
-                setOptions(data ? data.map((d: any) => ({ ...d, un: d.uom, price: Number(d.sale_price || 0) })) : []);
+                const mapped = data ? data.map((d: any) => {
+                    const rawFiscal = d?.fiscal;
+                    const fiscal = Array.isArray(rawFiscal) ? (rawFiscal[0] || null) : (rawFiscal || null);
+                    return { ...d, fiscal, un: d.uom, price: Number(d.avg_cost || 0) };
+                }) : [];
+
+                if (mapped.length > 0) {
+                    setOptions(mapped);
+                    return;
+                }
+
+                // Fallback: query directly with browser client if server action returns empty.
+                const { data: fallbackRows, error: fallbackError } = await supabase
+                    .from('items')
+                    .select('id, name, sku, uom, avg_cost, net_weight_kg_base, gross_weight_kg_base, fiscal:item_fiscal_profiles(tax_group_id, ncm, cest, origin, cfop_code)')
+                    .eq('company_id', activeCompanyId)
+                    .eq('is_active', true)
+                    .is('deleted_at', null)
+                    .or(`name.ilike.%${search}%,sku.ilike.%${search}%`)
+                    .order('name', { ascending: true })
+                    .limit(20);
+
+                if (cancelled) return;
+                if (fallbackError) {
+                    console.error("[ProductSelector] fallback search error:", fallbackError);
+                    setOptions([]);
+                    return;
+                }
+
+                setOptions((fallbackRows || []).map((d: any) => {
+                    const rawFiscal = d?.fiscal;
+                    const fiscal = Array.isArray(rawFiscal) ? (rawFiscal[0] || null) : (rawFiscal || null);
+                    return { ...d, fiscal, un: d.uom, price: Number(d.avg_cost || 0) };
+                }));
             } catch (error) {
                 if (cancelled) return;
                 console.error("[ProductSelector] search error:", error);

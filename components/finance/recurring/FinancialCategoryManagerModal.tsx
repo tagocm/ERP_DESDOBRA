@@ -126,7 +126,7 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange }: 
     };
 
     return (
-        <DialogContent className="max-w-3xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl flex flex-col max-h-screen">
+        <DialogContent hideCloseButton className="max-w-3xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl flex flex-col max-h-screen">
             {/* Header */}
             <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center">
                 <div>

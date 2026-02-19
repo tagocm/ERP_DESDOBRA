@@ -7,6 +7,7 @@ import { VehicleForm } from "@/components/fleet/VehicleForm";
 import { FuelRecordsTab } from "@/components/fleet/fuel/FuelRecordsTab";
 import { TollRecordsTab } from "@/components/fleet/toll/TollRecordsTab";
 import { TrafficFinesTab } from "@/components/fleet/fines/TrafficFinesTab";
+import { VehicleDocumentsTab } from "@/components/fleet/documents/VehicleDocumentsTab";
 import { FleetVehicleRow } from "@/lib/types/fleet";
 import { Loader2, Save } from "lucide-react";
 import Link from "next/link";
@@ -121,7 +122,20 @@ export function VehicleFormPage({ title, subtitle, initialData, isEdit }: Vehicl
                         )}
                     </TabsContent>
 
-                    {VEHICLE_TABS.slice(4).map(tab => (
+                    <TabsContent value="documentos" className="mt-0 focus-visible:outline-none">
+                        {initialData?.id ? (
+                            <VehicleDocumentsTab vehicleId={initialData.id} />
+                        ) : (
+                            <div className="flex items-center justify-center py-20">
+                                <div className="text-center space-y-3">
+                                    <p className="text-lg font-semibold text-gray-900">Documentos</p>
+                                    <p className="text-sm text-gray-500">Salve o veículo primeiro para registrar documentos</p>
+                                </div>
+                            </div>
+                        )}
+                    </TabsContent>
+
+                    {VEHICLE_TABS.slice(5).map(tab => (
                         <TabsContent key={tab.value} value={tab.value} className="mt-0 focus-visible:outline-none">
                             <div className="flex items-center justify-center py-20">
                                 <div className="text-center space-y-3">

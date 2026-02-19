@@ -111,11 +111,13 @@ export const planningService = {
 
         const profileMap = new Map((profiles || []).map(p => [p.item_id, p]))
 
-        // Filter items: must have production profile with is_produced=true AND default_bom_id
+        // Filter items: must have production profile with is_produced=true.
+        // Do not require default_bom_id here, because older records can have active BOM
+        // without the profile default pointer populated.
         const eligibleItemIds = finishedGoods
             .filter(item => {
                 const profile = profileMap.get(item.id)
-                return profile && profile.is_produced && profile.default_bom_id
+                return profile && profile.is_produced
             })
             .map(i => i.id)
 

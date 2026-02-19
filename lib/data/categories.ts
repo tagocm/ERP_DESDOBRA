@@ -1,9 +1,9 @@
 
-import { createClient } from "@/lib/supabaseBrowser";
+import { createClient } from "@/utils/supabase/server";
 import { ProductCategory } from "@/types/product";
 
 export async function getCategories(companyId: string) {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data, error } = await supabase
         .from('product_categories')
         .select(`
@@ -26,7 +26,7 @@ export async function getCategories(companyId: string) {
 }
 
 export async function createCategory(companyId: string, name: string) {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data, error } = await supabase
         .from('product_categories')
         .insert({ name, company_id: companyId })
@@ -43,7 +43,7 @@ export async function createCategory(companyId: string, name: string) {
 }
 
 export async function updateCategory(id: string, name: string) {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data, error } = await supabase
         .from('product_categories')
         .update({ name })
@@ -65,7 +65,7 @@ export async function updateCategory(id: string, name: string) {
 }
 
 export async function deleteCategory(id: string) {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data, error } = await supabase
         .from('product_categories')
         .delete()

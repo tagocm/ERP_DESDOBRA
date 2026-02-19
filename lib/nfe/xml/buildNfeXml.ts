@@ -80,6 +80,11 @@ export function buildNfeXml(draft: NfeDraft, opts: BuildOptions = {}): BuildResu
     const totals = calcIcmsTot(draft);
 
     // 5. Assemble View Model
+    const hasPrazoPayment = Array.isArray(draft.pag?.detPag)
+        ? draft.pag.detPag.some((p: any) => String(p?.indPag || "0") === "1")
+        : false;
+    const cobrSection = hasPrazoPayment && draft.cobr ? buildCobr(draft.cobr) : undefined;
+
     const NFe = {
         infNFe: {
             "@_versao": "4.00",
@@ -90,7 +95,7 @@ export function buildNfeXml(draft: NfeDraft, opts: BuildOptions = {}): BuildResu
             det: draft.itens.map(buildDet),
             total: buildTotal(totals),
             transp: draft.transp ? buildTransp(draft.transp) : { modFrete: "9" },
-            cobr: draft.cobr ? buildCobr(draft.cobr) : undefined,
+            cobr: cobrSection,
             pag: buildPag(draft.pag),
             infAdic: draft.infAdic ? buildInfAdic(draft.infAdic) : undefined
         }

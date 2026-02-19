@@ -2,6 +2,33 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { resolveCompanyContext } from '@/lib/auth/resolve-company';
 
+function normalizeLogoPath(rawPath: string): string | null {
+    const value = String(rawPath || '').trim();
+    if (!value) return null;
+
+    // Plain storage path
+    if (!/^https?:\/\//i.test(value)) {
+        return value.replace(/^\/+/, '').replace(/^company-assets\//, '');
+    }
+
+    // Legacy URL stored in DB (public/signed)
+    try {
+        const url = new URL(value);
+        const normalizedHref = `${url.origin}${url.pathname}`;
+        const markerPublic = '/storage/v1/object/public/company-assets/';
+        const markerSigned = '/storage/v1/object/sign/company-assets/';
+        if (normalizedHref.includes(markerPublic)) {
+            return normalizedHref.split(markerPublic)[1]?.replace(/^\/+/, '') || null;
+        }
+        if (normalizedHref.includes(markerSigned)) {
+            return normalizedHref.split(markerSigned)[1]?.replace(/^\/+/, '') || null;
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
 export async function POST(request: NextRequest) {
     try {
         let ctx: Awaited<ReturnType<typeof resolveCompanyContext>>;
@@ -44,8 +71,9 @@ export async function POST(request: NextRequest) {
             );
         }
 
+        const normalizedLogoPath = normalizeLogoPath(settings.logo_path);
         const expectedPrefixes = [`companies/${companyId}/`, `${companyId}/`];
-        if (!expectedPrefixes.some((p) => settings.logo_path.startsWith(p))) {
+        if (!normalizedLogoPath || !expectedPrefixes.some((p) => normalizedLogoPath.startsWith(p))) {
             return NextResponse.json(
                 { error: 'Nenhum logo encontrado' },
                 { status: 404 }
@@ -55,7 +83,7 @@ export async function POST(request: NextRequest) {
         // Generate signed URL (valid for 1 hour)
         const { data: signedUrlData, error: signedUrlError } = await supabaseUser.storage
             .from('company-assets')
-            .createSignedUrl(settings.logo_path, 3600); // 1 hour
+            .createSignedUrl(normalizedLogoPath, 3600); // 1 hour
 
         if (signedUrlError || !signedUrlData) {
             logger.error('[logo/signed-url] createSignedUrl failed', {

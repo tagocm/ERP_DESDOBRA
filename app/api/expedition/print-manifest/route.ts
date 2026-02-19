@@ -79,6 +79,11 @@ export async function POST(request: Request) {
                     sales_order:sales_documents(
                         id, document_number, date_issued, status_commercial, status_logistic,
                         total_amount, discount_amount, freight_amount, internal_notes, delivery_address_json,
+                        deliveries:deliveries(
+                            status,
+                            created_at,
+                            updated_at
+                        ),
                         client:organizations!client_id(
                             id, trade_name, legal_name, document_number,
                             addresses(*)
@@ -96,6 +101,68 @@ export async function POST(request: Request) {
 
         if (routeError || !route) {
             return NextResponse.json({ error: 'Rota não encontrada.' }, { status: 404 });
+        }
+
+        const routeOrderIds = (route.orders || []).map((ro: any) => ro.sales_document_id).filter(Boolean);
+        const financialEntriesByOrder = new Map<string, any[]>();
+        const financialEventEntriesByOrder = new Map<string, any[]>();
+
+        if (routeOrderIds.length > 0) {
+            const { data: arTitles } = await supabase
+                .from('ar_titles')
+                .select(`
+                    sales_document_id,
+                    installments:ar_installments(
+                        installment_number,
+                        due_date,
+                        amount_original,
+                        amount_open,
+                        status,
+                        payment_method
+                    )
+                `)
+                .in('sales_document_id', routeOrderIds);
+
+            for (const title of arTitles || []) {
+                const docId = (title as any).sales_document_id as string;
+                if (!docId) continue;
+                const rows = Array.isArray((title as any).installments) ? (title as any).installments : [];
+                const prev = financialEntriesByOrder.get(docId) || [];
+                financialEntriesByOrder.set(docId, [...prev, ...rows]);
+            }
+
+            const { data: financialEvents } = await supabase
+                .from('financial_events')
+                .select(`
+                    origin_id,
+                    status,
+                    installments:financial_event_installments(
+                        installment_number,
+                        due_date,
+                        amount,
+                        payment_method
+                    )
+                `)
+                .eq('origin_type', 'SALE')
+                .eq('direction', 'AR')
+                .in('origin_id', routeOrderIds)
+                .neq('status', 'rejected');
+
+            for (const ev of financialEvents || []) {
+                const docId = (ev as any).origin_id as string;
+                if (!docId) continue;
+                const rows = Array.isArray((ev as any).installments) ? (ev as any).installments : [];
+                const normalizedRows = rows.map((inst: any) => ({
+                    installment_number: inst.installment_number,
+                    due_date: inst.due_date,
+                    amount_original: Number(inst.amount || 0),
+                    amount_open: Number(inst.amount || 0),
+                    payment_method: inst.payment_method,
+                    status: String((ev as any).status || 'pending').toUpperCase()
+                }));
+                const prev = financialEventEntriesByOrder.get(docId) || [];
+                financialEventEntriesByOrder.set(docId, [...prev, ...normalizedRows]);
+            }
         }
 
         let companyData = {
@@ -217,7 +284,13 @@ export async function POST(request: Request) {
                         total_amount: computedTotal,
                         discount_amount: discountAmount,
                         freight_amount: freightAmount,
-                        client_address_resolved: clientAddress
+                        client_address_resolved: clientAddress,
+                        loading_status: routeOrder.loading_status,
+                        is_partial_order: routeOrder.loading_status === 'partial',
+                        financial_entries:
+                            (financialEntriesByOrder.get(order.id)?.length
+                                ? financialEntriesByOrder.get(order.id)
+                                : financialEventEntriesByOrder.get(order.id)) || []
                     },
                     items: loadedItems
                 };

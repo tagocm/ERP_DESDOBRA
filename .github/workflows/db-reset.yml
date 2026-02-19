@@ -1,0 +1,39 @@
+name: db-reset
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  supabase-db-reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install Supabase CLI
+        run: |
+          npm i -g supabase@latest
+          supabase --version
+
+      - name: Start Supabase
+        run: supabase start
+
+      - name: DB reset (must pass)
+        run: supabase db reset
+
+      - name: Stop Supabase (always)
+        if: always()
+        run: supabase stop

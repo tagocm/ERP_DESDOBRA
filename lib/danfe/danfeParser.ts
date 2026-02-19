@@ -147,6 +147,13 @@ export interface DanfeData {
             vDup?: number;
         }>;
     };
+    pag?: {
+        detPag?: Array<{
+            indPag?: string;
+            tPag?: string;
+            vPag?: number;
+        }>;
+    };
     infAdic?: {
         infCpl?: string;
         infAdFisco?: string;
@@ -231,6 +238,7 @@ export function parseNfe(xml: string): DanfeData {
     const total = infNFe.total?.ICMSTot || {};
     const transp = infNFe.transp || {};
     const cobr = infNFe.cobr || {};
+    const pag = infNFe.pag || {};
     const infAdic = infNFe.infAdic || {};
 
     // Helper for numbers
@@ -362,6 +370,13 @@ export function parseNfe(xml: string): DanfeData {
                 nDup: d.nDup,
                 dVenc: d.dVenc,
                 vDup: num(d.vDup)
+            }))
+        },
+        pag: {
+            detPag: toArray(pag.detPag).map((d: any) => ({
+                indPag: d.indPag,
+                tPag: d.tPag,
+                vPag: num(d.vPag)
             }))
         },
         infAdic: {

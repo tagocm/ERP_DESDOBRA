@@ -13,7 +13,7 @@ import { PrinterConfigDialog } from '@/components/print/PrinterConfigDialog';
 import { generateVolumeLabelZPL, downloadZpl } from '@/lib/zpl-generator';
 import { useToast } from "@/components/ui/use-toast";
 import { DeliveryRouteDTO } from '@/lib/types/sales-dto';
-import { normalizeLoadingStatus, normalizeLogisticsStatus } from '@/lib/constants/status';
+import { normalizeLoadingStatus, normalizeLogisticsStatus, normalizeRouteStatus } from '@/lib/constants/status';
 
 interface RouteDetailsProps {
     route: any;
@@ -76,6 +76,8 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
     const hasNotLoaded = countNotLoaded > 0;
 
     const hasInRouteOrders = route.orders?.some((o: any) => (normalizeLogisticsStatus(o.sales_order?.status_logistic) || o.sales_order?.status_logistic) === 'in_route');
+    const routeStatus = normalizeRouteStatus(route.status) || route.status;
+    const isLoadingReadOnly = ['in_route', 'in_progress', 'completed', 'cancelled'].includes(routeStatus);
     const totalWeight = route.orders?.reduce((sum: number, ro: any) => sum + (ro.sales_order?.total_weight_kg || 0), 0) || 0;
 
     return (
@@ -87,7 +89,7 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
             />
 
             {/* Header */}
-            <Card className="border-gray-200">
+            <Card className={`border-gray-200 ${isLoadingReadOnly ? 'bg-gray-50/60' : ''}`}>
                 <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-4">
                         <div>
@@ -156,8 +158,15 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
                             </p>
                         </div>
                     )}
+                    {isLoadingReadOnly && (
+                        <div className="border rounded-2xl p-3 mb-4 bg-gray-50 border-gray-200">
+                            <p className="text-sm text-gray-700">
+                                Rota iniciada. Edição de carregamento bloqueada. Apenas impressão de romaneio e etiquetas disponível.
+                            </p>
+                        </div>
+                    )}
 
-                    <div className="flex bg-gray-100 p-1 rounded-2xl">
+                    <div className={`flex p-1 rounded-2xl ${isLoadingReadOnly ? 'bg-gray-200/80' : 'bg-gray-100'}`}>
                         <button
                             onClick={() => setActiveTab('separation')}
                             className={`flex-1 py-2 text-sm font-medium rounded-2xl transition-all ${activeTab === 'separation'
@@ -181,11 +190,11 @@ export function RouteDetails({ route, onClose, onStartRoute }: RouteDetailsProps
             </Card>
 
             {/* Content */}
-            <Card className="border-gray-200">
+            <Card className={`border-gray-200 ${isLoadingReadOnly ? 'bg-gray-50/70' : ''}`}>
                 {activeTab === 'separation' ? (
                     <ProductSeparationList routeId={route.id} />
                 ) : (
-                    <LoadingChecklist route={route} printer={printer} />
+                    <LoadingChecklist route={route} printer={printer} readOnly={isLoadingReadOnly} />
                 )}
             </Card>
         </div>

@@ -37,7 +37,8 @@ async function seedCfops() {
     console.log(`Found ${lines.length - startIndex} lines to process.`);
 
     const batchSize = 100;
-    let batch: any[] = [];
+    const allItems: any[] = [];
+    const seenCodes = new Set<string>();
 
     for (let i = startIndex; i < lines.length; i++) {
         const line = lines[i];
@@ -48,8 +49,8 @@ async function seedCfops() {
         if (!match) {
             // Handle multiline descriptions (continuation lines)
             // If we have a current batch, append to the last item
-            if (batch.length > 0) {
-                const lastItem = batch[batch.length - 1];
+            if (allItems.length > 0) {
+                const lastItem = allItems[allItems.length - 1];
                 // Clean up quotes from the appended line
                 let cleanLine = line.trim();
                 if (cleanLine.endsWith('"')) cleanLine = cleanLine.slice(0, -1);
@@ -61,6 +62,7 @@ async function seedCfops() {
         const codigo = match[1];
         let descricao = match[2];
 
+        // Start fresh item
         // Remove starting quote if strictly present
         if (descricao.startsWith('"')) {
             descricao = descricao.substring(1);
@@ -90,29 +92,31 @@ async function seedCfops() {
             continue;
         }
 
-        batch.push({
+        const newItem = {
             codigo,
             descricao: descricao.trim(),
             tipo_operacao,
             ambito,
             ativo: true
-        });
+        };
 
-        if (batch.length >= batchSize) {
-            const { error } = await supabase.from("cfop").upsert(batch, { onConflict: "codigo" });
-            if (error) {
-                console.error("Batch error:", error);
-                errors += batch.length;
-            } else {
-                upserted += batch.length;
-            }
-            batch = [];
+        // Check duplicate
+        if (seenCodes.has(codigo)) {
+            console.warn(`Duplicate found for code ${codigo}, skipping.`);
+            continue;
         }
+
+        seenCodes.add(codigo);
+        allItems.push(newItem);
     }
 
-    // Final batch
-    if (batch.length > 0) {
+    console.log(`Prepared ${allItems.length} unique items for insertion.`);
+
+    // Batch insert
+    for (let i = 0; i < allItems.length; i += batchSize) {
+        const batch = allItems.slice(i, i + batchSize);
         const { error } = await supabase.from("cfop").upsert(batch, { onConflict: "codigo" });
+
         if (error) {
             console.error("Batch error:", error);
             errors += batch.length;
@@ -121,6 +125,7 @@ async function seedCfops() {
         }
     }
 
+    // Final logging
     console.log(`Finished. Upserted: ${upserted}, Errors: ${errors}`);
 }
 

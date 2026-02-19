@@ -56,6 +56,11 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
             toast({ title: "Erro", description: 'Selecione uma rota primeiro', variant: "destructive" });
             return;
         }
+        const selectedRouteStatus = normalizeRouteStatus(selectedRoute.status) || selectedRoute.status;
+        if (selectedRouteStatus === 'in_route' || selectedRouteStatus === 'in_progress') {
+            toast({ title: "Rota já iniciada", description: "A rota permanece disponível apenas para impressão.", variant: "destructive" });
+            return;
+        }
 
         const countFull = selectedRoute.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'loaded').length || 0;
         const countPartial = selectedRoute.orders?.filter((o: any) => normalizeLoadingStatus(o.loading_status) === 'partial' || hasOccurrenceType(o, 'PARTIAL_LOADED')).length || 0;
@@ -175,8 +180,8 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                 });
 
                 if (!response.ok) {
-                    const data = await response.json();
-                    throw new Error(data.error || 'Erro ao iniciar rota');
+                    const data = await response.json().catch(() => ({}));
+                    throw new Error(data?.error || 'Erro ao iniciar rota');
                 }
 
                 toast({ title: "Sucesso", description: 'Rota iniciada com sucesso!' });
@@ -185,13 +190,15 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
             setConfirmDialogOpen(false);
             router.refresh();
         } catch (err: any) {
-            console.error("Cancel Route Error:", err);
+            console.error("Start Route Error:", err);
             toast({ title: "Erro", description: err?.message || JSON.stringify(err) || 'Erro ao processar rota', variant: "destructive" });
         } finally {
             setStarting(false);
         }
     };
 
+    const selectedRouteStatus = selectedRoute ? (normalizeRouteStatus(selectedRoute.status) || selectedRoute.status) : null;
+    const isSelectedRouteReadOnly = !!selectedRouteStatus && ['in_route', 'in_progress', 'completed', 'cancelled'].includes(selectedRouteStatus);
     const hasInRouteOrders = selectedRoute?.orders?.some((o: any) => (normalizeLogisticsStatus(o.sales_order?.status_logistic) || o.sales_order?.status_logistic) === 'in_route');
 
     // Check if ALL orders are marked as Not Loaded
@@ -233,11 +240,15 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                         </Button>
                         <Button
                             onClick={handleStartRoute}
-                            disabled={!selectedRoute || starting || hasInRouteOrders}
+                            disabled={!selectedRoute || starting || isSelectedRouteReadOnly || hasInRouteOrders}
                             variant={allOrdersNotLoaded ? "danger" : "primary"}
                         >
                             <Play className="w-4 h-4 mr-2" />
-                            {starting ? (allOrdersNotLoaded ? 'Cancelando...' : 'Iniciando...') : (allOrdersNotLoaded ? 'Cancelar Rota' : 'Iniciar Rota')}
+                            {isSelectedRouteReadOnly
+                                ? 'Rota iniciada'
+                                : (starting
+                                    ? (allOrdersNotLoaded ? 'Cancelando...' : 'Iniciando...')
+                                    : (allOrdersNotLoaded ? 'Cancelar Rota' : 'Iniciar Rota'))}
                         </Button>
                     </div>
                 }
@@ -333,6 +344,8 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                                 {filteredRoutes.length > 0 ? (
                                     filteredRoutes.map((route: any) => {
                                         const isSelected = selectedRoute?.id === route.id;
+                                        const routeStatus = normalizeRouteStatus(route.status) || route.status;
+                                        const isStartedRoute = routeStatus === 'in_route' || routeStatus === 'in_progress';
                                         const orders = route.orders || [];
                                         const totalOrders = orders.length;
 
@@ -355,7 +368,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                                                     window.dispatchEvent(new CustomEvent('closeFlyouts'));
                                                     setSelectedRoute(route);
                                                 }}
-                                                className={`w-full text-left p-4 hover:bg-gray-50 transition-colors ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                                                className={`w-full text-left p-4 hover:bg-gray-50 transition-colors ${isSelected ? (isStartedRoute ? 'bg-gray-50 border-l-4 border-l-gray-400' : 'bg-blue-50 border-l-4 border-l-blue-500') : ''
                                                     }`}
                                             >
                                                 <div className="flex items-start justify-between">

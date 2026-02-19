@@ -27,6 +27,12 @@ export function validateLogoFile(file: File): FileValidationResult {
 
     // Check file type
     if (!ALLOWED_LOGO_TYPES.includes(file.type)) {
+        // Fallback for SVG if mime type is generic but extension is correct
+        const isSvgExtension = file.name.toLowerCase().endsWith('.svg');
+        if (isSvgExtension && (file.type === '' || file.type === 'application/octet-stream' || file.type === 'text/xml')) {
+            return { valid: true };
+        }
+
         return {
             valid: false,
             error: 'Tipo de arquivo não permitido. Use PNG, JPG, SVG ou WebP'

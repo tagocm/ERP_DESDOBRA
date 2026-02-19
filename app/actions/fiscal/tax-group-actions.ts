@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/utils/supabase/server";
+import { getActiveCompanyId } from "@/lib/auth/get-active-company";
 import { getTaxGroups } from "@/lib/data/tax-groups";
 import { TaxGroupDTO } from "@/lib/types/fiscal-types";
 import { z } from "zod";
@@ -12,22 +13,8 @@ export type ActionResult<T = void> =
     | { success: true; data: T }
     | { success: false; error: string };
 
-async function getCompanyId(): Promise<string> {
-    const supabase = await createClient();
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-    if (userError || !user) throw new Error('Usuário não autenticado');
-
-    const { data: companies, error: companyError } = await supabase
-        .from('companies')
-        .select('id')
-        .eq('owner_id', user.id)
-        .single();
-
-    if (companyError || !companies) throw new Error('Empresa não encontrada');
-
-    return companies.id;
-}
+// Usa getActiveCompanyId (company_members) para suportar membros que não são owners
+const getCompanyId = getActiveCompanyId;
 
 // ============================================================================
 // ACTIONS

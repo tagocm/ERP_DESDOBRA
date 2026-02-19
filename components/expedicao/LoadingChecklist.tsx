@@ -14,9 +14,10 @@ import { normalizeLoadingStatus } from '@/lib/constants/status';
 interface LoadingChecklistProps {
     route: any;
     printer?: any;
+    readOnly?: boolean;
 }
 
-export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
+export function LoadingChecklist({ route, printer, readOnly = false }: LoadingChecklistProps) {
     const { toast } = useToast();
     const router = useRouter();
     const { selectedCompany } = useCompany();
@@ -28,6 +29,10 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
     const orders = route.orders || [];
 
     const handleVolumeChange = async (routeId: string, routeOrder: any, newVolume: number) => {
+        if (readOnly) {
+            toast({ title: "Rota iniciada", description: "Edição de carregamento bloqueada.", variant: "destructive" });
+            return;
+        }
         if (newVolume < 1) return;
         routeOrder.volumes = newVolume; // Optimistic
         try {
@@ -55,6 +60,10 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
     };
 
     const updateStatus = async (orderId: string, status: string, payload: any = null) => {
+        if (readOnly) {
+            toast({ title: "Rota iniciada", description: "Edição de carregamento bloqueada.", variant: "destructive" });
+            return;
+        }
         const routeOrder = route.orders?.find((ro: any) => ro.sales_order?.id === orderId);
         if (!routeOrder) return;
 
@@ -96,6 +105,10 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
     };
 
     const handleSetPartial = (orderId: string, currentStatus: string) => {
+        if (readOnly) {
+            toast({ title: "Rota iniciada", description: "Edição de carregamento bloqueada.", variant: "destructive" });
+            return;
+        }
         const routeOrder = route.orders?.find((ro: any) => ro.sales_order?.id === orderId);
         if (routeOrder?.sales_order) {
             handleOpenPartial(routeOrder.sales_order);
@@ -143,7 +156,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                     const isLoading = loadingStates[order.id];
 
                     return (
-                        <div key={routeOrder.id} className={`p-4 hover:bg-gray-50 transition-colors ${status === 'not_loaded' ? 'bg-red-50/40' :
+                        <div key={routeOrder.id} className={`p-4 transition-colors ${readOnly ? 'opacity-80' : 'hover:bg-gray-50'} ${status === 'not_loaded' ? 'bg-red-50/40' :
                             status === 'partial' ? 'bg-orange-50/40' : ''
                             }`}>
                             <div className="flex items-start gap-4">
@@ -151,7 +164,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                                     {/* Green: Loaded */}
                                     <button
                                         onClick={() => handleSetLoaded(order.id, status)}
-                                        disabled={isLoading}
+                                        disabled={isLoading || readOnly}
                                         title="Carregado (Completo)"
                                         className={`w-6 h-6 rounded flex items-center justify-center border transition-all duration-200 ${status === 'loaded'
                                             ? 'bg-green-500 border-green-500 shadow-card'
@@ -164,7 +177,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                                     {/* Yellow: Partial (New) */}
                                     <button
                                         onClick={() => handleSetPartial(order.id, status)}
-                                        disabled={isLoading}
+                                        disabled={isLoading || readOnly}
                                         title="Carregamento Parcial"
                                         className={`w-6 h-6 rounded flex items-center justify-center border transition-all duration-200 ${status === 'partial'
                                             ? 'bg-amber-400 border-amber-400 shadow-card' // Using amber/yellow
@@ -177,7 +190,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                                     {/* Red: Not Loaded */}
                                     <button
                                         onClick={() => handleSetNotLoaded(order.id, status)}
-                                        disabled={isLoading}
+                                        disabled={isLoading || readOnly}
                                         title="Não Carregado"
                                         className={`w-6 h-6 rounded flex items-center justify-center border transition-all duration-200 ${status === 'not_loaded'
                                             ? 'bg-red-500 border-red-500 shadow-card'
@@ -233,6 +246,7 @@ export function LoadingChecklist({ route, printer }: LoadingChecklistProps) {
                                                 min={1}
                                                 defaultValue={routeOrder.volumes || 1}
                                                 className="w-16 h-7 text-xs px-1 text-center"
+                                                disabled={readOnly}
                                                 onBlur={(e) => handleVolumeChange(route.id, routeOrder, parseInt(e.target.value))}
                                                 onClick={(e) => e.stopPropagation()}
                                             />

@@ -4,10 +4,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/lib/supabaseServer";
 import { normalizeCancellationReason, validateCancellationReason } from "@/lib/fiscal/nfe/cancellation-rules";
+import { resolveEmissionForFiscalAction } from "@/lib/fiscal/nfe/resolve-emission";
+import { ensureEmissionProtocol } from "@/lib/fiscal/nfe/ensure-emission-protocol";
 
 type Payload = {
     emissionId?: string;
     accessKey?: string;
+    salesDocumentId?: string;
+    nfeNumber?: string | number;
+    nfeSeries?: string | number;
     reason?: string;
 };
 
@@ -32,27 +37,40 @@ export async function POST(request: NextRequest) {
         }
 
         const admin = createAdminClient();
-        let { data: emission, error: emissionError } = await admin
-            .from("nfe_emissions")
-            .select("id,company_id,sales_document_id,access_key,status,n_prot")
-            .eq("id", body.emissionId)
-            .maybeSingle();
 
-        if ((!emission || emissionError) && body.accessKey) {
-            const fallback = await admin
-                .from("nfe_emissions")
-                .select("id,company_id,sales_document_id,access_key,status,n_prot")
-                .eq("access_key", body.accessKey)
-                .order("updated_at", { ascending: false })
-                .limit(1)
-                .maybeSingle();
+        // Get the companies the user is a member of to scope the search
+        const { data: userCompanies } = await supabase
+            .from("company_members")
+            .select("company_id")
+            .eq("auth_user_id", user.id);
 
-            emission = fallback.data || null;
-            emissionError = fallback.error || null;
+        const companyIds = (userCompanies || []).map(m => m.company_id);
+
+        if (companyIds.length === 0) {
+            return NextResponse.json({ error: "Usuário não vinculado a nenhuma empresa." }, { status: 403 });
         }
 
-        if (emissionError || !emission) {
+        // Use the robust utility to find the emission (handles legacy and auto-backfill)
+        const emission = await resolveEmissionForFiscalAction({
+            admin,
+            companyIds,
+            payload: {
+                emissionId: body.emissionId,
+                accessKey: body.accessKey,
+                salesDocumentId: body.salesDocumentId,
+                nfeNumber: body.nfeNumber,
+                nfeSeries: body.nfeSeries,
+            }
+        });
+
+        // Re-check permission and existence
+        if (!emission) {
             return NextResponse.json({ error: "NF-e não encontrada." }, { status: 404 });
+        }
+
+        // Double check permission (utility already filters by companyIds, but belt and suspenders)
+        if (!companyIds.includes(emission.company_id)) {
+            return NextResponse.json({ error: "Sem permissão para esta empresa." }, { status: 403 });
         }
 
         if (emission.status === "cancelled") {
@@ -63,44 +81,36 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Somente NF-e autorizada pode ser cancelada." }, { status: 400 });
         }
 
-        if (!emission.n_prot) {
-            return NextResponse.json({ error: "NF-e sem protocolo de autorização (nProt)." }, { status: 400 });
+        const nProt = await ensureEmissionProtocol({
+            admin,
+            emissionId: emission.id,
+            companyId: emission.company_id,
+            accessKey: emission.access_key,
+            existingNProt: emission.n_prot,
+        });
+
+        if (!nProt) {
+            return NextResponse.json({ error: "NF-e sem protocolo de autorização (nProt). Tente 'Consultar Situação' antes de cancelar." }, { status: 400 });
         }
 
-        const { data: membership } = await supabase
-            .from("company_members")
-            .select("company_id")
-            .eq("auth_user_id", user.id)
-            .eq("company_id", emission.company_id)
-            .maybeSingle();
-
-        if (!membership) {
-            return NextResponse.json({ error: "Sem permissão para esta empresa." }, { status: 403 });
-        }
-
-        const { data: latestSequence } = await admin
-            .from("nfe_cancellations")
-            .select("sequence")
-            .eq("company_id", emission.company_id)
-            .eq("access_key", emission.access_key)
-            .order("sequence", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-        const nextSequence = (latestSequence?.sequence || 0) + 1;
+        const cancellationSequence = 1;
 
         const { data: cancellation, error: cancellationError } = await admin
             .from("nfe_cancellations")
-            .insert({
+            .upsert({
                 company_id: emission.company_id,
                 nfe_emission_id: emission.id,
                 sales_document_id: emission.sales_document_id,
                 access_key: emission.access_key,
-                sequence: nextSequence,
+                sequence: cancellationSequence,
                 reason,
                 status: "pending",
+                c_stat: null,
+                x_motivo: null,
+                protocol: null,
+                processed_at: null,
                 created_by: user.id,
-            })
+            }, { onConflict: "company_id,access_key,sequence" })
             .select("id, sequence")
             .single();
 

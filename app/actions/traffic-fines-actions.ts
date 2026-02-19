@@ -84,6 +84,7 @@ export async function saveTrafficFineAction(
                 .from("fleet_traffic_fines")
                 .update({
                     fine_date: data.fine_date,
+                    due_date: data.due_date,
                     city: data.city,
                     reason: data.reason,
                     amount: data.amount,
@@ -112,6 +113,7 @@ export async function saveTrafficFineAction(
                     company_id: company_id,
                     vehicle_id: data.vehicle_id,
                     fine_date: data.fine_date,
+                    due_date: data.due_date,
                     city: data.city,
                     reason: data.reason,
                     amount: data.amount,

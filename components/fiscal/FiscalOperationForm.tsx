@@ -483,11 +483,10 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: Fiscal
                                     <Label className="text-gray-700 font-medium text-sm">CFOP *</Label>
                                     <Popover open={cfopOpen} onOpenChange={setCfopOpen}>
                                         <PopoverTrigger asChild>
-                                            <Button
+                                            <button
                                                 type="button"
-                                                variant="secondary"
                                                 aria-expanded={cfopOpen}
-                                                className="w-full justify-between px-3 font-normal"
+                                                className="w-full h-11 rounded-2xl border border-gray-200 bg-white px-3 font-normal text-left flex items-center justify-between shadow-none transition-none active:scale-100 hover:bg-white"
                                                 data-testid="fiscal-cfop-trigger"
                                             >
                                                 {selectedCfopData ? (
@@ -499,7 +498,7 @@ export function FiscalOperationForm({ initialData, isDuplicate = false }: Fiscal
                                                     <span className="text-gray-400 font-normal">Selecione o CFOP...</span>
                                                 )}
                                                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-40" />
-                                            </Button>
+                                            </button>
                                         </PopoverTrigger>
                                         <PopoverContent className="w-96 p-0" align="start">
                                             <Command>

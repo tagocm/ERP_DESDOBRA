@@ -152,6 +152,29 @@ export async function getNFeEmissionData(orderId: string): Promise<EmissionData>
         logger.error('[getNFeEmissionData] company not found for order', { orderId });
     }
 
+    // 2.0 Fetch financial installments directly from financial events (even if not approved)
+    const { data: financialEvent } = await adminSupabase
+        .from('financial_events')
+        .select(`
+            id,
+            status,
+            created_at,
+            installments:financial_event_installments(
+                installment_number,
+                due_date,
+                amount,
+                payment_method,
+                payment_condition
+            )
+        `)
+        .eq('company_id', order.company_id)
+        .eq('origin_type', 'SALE')
+        .eq('origin_id', orderId)
+        .neq('status', 'rejected')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
     // 2.1 Fetch all active payment terms for dropdown
     const { data: available_payment_terms } = await supabase
         .from('payment_terms')
@@ -184,7 +207,10 @@ export async function getNFeEmissionData(orderId: string): Promise<EmissionData>
     }
 
     return {
-        order: order as any,
+        order: {
+            ...(order as any),
+            financial_event_installments: (financialEvent as any)?.installments || []
+        } as any,
         draft,
         company,
         payment_term: (order as any).payment_term,
@@ -193,33 +219,139 @@ export async function getNFeEmissionData(orderId: string): Promise<EmissionData>
     };
 }
 
-export async function saveNFeDraft(orderId: string, draftData: NFeDraftData) {
+export async function saveNFeDraft(
+    orderId: string,
+    draftData: NFeDraftData,
+    companyId?: string,
+    targetStatus: 'draft' | 'processing' = 'draft'
+) {
     const supabase = await createClient();
+    const adminSupabase = await import('@/lib/supabaseServer').then(m => m.createAdminClient());
+    const nowIso = new Date().toISOString();
+
+    const { data: order, error: orderError } = await supabase
+        .from('sales_documents')
+        .select('id, company_id')
+        .eq('id', orderId)
+        .single();
+
+    if (orderError || !order?.company_id) {
+        logger.error('[saveNFeDraft] order access denied or not found', {
+            orderId,
+            message: orderError?.message,
+            code: orderError?.code
+        });
+        throw new Error('Pedido não encontrado ou sem permissão.');
+    }
+
+    const resolvedCompanyId = companyId || order.company_id;
 
     // Check if draft exists
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await adminSupabase
         .from('sales_document_nfes')
         .select('id')
         .eq('document_id', orderId)
-        .eq('status', 'draft')
+        .eq('status', targetStatus)
         .maybeSingle();
 
+    if (existingError) {
+        logger.error('[saveNFeDraft] failed to check existing draft', {
+            orderId,
+            message: existingError.message,
+            code: existingError.code
+        });
+        throw new Error('Falha ao verificar rascunho da NF-e.');
+    }
+
     if (existing) {
-        await supabase
+        const updateWithSnapshot = await adminSupabase
             .from('sales_document_nfes')
             .update({
                 draft_snapshot: draftData,
-                updated_at: new Date().toISOString() // Assuming column exists or use created_at
-            })
-            .eq('id', existing.id);
-    } else {
-        await supabase
-            .from('sales_document_nfes')
-            .insert({
-                document_id: orderId,
-                status: 'draft',
-                draft_snapshot: draftData
+                updated_at: nowIso
+            } as any)
+            .eq('id', existing.id)
+            .select('id')
+            .maybeSingle();
+
+        if (updateWithSnapshot.data?.id) {
+            return { success: true };
+        }
+
+        const snapshotColumnMissing = updateWithSnapshot.error?.message?.includes('draft_snapshot');
+        if (!snapshotColumnMissing) {
+            logger.error('[saveNFeDraft] failed to update draft', {
+                orderId,
+                draftId: existing.id,
+                message: updateWithSnapshot.error?.message,
+                code: updateWithSnapshot.error?.code
             });
+            throw new Error('Falha ao atualizar rascunho da NF-e.');
+        }
+
+        const updateWithoutSnapshot = await adminSupabase
+            .from('sales_document_nfes')
+            .update({
+                updated_at: nowIso
+            })
+            .eq('id', existing.id)
+            .select('id')
+            .maybeSingle();
+
+        if (!updateWithoutSnapshot.data?.id) {
+            logger.error('[saveNFeDraft] failed to update draft (legacy schema fallback)', {
+                orderId,
+                draftId: existing.id,
+                message: updateWithoutSnapshot.error?.message,
+                code: updateWithoutSnapshot.error?.code
+            });
+            throw new Error('Falha ao atualizar rascunho da NF-e.');
+        }
+    } else {
+        const payloadVariants: Array<Record<string, unknown>> = [];
+        const basePayload = {
+            document_id: orderId,
+            status: targetStatus,
+            updated_at: nowIso
+        };
+
+        if (resolvedCompanyId) {
+            payloadVariants.push({ ...basePayload, company_id: resolvedCompanyId, draft_snapshot: draftData });
+            payloadVariants.push({ ...basePayload, company_id: resolvedCompanyId });
+        }
+        payloadVariants.push({ ...basePayload, draft_snapshot: draftData });
+        payloadVariants.push(basePayload);
+
+        let insertedId: string | null = null;
+        let lastInsertErrorMessage: string | undefined;
+        let lastInsertErrorCode: string | undefined;
+
+        for (const payload of payloadVariants) {
+            const { data: inserted, error: insertError } = await adminSupabase
+                .from('sales_document_nfes')
+                .insert(payload as any)
+                .select('id')
+                .maybeSingle();
+
+            if (inserted?.id) {
+                insertedId = inserted.id;
+                break;
+            }
+
+            lastInsertErrorMessage = insertError?.message;
+            lastInsertErrorCode = insertError?.code;
+        }
+
+        if (!insertedId) {
+            logger.error('[saveNFeDraft] failed to insert draft', {
+                orderId,
+                companyId: resolvedCompanyId,
+                targetStatus,
+                message: lastInsertErrorMessage,
+                code: lastInsertErrorCode
+            });
+            throw new Error('Falha ao criar rascunho da NF-e.');
+        }
     }
 
     return { success: true };
@@ -241,17 +373,24 @@ export async function emitNFe(orderId: string, draftData: NFeDraftData) {
         throw new Error(`Já existe uma NF-e em ${existingProcessing.status === 'processing' ? 'processamento' : 'autorizada'} para este pedido.`);
     }
 
-    // 1. Save final state
-    await saveNFeDraft(orderId, draftData);
-
-    // Get company_id (needed for worker to know who is emitting)
-    const { data: order } = await supabase
+    // Get company_id (needed for draft compatibility and worker payload)
+    const { data: order, error: orderError } = await supabase
         .from('sales_documents')
         .select('company_id')
         .eq('id', orderId)
         .single();
 
-    if (!order?.company_id) throw new Error("Pedido sem empresa vinculada.");
+    if (orderError || !order?.company_id) {
+        logger.error('[emitNFe] failed to load order company', {
+            orderId,
+            message: orderError?.message,
+            code: orderError?.code
+        });
+        throw new Error('Pedido sem empresa vinculada.');
+    }
+
+    // 1. Save final state (must succeed before enqueueing worker job)
+    await saveNFeDraft(orderId, draftData, order.company_id, 'processing');
 
     // 2. ENQUEUE JOB
     logger.debug('[emitNFe] enqueueing NFE_EMIT', { orderId });
