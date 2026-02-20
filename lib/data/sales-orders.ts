@@ -197,14 +197,16 @@ export async function upsertSalesDocument(supabase: SupabaseClient, doc: Partial
     // Remove joined fields to avoid error
     // IMPORTANT: specific fix to ensure document_number is NEVER sent to DB creates/updates
     // This allows the DB trigger/default to handle sequence generation.
-    // Also removing 'freight_mode' and 'route_tag' temporarily until migration is applied
-    const { client, sales_rep, items, payments, nfes, history, carrier, adjustments, document_number, route_info, freight_mode, route_tag, ...rawDoc } = doc as any;
+    // Clean joined objects and frontend-only fields
+    const cleanDoc = { ...doc } as any;
+    const docJoins = ['client', 'sales_rep', 'items', 'payments', 'nfes', 'history', 'carrier', 'adjustments', 'route_info'];
+    docJoins.forEach(k => delete cleanDoc[k]);
 
     // Sanitize Foreign Keys: Convert empty strings to null to avoid UUID errors
-    const cleanDoc = { ...rawDoc };
-    if (cleanDoc.payment_mode_id === '') cleanDoc.payment_mode_id = null;
-    if (cleanDoc.payment_terms_id === '') cleanDoc.payment_terms_id = null;
-    if (cleanDoc.price_table_id === '') cleanDoc.price_table_id = null;
+    const uuidFields = ['payment_mode_id', 'payment_terms_id', 'price_table_id', 'client_id', 'sales_rep_id', 'carrier_id'];
+    uuidFields.forEach(k => {
+        if (cleanDoc[k] === '') cleanDoc[k] = null;
+    });
 
     // Ensure Defaults (Backend Safety)
     if (!cleanDoc.financial_status) cleanDoc.financial_status = 'pending';
@@ -248,21 +250,30 @@ export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<Sa
     });
 
     // Remove frontend-only fields or joins
-    const {
-        product,
-        packaging,
-        unit_weight_kg,
-        gross_weight_kg_snapshot,
-        total_amount,
-        ...cleanItem
-    } = item as any;
+    // We must be aggressive here because PostgREST will fail if we send
+    // nested objects that don't match specific column names or relationships.
+    const cleanItem = { ...item } as any;
 
-    // DB computes/maintains derived totals; never send them on insert/update.
-    delete (cleanItem as any).total_amount;
+    // Preserve total_amount (it's NOT computed by a DB trigger, must be sent)
+    // Preserve weight columns (I accidentally removed them in a previous turn)
+
+    // Remove anything that is an object or array (these are joins or UI-only extra data)
+    // Exception: known JSONB columns should be preserved
+    const jsonbFields = ['weight_snapshot', 'details', 'metadata'];
+    Object.keys(cleanItem).forEach(key => {
+        const val = cleanItem[key];
+        if (typeof val === 'object' && val !== null && !jsonbFields.includes(key)) {
+            delete cleanItem[key];
+        }
+    });
+
+    // Explicitly remove computed fields that are NOT columns if they exist
+    const nonColumnFields = ['total_price', 'product_name', 'deliveries', 'history', 'nfes'];
+    nonColumnFields.forEach(k => delete cleanItem[k]);
 
     // Frontend may use temporary IDs like temp-* / copy-*.
     // Persist only real UUIDs; otherwise let DB generate.
-    if (!isUuid(cleanItem.id)) {
+    if (cleanItem.id && !isUuid(cleanItem.id)) {
         delete cleanItem.id;
     }
 
@@ -745,7 +756,7 @@ export async function recalculateFiscalForOrder(
             cest_snapshot: profile?.cest || null,
             origin_snapshot: profile?.origin ?? null
         };
- 
+
         const { error: updateError } = await supabase
             .from('sales_document_items')
             .update(updatePayload)

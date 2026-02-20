@@ -21,7 +21,7 @@ function applySecurityHeaders(response: NextResponse, request: NextRequest) {
     }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
     // STRICT ENV VAR CHECK - Fail fast if missing
     if (
         !process.env.NEXT_PUBLIC_SUPABASE_URL ||

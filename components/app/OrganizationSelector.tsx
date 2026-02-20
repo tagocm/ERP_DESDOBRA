@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { Check, X, Plus, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { searchOrganizationsAction } from "@/app/actions/sales/organization-actions";
 import { getClientDetailsAction } from "@/app/actions/sales/sales-actions";
 import { Label } from "@/components/ui/Label";
@@ -238,7 +239,7 @@ export function OrganizationSelector({
                     </button>
                 )}
                 {open && (
-                    <div className="absolute left-0 top-full z-[70] mt-1 max-h-60 w-full overflow-auto rounded-2xl border border-gray-100 bg-white py-1 text-base shadow-float focus:outline-none sm:text-sm">
+                    <Card className="absolute left-0 top-full z-[70] mt-1 max-h-60 w-full overflow-auto rounded-2xl border border-gray-100 bg-white py-1 text-base shadow-float focus:outline-none sm:text-sm">
                         {loading && (
                             <div className="py-6 text-center text-xs text-gray-500 flex flex-col items-center gap-2" data-testid="org-selector-loading">
                                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -295,7 +296,7 @@ export function OrganizationSelector({
                                         'Novo Cliente'}
                             </Button>
                         </div>
-                    </div>
+                    </Card>
                 )}
             </div>
             {description && <p className="text-sm text-muted-foreground">{description}</p>}

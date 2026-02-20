@@ -119,12 +119,12 @@ export function TrafficFinesTable({ records, onEdit, onDelete }: TrafficFinesTab
                                 </TableCell>
                                 <TableCell className="px-4 text-center">
                                     {record.deducted_from_driver ? (
-                                        <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 rounded-md">
+                                        <Badge variant="outline" className="bg-green-50 border-green-200 text-green-700 rounded-full">
                                             <CheckCircle2 className="w-3 h-3 mr-1" />
                                             Sim
                                         </Badge>
                                     ) : (
-                                        <Badge variant="outline" className="bg-gray-50 border-gray-200 text-gray-600 rounded-md">
+                                        <Badge variant="outline" className="bg-gray-50 border-gray-200 text-gray-600 rounded-full">
                                             <XCircle className="w-3 h-3 mr-1" />
                                             Não
                                         </Badge>
@@ -169,10 +169,10 @@ export function TrafficFinesTable({ records, onEdit, onDelete }: TrafficFinesTab
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="mt-6">
-                        <AlertDialogCancel className="border-none hover:bg-gray-100 rounded-xl">Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel className="border-none hover:bg-gray-100 rounded-2xl">Cancelar</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => confirmId && handleDelete(confirmId)}
-                            className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+                            className="bg-red-500 hover:bg-red-600 text-white rounded-2xl"
                         >
                             Confirmar Exclusão
                         </AlertDialogAction>

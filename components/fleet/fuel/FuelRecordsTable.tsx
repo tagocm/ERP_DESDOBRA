@@ -137,7 +137,7 @@ export function FuelRecordsTable({ records, onEdit, onDelete }: FuelRecordsTable
                                     </TableCell>
                                     <TableCell className="px-4 text-center">
                                         {consumption ? (
-                                            <Badge variant="outline" className="font-mono bg-white border-gray-200 text-gray-600 rounded-md">
+                                            <Badge variant="outline" className="font-mono bg-white border-gray-200 text-gray-600 rounded-full">
                                                 {consumption.toFixed(2)} km/L
                                             </Badge>
                                         ) : (
@@ -184,10 +184,10 @@ export function FuelRecordsTable({ records, onEdit, onDelete }: FuelRecordsTable
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="mt-6">
-                        <AlertDialogCancel className="border-none hover:bg-gray-100 rounded-xl">Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel className="border-none hover:bg-gray-100 rounded-2xl">Cancelar</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => confirmId && handleDelete(confirmId)}
-                            className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+                            className="bg-red-500 hover:bg-red-600 text-white rounded-2xl"
                         >
                             Confirmar Exclusão
                         </AlertDialogAction>

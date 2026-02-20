@@ -424,7 +424,7 @@ export function RecurringRuleForm() {
                                         </div>
                                     </div>
 
-                                    <div className="rounded-2xl border border-gray-200 overflow-hidden bg-white">
+                                    <Card className="rounded-2xl border border-gray-200 overflow-hidden bg-white">
                                         <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
                                             <div className="flex items-center gap-2">
                                                 <CalendarClock className="w-4 h-4 text-brand-600" />
@@ -432,7 +432,7 @@ export function RecurringRuleForm() {
                                             </div>
                                             <button
                                                 type="button"
-                                                className="h-8 px-3 text-xs font-semibold rounded-lg border border-gray-200 hover:bg-gray-50"
+                                                className="h-8 px-3 text-xs font-semibold rounded-2xl border border-gray-200 hover:bg-gray-50"
                                                 onClick={() => manualInstallmentsFieldArray.append({ installment_number: manualInstallmentsFieldArray.fields.length + 1, due_date: "", amount: 0 })}
                                             >
                                                 + Adicionar parcela
@@ -496,7 +496,7 @@ export function RecurringRuleForm() {
                                                             <TableCell className="px-4 py-2.5 text-right align-top">
                                                                 <button
                                                                     type="button"
-                                                                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
+                                                                    className="inline-flex h-9 w-9 items-center justify-center rounded-2xl border border-gray-200 text-gray-500 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors"
                                                                     onClick={() => manualInstallmentsFieldArray.remove(index)}
                                                                     aria-label="Remover parcela"
                                                                 >
@@ -511,7 +511,7 @@ export function RecurringRuleForm() {
                                         {errors.manual_installments?.message && (
                                             <p className="px-4 pb-3 text-xs text-red-500">{errors.manual_installments.message}</p>
                                         )}
-                                    </div>
+                                    </Card>
                                 </div>
                             ) : (
                                 <div className="space-y-8 animate-in fade-in slide-in-from-top-2">

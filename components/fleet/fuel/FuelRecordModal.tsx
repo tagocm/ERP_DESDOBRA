@@ -123,16 +123,16 @@ export function FuelRecordModal({ isOpen, onClose, vehicleId, vehicleData, initi
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-screen overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{initialData ? "Editar Abastecimento" : "Novo Abastecimento"}</DialogTitle>
                 </DialogHeader>
 
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                     {/* Card: Dados do Abastecimento */}
-                    <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                    <div className="border border-gray-200 rounded-2xl p-6 space-y-4">
                         <div className="flex items-center gap-2 mb-4">
-                            <div className="w-8 h-8 rounded-lg bg-brand-50 flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-2xl bg-brand-50 flex items-center justify-center">
                                 <svg className="w-4 h-4 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                 </svg>
@@ -236,9 +236,9 @@ export function FuelRecordModal({ isOpen, onClose, vehicleId, vehicleData, initi
                     </div>
 
                     {/* Card: Observações */}
-                    <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                    <div className="border border-gray-200 rounded-2xl p-6 space-y-4">
                         <div className="flex items-center gap-2 mb-4">
-                            <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-2xl bg-gray-50 flex items-center justify-center">
                                 <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>

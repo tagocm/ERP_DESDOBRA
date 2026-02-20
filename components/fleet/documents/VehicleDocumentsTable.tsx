@@ -57,13 +57,13 @@ export function VehicleDocumentsTable({ records, onEdit, onDelete }: VehicleDocu
         switch (status) {
             case 'VENCIDO':
                 return (
-                    <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700 rounded-md">
+                    <Badge variant="outline" className="bg-red-50 border-red-200 text-red-700 rounded-full">
                         <AlertTriangle className="w-3 h-3 mr-1" /> Vencido
                     </Badge>
                 );
             default:
                 return (
-                    <Badge variant="outline" className="bg-yellow-50 border-yellow-200 text-yellow-700 rounded-md">
+                    <Badge variant="outline" className="bg-yellow-50 border-yellow-200 text-yellow-700 rounded-full">
                         <Clock className="w-3 h-3 mr-1" /> Em Aberto
                     </Badge>
                 );
@@ -170,10 +170,10 @@ export function VehicleDocumentsTable({ records, onEdit, onDelete }: VehicleDocu
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="mt-6">
-                        <AlertDialogCancel className="border-none hover:bg-gray-100 rounded-xl">Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel className="border-none hover:bg-gray-100 rounded-2xl">Cancelar</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => confirmId && handleDelete(confirmId)}
-                            className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+                            className="bg-red-500 hover:bg-red-600 text-white rounded-2xl"
                         >
                             Confirmar Exclusão
                         </AlertDialogAction>

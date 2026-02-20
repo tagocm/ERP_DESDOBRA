@@ -8,6 +8,7 @@ import { TrafficFineModal } from "./TrafficFineModal";
 import { listTrafficFinesAction } from "@/app/actions/traffic-fines-actions";
 import { TrafficFineRow, TrafficFineListFilters } from "@/lib/types/traffic-fines";
 import { Plus } from "lucide-react";
+import { Card } from "@/components/ui/Card";
 
 interface TrafficFinesTabProps {
     vehicleId: string;
@@ -72,7 +73,7 @@ export function TrafficFinesTab({ vehicleId }: TrafficFinesTabProps) {
             {/* Header with Button */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-2xl bg-red-50 flex items-center justify-center">
                         <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
@@ -82,7 +83,7 @@ export function TrafficFinesTab({ vehicleId }: TrafficFinesTabProps) {
                         <p className="text-sm text-gray-500">Histórico de multas e infrações</p>
                     </div>
                 </div>
-                <Button onClick={() => setIsModalOpen(true)} className="rounded-xl">
+                <Button onClick={() => setIsModalOpen(true)} className="rounded-2xl">
                     <Plus className="w-4 h-4 mr-2" />
                     Nova Multa
                 </Button>
@@ -101,7 +102,7 @@ export function TrafficFinesTab({ vehicleId }: TrafficFinesTabProps) {
             />
 
             {/* Table */}
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <Card className="rounded-2xl border border-gray-100 overflow-hidden">
                 {loading ? (
                     <div className="text-center py-12 text-gray-500">Carregando...</div>
                 ) : (
@@ -111,7 +112,7 @@ export function TrafficFinesTab({ vehicleId }: TrafficFinesTabProps) {
                         onDelete={handleSuccess}
                     />
                 )}
-            </div>
+            </Card>
 
             {/* Modal */}
             <TrafficFineModal

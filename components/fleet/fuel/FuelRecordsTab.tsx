@@ -9,6 +9,7 @@ import { listFuelRecordsAction } from "@/app/actions/fuel-records-actions";
 import { FuelRecordRow, FuelRecordListFilters, FuelType } from "@/lib/types/fuel-records";
 import { FleetVehicleRow } from "@/lib/types/fleet";
 import { Plus } from "lucide-react";
+import { Card } from "@/components/ui/Card";
 
 interface FuelRecordsTabProps {
     vehicleId: string;
@@ -74,7 +75,7 @@ export function FuelRecordsTab({ vehicleId, vehicleData }: FuelRecordsTabProps) 
             {/* Header with Button */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-2xl bg-brand-50 flex items-center justify-center">
                         <svg className="w-5 h-5 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
@@ -84,7 +85,7 @@ export function FuelRecordsTab({ vehicleId, vehicleData }: FuelRecordsTabProps) 
                         <p className="text-sm text-gray-500">Histórico de abastecimentos do veículo</p>
                     </div>
                 </div>
-                <Button onClick={() => setIsModalOpen(true)} className="rounded-xl">
+                <Button onClick={() => setIsModalOpen(true)} className="rounded-2xl">
                     <Plus className="w-4 h-4 mr-2" />
                     Novo Abastecimento
                 </Button>
@@ -103,7 +104,7 @@ export function FuelRecordsTab({ vehicleId, vehicleData }: FuelRecordsTabProps) 
             />
 
             {/* Table */}
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <Card className="rounded-2xl border border-gray-100 overflow-hidden">
                 {loading ? (
                     <div className="text-center py-12 text-gray-500">Carregando...</div>
                 ) : (
@@ -113,7 +114,7 @@ export function FuelRecordsTab({ vehicleId, vehicleData }: FuelRecordsTabProps) 
                         onDelete={handleSuccess}
                     />
                 )}
-            </div>
+            </Card>
 
             {/* Modal */}
             <FuelRecordModal

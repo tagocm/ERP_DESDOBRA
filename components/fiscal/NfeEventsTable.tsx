@@ -273,7 +273,7 @@ export function NfeEventsTable({ data, isLoading, pagination }: Props) {
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                className="h-8 w-8 p-0 rounded-full border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-sm"
+                                                className="h-8 w-8 p-0 rounded-full border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-card"
                                                 onClick={() => handleDownloadEventXml(event)}
                                                 disabled={downloadingId === event.id || !canDownload}
                                                 title={canDownload ? 'Baixar XML do evento' : 'XML disponível após processamento do evento'}
@@ -287,7 +287,7 @@ export function NfeEventsTable({ data, isLoading, pagination }: Props) {
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                className="h-8 w-8 p-0 rounded-full border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-sm"
+                                                className="h-8 w-8 p-0 rounded-full border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-card"
                                                 onClick={() => handleDownloadEventPdf(event)}
                                                 disabled={downloadingPdfId === event.id || !canDownload}
                                                 title={canDownload ? 'Baixar PDF do evento' : 'PDF disponível após processamento do evento'}

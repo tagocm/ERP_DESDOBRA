@@ -1563,7 +1563,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                     </div>
                                     <div className="col-span-12 md:col-span-3">
                                         <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Unidade de Produção</label>
-                                        <div className="mt-1 flex items-center h-10 px-3 rounded-md bg-gray-50 border border-gray-100 text-sm text-gray-600 font-medium">
+                                        <div className="mt-1 flex items-center h-10 px-3 rounded-full bg-gray-50 border border-gray-100 text-sm text-gray-600 font-medium">
                                             {uoms.find(u => u.id === formData.uom_id)?.name || '---'}
                                             <span className="ml-1.5 text-gray-400 font-normal">
                                                 ({uoms.find(u => u.id === formData.uom_id)?.abbrev || '---'})

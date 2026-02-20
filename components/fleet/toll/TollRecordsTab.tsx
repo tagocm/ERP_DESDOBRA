@@ -8,6 +8,7 @@ import { TollRecordModal } from "./TollRecordModal";
 import { listTollRecordsAction } from "@/app/actions/toll-records-actions";
 import { TollRecordRow, TollRecordListFilters, PaymentMethod } from "@/lib/types/toll-records";
 import { Plus } from "lucide-react";
+import { Card } from "@/components/ui/Card";
 
 interface TollRecordsTabProps {
     vehicleId: string;
@@ -72,7 +73,7 @@ export function TollRecordsTab({ vehicleId }: TollRecordsTabProps) {
             {/* Header with Button */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-2xl bg-brand-50 flex items-center justify-center">
                         <svg className="w-5 h-5 text-brand-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                         </svg>
@@ -82,7 +83,7 @@ export function TollRecordsTab({ vehicleId }: TollRecordsTabProps) {
                         <p className="text-sm text-gray-500">Histórico de pedágios e estacionamentos</p>
                     </div>
                 </div>
-                <Button onClick={() => setIsModalOpen(true)} className="rounded-xl">
+                <Button onClick={() => setIsModalOpen(true)} className="rounded-2xl">
                     <Plus className="w-4 h-4 mr-2" />
                     Novo Pedágio
                 </Button>
@@ -101,7 +102,7 @@ export function TollRecordsTab({ vehicleId }: TollRecordsTabProps) {
             />
 
             {/* Table */}
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <Card className="rounded-2xl border border-gray-100 overflow-hidden">
                 {loading ? (
                     <div className="text-center py-12 text-gray-500">Carregando...</div>
                 ) : (
@@ -111,7 +112,7 @@ export function TollRecordsTab({ vehicleId }: TollRecordsTabProps) {
                         onDelete={handleSuccess}
                     />
                 )}
-            </div>
+            </Card>
 
             {/* Modal */}
             <TollRecordModal

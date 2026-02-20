@@ -862,7 +862,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="h-8 w-8 p-0 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all shadow-sm"
+                                            className="h-8 w-8 p-0 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all shadow-card"
                                             onClick={() => handleVerifySefaz(nfe)}
                                             disabled={verifyingId === nfe.id}
                                             title="Sincronizar com SEFAZ"
@@ -879,7 +879,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
-                                                        className="h-8 w-8 p-0 rounded-full border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-sm"
+                                                        className="h-8 w-8 p-0 rounded-full border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-card"
                                                         disabled={printingId === nfe.id}
                                                         title="Imprimir"
                                                     >
@@ -908,7 +908,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
-                                                        className="h-8 w-8 p-0 rounded-full border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-sm"
+                                                        className="h-8 w-8 p-0 rounded-full border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-card"
                                                         disabled={downloadingId === nfe.id}
                                                         title="Baixar XML"
                                                     >
@@ -990,7 +990,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
             />
 
             <Dialog open={correctionModalOpen} onOpenChange={setCorrectionModalOpen}>
-                <DialogContent className="sm:max-w-[680px]">
+                <DialogContent className="sm:max-w-2xl">
                     <DialogHeader className="space-y-2">
                         <DialogTitle>Carta de Correção Eletrônica (CC-e)</DialogTitle>
                         <DialogDescription>
@@ -998,7 +998,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                         <p className="font-semibold">Regras da CC-e (SEFAZ)</p>
                         <ul className="mt-2 list-disc pl-5 space-y-1">
                             <li>Use para corrigir informações que não alterem valores, impostos ou dados essenciais da NF-e.</li>
@@ -1043,7 +1043,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
             </Dialog>
 
             <Dialog open={cancellationModalOpen} onOpenChange={setCancellationModalOpen}>
-                <DialogContent className="sm:max-w-[680px]">
+                <DialogContent className="sm:max-w-2xl">
                     <DialogHeader className="space-y-2">
                         <DialogTitle>Cancelar NF-e</DialogTitle>
                         <DialogDescription>
@@ -1051,7 +1051,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+                    <div className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm text-red-900">
                         <p className="font-semibold">Regras do cancelamento</p>
                         <ul className="mt-2 list-disc pl-5 space-y-1">
                             <li>Somente NF-e autorizada pode ser cancelada.</li>

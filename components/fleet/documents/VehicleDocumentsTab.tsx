@@ -7,6 +7,7 @@ import { VehicleDocumentsTable } from "./VehicleDocumentsTable";
 import { VehicleDocumentModal } from "./VehicleDocumentModal";
 import { listVehicleDocumentsAction, VehicleDocumentRow, VehicleDocumentFilters } from "@/app/actions/vehicle-documents-actions";
 import { Plus, FileText } from "lucide-react";
+import { Card } from "@/components/ui/Card";
 
 interface VehicleDocumentsTabProps {
     vehicleId: string;
@@ -71,7 +72,7 @@ export function VehicleDocumentsTab({ vehicleId }: VehicleDocumentsTabProps) {
             {/* Header with Button */}
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center">
                         <FileText className="w-5 h-5 text-blue-600" />
                     </div>
                     <div>
@@ -79,7 +80,7 @@ export function VehicleDocumentsTab({ vehicleId }: VehicleDocumentsTabProps) {
                         <p className="text-sm text-gray-500">Histórico de IPVA e Licenciamento</p>
                     </div>
                 </div>
-                <Button onClick={() => setIsModalOpen(true)} className="rounded-xl bg-brand-600 hover:bg-brand-700">
+                <Button onClick={() => setIsModalOpen(true)} className="rounded-2xl bg-brand-600 hover:bg-brand-700">
                     <Plus className="w-4 h-4 mr-2" />
                     Novo Lançamento
                 </Button>
@@ -98,7 +99,7 @@ export function VehicleDocumentsTab({ vehicleId }: VehicleDocumentsTabProps) {
             />
 
             {/* Table */}
-            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+            <Card className="rounded-2xl border border-gray-100 overflow-hidden">
                 {loading ? (
                     <div className="text-center py-12 text-gray-500">Carregando...</div>
                 ) : (
@@ -108,7 +109,7 @@ export function VehicleDocumentsTab({ vehicleId }: VehicleDocumentsTabProps) {
                         onDelete={handleSuccess}
                     />
                 )}
-            </div>
+            </Card>
 
             {/* Modal */}
             <VehicleDocumentModal

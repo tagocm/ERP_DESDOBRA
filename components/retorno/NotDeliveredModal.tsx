@@ -140,7 +140,7 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="w-[95vw] max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+            <DialogContent className="w-full max-w-3xl max-h-screen flex flex-col overflow-hidden">
                 <DialogHeader>
                     <DialogTitle>Não Entregue (Rascunho)</DialogTitle>
                     <p className="text-sm text-gray-500">
@@ -154,7 +154,7 @@ export function NotDeliveredModal({ isOpen, onClose, onConfirm, order }: NotDeli
                             <div className="space-y-1.5">
                                 <Label>Motivo <span className="text-red-500">*</span></Label>
                                 <Select value={selectedReasonId} onValueChange={handleReasonChange} disabled={isLoadingReasons}>
-                                    <SelectTrigger className={`mx-[2px] w-[calc(100%-4px)] focus:ring-offset-0 ${reasonsError ? "border-red-300 bg-red-50" : ""}`}>
+                                    <SelectTrigger className={`w-full focus:ring-offset-0 ${reasonsError ? "border-red-300 bg-red-50" : ""}`}>
                                         <SelectValue placeholder={
                                             isLoadingReasons ? "Carregando motivos..." :
                                                 reasonsError ? "Erro ao carregar motivos." :

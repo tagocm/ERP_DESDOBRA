@@ -106,7 +106,7 @@ export function TollRecordsTable({ records, onEdit, onDelete }: TollRecordsTable
                                     </span>
                                 </TableCell>
                                 <TableCell className="px-4 text-center">
-                                    <Badge variant="outline" className="bg-white border-gray-200 text-gray-600 rounded-md">
+                                    <Badge variant="outline" className="bg-white border-gray-200 text-gray-600 rounded-full">
                                         {paymentMethodLabels[record.payment_method as keyof typeof paymentMethodLabels] || record.payment_method}
                                     </Badge>
                                 </TableCell>
@@ -154,10 +154,10 @@ export function TollRecordsTable({ records, onEdit, onDelete }: TollRecordsTable
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="mt-6">
-                        <AlertDialogCancel className="border-none hover:bg-gray-100 rounded-xl">Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel className="border-none hover:bg-gray-100 rounded-2xl">Cancelar</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => confirmId && handleDelete(confirmId)}
-                            className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+                            className="bg-red-500 hover:bg-red-600 text-white rounded-2xl"
                         >
                             Confirmar Exclusão
                         </AlertDialogAction>

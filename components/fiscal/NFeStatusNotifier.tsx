@@ -75,7 +75,7 @@ export function NFeStatusNotifier() {
     const statusByCancellationIdRef = useRef<Map<string, string>>(new Map());
     const orderNumberCacheRef = useRef<Map<string, string>>(new Map());
     const orderCompanyCacheRef = useRef<Map<string, string>>(new Map());
-    const mountedAtRef = useRef(Date.now());
+    const mountedAtRef = useRef(0);
     const suppressGenericNfeToastUntilRef = useRef(0);
 
     useEffect(() => {

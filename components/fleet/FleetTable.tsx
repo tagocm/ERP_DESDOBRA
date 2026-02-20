@@ -99,7 +99,7 @@ export function FleetTable({ vehicles }: FleetTableProps) {
                                     </div>
                                 </TableCell>
                                 <TableCell className="px-4">
-                                    <Badge variant="outline" className="font-mono bg-white border-gray-200 text-gray-600 rounded-md">
+                                    <Badge variant="outline" className="font-mono bg-white border-gray-200 text-gray-600 rounded-full">
                                         {v.plate || 'S/ PLACA'}
                                     </Badge>
                                 </TableCell>
@@ -156,10 +156,10 @@ export function FleetTable({ vehicles }: FleetTableProps) {
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="mt-6">
-                        <AlertDialogCancel className="border-none hover:bg-gray-100 rounded-xl">Cancelar</AlertDialogCancel>
+                        <AlertDialogCancel className="border-none hover:bg-gray-100 rounded-2xl">Cancelar</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={() => selectedVehicle && handleToggleActive(selectedVehicle.id, true)}
-                            className="bg-red-500 hover:bg-red-600 text-white rounded-xl"
+                            className="bg-red-500 hover:bg-red-600 text-white rounded-2xl"
                         >
                             Confirmar Inativação
                         </AlertDialogAction>

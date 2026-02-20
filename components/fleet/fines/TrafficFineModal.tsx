@@ -87,13 +87,13 @@ export function TrafficFineModal({ isOpen, onClose, vehicleId, initialData, onSu
 
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-2xl max-h-screen overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{initialData ? "Editar Multa" : "Nova Multa"}</DialogTitle>
                 </DialogHeader>
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                     {/* Card: Dados da Multa */}
-                    <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+                    <div className="border border-gray-200 rounded-2xl p-6 space-y-4">
                         <h3 className="text-sm font-semibold text-gray-900">Dados da multa</h3>
 
                         <div className="grid grid-cols-2 gap-4">
