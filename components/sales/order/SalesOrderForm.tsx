@@ -138,6 +138,24 @@ interface SalesOrderDTOFormProps {
     mode: 'create' | 'edit';
 }
 
+type SalesOrderClientShape = {
+    id?: string | null;
+    trade_name?: string | null;
+    document_number?: string | null;
+    document?: string | null;
+} | null;
+
+function normalizeSalesOrderClient(rawClient: unknown): SalesOrderClientShape {
+    if (!rawClient) return null;
+    if (Array.isArray(rawClient)) {
+        const first = rawClient[0];
+        if (!first || typeof first !== "object") return null;
+        return first as SalesOrderClientShape;
+    }
+    if (typeof rawClient !== "object") return null;
+    return rawClient as SalesOrderClientShape;
+}
+
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isPersistedUuid(id?: string | null): id is string {
@@ -152,12 +170,13 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
     const { selectedCompany } = useCompany();
     const deliveriesModelCompanyId = (mode === 'edit' || !!initialData?.id) ? selectedCompany?.id : undefined;
     const { enabled: deliveriesEnabled } = useDeliveriesModel(deliveriesModelCompanyId);
+    const normalizedInitialClient = normalizeSalesOrderClient(initialData?.client);
 
     // Initialize form data
     const [formData, setFormData] = useState<Partial<SalesOrderDTO>>({
         id: initialData?.id,
         company_id: initialData?.company_id || '',
-        client_id: initialData?.client_id || '',
+        client_id: initialData?.client_id || normalizedInitialClient?.id || '',
         // Use 'pendente' as default if undefined, or map from legacy 'pending'
         status_logistic: normalizeLogisticsStatus(initialData?.status_logistic) || "pending",
         status_commercial: initialData?.status_commercial || 'draft',
@@ -241,8 +260,8 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         doc?: string;
         cityState?: string;
     }>({
-        tradeName: initialData?.client?.trade_name,
-        doc: initialData?.client?.document
+        tradeName: normalizedInitialClient?.trade_name || undefined,
+        doc: normalizedInitialClient?.document_number || normalizedInitialClient?.document || undefined
     });
 
     // Quick Add Item State
@@ -430,8 +449,8 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             }
 
             setCustomerInfo({
-                tradeName: initialData.client?.trade_name,
-                doc: initialData.client?.document,
+                tradeName: normalizeSalesOrderClient(initialData.client)?.trade_name || undefined,
+                doc: normalizeSalesOrderClient(initialData.client)?.document_number || undefined,
                 address: addressStr,
                 cityState: cityState,
                 priceTableName: ptName,
@@ -1679,8 +1698,8 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             setFormData(data as SalesOrderDTO);
             setCustomerInfo(prev => ({
                 ...prev,
-                tradeName: (data as any).client?.trade_name || prev.tradeName,
-                doc: (data as any).client?.document_number || prev.doc
+                tradeName: normalizeSalesOrderClient((data as any).client)?.trade_name || prev.tradeName,
+                doc: normalizeSalesOrderClient((data as any).client)?.document_number || prev.doc
             }));
             return;
         }
@@ -1755,8 +1774,8 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         setFormData(hydrated as SalesOrderDTO);
         setCustomerInfo(prev => ({
             ...prev,
-            tradeName: (hydrated as any).client?.trade_name || prev.tradeName,
-            doc: (hydrated as any).client?.document_number || prev.doc
+            tradeName: normalizeSalesOrderClient((hydrated as any).client)?.trade_name || prev.tradeName,
+            doc: normalizeSalesOrderClient((hydrated as any).client)?.document_number || prev.doc
         }));
     };
 
