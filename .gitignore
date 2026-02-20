@@ -72,6 +72,7 @@ create_dummy_data.sql
 # Allow specific useful patterns
 !supabase/migrations/*.sql
 !scripts/*.sql
+!scripts/rls/*.sql
 !certs/sefaz-ca-bundle.pem
 tsconfig.tsbuildinfo
 lint_output.txt

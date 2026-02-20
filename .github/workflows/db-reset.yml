@@ -34,6 +34,18 @@ jobs:
       - name: DB reset (must pass)
         run: supabase db reset
 
+      - name: Audit multiple permissive RLS policies (must pass)
+        run: |
+          set -euo pipefail
+          DB_URL="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+          DUP_COUNT="$(psql "$DB_URL" -At -f scripts/rls/audit_multiple_permissive_policies.sql | wc -l | tr -d ' ')"
+          if [ "${DUP_COUNT}" -gt 0 ]; then
+            echo "Found ${DUP_COUNT} duplicate permissive policy group(s):"
+            psql "$DB_URL" -f scripts/rls/audit_multiple_permissive_policies.sql
+            exit 1
+          fi
+          echo "OK: no duplicate permissive policy groups detected."
+
       - name: Stop Supabase (always)
         if: always()
         run: supabase stop

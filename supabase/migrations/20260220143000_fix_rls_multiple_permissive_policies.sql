@@ -5,12 +5,20 @@
 -- 2) Recriar policies canônicas (1 por role/cmd) para role authenticated.
 -- 3) Manter ou endurecer predicados de tenant (nunca afrouxar).
 --
--- Antes (inventário): havia duplicidades por combinação (table, role, cmd),
--- principalmente por coexistência de policies TO public + TO authenticated,
--- além de policies ALL junto de policies SELECT/CRUD específicas.
+-- Antes (inventário):
+-- - Duplicidade por (table, role, cmd), principalmente por:
+--   a) coexistência de TO public + TO authenticated
+--   b) policy FOR ALL junto com policy SELECT/INSERT/UPDATE/DELETE para a mesma role
+-- - Exemplos observados:
+--   * ar_titles: ar_titles_tenant_access + Users can view/insert/update/delete own company ar_titles
+--   * fiscal_operations: ...for their company + ...fiscal ops
+--   * organizations: Enable read for authenticated users + Tenant read access + Organizations are viewable...
+--   * sales_document_items: sales_document_items_multi_tenant + sales_items_access + Users can manage...
+--   * sales_documents: sales_docs_access + sales_documents_multi_tenant + Users can ...
 --
 -- Depois: neste escopo, cada tabela alvo fica com conjunto canônico sem
 -- duplicidade permissive por (table, role, cmd), mantendo isolamento multi-tenant.
+-- Padrão de nomes no destino: <table>_tenant_<cmd>.
 
 BEGIN;
 
@@ -45,6 +53,7 @@ BEGIN
             'price_table_items',
             'recurring_rules',
             'sales_document_items',
+            'sales_document_payments',
             'sales_documents',
             'system_occurrence_reason_defaults',
             'system_occurrence_reasons',
@@ -554,6 +563,64 @@ CREATE POLICY sales_document_items_tenant_delete ON public.sales_document_items
       SELECT 1
       FROM public.sales_documents sd
       WHERE sd.id = sales_document_items.document_id
+        AND public.is_member_of(sd.company_id)
+    )
+  );
+
+-- sales_document_payments
+CREATE POLICY sales_document_payments_tenant_select ON public.sales_document_payments
+  FOR SELECT TO authenticated
+  USING (
+    public.is_member_of(company_id)
+    AND EXISTS (
+      SELECT 1
+      FROM public.sales_documents sd
+      WHERE sd.id = sales_document_payments.document_id
+        AND public.is_member_of(sd.company_id)
+    )
+  );
+
+CREATE POLICY sales_document_payments_tenant_insert ON public.sales_document_payments
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    public.is_member_of(company_id)
+    AND EXISTS (
+      SELECT 1
+      FROM public.sales_documents sd
+      WHERE sd.id = sales_document_payments.document_id
+        AND public.is_member_of(sd.company_id)
+    )
+  );
+
+CREATE POLICY sales_document_payments_tenant_update ON public.sales_document_payments
+  FOR UPDATE TO authenticated
+  USING (
+    public.is_member_of(company_id)
+    AND EXISTS (
+      SELECT 1
+      FROM public.sales_documents sd
+      WHERE sd.id = sales_document_payments.document_id
+        AND public.is_member_of(sd.company_id)
+    )
+  )
+  WITH CHECK (
+    public.is_member_of(company_id)
+    AND EXISTS (
+      SELECT 1
+      FROM public.sales_documents sd
+      WHERE sd.id = sales_document_payments.document_id
+        AND public.is_member_of(sd.company_id)
+    )
+  );
+
+CREATE POLICY sales_document_payments_tenant_delete ON public.sales_document_payments
+  FOR DELETE TO authenticated
+  USING (
+    public.is_member_of(company_id)
+    AND EXISTS (
+      SELECT 1
+      FROM public.sales_documents sd
+      WHERE sd.id = sales_document_payments.document_id
         AND public.is_member_of(sd.company_id)
     )
   );
