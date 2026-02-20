@@ -571,8 +571,7 @@ CREATE POLICY sales_document_items_tenant_delete ON public.sales_document_items
 CREATE POLICY sales_document_payments_tenant_select ON public.sales_document_payments
   FOR SELECT TO authenticated
   USING (
-    public.is_member_of(company_id)
-    AND EXISTS (
+    EXISTS (
       SELECT 1
       FROM public.sales_documents sd
       WHERE sd.id = sales_document_payments.document_id
@@ -583,8 +582,7 @@ CREATE POLICY sales_document_payments_tenant_select ON public.sales_document_pay
 CREATE POLICY sales_document_payments_tenant_insert ON public.sales_document_payments
   FOR INSERT TO authenticated
   WITH CHECK (
-    public.is_member_of(company_id)
-    AND EXISTS (
+    EXISTS (
       SELECT 1
       FROM public.sales_documents sd
       WHERE sd.id = sales_document_payments.document_id
@@ -595,8 +593,7 @@ CREATE POLICY sales_document_payments_tenant_insert ON public.sales_document_pay
 CREATE POLICY sales_document_payments_tenant_update ON public.sales_document_payments
   FOR UPDATE TO authenticated
   USING (
-    public.is_member_of(company_id)
-    AND EXISTS (
+    EXISTS (
       SELECT 1
       FROM public.sales_documents sd
       WHERE sd.id = sales_document_payments.document_id
@@ -604,8 +601,7 @@ CREATE POLICY sales_document_payments_tenant_update ON public.sales_document_pay
     )
   )
   WITH CHECK (
-    public.is_member_of(company_id)
-    AND EXISTS (
+    EXISTS (
       SELECT 1
       FROM public.sales_documents sd
       WHERE sd.id = sales_document_payments.document_id
@@ -616,8 +612,7 @@ CREATE POLICY sales_document_payments_tenant_update ON public.sales_document_pay
 CREATE POLICY sales_document_payments_tenant_delete ON public.sales_document_payments
   FOR DELETE TO authenticated
   USING (
-    public.is_member_of(company_id)
-    AND EXISTS (
+    EXISTS (
       SELECT 1
       FROM public.sales_documents sd
       WHERE sd.id = sales_document_payments.document_id
