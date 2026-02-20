@@ -21,6 +21,7 @@ import {
 } from '@/lib/data/sales-orders';
 import { SalesOrder, SalesOrderItem } from '@/types/sales';
 import { resolveFiscalRule } from '@/lib/data/fiscal-engine';
+import { validateOrderIntegrity } from '@/lib/domain/sales/audit/order-integrity';
 
 // ============================================================================
 // HELPER: Get Company ID
@@ -185,6 +186,14 @@ export async function upsertSalesOrderAction(data: any): Promise<ActionResult<Sa
         const supabase = await createClient();
         const result = await upsertSalesDocument(supabase, data);
 
+        try {
+            if (result.id) {
+                await validateOrderIntegrity(supabase, result.id, result.company_id);
+            }
+        } catch (err) {
+            console.error('[validateOrderIntegrity] failed on upsertSalesOrder', err);
+        }
+
         revalidatePath(`/app/vendas/pedidos/${result.id}`);
         revalidatePath('/app/vendas/pedidos');
 
@@ -196,9 +205,17 @@ export async function upsertSalesOrderAction(data: any): Promise<ActionResult<Sa
 
 export async function upsertSalesItemAction(item: any): Promise<ActionResult<SalesOrderItem>> {
     try {
-        await getCompanyId();
+        const companyId = await getCompanyId();
         const supabase = await createClient();
         const result = await upsertSalesItem(supabase, item);
+
+        try {
+            if (item.document_id) {
+                await validateOrderIntegrity(supabase, item.document_id, companyId);
+            }
+        } catch (err) {
+            console.error('[validateOrderIntegrity] failed on upsertSalesItem', err);
+        }
 
         revalidatePath(`/app/vendas/pedidos/${item.document_id}`);
 
@@ -210,9 +227,15 @@ export async function upsertSalesItemAction(item: any): Promise<ActionResult<Sal
 
 export async function deleteSalesItemAction(id: string, docId: string): Promise<ActionResult<void>> {
     try {
-        await getCompanyId();
+        const companyId = await getCompanyId();
         const supabase = await createClient();
         await deleteSalesItem(supabase, id);
+
+        try {
+            await validateOrderIntegrity(supabase, docId, companyId);
+        } catch (err) {
+            console.error('[validateOrderIntegrity] failed on deleteSalesItem', err);
+        }
 
         revalidatePath(`/app/vendas/pedidos/${docId}`);
 
