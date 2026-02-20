@@ -453,9 +453,10 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
                 vLiq: totalDuplicatas
             },
             dup: payments.map((payment: any, idx: number) => {
-                const seq = Number(payment.installment_number) || (idx + 1);
-                // Format: NNNN-SS (NFe Number - Sequence)
-                const nDup = `${ide.nNF}-${String(seq).padStart(2, '0')}`;
+                const seqBase = Number(payment.installment_number);
+                const validBase = (Number.isInteger(seqBase) && seqBase > 0) ? seqBase : (idx + 1);
+                const seqToFormat = Math.max(0, validBase - 1);
+                const nDup = formatNDup(seqToFormat);
 
                 return {
                     nDup,
@@ -503,19 +504,14 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
     };
     const modFrete = (modeMap[order.freight_mode?.toLowerCase()] || '9') as any;
 
-    // Fallback to total weight if specific volume weight is missing
-    const hasWeight = (order.volumes_gross_weight_kg || order.total_gross_weight_kg) > 0;
-    const hasVolQty = (order.volumes_qty || 0) > 0;
-
-    const vol = (hasVolQty || hasWeight) ? [{
-        qVol: order.volumes_qty || (hasWeight ? 1 : 0),
+    const vol = (order.volumes_qty || order.volumes_gross_weight_kg) ? [{
+        qVol: order.volumes_qty,
         esp: order.volumes_species,
         marca: order.volumes_brand,
-        nVol: order.volumes_number,
-        pesoL: order.volumes_net_weight_kg || order.total_weight_kg || 0,
-        pesoB: order.volumes_gross_weight_kg || order.total_gross_weight_kg || 0
+        nVol: order.volumes_number, // Ensure this exists on order or is ignored
+        pesoL: order.volumes_net_weight_kg || 0,
+        pesoB: order.volumes_gross_weight_kg || 0
     }] : undefined;
-
 
     return {
         ide,
@@ -568,3 +564,11 @@ function mapAddress(addr: AddressData | null, settings: any, contextName: string
         xPais: 'BRASIL'
     };
 }
+
+export function formatNDup(seq: number): string {
+    if (!Number.isInteger(seq) || seq < 0) {
+        throw new Error(`Número de parcela (nDup) inválido: ${seq}. Deve ser um inteiro não negativo.`);
+    }
+    return String(seq).padStart(2, '0');
+}
+
