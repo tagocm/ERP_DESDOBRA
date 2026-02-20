@@ -455,8 +455,7 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
             dup: payments.map((payment: any, idx: number) => {
                 const seqBase = Number(payment.installment_number);
                 const validBase = (Number.isInteger(seqBase) && seqBase > 0) ? seqBase : (idx + 1);
-                const seqToFormat = Math.max(0, validBase - 1);
-                const nDup = formatNDup(seqToFormat);
+                const nDup = `${ide.nNF}-${String(validBase).padStart(2, '0')}`;
 
                 return {
                     nDup,
@@ -563,12 +562,5 @@ function mapAddress(addr: AddressData | null, settings: any, contextName: string
         cPais: '1058',
         xPais: 'BRASIL'
     };
-}
-
-export function formatNDup(seq: number): string {
-    if (!Number.isInteger(seq) || seq < 0) {
-        throw new Error(`Número de parcela (nDup) inválido: ${seq}. Deve ser um inteiro não negativo.`);
-    }
-    return String(seq).padStart(2, '0');
 }
 
