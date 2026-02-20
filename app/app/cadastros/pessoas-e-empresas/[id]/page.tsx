@@ -520,7 +520,18 @@ export default function EditOrganizationPage({ params }: { params: Promise<{ id:
             }));
             // address fill logic
             if (!billingAddress.zip && data.address.zip) {
-                setBillingAddress(prev => ({ ...prev, ...data.address, country: "BR" }));
+                setBillingAddress(prev => ({
+                    ...prev,
+                    zip: data.address.zip || prev.zip,
+                    street: data.address.street || prev.street,
+                    number: data.address.number || prev.number,
+                    complement: data.address.complement || prev.complement,
+                    neighborhood: data.address.neighborhood || prev.neighborhood,
+                    city: data.address.city || prev.city,
+                    state: data.address.state || prev.state,
+                    country: "BR",
+                    city_code_ibge: data.address.ibge || prev.city_code_ibge
+                }));
             }
         } catch (err) {
             toast({

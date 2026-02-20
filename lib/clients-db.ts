@@ -101,6 +101,38 @@ export interface Address {
     deleted_at: string | null;
 }
 
+type AddressUpsertInput = Partial<Address> & {
+    ibge?: string | null;
+};
+
+function sanitizeAddressForUpsert(address: AddressUpsertInput): Partial<Address> {
+    const payload: Partial<Address> = {};
+
+    if (address.id !== undefined) payload.id = address.id;
+    if (address.company_id !== undefined) payload.company_id = address.company_id;
+    if (address.organization_id !== undefined) payload.organization_id = address.organization_id;
+    if (address.branch_id !== undefined) payload.branch_id = address.branch_id;
+    if (address.type !== undefined) payload.type = address.type;
+    if (address.label !== undefined) payload.label = address.label;
+    if (address.zip !== undefined) payload.zip = address.zip;
+    if (address.street !== undefined) payload.street = address.street;
+    if (address.number !== undefined) payload.number = address.number;
+    if (address.complement !== undefined) payload.complement = address.complement;
+    if (address.neighborhood !== undefined) payload.neighborhood = address.neighborhood;
+    if (address.city !== undefined) payload.city = address.city;
+    if (address.state !== undefined) payload.state = address.state;
+    if (address.country !== undefined) payload.country = address.country;
+    if (address.city_code_ibge !== undefined) payload.city_code_ibge = address.city_code_ibge;
+    if (address.is_default !== undefined) payload.is_default = address.is_default;
+    if (address.deleted_at !== undefined) payload.deleted_at = address.deleted_at;
+
+    if (payload.city_code_ibge === undefined && address.ibge !== undefined) {
+        payload.city_code_ibge = address.ibge;
+    }
+
+    return payload;
+}
+
 
 
 export interface PriceTable {
@@ -375,11 +407,13 @@ export async function getAddresses(
 
 export async function upsertAddress(
     supabase: SupabaseClient,
-    address: Partial<Address>
+    address: AddressUpsertInput
 ) {
+    const payload = sanitizeAddressForUpsert(address);
+
     const { data, error } = await supabase
         .from("addresses")
-        .upsert(address)
+        .upsert(payload)
         .select()
         .single();
     if (error) throw error;
