@@ -9,7 +9,7 @@ DECLARE
   v_account_id uuid;
   v_code text;
   v_category record;
-  v_has_normalize_trigger boolean := false;
+  v_has_user_triggers boolean := false;
 BEGIN
   -- Some environments still have an old normalize trigger that calls unaccent() without schema.
   -- Disable it during this backfill to avoid failing before the later fix migration runs.
@@ -20,12 +20,11 @@ BEGIN
     JOIN pg_namespace n ON n.oid = c.relnamespace
     WHERE n.nspname = 'public'
       AND c.relname = 'product_categories'
-      AND t.tgname = 'trg_normalize_category_name'
       AND NOT t.tgisinternal
-  ) INTO v_has_normalize_trigger;
+  ) INTO v_has_user_triggers;
 
-  IF v_has_normalize_trigger THEN
-    EXECUTE 'ALTER TABLE public.product_categories DISABLE TRIGGER trg_normalize_category_name';
+  IF v_has_user_triggers THEN
+    EXECUTE 'ALTER TABLE public.product_categories DISABLE TRIGGER USER';
   END IF;
 
   FOR v_company_id IN
@@ -140,15 +139,15 @@ BEGIN
     END LOOP;
   END LOOP;
 
-  IF v_has_normalize_trigger THEN
-    EXECUTE 'ALTER TABLE public.product_categories ENABLE TRIGGER trg_normalize_category_name';
+  IF v_has_user_triggers THEN
+    EXECUTE 'ALTER TABLE public.product_categories ENABLE TRIGGER USER';
   END IF;
 EXCEPTION
   WHEN OTHERS THEN
     -- Avoid leaving the trigger disabled on error.
-    IF v_has_normalize_trigger THEN
+    IF v_has_user_triggers THEN
       BEGIN
-        EXECUTE 'ALTER TABLE public.product_categories ENABLE TRIGGER trg_normalize_category_name';
+        EXECUTE 'ALTER TABLE public.product_categories ENABLE TRIGGER USER';
       EXCEPTION WHEN OTHERS THEN
         NULL;
       END;

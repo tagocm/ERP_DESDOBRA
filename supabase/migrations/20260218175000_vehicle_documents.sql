@@ -9,7 +9,7 @@
 CREATE TABLE IF NOT EXISTS vehicle_documents (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-    vehicle_id UUID NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+    vehicle_id UUID NOT NULL REFERENCES public.fleet_vehicles(id) ON DELETE CASCADE,
     
     -- Core fields
     type TEXT NOT NULL CHECK (type IN ('IPVA', 'LICENCIAMENTO', 'SEGURO')),
@@ -127,7 +127,7 @@ BEGIN
     -- Get vehicle name for description
     IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
         SELECT COALESCE(model || ' - ' || plate, 'Veículo desconhecido') INTO v_vehicle_name
-        FROM vehicles
+        FROM public.fleet_vehicles
         WHERE id = NEW.vehicle_id;
         
         v_description := NEW.type || ' - ' || v_vehicle_name || ' - ' || NEW.competency_year;
