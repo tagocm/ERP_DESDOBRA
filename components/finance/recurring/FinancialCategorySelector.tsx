@@ -105,14 +105,14 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                         <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[320px] p-0 data-[state=open]:!zoom-in-100 data-[state=closed]:!zoom-out-100" align="start">
+                <PopoverContent className="w-[320px] p-0 pointer-events-auto data-[state=open]:!zoom-in-100 data-[state=closed]:!zoom-out-100" align="start">
                     <Command>
                         <CommandInput
                             placeholder="Buscar categoria..."
                             value={searchValue}
                             onValueChange={setSearchValue}
                         />
-                        <CommandList>
+                        <CommandList className="pointer-events-auto">
                             <CommandEmpty>
                                 <div className="p-2 text-sm text-center">
                                     <p className="mb-2 text-gray-500">Nenhuma categoria encontrada.</p>
@@ -141,7 +141,14 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                                         value={`${cat.name} ${cat.account_code ?? ''}`.toLowerCase()} // Search by name + code
                                         // cmdk sometimes fails to select on click inside popovers due to focus/blur.
                                         // Selecting on mouse down is more reliable and still keeps keyboard support via onSelect.
-                                        onMouseDown={(e) => {
+                                        onPointerDown={(e) => {
+                                            // pointerdown fires for mouse + touch
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleSelect(cat.id);
+                                        }}
+                                        onClick={(e) => {
+                                            // fallback if pointerdown is not honored in some environments
                                             e.preventDefault();
                                             e.stopPropagation();
                                             handleSelect(cat.id);
