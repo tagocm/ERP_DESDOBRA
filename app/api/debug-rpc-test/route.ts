@@ -1,8 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { requireInternalApiAccess } from '@/lib/api/internal';
 
 export async function GET(request: Request) {
     try {
+        const gate = requireInternalApiAccess(request);
+        if (gate) return gate;
+
         const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
         const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
         const supabase = createClient(supabaseUrl, supabaseKey);

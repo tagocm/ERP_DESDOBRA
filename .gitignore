@@ -50,6 +50,7 @@ tmp/
 *.bak
 *.bak2
 *.old
+*.dump
 *.zip
 *.tar
 *.gz

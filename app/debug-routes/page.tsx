@@ -1,8 +1,13 @@
 
 import { createClient } from "@/utils/supabase/server";
 import { getUnscheduledRoutes } from "@/lib/data/expedition";
+import { notFound } from "next/navigation";
 
 export default async function Page() {
+    if (process.env.NODE_ENV === "production") {
+        notFound();
+    }
+
     const supabase = await createClient();
 
     // Hardcoded companyId or fetch the first one?
