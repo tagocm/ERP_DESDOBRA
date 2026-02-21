@@ -1,25 +1,13 @@
 
 import * as React from "react"
-import { Check, ChevronDown, Plus, Settings } from "lucide-react"
+import { Check, Plus, Settings, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
-import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
-} from "@/components/ui/Command"
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover"
 import { getFinancialCategoriesAction, FinancialCategory } from "@/app/actions/financial-categories"
 import { Dialog, DialogTrigger } from "@/components/ui/Dialog"
 import { FinancialCategoryManagerModal } from "./FinancialCategoryManagerModal"
+import { Card } from "@/components/ui/Card"
 
 interface FinancialCategorySelectorProps {
     value?: string; // ID
@@ -35,6 +23,7 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
     const [searchValue, setSearchValue] = React.useState("")
     const [manageOpen, setManageOpen] = React.useState(false)
     const [prefillName, setPrefillName] = React.useState<string>("")
+    const wrapperRef = React.useRef<HTMLDivElement>(null)
 
     // Fetch initial
     const fetchCategories = async () => {
@@ -69,115 +58,131 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
         setOpen(false)
     }
 
-    const handlePointerSelectFromList = (e: React.PointerEvent | React.MouseEvent) => {
-        // Some environments (cmdk inside radix Popover) can swallow item-level click events.
-        // Capture at the list level and resolve the intended item via a data attribute.
-        const target = e.target;
-        if (!(target instanceof HTMLElement)) return;
-        const el = target.closest<HTMLElement>("[data-category-id]");
-        const categoryId = el?.dataset?.categoryId;
-        if (!categoryId) return;
-        e.preventDefault();
-        e.stopPropagation();
-        handleSelect(categoryId);
+    const handleClear = () => {
+        onChange(null);
+        setSearchValue("");
+        setOpen(false);
     };
 
+    React.useEffect(() => {
+        // Keep input text in sync when value changes externally.
+        if (selectedCategory && searchValue !== selectedCategory.name) {
+            setSearchValue(selectedCategory.name);
+        }
+        if (!value && searchValue && selectedCategory?.id !== value) {
+            // leave user typed text as-is
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [value, selectedCategory?.id]);
+
+    React.useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+                setOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
+
+    const normalizedQuery = searchValue.trim().toLowerCase();
+    const filtered = React.useMemo(() => {
+        if (!normalizedQuery) return categories;
+        return categories.filter((c) => {
+            const hay = `${c.account_code ?? ""} ${c.name}`.toLowerCase();
+            return hay.includes(normalizedQuery);
+        });
+    }, [categories, normalizedQuery]);
+
     return (
-        <div className={cn("flex items-center gap-2 w-full", className)}>
-            <Popover open={open} onOpenChange={(val) => !disabled && setOpen(val)}>
-                <PopoverTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        role="combobox"
-                        aria-expanded={open}
-                        disabled={disabled}
-                        className={cn(
-                            "flex h-10 w-full items-center justify-between rounded-2xl border bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-500",
-                            "focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2",
-                            "disabled:cursor-not-allowed disabled:opacity-50",
-                            "shadow-none transition-all border-gray-200", // Standard input style
-                            "hover:bg-white hover:text-gray-900", // Override ghost
-                            "text-gray-900",
-                            "font-normal",
-                            disabled && "bg-gray-50",
-                            className,
-                            "my-0"
-                        )}
-                        onClick={() => setOpen(!open)}
+        <div className={cn("flex items-center gap-2 w-full", className)} ref={wrapperRef}>
+            <div className="relative w-full">
+                <input
+                    type="text"
+                    value={searchValue}
+                    disabled={disabled}
+                    placeholder="Selecione..."
+                    onFocus={() => !disabled && setOpen(true)}
+                    onChange={(e) => {
+                        const next = e.target.value;
+                        setSearchValue(next);
+                        setOpen(true);
+                        // if user edits text, clear current selection to avoid inconsistency
+                        if (selectedCategory && next !== selectedCategory.name) {
+                            onChange(null);
+                        }
+                    }}
+                    className={cn(
+                        "flex h-10 w-full rounded-2xl border border-gray-200 bg-white px-3 py-2 text-sm ring-offset-background placeholder:text-gray-400",
+                        "focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-brand-500",
+                        "disabled:cursor-not-allowed disabled:opacity-50",
+                        selectedCategory && "pr-8"
+                    )}
+                />
+
+                {selectedCategory && !disabled && (
+                    <button
+                        type="button"
+                        onClick={handleClear}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 hover:bg-gray-100 rounded-2xl transition-colors"
+                        title="Limpar"
                     >
-                        {selectedCategory ? (
-                            <span className="truncate flex items-center gap-2">
-                                {selectedCategory.account_code && (
-                                    <span className="font-mono text-xs text-gray-500">{selectedCategory.account_code}</span>
-                                )}
-                                <span className="truncate">{selectedCategory.name}</span>
-                            </span>
-                        ) : (
-                            <span className="text-gray-500">Selecione...</span>
-                        )}
-                        <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[320px] p-0 pointer-events-auto data-[state=open]:!zoom-in-100 data-[state=closed]:!zoom-out-100" align="start">
-                    <Command>
-                        <CommandInput
-                            placeholder="Buscar categoria..."
-                            value={searchValue}
-                            onValueChange={setSearchValue}
-                        />
-                        <CommandList
-                            className="pointer-events-auto"
-                            // Use capture so we get the event even if cmdk/radix stops propagation on items.
-                            onPointerDownCapture={handlePointerSelectFromList}
-                            onClickCapture={handlePointerSelectFromList}
-                        >
-                            <CommandEmpty>
+                        <X className="h-4 w-4 text-gray-400" />
+                    </button>
+                )}
+
+                {open && (
+                    <Card className="absolute left-0 top-full z-[70] mt-1 w-full overflow-hidden rounded-2xl border border-gray-100 bg-white p-0 shadow-float">
+                        <div className="flex items-center border-b px-3 py-2">
+                            <span className="text-xs text-gray-500">Buscar categoria...</span>
+                        </div>
+
+                        <div className="max-h-60 overflow-y-auto py-1">
+                            {filtered.length === 0 ? (
                                 <div className="p-2 text-sm text-center">
                                     <p className="mb-2 text-gray-500">Nenhuma categoria encontrada.</p>
-                                    {searchValue && (
-                                        <Button
-                                            variant="secondary"
-                                            size="sm"
-                                            className="w-full"
-                                            onClick={handleOpenCreateModal}
-                                        >
-                                            <Plus className="w-3 h-3 mr-1" />
-                                            Criar categoria
-                                        </Button>
-                                    )}
-                                    {searchValue && (
-                                        <p className="mt-2 text-[11px] text-gray-400">
-                                            Para criar, selecione a subcategoria no Plano de Contas.
-                                        </p>
+                                    {searchValue.trim() && (
+                                        <>
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                className="w-full"
+                                                onClick={handleOpenCreateModal}
+                                            >
+                                                <Plus className="w-3 h-3 mr-1" />
+                                                Criar categoria
+                                            </Button>
+                                            <p className="mt-2 text-[11px] text-gray-400">
+                                                Para criar, selecione a subcategoria no Plano de Contas.
+                                            </p>
+                                        </>
                                     )}
                                 </div>
-                            </CommandEmpty>
-                            <CommandGroup heading="Categorias">
-                                {categories.map((cat) => (
-                                    <CommandItem
-                                        key={cat.id}
-                                        value={`${cat.name} ${cat.account_code ?? ''}`.toLowerCase()} // Search by name + code
-                                        data-category-id={cat.id}
-                                        onSelect={() => handleSelect(cat.id)}
-                                        className="cursor-pointer"
-                                    >
-                                        <Check
+                            ) : (
+                                <>
+                                    <div className="px-3 py-1 text-xs font-semibold text-gray-500">Categorias</div>
+                                    {filtered.map((cat) => (
+                                        <button
+                                            key={cat.id}
+                                            type="button"
+                                            onMouseDown={(e) => e.preventDefault()}
+                                            onClick={() => handleSelect(cat.id)}
                                             className={cn(
-                                                "mr-2 h-4 w-4",
-                                                value === cat.id ? "opacity-100" : "opacity-0"
+                                                "w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-50",
+                                                value === cat.id && "bg-gray-50"
                                             )}
-                                        />
-                                        <span className="font-mono text-xs text-gray-400 w-14">
-                                            {cat.account_code ?? ''}
-                                        </span>
-                                        <span className="truncate">{cat.name}</span>
-                                    </CommandItem>
-                                ))}
-                            </CommandGroup>
-                        </CommandList>
-                    </Command>
-                </PopoverContent>
-            </Popover>
+                                        >
+                                            <Check className={cn("h-4 w-4", value === cat.id ? "opacity-100" : "opacity-0")} />
+                                            <span className="font-mono text-xs text-gray-400 w-14 shrink-0">{cat.account_code ?? ""}</span>
+                                            <span className="truncate text-gray-900">{cat.name}</span>
+                                        </button>
+                                    ))}
+                                </>
+                            )}
+                        </div>
+                    </Card>
+                )}
+            </div>
 
             <Dialog open={manageOpen} onOpenChange={setManageOpen}>
                 <DialogTrigger asChild>
