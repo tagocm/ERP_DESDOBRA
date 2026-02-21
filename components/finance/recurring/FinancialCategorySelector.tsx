@@ -17,10 +17,9 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover"
-import { getFinancialCategoriesAction, createFinancialCategoryAction, FinancialCategory } from "@/app/actions/financial-categories"
+import { getFinancialCategoriesAction, FinancialCategory } from "@/app/actions/financial-categories"
 import { Dialog, DialogTrigger } from "@/components/ui/Dialog"
 import { FinancialCategoryManagerModal } from "./FinancialCategoryManagerModal"
-import { useToast } from "@/components/ui/use-toast"
 
 interface FinancialCategorySelectorProps {
     value?: string; // ID
@@ -31,11 +30,11 @@ interface FinancialCategorySelectorProps {
 }
 
 export function FinancialCategorySelector({ value, onChange, className, disabled, companyId }: FinancialCategorySelectorProps) {
-    const { toast } = useToast()
     const [open, setOpen] = React.useState(false)
     const [categories, setCategories] = React.useState<FinancialCategory[]>([])
     const [searchValue, setSearchValue] = React.useState("")
     const [manageOpen, setManageOpen] = React.useState(false)
+    const [prefillName, setPrefillName] = React.useState<string>("")
 
     // Fetch initial
     const fetchCategories = async () => {
@@ -56,34 +55,12 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
         fetchCategories();
     }, [companyId]);
 
-    const handleCreateOption = async () => {
-        if (!searchValue) return;
-        try {
-            const result = await createFinancialCategoryAction(searchValue);
-            if (result.data) {
-                const newCat = result.data;
-                setCategories(prev => [...prev, newCat]);
-                onChange(newCat.id);
-                setOpen(false);
-                setSearchValue("");
-                toast({ title: "Categoria criada e selecionada!", variant: "default" });
-            } else if (result.error) {
-                if (result.error.includes("Já existe")) {
-                    await fetchCategories();
-                    const existing = categories.find(c => c.name.toLowerCase() === searchValue.toLowerCase());
-                    if (existing) {
-                        onChange(existing.id);
-                        toast({ title: `Categoria já existia, selecionamos '${existing.name}'`, variant: "default" });
-                        setOpen(false);
-                        return;
-                    }
-                }
-                toast({ title: "Erro ao criar", description: result.error, variant: "destructive" });
-            }
-        } catch (error: any) {
-            toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
-        }
-    }
+    const handleOpenCreateModal = () => {
+        if (!searchValue.trim()) return;
+        setPrefillName(searchValue.trim());
+        setManageOpen(true);
+        setOpen(false);
+    };
 
     const selectedCategory = categories.find((c) => c.id === value)
 
@@ -139,11 +116,16 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                                             variant="secondary"
                                             size="sm"
                                             className="w-full"
-                                            onClick={handleCreateOption}
+                                            onClick={handleOpenCreateModal}
                                         >
                                             <Plus className="w-3 h-3 mr-1" />
-                                            Criar "{searchValue}"
+                                            Criar categoria
                                         </Button>
+                                    )}
+                                    {searchValue && (
+                                        <p className="mt-2 text-[11px] text-gray-400">
+                                            Para criar, selecione a subcategoria no Plano de Contas.
+                                        </p>
                                     )}
                                 </div>
                             </CommandEmpty>
@@ -182,7 +164,17 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                         <Settings className="h-4 w-4 text-gray-500" />
                     </Button>
                 </DialogTrigger>
-                <FinancialCategoryManagerModal companyId={companyId} onChange={fetchCategories} />
+                <FinancialCategoryManagerModal
+                    companyId={companyId}
+                    onChange={fetchCategories}
+                    prefillName={prefillName}
+                    onCreated={(categoryId) => {
+                        onChange(categoryId);
+                        setManageOpen(false);
+                        setSearchValue("");
+                        setPrefillName("");
+                    }}
+                />
             </Dialog>
         </div >
     )

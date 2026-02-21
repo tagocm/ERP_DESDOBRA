@@ -101,6 +101,11 @@ function TreeNode({ node, selectedId, onSelect, onAdd, depth }: TreeNodeProps) {
                             Categoria
                         </span>
                     )}
+                    {node.origin === 'FINANCIAL_CATEGORY' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100">
+                            Fato Gerador
+                        </span>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -121,6 +126,11 @@ function TreeNode({ node, selectedId, onSelect, onAdd, depth }: TreeNodeProps) {
                     )}
                     {node.origin === 'PRODUCT_CATEGORY' && (
                         <div title="Vinculada à Categoria" className="bg-purple-100 text-purple-600 p-1 rounded">
+                            <LinkIcon className="w-3 h-3" />
+                        </div>
+                    )}
+                    {node.origin === 'FINANCIAL_CATEGORY' && (
+                        <div title="Vinculada à Categoria Financeira" className="bg-emerald-100 text-emerald-600 p-1 rounded">
                             <LinkIcon className="w-3 h-3" />
                         </div>
                     )}

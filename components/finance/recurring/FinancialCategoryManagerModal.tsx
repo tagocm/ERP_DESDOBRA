@@ -8,9 +8,11 @@ import { Input } from "@/components/ui/Input";
 import {
     getFinancialCategoriesAction as getFinancialCategories,
     createFinancialCategoryAction as createFinancialCategory,
+    getOperationalExpenseParentAccountsAction as getOperationalExpenseParents,
     updateFinancialCategoryAction as updateFinancialCategory,
     deleteFinancialCategoryAction as deleteFinancialCategory,
-    FinancialCategory
+    FinancialCategory,
+    OperationalExpenseParentAccount
 } from "@/app/actions/financial-categories";
 import { cn } from "@/lib/utils";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
@@ -23,19 +25,25 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { Card } from "@/components/ui/Card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 
 interface FinancialCategoryManagerModalProps {
     companyId: string;
     onClose?: () => void;
     onChange?: () => void; // Trigger reload in parent
+    prefillName?: string;
+    onCreated?: (categoryId: string) => void;
 }
 
-export function FinancialCategoryManagerModal({ companyId, onClose, onChange }: FinancialCategoryManagerModalProps) {
+export function FinancialCategoryManagerModal({ companyId, onClose, onChange, prefillName, onCreated }: FinancialCategoryManagerModalProps) {
     const { toast } = useToast();
     const [categories, setCategories] = useState<FinancialCategory[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [newItemName, setNewItemName] = useState("");
     const [isCreating, setIsCreating] = useState(false);
+    const [parentAccounts, setParentAccounts] = useState<OperationalExpenseParentAccount[]>([]);
+    const [parentAccountId, setParentAccountId] = useState<string>("");
+    const [isLoadingParents, setIsLoadingParents] = useState(false);
 
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editName, setEditName] = useState("");
@@ -61,18 +69,60 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange }: 
         }
     };
 
+    const fetchParents = async () => {
+        setIsLoadingParents(true);
+        try {
+            const result = await getOperationalExpenseParents(companyId);
+            if (result.data) {
+                setParentAccounts(result.data);
+                // Default to 4.2 (Despesas Administrativas) when available.
+                const defaultParent = result.data.find(a => a.code === '4.2') ?? result.data[0];
+                if (defaultParent && !parentAccountId) {
+                    setParentAccountId(defaultParent.id);
+                }
+            } else {
+                toast({
+                    title: "Erro ao carregar subcategorias",
+                    description: result.error,
+                    variant: "destructive"
+                });
+            }
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Erro inesperado';
+            toast({ title: "Erro ao carregar subcategorias", description: message, variant: "destructive" });
+        } finally {
+            setIsLoadingParents(false);
+        }
+    };
+
     useEffect(() => {
         if (companyId) {
             fetchCategories();
+            fetchParents();
         }
     }, [companyId]);
 
+    useEffect(() => {
+        if (prefillName && !editingId) {
+            setNewItemName(prefillName);
+            setAddBoxOpen(true);
+        }
+    }, [prefillName, editingId]);
+
     const handleCreate = async () => {
         if (!newItemName.trim()) return;
+        if (!parentAccountId) {
+            toast({ title: "Subcategoria obrigatória", description: "Selecione onde a conta final ficará vinculada no Plano de Contas (item 4).", variant: "destructive" });
+            return;
+        }
         setIsCreating(true);
         try {
-            const result = await createFinancialCategory(newItemName);
+            const result = await createFinancialCategory({
+                name: newItemName,
+                parent_account_id: parentAccountId,
+            });
             if (result.data) {
+                onCreated?.(result.data.id);
                 setNewItemName("");
                 fetchCategories();
                 onChange?.();
@@ -80,8 +130,9 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange }: 
             } else {
                 toast({ title: "Erro ao criar", description: result.error, variant: "destructive" });
             }
-        } catch (error: any) {
-            toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Erro inesperado';
+            toast({ title: "Erro ao criar", description: message, variant: "destructive" });
         } finally {
             setIsCreating(false);
         }
@@ -100,8 +151,9 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange }: 
             } else {
                 toast({ title: "Erro ao atualizar", description: result.error, variant: "destructive" });
             }
-        } catch (error: any) {
-            toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Erro inesperado';
+            toast({ title: "Erro ao atualizar", description: message, variant: "destructive" });
         } finally {
             setIsUpdating(false);
         }
@@ -118,8 +170,9 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange }: 
             } else {
                 toast({ title: "Erro ao remover", description: result.error, variant: "destructive" });
             }
-        } catch (error: any) {
-            toast({ title: "Erro ao remover", description: error.message, variant: "destructive" });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Erro inesperado';
+            toast({ title: "Erro ao remover", description: message, variant: "destructive" });
         } finally {
             setCategoryToDelete(null);
         }
@@ -138,7 +191,11 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange }: 
                 <Button
                     onClick={() => {
                         setEditingId(null);
-                        setAddBoxOpen(!addBoxOpen);
+                        const nextOpen = !addBoxOpen;
+                        setAddBoxOpen(nextOpen);
+                        if (nextOpen && prefillName) {
+                            setNewItemName(prefillName);
+                        }
                     }}
                     className="bg-brand-600 hover:bg-brand-700 text-white rounded-full px-4 text-xs h-8 transition-all"
                 >
@@ -168,12 +225,38 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange }: 
                                     onKeyDown={(e) => e.key === 'Enter' && (editingId ? handleUpdate(editingId) : handleCreate())}
                                 />
                             </div>
+                            {!editingId && (
+                                <div>
+                                    <label className="text-xs text-gray-500 mb-1.5 block">Subcategoria (Plano de Contas)</label>
+                                    <Select value={parentAccountId} onValueChange={setParentAccountId} disabled={isLoadingParents || parentAccounts.length === 0}>
+                                        <SelectTrigger className={cn("h-9 text-sm rounded-2xl", !parentAccountId && "text-gray-500")}>
+                                            <SelectValue placeholder={isLoadingParents ? "Carregando..." : "Selecione..."} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {parentAccounts.map((acc) => (
+                                                <SelectItem key={acc.id} value={acc.id}>
+                                                    <span className="font-mono text-xs mr-2">{acc.code}</span>
+                                                    <span>{acc.name}</span>
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="mt-1 text-[11px] text-gray-400">
+                                        A conta final será criada dentro desta pasta do item 4 (Despesas Operacionais).
+                                    </p>
+                                </div>
+                            )}
                         </div>
 
                         <div className="mt-4 flex gap-2">
                             <Button
                                 onClick={() => editingId ? handleUpdate(editingId) : handleCreate()}
-                                disabled={isCreating || isUpdating || !(editingId ? editName : newItemName).trim()}
+                                disabled={
+                                    isCreating ||
+                                    isUpdating ||
+                                    !(editingId ? editName : newItemName).trim() ||
+                                    (!editingId && !parentAccountId)
+                                }
                                 className="h-9 flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-2xl font-medium transition-all"
                             >
                                 {(isCreating || isUpdating) ? (

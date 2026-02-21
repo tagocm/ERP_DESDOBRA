@@ -14,7 +14,7 @@ export interface GLAccount {
     parent_id: string | null;
     is_active: boolean;
     is_system_locked: boolean;
-    origin: 'SYSTEM' | 'PRODUCT_CATEGORY' | 'MANUAL';
+    origin: 'SYSTEM' | 'PRODUCT_CATEGORY' | 'FINANCIAL_CATEGORY' | 'MANUAL';
     origin_id: string | null;
     created_at: string;
     updated_at: string;

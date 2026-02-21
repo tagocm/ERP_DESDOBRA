@@ -202,7 +202,8 @@ export function AccountDetails({ account, onManageCategories, onChanged }: Accou
                     <DetailItem label="Origem" value={
                         account.origin === 'SYSTEM' ? 'Sistema (Fixo)' :
                             account.origin === 'PRODUCT_CATEGORY' ? 'Categoria de Produto' :
-                                'Manual'
+                                account.origin === 'FINANCIAL_CATEGORY' ? 'Categoria Financeira (Fato Gerador)' :
+                                    'Manual'
                     } />
                     <DetailItem label="Status" value={
                         <div className="flex items-center gap-2">
@@ -246,6 +247,22 @@ export function AccountDetails({ account, onManageCategories, onChanged }: Accou
                                     onClick={onManageCategories}>
                                     Gerenciar Categorias &rarr;
                                 </Button>
+                            </div>
+                        </div>
+                    )}
+
+                    {account.origin === 'FINANCIAL_CATEGORY' && (
+                        <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 flex gap-3 text-emerald-800 text-sm">
+                            <LinkIcon className="w-5 h-5 shrink-0 text-emerald-600" />
+                            <div>
+                                <p className="font-medium text-emerald-900">Vinculada à Categoria Financeira</p>
+                                <p className="mt-1 opacity-90">
+                                    Esta conta foi criada automaticamente a partir de uma Categoria usada em Fatos Geradores
+                                    e fica dentro do item 4 (Despesas Operacionais).
+                                </p>
+                                <p className="mt-2 text-[12px] opacity-80">
+                                    Para renomear ou inativar, use Financeiro &gt; Fatos Geradores.
+                                </p>
                             </div>
                         </div>
                     )}
