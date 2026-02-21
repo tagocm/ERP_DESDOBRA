@@ -93,7 +93,12 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                         onClick={() => setOpen(!open)}
                     >
                         {selectedCategory ? (
-                            <span className="truncate">{selectedCategory.name}</span>
+                            <span className="truncate flex items-center gap-2">
+                                {selectedCategory.account_code && (
+                                    <span className="font-mono text-xs text-gray-500">{selectedCategory.account_code}</span>
+                                )}
+                                <span className="truncate">{selectedCategory.name}</span>
+                            </span>
                         ) : (
                             <span className="text-gray-500">Selecione...</span>
                         )}
@@ -133,7 +138,7 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                                 {categories.map((cat) => (
                                     <CommandItem
                                         key={cat.id}
-                                        value={cat.name.toLowerCase()} // Search by lowercase name
+                                        value={`${cat.name} ${cat.account_code ?? ''}`.toLowerCase()} // Search by name + code
                                         onSelect={() => handleSelect(cat.id)}
                                         className="cursor-pointer"
                                     >
@@ -143,7 +148,10 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                                                 value === cat.id ? "opacity-100" : "opacity-0"
                                             )}
                                         />
-                                        {cat.name}
+                                        <span className="font-mono text-xs text-gray-400 w-14">
+                                            {cat.account_code ?? ''}
+                                        </span>
+                                        <span className="truncate">{cat.name}</span>
                                     </CommandItem>
                                 ))}
                             </CommandGroup>

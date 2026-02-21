@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import { Card } from "@/components/ui/Card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
+import { Badge } from "@/components/ui/Badge";
 
 interface FinancialCategoryManagerModalProps {
     companyId: string;
@@ -303,9 +304,21 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
                                 </TableRow>
                             ) : (
                                 categories.map((cat) => (
+                                    // account_is_system_locked is populated by the server action
+                                    // to prevent edits/removals on fixed chart accounts.
                                     <TableRow key={cat.id} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
                                         <TableCell className="py-3 font-medium text-gray-900">
-                                            {cat.name}
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                {cat.account_code && (
+                                                    <span className="font-mono text-xs text-gray-500 shrink-0">{cat.account_code}</span>
+                                                )}
+                                                <span className="truncate">{cat.name}</span>
+                                                {cat.account_is_system_locked && (
+                                                    <Badge variant="secondary" className="text-[10px] bg-amber-50 text-amber-700 border border-amber-100 shrink-0">
+                                                        Sistema
+                                                    </Badge>
+                                                )}
+                                            </div>
                                         </TableCell>
                                         <TableCell className="py-3 text-right pr-4">
                                             <div className="flex justify-end gap-1">
@@ -317,6 +330,7 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
                                                         setEditingId(cat.id);
                                                         setEditName(cat.name);
                                                     }}
+                                                    disabled={!!cat.account_is_system_locked}
                                                     className="h-7 w-7 p-0 rounded-2xl hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
                                                     title="Editar"
                                                 >
@@ -327,6 +341,7 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
                                                     variant="ghost"
                                                     size="icon"
                                                     onClick={() => setCategoryToDelete(cat.id)}
+                                                    disabled={!!cat.account_is_system_locked}
                                                     className="h-7 w-7 p-0 rounded-2xl hover:bg-red-50 hover:text-red-600 text-gray-400 transition-colors"
                                                     title="Excluir"
                                                 >

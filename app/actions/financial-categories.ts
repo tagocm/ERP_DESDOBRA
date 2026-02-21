@@ -13,6 +13,9 @@ export interface FinancialCategory {
     description?: string;
     is_active: boolean;
     expense_account_id?: string | null;
+    account_code?: string;
+    account_is_system_locked?: boolean;
+    account_origin?: string;
     created_at?: string;
     updated_at?: string;
 }
@@ -30,6 +33,11 @@ const financialCategoryRowSchema = z.object({
     description: z.string().nullable().optional(),
     is_active: z.boolean().nullable().transform(v => v ?? true),
     expense_account_id: z.string().uuid().nullable().optional(),
+    expense_account: z.object({
+        code: z.string(),
+        is_system_locked: z.boolean().nullable().transform(v => v ?? false),
+        origin: z.string(),
+    }).nullable().optional(),
     created_at: z.string().optional(),
     updated_at: z.string().optional(),
 });
@@ -48,17 +56,54 @@ const createFinancialCategoryInputSchema = z.object({
 export async function getFinancialCategoriesAction(companyId: string) {
     try {
         const supabase = await createClient();
+        const activeCompanyId = await getActiveCompanyId();
+        if (!activeCompanyId) return { error: 'Empresa não encontrada' };
+        if (companyId !== activeCompanyId) return { error: 'Empresa inválida' };
+
+        // Ensure base categories exist for existing 4.* accounts (idempotent).
+        const admin = createAdminClient();
+        await admin.rpc('seed_financial_categories_for_operational_expenses', {
+            p_company_id: activeCompanyId,
+        });
+
         const { data, error } = await supabase
             .from('financial_categories')
-            .select('*')
-            .eq('company_id', companyId)
+            .select(`
+                id,
+                company_id,
+                name,
+                description,
+                is_active,
+                expense_account_id,
+                created_at,
+                updated_at,
+                expense_account:gl_accounts!expense_account_id (
+                    code,
+                    is_system_locked,
+                    origin
+                )
+            `)
+            .eq('company_id', activeCompanyId)
             .eq('is_active', true)
             .order('name');
 
         if (error) throw error;
         const parsed = z.array(financialCategoryRowSchema).safeParse(data ?? []);
         if (!parsed.success) return { error: 'Falha ao carregar categorias financeiras.' };
-        return { data: parsed.data as FinancialCategory[] };
+        const mapped: FinancialCategory[] = parsed.data.map((row) => ({
+            id: row.id,
+            company_id: row.company_id,
+            name: row.name,
+            description: row.description ?? undefined,
+            is_active: row.is_active,
+            expense_account_id: row.expense_account_id ?? null,
+            account_code: row.expense_account?.code,
+            account_is_system_locked: row.expense_account?.is_system_locked ?? false,
+            account_origin: row.expense_account?.origin,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+        }));
+        return { data: mapped };
     } catch (error: unknown) {
         return { error: error instanceof Error ? error.message : 'Erro inesperado' };
     }
@@ -168,6 +213,41 @@ export async function updateFinancialCategoryAction(id: string, name: string) {
         const companyId = await getActiveCompanyId();
         if (!companyId) return { error: 'Empresa não encontrada' };
 
+        // Prevent edits for categories linked to system-locked accounts.
+        const { data: meta, error: metaError } = await supabase
+            .from('financial_categories')
+            .select(`
+                id,
+                expense_account_id,
+                expense_account:gl_accounts!expense_account_id (
+                    is_system_locked
+                )
+            `)
+            .eq('id', id)
+            .eq('company_id', companyId)
+            .maybeSingle();
+        if (metaError) throw metaError;
+        const metaSchema = z.object({
+            id: z.string().uuid(),
+            expense_account_id: z.string().uuid().nullable().optional(),
+            // Supabase may type many-to-one joins as arrays depending on inferred relationship metadata.
+            expense_account: z.union([
+                z.object({ is_system_locked: z.boolean().nullable().transform(v => v ?? false) }),
+                z.array(z.object({ is_system_locked: z.boolean().nullable().transform(v => v ?? false) })),
+            ]).nullable().optional(),
+        });
+        const parsedMeta = metaSchema.safeParse(meta);
+        if (!parsedMeta.success) return { error: 'Categoria não encontrada' };
+
+        const expenseJoin = parsedMeta.data.expense_account;
+        const isLocked = Array.isArray(expenseJoin)
+            ? (expenseJoin[0]?.is_system_locked ?? false)
+            : (expenseJoin?.is_system_locked ?? false);
+
+        if (isLocked) {
+            return { error: 'Esta categoria é do sistema e não pode ser renomeada.' };
+        }
+
         const updateSchema = z.object({
             id: z.string().uuid(),
             name: z.string().min(3, 'Nome muito curto').max(100, 'Nome muito longo'),
@@ -222,13 +302,37 @@ export async function deleteFinancialCategoryAction(id: string) {
         // Fetch linked account first
         const { data: existing, error: fetchError } = await supabase
             .from('financial_categories')
-            .select('id, expense_account_id')
+            .select(`
+                id,
+                expense_account_id,
+                expense_account:gl_accounts!expense_account_id (
+                    is_system_locked
+                )
+            `)
             .eq('id', id)
             .eq('company_id', companyId)
             .maybeSingle();
 
         if (fetchError) throw fetchError;
-        if (!existing?.id) return { error: 'Categoria não encontrada' };
+        const existingSchema = z.object({
+            id: z.string().uuid(),
+            expense_account_id: z.string().uuid().nullable().optional(),
+            expense_account: z.union([
+                z.object({ is_system_locked: z.boolean().nullable().transform(v => v ?? false) }),
+                z.array(z.object({ is_system_locked: z.boolean().nullable().transform(v => v ?? false) })),
+            ]).nullable().optional(),
+        });
+        const parsedExisting = existingSchema.safeParse(existing);
+        if (!parsedExisting.success) return { error: 'Categoria não encontrada' };
+
+        const existingJoin = parsedExisting.data.expense_account;
+        const existingLocked = Array.isArray(existingJoin)
+            ? (existingJoin[0]?.is_system_locked ?? false)
+            : (existingJoin?.is_system_locked ?? false);
+
+        if (existingLocked) {
+            return { error: 'Esta categoria é do sistema e não pode ser removida.' };
+        }
 
         const { error } = await supabase
             .from('financial_categories')
@@ -237,11 +341,11 @@ export async function deleteFinancialCategoryAction(id: string) {
 
         if (error) throw error;
 
-        if (existing.expense_account_id) {
+        if (parsedExisting.data.expense_account_id) {
             const { error: accError } = await supabase
                 .from('gl_accounts')
                 .update({ is_active: false })
-                .eq('id', existing.expense_account_id)
+                .eq('id', parsedExisting.data.expense_account_id)
                 .eq('company_id', companyId);
             if (accError) throw accError;
         }
