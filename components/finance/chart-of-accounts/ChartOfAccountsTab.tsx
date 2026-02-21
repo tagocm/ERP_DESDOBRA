@@ -17,8 +17,6 @@ export function ChartOfAccountsTab() {
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedAccount, setSelectedAccount] = useState<GLAccount | null>(null);
     const [isManageModalOpen, setIsManageModalOpen] = useState(false);
-
-    // Inline add state
     const [addingToParent, setAddingToParent] = useState<GLAccount | null>(null);
     const [newAccountName, setNewAccountName] = useState('');
     const [isSaving, setIsSaving] = useState(false);
@@ -32,9 +30,12 @@ export function ChartOfAccountsTab() {
             const result = await getAccountsTreeAction();
             if (result.success && result.data) {
                 setTreeData(result.data);
+            } else if (!result.success) {
+                toast({ variant: 'destructive', title: 'Erro', description: result.message || 'Falha ao carregar plano de contas.' });
             }
         } catch (error) {
             console.error(error);
+            toast({ variant: 'destructive', title: 'Erro', description: 'Falha ao carregar plano de contas.' });
         } finally {
             setLoading(false);
         }
@@ -85,7 +86,7 @@ export function ChartOfAccountsTab() {
             const { createManualAccountAction } = await import('@/app/actions/finance-actions');
             const result = await createManualAccountAction(addingToParent.id, newAccountName.trim());
             if (result.success) {
-                toast({ title: 'Conta criada', description: `A conta foi adicionada em "${addingToParent.name}".` });
+                toast({ title: 'Conta criada', description: `A conta final foi adicionada em "${addingToParent.name}".` });
                 setAddingToParent(null);
                 setNewAccountName('');
                 await fetchTree();
@@ -110,6 +111,7 @@ export function ChartOfAccountsTab() {
                     <div className="flex justify-between items-center">
                         <h3 className="font-semibold text-gray-900">Estrutura do Plano de Contas</h3>
                     </div>
+                    <p className="text-xs text-gray-500">Espinha do sistema é fixa. Você pode adicionar apenas contas finais dentro das pastas.</p>
                     <div className="relative">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
                         <Input
@@ -137,17 +139,16 @@ export function ChartOfAccountsTab() {
                     )}
                 </div>
 
-                {/* Inline Add Form — pinned to bottom of card */}
                 {addingToParent && (
                     <div className="border-t border-blue-100 bg-blue-50/50 p-3 shrink-0">
                         <p className="text-xs font-medium text-blue-700 mb-2 flex items-center gap-1.5">
                             <Plus className="w-3.5 h-3.5" />
-                            Nova conta em <span className="font-mono">{addingToParent.code}</span> — {addingToParent.name}
+                            Nova conta final em <span className="font-mono">{addingToParent.code}</span> - {addingToParent.name}
                         </p>
                         <form onSubmit={handleSaveAccount} className="flex gap-2">
                             <Input
                                 autoFocus
-                                placeholder="Nome da conta..."
+                                placeholder="Nome da conta final..."
                                 value={newAccountName}
                                 onChange={(e) => setNewAccountName(e.target.value)}
                                 className="h-8 text-sm bg-white flex-1"

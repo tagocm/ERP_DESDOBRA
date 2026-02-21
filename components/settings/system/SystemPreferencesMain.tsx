@@ -5,6 +5,7 @@ import { Tabs, TabsContent } from "@/components/ui/Tabs";
 import { FormTabsList, FormTabsTrigger } from "@/components/ui/FormTabs";
 import { LogisticsTab } from "./LogisticsTab";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { ChartOfAccountsTab } from "@/components/finance/chart-of-accounts/ChartOfAccountsTab";
 
 export function SystemPreferencesMain() {
     const [activeTab, setActiveTab] = useState("logistics");
@@ -19,7 +20,7 @@ export function SystemPreferencesMain() {
                     <FormTabsList className="px-0 border-b-0">
                         <FormTabsTrigger value="commercial">Comercial</FormTabsTrigger>
                         <FormTabsTrigger value="logistics">Logística</FormTabsTrigger>
-                        <FormTabsTrigger value="finance">Financeiro</FormTabsTrigger>
+                        <FormTabsTrigger value="finance">Plano de Contas</FormTabsTrigger>
                         <FormTabsTrigger value="purchasing">Compras</FormTabsTrigger>
                         <FormTabsTrigger value="fiscal">Fiscal</FormTabsTrigger>
                     </FormTabsList>
@@ -36,7 +37,7 @@ export function SystemPreferencesMain() {
                         <PlaceholderTab title="Comercial" />
                     </TabsContent>
                     <TabsContent value="finance" className="mt-0 focus-visible:outline-none">
-                        <PlaceholderTab title="Financeiro" />
+                        <ChartOfAccountsTab />
                     </TabsContent>
                     <TabsContent value="purchasing" className="mt-0 focus-visible:outline-none">
                         <PlaceholderTab title="Compras" />
