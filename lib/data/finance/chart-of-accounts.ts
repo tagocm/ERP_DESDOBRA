@@ -49,6 +49,28 @@ const createRevenueCategoryRpcSchema = z.object({
     is_active: z.boolean(),
 });
 
+const revenueCategoryRowSchema = z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    normalized_name: z.string(),
+    revenue_account_id: z.string().uuid().nullable(),
+    is_active: z.boolean().nullable(),
+    account: z.object({ code: z.string() }).nullable(),
+    items: z.array(z.object({ count: z.number().int().nonnegative() })).nullable(),
+});
+
+const setRevenueCategoryActiveRpcSchema = z.object({
+    category_id: z.string().uuid(),
+    account_id: z.string().uuid(),
+    is_active: z.boolean(),
+});
+
+const deleteRevenueCategoryRpcSchema = z.object({
+    mode: z.literal('hard'),
+    deleted_category_id: z.string().uuid(),
+    deleted_account_id: z.string().uuid(),
+});
+
 async function getCurrentCompanyId(supabase: SupabaseClient): Promise<string> {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) throw new Error('Unauthorized');
@@ -113,16 +135,24 @@ export async function getAccountsTree() {
 
 export async function getRevenueCategories() {
     const supabase = await createClient();
+    const companyId = await getCurrentCompanyId(supabase);
 
-    // Fetch categories with linked account code
     const { data, error } = await supabase
         .from('product_categories')
         .select(`
-            *,
+            id,
+            name,
+            normalized_name,
+            revenue_account_id,
+            is_active,
             account:gl_accounts!revenue_account_id (
                 code
+            ),
+            items:items!items_category_id_fkey(
+                count
             )
         `)
+        .eq('company_id', companyId)
         .order('name');
 
     if (error) {
@@ -130,14 +160,20 @@ export async function getRevenueCategories() {
         throw new Error('Falha ao carregar categorias de receita.');
     }
 
-    // TODO: Implement usage count via separate query or view if needed
-    // For now, returning structure
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return data.map((item: any) => ({
-        ...item,
+    const parsed = z.array(revenueCategoryRowSchema).safeParse(data ?? []);
+    if (!parsed.success) {
+        throw new Error('Falha ao interpretar categorias de receita.');
+    }
+
+    return parsed.data.map((item): RevenueCategory => ({
+        id: item.id,
+        name: item.name,
+        normalized_name: item.normalized_name,
+        revenue_account_id: item.revenue_account_id ?? '',
+        is_active: item.is_active ?? true,
         account_code: item.account?.code,
-        usage_count: 0 // Placeholder until we have usage logic
-    })) as RevenueCategory[];
+        usage_count: item.items?.[0]?.count ?? 0,
+    }));
 }
 
 export async function createRevenueCategory(input: z.infer<typeof createCategorySchema>) {
@@ -202,23 +238,21 @@ export async function updateRevenueCategory(id: string, name: string) {
 
 export async function toggleRevenueCategoryStatus(id: string, isActive: boolean) {
     const supabase = await createClient();
+    const companyId = await getCurrentCompanyId(supabase);
 
-    // 1. Update Category
-    const { data: category, error: catError } = await supabase
-        .from('product_categories')
-        .update({ is_active: isActive })
-        .eq('id', id)
-        .select()
-        .single();
+    const { data, error } = await supabase.rpc('set_revenue_category_active', {
+        p_company_id: companyId,
+        p_category_id: id,
+        p_is_active: isActive,
+    });
 
-    if (catError) throw new Error('Erro ao atualizar status da categoria.');
+    if (error) {
+        throw new Error(error.message || 'Erro ao atualizar status da categoria.');
+    }
 
-    // 2. Update Linked Account
-    if (category.revenue_account_id) {
-        await supabase
-            .from('gl_accounts')
-            .update({ is_active: isActive })
-            .eq('id', category.revenue_account_id);
+    const parsed = z.array(setRevenueCategoryActiveRpcSchema).safeParse(data ?? []);
+    if (!parsed.success || parsed.data.length === 0) {
+        throw new Error('Erro ao atualizar status da categoria.');
     }
 }
 
@@ -236,6 +270,7 @@ export async function createManualAccount(parentId: string, name: string) {
 
     if (parentError || !parent) throw new Error('Conta pai não encontrada.');
     if (parent.type !== 'SINTETICA') throw new Error('Só é possível criar contas dentro de pastas (contas sintéticas).');
+    if (parent.code === '1.1') throw new Error('Contas filhas de 1.1 devem ser criadas pelo modal de categorias.');
 
     // 2. Get existing children to determine next code suffix
     const { data: siblings } = await supabase
@@ -345,47 +380,24 @@ export async function deleteManualAccount(id: string): Promise<{ mode: 'hard' | 
 }
 
 export async function deleteRevenueCategory(id: string) {
-
-
     const supabase = await createClient();
+    const companyId = await getCurrentCompanyId(supabase);
 
-    // 1. Check Usage
-    // TODO: Implement real usage check (products, sales lines)
-    // For V1 MVP: Allow if no products linked.
+    const { data, error } = await supabase.rpc('delete_revenue_category_if_unused', {
+        p_company_id: companyId,
+        p_category_id: id,
+    });
 
-    /*
-    const { count } = await supabase
-        .from('items') // assuming 'items' table links to Category? Or 'products'? 
-        // Need to check specific schema link. Usually items -> category_id
-        .select('*', { count: 'exact', head: true })
-    //.eq('category_id', id); // CHECK SCHEMA FOR THIS LINK
-    // Schema check: product_categories id is referenced by items? 
-    // Let's assume strict check later. For now, proceeding.
-    */
+    if (error) {
+        if (error.message?.includes('Categoria em uso')) {
+            throw new Error('Categoria em uso. Inative a categoria em vez de excluir.');
+        }
+        throw new Error(error.message || 'Erro ao excluir categoria.');
+    }
 
-    // 2. Get Account ID before deleting
-    const { data: category } = await supabase
-        .from('product_categories')
-        .select('revenue_account_id')
-        .eq('id', id)
-        .single();
-
-    if (!category) throw new Error('Categoria não encontrada.');
-
-    // 3. Delete Category
-    const { error: delError } = await supabase
-        .from('product_categories')
-        .delete()
-        .eq('id', id);
-
-    if (delError) throw new Error('Erro ao excluir categoria (pode estar em uso).');
-
-    // 4. Delete Linked Account
-    if (category.revenue_account_id) {
-        await supabase
-            .from('gl_accounts')
-            .delete()
-            .eq('id', category.revenue_account_id);
+    const parsed = z.array(deleteRevenueCategoryRpcSchema).safeParse(data ?? []);
+    if (!parsed.success || parsed.data.length === 0) {
+        throw new Error('Erro ao excluir categoria.');
     }
 }
 
