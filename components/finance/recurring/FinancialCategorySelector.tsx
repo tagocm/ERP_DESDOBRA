@@ -139,6 +139,8 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                                     <CommandItem
                                         key={cat.id}
                                         value={`${cat.name} ${cat.account_code ?? ''}`.toLowerCase()} // Search by name + code
+                                        // Prevent focus loss on the input which can break pointer selection in some browsers.
+                                        onMouseDown={(e) => e.preventDefault()}
                                         onSelect={() => handleSelect(cat.id)}
                                         className="cursor-pointer"
                                     >
