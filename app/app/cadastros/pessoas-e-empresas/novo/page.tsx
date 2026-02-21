@@ -259,7 +259,6 @@ export default function NewOrganizationPage() {
                 is_public_agency: sanitizedFiscal.is_public_agency,
                 // icms_contributor: sanitizedFiscal.icms_contributor === 'Contribuinte', // Removed: Not in DB schema
 
-                // @ts-ignore
                 final_consumer: sanitizedFiscal.is_final_consumer, // Fix: Use correct DB column name
 
                 // Unverified/Missing Types (Commented out to prevent crash)

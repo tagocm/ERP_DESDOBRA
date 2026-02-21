@@ -52,6 +52,22 @@ interface PurchaseOrderFormProps {
     mode: 'create' | 'edit';
 }
 
+type SupplierAddress = {
+    type?: string | null;
+    city?: string | null;
+    state?: string | null;
+};
+
+type SupplierOrganization = {
+    id: string;
+    trade_name?: string | null;
+    legal_name?: string | null;
+    name?: string | null;
+    payment_terms_id?: string | null;
+    payment_mode_id?: string | null;
+    addresses?: SupplierAddress[];
+};
+
 export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps) {
     const router = useRouter();
     const supabase = createClient();
@@ -158,11 +174,9 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
             .eq('id', org.id)
             .single();
 
-        const finalOrg = fullOrg || org;
-
-        // @ts-ignore
-        const addresses = finalOrg?.addresses || [];
-        const address = addresses.find((a: any) => a.type === 'billing') || addresses[0];
+        const finalOrg = (fullOrg || org) as SupplierOrganization;
+        const addresses = finalOrg.addresses || [];
+        const address = addresses.find((a) => a.type === 'billing') || addresses[0];
 
         setFormData((prev: any) => ({
             ...prev,
@@ -371,10 +385,8 @@ export function PurchaseOrderForm({ initialData, mode }: PurchaseOrderFormProps)
             };
 
             if (mode === 'create') {
-                const { data } = await createPurchaseOrderAction(payload);
-                // @ts-ignore
-                if (data?.id) {
-                    // @ts-ignore
+                const result = await createPurchaseOrderAction(payload);
+                if (result?.data?.id) {
                     router.push(`/app/compras/pedidos`);
                     toast({ title: "Pedido criado com sucesso!" });
                 }

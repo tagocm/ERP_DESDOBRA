@@ -45,8 +45,6 @@ export function FuelRecordsTable({ records, onEdit, onDelete }: FuelRecordsTable
             toast({
                 title: "Sucesso!",
                 description: "Abastecimento excluído.",
-                // @ts-ignore
-                className: "bg-green-600 text-white border-none"
             });
             setConfirmId(null);
             onDelete?.();

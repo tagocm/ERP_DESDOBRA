@@ -44,8 +44,6 @@ export function TollRecordsTable({ records, onEdit, onDelete }: TollRecordsTable
             toast({
                 title: "Sucesso!",
                 description: "Registro de pedágio excluído.",
-                // @ts-ignore
-                className: "bg-green-600 text-white border-none"
             });
             setConfirmId(null);
             onDelete?.();

@@ -160,10 +160,9 @@ export async function updateVehicleDocumentAction(id: string, input: UpdateVehic
     const admin = createAdminClient();
 
     // Simple status recalc logic
-    let statusUpdate = {};
+    const statusUpdate: { status?: VehicleDocumentStatus } = {};
     if (input.first_due_date) {
         const today = new Date().toISOString().split('T')[0];
-        // @ts-ignore
         statusUpdate.status = input.first_due_date < today ? 'VENCIDO' : 'EM_ABERTO';
     }
 

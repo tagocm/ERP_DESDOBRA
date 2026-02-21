@@ -34,7 +34,6 @@ interface FleetTableProps {
 export function FleetTable({ vehicles }: FleetTableProps) {
     const { toast } = useToast();
     const [confirmId, setConfirmId] = useState<string | null>(null);
-    const [isReactivating, setIsReactivating] = useState(false);
 
     const getIcon = (type: string | null) => {
         switch (type) {
@@ -51,8 +50,6 @@ export function FleetTable({ vehicles }: FleetTableProps) {
             toast({
                 title: "Status atualizado!",
                 description: `O veículo foi ${!currentStatus ? 'ativado' : 'inativado'} com sucesso.`,
-                // @ts-ignore
-                className: "bg-green-600 text-white border-none"
             });
             setConfirmId(null);
         } else {

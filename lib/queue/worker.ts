@@ -19,16 +19,24 @@ export interface Job {
 
 export interface WorkerOptions {
     pollIntervalMs?: number;
+    maxPollIntervalMs?: number;
+    backoffMultiplier?: number;
     jobType: string;
 }
 
 export class JobWorker {
     private isRunning: boolean = false;
-    private pollIntervalMs: number;
+    private minPollIntervalMs: number;
+    private maxPollIntervalMs: number;
+    private backoffMultiplier: number;
+    private currentPollIntervalMs: number;
     private jobType: string;
 
     constructor(options: WorkerOptions) {
-        this.pollIntervalMs = options.pollIntervalMs || 5000;
+        this.minPollIntervalMs = options.pollIntervalMs || 5000;
+        this.maxPollIntervalMs = options.maxPollIntervalMs || 30000;
+        this.backoffMultiplier = options.backoffMultiplier || 2;
+        this.currentPollIntervalMs = this.minPollIntervalMs;
         this.jobType = options.jobType;
     }
 
@@ -53,18 +61,34 @@ export class JobWorker {
                 if (job) {
                     // Process immediately
                     console.log(`[Worker:${this.jobType}] Processing Job ${job.id} (Attempt ${job.attempts}/${job.max_attempts})`);
+                    // Queue has work: restore minimum latency.
+                    this.currentPollIntervalMs = this.minPollIntervalMs;
                     await this.processJob(job);
                 } else {
-                    // Idle - Wait before next poll
-                    await new Promise(resolve => setTimeout(resolve, this.pollIntervalMs));
+                    // Idle queue: exponentially back off polling to reduce DB churn.
+                    await this.sleepWithJitter(this.currentPollIntervalMs);
+                    this.currentPollIntervalMs = Math.min(
+                        this.maxPollIntervalMs,
+                        Math.floor(this.currentPollIntervalMs * this.backoffMultiplier)
+                    );
                 }
             } catch (error) {
                 console.error(`[Worker:${this.jobType}] Critical Loop Error:`, error);
-                // Wait a bit to avoid hot loop on error
-                await new Promise(resolve => setTimeout(resolve, this.pollIntervalMs));
+                // Errors should also back off to avoid hot loop.
+                await this.sleepWithJitter(this.currentPollIntervalMs);
+                this.currentPollIntervalMs = Math.min(
+                    this.maxPollIntervalMs,
+                    Math.floor(this.currentPollIntervalMs * this.backoffMultiplier)
+                );
             }
         }
         console.log(`[Worker:${this.jobType}] Loop stopped.`);
+    }
+
+    private async sleepWithJitter(baseMs: number) {
+        // 0-25% jitter avoids synchronized wakeups from multiple workers.
+        const jitter = Math.floor(Math.random() * Math.floor(baseMs * 0.25));
+        await new Promise(resolve => setTimeout(resolve, baseMs + jitter));
     }
 
     private async fetchNextJob(): Promise<Job | null> {

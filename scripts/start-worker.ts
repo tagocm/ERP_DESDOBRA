@@ -12,17 +12,25 @@ async function main() {
     const workers = [
         new JobWorker({
             jobType: 'NFE_EMIT',
-            pollIntervalMs: 2000
+            pollIntervalMs: 2000,
+            maxPollIntervalMs: 30000,
+            backoffMultiplier: 2
         }),
         new JobWorker({
             jobType: 'NFE_CCE',
-            pollIntervalMs: 2000
+            pollIntervalMs: 2000,
+            maxPollIntervalMs: 30000,
+            backoffMultiplier: 2
         }),
         new JobWorker({
             jobType: 'NFE_CANCEL',
-            pollIntervalMs: 2000
+            pollIntervalMs: 2000,
+            maxPollIntervalMs: 30000,
+            backoffMultiplier: 2
         })
     ];
+
+    console.log('Worker polling strategy: min=2s, max=30s, backoff=2x, jitter=0-25%');
 
     // Handle graceful shutdown
     process.on('SIGINT', () => {

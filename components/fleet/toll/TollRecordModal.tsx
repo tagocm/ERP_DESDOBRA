@@ -71,8 +71,6 @@ export function TollRecordModal({ isOpen, onClose, vehicleId, initialData, onSuc
             toast({
                 title: "Sucesso!",
                 description: initialData ? "Registro atualizado." : "Registro criado.",
-                // @ts-ignore
-                className: "bg-green-600 text-white border-none"
             });
             reset();
             onClose();

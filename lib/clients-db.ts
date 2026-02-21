@@ -23,6 +23,8 @@ export interface Organization {
     notes: string | null;
     is_simple_national: boolean;
     is_public_agency: boolean;
+    final_consumer?: boolean | null;
+    icms_contributor?: boolean | null;
     freight_terms: 'cif' | 'fob' | 'retira' | 'combinar' | 'sem_frete' | null;
     price_table_id: string | null;
     sales_rep_user_id: string | null;

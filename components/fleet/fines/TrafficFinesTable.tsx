@@ -43,8 +43,6 @@ export function TrafficFinesTable({ records, onEdit, onDelete }: TrafficFinesTab
             toast({
                 title: "Sucesso!",
                 description: "Registro de multa excluído.",
-                // @ts-ignore
-                className: "bg-green-600 text-white border-none"
             });
             setConfirmId(null);
             onDelete?.();

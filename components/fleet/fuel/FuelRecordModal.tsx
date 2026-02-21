@@ -104,8 +104,6 @@ export function FuelRecordModal({ isOpen, onClose, vehicleId, vehicleData, initi
             toast({
                 title: "Sucesso!",
                 description: initialData ? "Abastecimento atualizado." : "Abastecimento registrado.",
-                // @ts-ignore
-                className: "bg-green-600 text-white border-none"
             });
             reset();
             onSuccess?.();

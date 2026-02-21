@@ -68,8 +68,6 @@ export function TrafficFineModal({ isOpen, onClose, vehicleId, initialData, onSu
             toast({
                 title: "Sucesso!",
                 description: initialData ? "Registro atualizado." : "Registro criado.",
-                // @ts-ignore
-                className: "bg-green-600 text-white border-none"
             });
             reset();
             onClose();

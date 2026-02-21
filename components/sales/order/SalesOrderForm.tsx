@@ -128,7 +128,7 @@ interface QuickItemProduct {
 }
 
 interface PendingFreightData {
-    freight_mode: string | null;
+    freight_mode: SalesOrderDTO['freight_mode'];
     carrier_id: string | null;
     route_tag: string | null;
 }
@@ -145,6 +145,30 @@ type SalesOrderClientShape = {
     document?: string | null;
 } | null;
 
+type ClientAddress = {
+    type?: string | null;
+    street?: string | null;
+    number?: string | null;
+    neighborhood?: string | null;
+    city?: string | null;
+    state?: string | null;
+};
+
+type ClientDetails = {
+    id: string;
+    trade_name?: string | null;
+    document?: string | null;
+    document_number?: string | null;
+    price_table_id?: string | null;
+    payment_terms_id?: string | null;
+    payment_mode_id?: string | null;
+    freight_terms?: string | null;
+    preferred_carrier_id?: string | null;
+    region_route?: string | null;
+    addresses?: ClientAddress[];
+    error?: string;
+};
+
 function normalizeSalesOrderClient(rawClient: unknown): SalesOrderClientShape {
     if (!rawClient) return null;
     if (Array.isArray(rawClient)) {
@@ -160,6 +184,31 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 function isPersistedUuid(id?: string | null): id is string {
     return typeof id === 'string' && UUID_REGEX.test(id);
+}
+
+function asClientAddressList(value: unknown): ClientAddress[] {
+    if (!Array.isArray(value)) return [];
+    return value.filter((entry): entry is ClientAddress => typeof entry === "object" && entry !== null);
+}
+
+function asClientDetails(value: unknown): ClientDetails | null {
+    if (!value || typeof value !== "object") return null;
+    const details = value as Record<string, unknown>;
+    if (typeof details.id !== "string") return null;
+    return {
+        id: details.id,
+        trade_name: typeof details.trade_name === "string" ? details.trade_name : null,
+        document: typeof details.document === "string" ? details.document : null,
+        document_number: typeof details.document_number === "string" ? details.document_number : null,
+        price_table_id: typeof details.price_table_id === "string" ? details.price_table_id : null,
+        payment_terms_id: typeof details.payment_terms_id === "string" ? details.payment_terms_id : null,
+        payment_mode_id: typeof details.payment_mode_id === "string" ? details.payment_mode_id : null,
+        freight_terms: typeof details.freight_terms === "string" ? details.freight_terms : null,
+        preferred_carrier_id: typeof details.preferred_carrier_id === "string" ? details.preferred_carrier_id : null,
+        region_route: typeof details.region_route === "string" ? details.region_route : null,
+        addresses: asClientAddressList(details.addresses),
+        error: typeof details.error === "string" ? details.error : undefined
+    };
 }
 
 export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps) {
@@ -524,7 +573,8 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         }
 
         try {
-            const fullOrg = await getClientDetailsAction(org.id, selectedCompany?.id);
+            const fullOrgRaw = await getClientDetailsAction(org.id, selectedCompany?.id);
+            const fullOrg = asClientDetails(fullOrgRaw);
 
             if (fullOrg && !fullOrg.error) {
                 const resolveId = (
@@ -551,23 +601,22 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                 const addresses = fullOrg.addresses || [];
                 setClientAddresses(addresses);
 
-                const address = addresses.find((a: any) => a.type === 'billing') || addresses[0];
+                const address = addresses.find((a) => a.type === 'billing') || addresses[0];
                 const addressStr = address ? `${address.street}, ${address.number} - ${address.neighborhood}` : "Endereço não cadastrado";
                 const cityState = address ? `${address.city}/${address.state}` : "";
 
                 // Freight Logic
-                const mapFreightMode = (term: string | null) => {
+                const mapFreightMode = (term: string | null | undefined): SalesOrderDTO['freight_mode'] => {
                     if (!term) return null;
                     if (term === 'retira') return 'exw';
                     if (term === 'sem_frete') return 'none';
                     if (term === 'combinar') return 'none';
-                    return term; // cif, fob
+                    if (term === 'cif' || term === 'fob') return term;
+                    return null;
                 };
 
                 const newFreightMode = mapFreightMode(fullOrg.freight_terms);
-                // @ts-ignore
                 const newCarrierId = fullOrg.preferred_carrier_id || null;
-                // @ts-ignore
                 const newRouteTag = fullOrg.region_route || null;
 
                 const hasExistingFreight = !!formData.freight_mode;
@@ -585,7 +634,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                     // Apply immediately if first time or no existing freight
                     setFormData(prev => ({
                         ...prev,
-                        freight_mode: newFreightMode as any,
+                        freight_mode: newFreightMode,
                         carrier_id: newCarrierId,
                         route_tag: newRouteTag
                     }));
@@ -605,8 +654,8 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                 const payModeName = paymentModes.find(p => p.id === paymentModeId)?.name || 'Não definido';
 
                 setCustomerInfo({
-                    tradeName: fullOrg.trade_name,
-                    doc: fullOrg.document,
+                    tradeName: fullOrg.trade_name ?? undefined,
+                    doc: fullOrg.document ?? undefined,
                     address: addressStr,
                     cityState: cityState,
                     priceTableName: ptName,
@@ -634,11 +683,12 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         let cancelled = false;
         const loadCustomerInfo = async () => {
             try {
-                const fullOrg = await getClientDetailsAction(formData.client_id!, selectedCompany?.id);
+                const fullOrgRaw = await getClientDetailsAction(formData.client_id!, selectedCompany?.id);
+                const fullOrg = asClientDetails(fullOrgRaw);
                 if (cancelled || !fullOrg || fullOrg.error) return;
 
                 const addresses = fullOrg.addresses || [];
-                const address = addresses.find((a: any) => a.type === 'billing') || addresses[0];
+                const address = addresses.find((a) => a.type === 'billing') || addresses[0];
                 const addressStr = address ? `${address.street}, ${address.number} - ${address.neighborhood}` : "Endereço não cadastrado";
                 const cityState = address ? `${address.city}/${address.state}` : "";
 
@@ -884,7 +934,15 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         }
     };
 
-    const handleUpdateItem = async (index: number, field: keyof SalesOrderItemDTO, value: any) => {
+    const setSalesItemField = <K extends keyof SalesOrderItemDTO>(
+        target: SalesOrderItemDTO,
+        key: K,
+        nextValue: SalesOrderItemDTO[K]
+    ) => {
+        target[key] = nextValue;
+    };
+
+    const handleUpdateItem = async <K extends keyof SalesOrderItemDTO>(index: number, field: K, value: SalesOrderItemDTO[K]) => {
         const newItems = [...(formData.items || [])];
         const item = { ...newItems[index] }; // Copy
 
@@ -917,8 +975,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
 
         } else {
             // Standard update
-            // @ts-ignore
-            item[field] = value;
+            setSalesItemField(item, field, value);
 
             // Recalculate Line Total & Qty Base
             if (field === 'quantity' || field === 'unit_price' || field === 'discount_amount') {
@@ -2318,10 +2375,8 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                                         <div className="w-60 space-y-1.5 flex-shrink-0">
                                             <Label className="text-xs font-semibold text-gray-500 uppercase tracking-wider block text-center">UN</Label>
                                             <Select
-                                                // @ts-ignore
                                                 value={quickItem.packaging?.id || 'base'}
                                                 onValueChange={handleQuickUnitChange}
-                                                // @ts-ignore
                                                 disabled={isLocked || !quickItem.product}
                                             >
                                                 <SelectTrigger className="h-9 w-full bg-white border-brand-200 focus:border-brand-500 text-xs">
@@ -2435,8 +2490,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                                                                 </td>
                                                                 <td className="py-3 px-6 text-center">
                                                                     <div className="flex justify-center">
-                                                                        {/* @ts-ignore */}
-                                                                        {(item.product?.packagings && item.product.packagings.length > 0) ? (
+                                                                        {(item.product?.packagings ?? []).length > 0 ? (
                                                                             <Select
                                                                                 value={item.packaging_id || 'base'}
                                                                                 onValueChange={(val) => handleUpdateItem(idx, 'packaging_id', val)}
@@ -2450,8 +2504,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                                                                                     <SelectItem value="base">
                                                                                         UNIDADE (1 {item.product?.un || 'UN'})
                                                                                     </SelectItem>
-                                                                                    {/* @ts-ignore */}
-                                                                                    {item.product.packagings.map(p => (
+                                                                                    {(item.product?.packagings ?? []).map((p) => (
                                                                                         <SelectItem key={p.id} value={p.id}>
                                                                                             {p.label} ({Number(p.qty_in_base)} {item.product?.un || 'UN'})
                                                                                         </SelectItem>

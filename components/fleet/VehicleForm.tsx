@@ -86,8 +86,6 @@ export function VehicleForm({ initialData, isEdit, onSubmitStateChange }: Vehicl
             toast({
                 title: "Sucesso!",
                 description: isEdit ? "Veículo atualizado com sucesso." : "Veículo cadastrado com sucesso.",
-                // @ts-ignore
-                className: "bg-green-600 text-white border-none"
             });
             router.push("/app/frota");
         } else {

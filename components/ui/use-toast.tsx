@@ -72,7 +72,7 @@ export const useToast = () => {
     const context = useContext(ToastContext)
     if (!context) {
         // Fallback during build or if provider missing (though we will add it)
-        return { toast: (props: any) => console.log("TOAST (No Provider):", props) }
+        return { toast: (props: Omit<ToastType, "id">) => console.log("TOAST (No Provider):", props) }
     }
     return context
 }

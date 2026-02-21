@@ -20,12 +20,18 @@ interface VehicleDocumentModalProps {
     onSuccess: () => void;
 }
 
+const VEHICLE_DOCUMENT_TYPES: readonly CreateVehicleDocumentInput["type"][] = ["IPVA", "LICENCIAMENTO"];
+
+function isVehicleDocumentType(value: string): value is CreateVehicleDocumentInput["type"] {
+    return VEHICLE_DOCUMENT_TYPES.some((type) => type === value);
+}
+
 export function VehicleDocumentModal({ isOpen, onClose, vehicleId, initialData, onSuccess }: VehicleDocumentModalProps) {
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
 
     // Form State
-    const [type, setType] = useState<string>('IPVA');
+    const [type, setType] = useState<CreateVehicleDocumentInput["type"]>('IPVA');
     const [competencyYear, setCompetencyYear] = useState<string>(new Date().getFullYear().toString());
     const [amount, setAmount] = useState<number>(0);
     const [installmentsCount, setInstallmentsCount] = useState<number>(1);
@@ -79,7 +85,7 @@ export function VehicleDocumentModal({ isOpen, onClose, vehicleId, initialData, 
             if (initialData) {
                 // Update
                 const payload: UpdateVehicleDocumentInput = {
-                    type: type as any,
+                    type,
                     competency_year: parseInt(competencyYear),
                     amount,
                     installments_count: installmentsCount,
@@ -92,7 +98,7 @@ export function VehicleDocumentModal({ isOpen, onClose, vehicleId, initialData, 
                 // Create
                 const payload: CreateVehicleDocumentInput = {
                     vehicle_id: vehicleId,
-                    type: type as any,
+                    type,
                     competency_year: parseInt(competencyYear),
                     amount,
                     installments_count: installmentsCount,
@@ -106,15 +112,14 @@ export function VehicleDocumentModal({ isOpen, onClose, vehicleId, initialData, 
             toast({
                 title: "Sucesso!",
                 description: `Documento ${initialData ? 'atualizado' : 'criado'} com sucesso.`,
-                // @ts-ignore
-                className: "bg-green-600 text-white border-none"
             });
             onSuccess();
             onClose();
-        } catch (error: any) {
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Falha ao salvar documento.";
             toast({
                 title: "Erro",
-                description: error.message || "Falha ao salvar documento.",
+                description: message,
                 variant: "destructive"
             });
         } finally {
@@ -144,7 +149,14 @@ export function VehicleDocumentModal({ isOpen, onClose, vehicleId, initialData, 
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">
                                 <Label className="text-sm font-medium text-gray-700">Tipo de Documento</Label>
-                                <Select value={type} onValueChange={setType}>
+                                <Select
+                                    value={type}
+                                    onValueChange={(value) => {
+                                        if (isVehicleDocumentType(value)) {
+                                            setType(value);
+                                        }
+                                    }}
+                                >
                                     <SelectTrigger className="h-10 border-gray-200">
                                         <SelectValue />
                                     </SelectTrigger>
