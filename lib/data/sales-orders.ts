@@ -254,8 +254,9 @@ export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<Sa
     // nested objects that don't match specific column names or relationships.
     const cleanItem = { ...item } as any;
 
-    // Preserve total_amount (it's NOT computed by a DB trigger, must be sent)
-    // Preserve weight columns (I accidentally removed them in a previous turn)
+    // IMPORTANT: `sales_document_items.total_amount` is DB-generated in production.
+    // Never send it on insert/update to avoid Postgres error:
+    // "cannot insert a non-DEFAULT value into column total_amount".
 
     // Remove anything that is an object or array (these are joins or UI-only extra data)
     // Exception: known JSONB columns should be preserved
@@ -270,6 +271,9 @@ export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<Sa
     // Explicitly remove computed fields that are NOT columns if they exist
     const nonColumnFields = ['total_price', 'product_name', 'deliveries', 'history', 'nfes'];
     nonColumnFields.forEach(k => delete cleanItem[k]);
+
+    // Guard for mixed environments where UI still carries this derived field.
+    delete cleanItem.total_amount;
 
     // Frontend may use temporary IDs like temp-* / copy-*.
     // Persist only real UUIDs; otherwise let DB generate.

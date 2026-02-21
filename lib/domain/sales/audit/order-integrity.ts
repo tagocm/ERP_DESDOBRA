@@ -30,6 +30,7 @@ export async function validateOrderIntegrity(supabase: SupabaseClient, orderId: 
     let needsNfeSnapshotSync = false;
     let needsPaymentRebuild = false;
     let needsFinancialEventSync = false;
+    let hasItemTotalMismatch = false;
 
     // --- 1. Validate Totals ---
     let calculatedSubtotal = 0;
@@ -37,17 +38,16 @@ export async function validateOrderIntegrity(supabase: SupabaseClient, orderId: 
         // Items must also have correct total_amount
         const expectedItemTotal = (item.quantity * item.unit_price) - (item.discount_amount || 0);
         if (Math.abs(expectedItemTotal - item.total_amount) > 0.01) {
-            logger.warn(`[OrderAudit] Item ${item.id} total mismatch: DB=${item.total_amount}, Calc=${expectedItemTotal}. Auto-correcting.`);
-            await supabase.from('sales_document_items').update({ total_amount: expectedItemTotal }).eq('id', item.id);
-            item.total_amount = expectedItemTotal; // Update local ref
-            needsDbUpdate = true;
+            logger.warn(`[OrderAudit] Item ${item.id} total mismatch: DB=${item.total_amount}, Calc=${expectedItemTotal}. Column is generated; using calculated value in-memory.`);
+            item.total_amount = expectedItemTotal;
+            hasItemTotalMismatch = true;
         }
         calculatedSubtotal += item.total_amount;
     }
 
     const calculatedTotal = calculatedSubtotal - (order.discount_amount || 0) + (order.freight_amount || 0);
 
-    if (Math.abs(calculatedSubtotal - order.subtotal_amount) > 0.01 || Math.abs(calculatedTotal - order.total_amount) > 0.01) {
+    if (hasItemTotalMismatch || Math.abs(calculatedSubtotal - order.subtotal_amount) > 0.01 || Math.abs(calculatedTotal - order.total_amount) > 0.01) {
         logger.warn(`[OrderAudit] Recalculating totals. Old: Sub=${order.subtotal_amount}, Tot=${order.total_amount}. New: Sub=${calculatedSubtotal}, Tot=${calculatedTotal}`);
         order.subtotal_amount = calculatedSubtotal;
         order.total_amount = calculatedTotal;
