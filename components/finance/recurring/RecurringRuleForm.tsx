@@ -308,6 +308,7 @@ export function RecurringRuleForm() {
                                 <OrganizationSelector
                                     value={watch("partner_id") || undefined}
                                     companyId={selectedCompany?.id}
+                                    showDefaultOptionsOnFocus
                                     onChange={(partnerId, org) => {
                                         setValue("partner_id", partnerId || null);
                                         setValue("partner_name", org?.trade_name || "");

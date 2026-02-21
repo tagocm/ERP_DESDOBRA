@@ -22,6 +22,7 @@ interface OrganizationSelectorProps {
     onCreateNew?: () => void;
     className?: string;
     required?: boolean;
+    showDefaultOptionsOnFocus?: boolean;
     "data-testid"?: string;
 }
 
@@ -38,6 +39,7 @@ export function OrganizationSelector({
     onCreateNew,
     className,
     required = false,
+    showDefaultOptionsOnFocus = false,
     "data-testid": dataTestId
 }: OrganizationSelectorProps) {
     const entityLabel =
@@ -114,7 +116,10 @@ export function OrganizationSelector({
             return;
         }
 
-        if (search.length < 2) {
+        const normalizedQuery = search.trim().toLowerCase();
+        const shouldShowDefaultOptions = showDefaultOptionsOnFocus && open && normalizedQuery.length < 2 && type !== 'all';
+
+        if (normalizedQuery.length < 2 && !shouldShowDefaultOptions) {
             setOptions([]);
             setOpen(false);
             setLoading(false);
@@ -124,7 +129,6 @@ export function OrganizationSelector({
         // Open immediately with loading state so the UI does not feel blocked.
         setOpen(true);
         const requestId = ++searchRequestRef.current;
-        const normalizedQuery = search.trim().toLowerCase();
         const cacheKey = `${companyId || 'no-company'}:${type}:${normalizedQuery}`;
         const cached = searchCacheRef.current.get(cacheKey);
         const now = Date.now();
@@ -138,7 +142,7 @@ export function OrganizationSelector({
         setLoading(true);
         const fetchOrgs = async () => {
             try {
-                const res = await searchOrganizationsAction(search, type, companyId);
+                const res = await searchOrganizationsAction(shouldShowDefaultOptions ? '' : search, type, companyId);
                 if (requestId !== searchRequestRef.current) return;
 
                 if (res.success && res.data) {
@@ -161,7 +165,7 @@ export function OrganizationSelector({
         return () => {
             clearTimeout(timer);
         };
-    }, [search, type, selectedCompany, companyId]);
+    }, [search, type, selectedCompany, companyId, open, showDefaultOptionsOnFocus]);
 
     const handleSelect = (currentValue: string) => {
         const selected = options.find((framework) => framework.id === currentValue);
@@ -193,16 +197,14 @@ export function OrganizationSelector({
 
     return (
         <div className={cn("relative flex flex-col gap-2", className)} ref={wrapperRef} data-testid={dataTestId}>
-            <div className="flex items-center gap-2">
-                {label && (
-                    <Label
-                        className={cn(error && "text-destructive", required && "after:content-['*'] after:ml-0.5 after:text-destructive")}
-                        htmlFor={`org-selector-${dataTestId}`}
-                    >
-                        {label}
-                    </Label>
-                )}
-            </div>
+            {label && (
+                <Label
+                    className={cn(error && "text-destructive", required && "after:content-['*'] after:ml-0.5 after:text-destructive")}
+                    htmlFor={`org-selector-${dataTestId}`}
+                >
+                    {label}
+                </Label>
+            )}
 
             <div className="relative">
                 <input
@@ -213,6 +215,10 @@ export function OrganizationSelector({
                     disabled={disabled}
                     placeholder={`Selecione ${entityLabel}...`}
                     onFocus={() => {
+                        if (showDefaultOptionsOnFocus) {
+                            setOpen(true);
+                            return;
+                        }
                         if (search.trim().length >= 2 || options.length > 0) setOpen(true);
                     }}
                     onChange={(e) => {
