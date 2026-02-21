@@ -180,11 +180,19 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
     };
 
     return (
-        <DialogContent hideCloseButton className="max-w-3xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl flex flex-col max-h-[90vh]">
+        <DialogContent
+            hideCloseButton
+            className={cn(
+                // Keep the modal comfortably within the viewport on small/medium screens.
+                "w-[min(860px,92vw)] max-w-none",
+                "p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl flex flex-col",
+                "max-h-[80vh]"
+            )}
+        >
             {/* Header */}
-            <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+            <div className="bg-white px-5 py-3 border-b border-gray-100 flex justify-between items-center">
                 <div>
-                    <DialogTitle className="text-xl font-semibold text-gray-900">Categorias Financeiras</DialogTitle>
+                    <DialogTitle className="text-lg font-semibold text-gray-900">Categorias Financeiras</DialogTitle>
                     <DialogDescription className="text-sm text-gray-500 mt-1">
                         Gerencie as categorias utilizadas para classificar seus fatos geradores.
                     </DialogDescription>
@@ -206,10 +214,10 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
             </div>
 
             {/* Body: keep header always visible; only the list should scroll */}
-            <div className="flex-1 p-6 overflow-hidden flex flex-col">
+            <div className="flex-1 p-4 overflow-hidden flex flex-col">
                 {/* Create/Edit Form Inline */}
                 {(addBoxOpen || editingId) && (
-                    <Card className="mb-6 p-4 border-gray-200 shadow-none animate-in fade-in slide-in-from-top-2">
+                    <Card className="mb-4 p-4 border-gray-200 shadow-none animate-in fade-in slide-in-from-top-2">
                         <div className="text-sm font-semibold text-gray-900 mb-4 flex items-center gap-2">
                             {editingId ? <Edit className="w-4 h-4 text-blue-500" /> : <Plus className="w-4 h-4 text-brand-500" />}
                             {editingId ? "Editar Categoria" : "Nova Categoria"}
@@ -287,8 +295,8 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
                         <Table>
                         <TableHeader className="bg-gray-50/50 sticky top-0 z-10">
                             <TableRow className="hover:bg-transparent border-gray-100">
-                                <TableHead className="w-full text-xs font-semibold text-gray-500 h-10">NOME</TableHead>
-                                <TableHead className="text-xs font-semibold text-gray-500 h-10 text-right pr-4">AÇÕES</TableHead>
+                                <TableHead className="w-full text-xs font-semibold text-gray-500 h-9">NOME</TableHead>
+                                <TableHead className="text-xs font-semibold text-gray-500 h-9 text-right pr-4">AÇÕES</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -309,7 +317,7 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
                                     // account_is_system_locked is populated by the server action
                                     // to prevent edits/removals on fixed chart accounts.
                                     <TableRow key={cat.id} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
-                                        <TableCell className="py-3 font-medium text-gray-900">
+                                        <TableCell className="py-2 font-medium text-gray-900">
                                             <div className="flex items-center gap-2 min-w-0">
                                                 {cat.account_code && (
                                                     <span className="font-mono text-xs text-gray-500 shrink-0">{cat.account_code}</span>
@@ -322,7 +330,7 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
                                                 )}
                                             </div>
                                         </TableCell>
-                                        <TableCell className="py-3 text-right pr-4">
+                                        <TableCell className="py-2 text-right pr-4">
                                             <div className="flex justify-end gap-1">
                                                 <Button
                                                     variant="ghost"
