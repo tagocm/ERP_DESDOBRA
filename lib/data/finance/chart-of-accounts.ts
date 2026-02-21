@@ -88,6 +88,32 @@ async function getCurrentCompanyId(supabase: SupabaseClient): Promise<string> {
     return member.company_id;
 }
 
+async function ensureChartSpineForCompany(supabase: SupabaseClient, companyId: string): Promise<void> {
+    const { data: existingAccount, error: existingError } = await supabase
+        .from('gl_accounts')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('code', '1.1')
+        .maybeSingle();
+
+    if (existingError) {
+        throw new Error(`Falha ao verificar estrutura do plano de contas: ${existingError.message}`);
+    }
+
+    if (existingAccount?.id) {
+        return;
+    }
+
+    const admin = createAdminClient();
+    const { error: seedError } = await admin.rpc('seed_chart_spine', {
+        p_company_id: companyId,
+    });
+
+    if (seedError) {
+        throw new Error(seedError.message || 'Falha ao inicializar estrutura fixa do plano de contas.');
+    }
+}
+
 // --- Server Actions ---
 
 export async function getAccountsTree() {
@@ -180,6 +206,7 @@ export async function createRevenueCategory(input: z.infer<typeof createCategory
     const validated = createCategorySchema.parse(input);
     const supabase = await createClient();
     const companyId = await getCurrentCompanyId(supabase);
+    await ensureChartSpineForCompany(supabase, companyId);
 
     const { data, error } = await supabase.rpc('create_revenue_category_for_finished_product', {
         p_company_id: companyId,

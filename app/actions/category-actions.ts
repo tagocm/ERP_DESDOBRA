@@ -10,11 +10,11 @@ import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { getActiveCompanyId } from '@/lib/auth/get-active-company';
 import {
-    getCategories,
-    createCategory,
-    updateCategory,
-    deleteCategory,
-} from '@/lib/data/categories';
+    getRevenueCategories,
+    createRevenueCategory,
+    updateRevenueCategory,
+    deleteRevenueCategory,
+} from '@/lib/data/finance/chart-of-accounts';
 import type { CategoryDTO } from '@/lib/types/products-dto';
 
 // ============================================================================
@@ -24,6 +24,19 @@ import type { CategoryDTO } from '@/lib/types/products-dto';
 export type ActionResult<T = void> =
     | { success: true; data: T }
     | { success: false; error: string };
+
+function toErrorMessage(error: unknown, fallback: string): string {
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+    if (typeof error === 'object' && error !== null && 'message' in error) {
+        const message = (error as { message?: unknown }).message;
+        if (typeof message === 'string' && message.trim().length > 0) {
+            return message;
+        }
+    }
+    return fallback;
+}
 
 // ============================================================================
 // HELPER: Get Company ID from Auth
@@ -64,18 +77,27 @@ export async function listCategoriesAction(
     input?: z.infer<typeof ListCategoriesSchema>
 ): Promise<ActionResult<CategoryDTO[]>> {
     try {
+        ListCategoriesSchema.parse(input ?? {});
         const companyId = await getCompanyId();
+        const categories = await getRevenueCategories();
 
-        const categories = await getCategories(companyId);
-
-        return { success: true, data: categories as CategoryDTO[] };
+        return {
+            success: true,
+            data: categories.map((category) => ({
+                id: category.id,
+                company_id: companyId,
+                name: category.name,
+                normalized_name: category.normalized_name,
+                product_count: category.usage_count ?? 0,
+            })),
+        };
     } catch (error) {
         if (error instanceof z.ZodError) {
             return { success: false, error: error.issues[0].message };
         }
         return {
             success: false,
-            error: error instanceof Error ? error.message : 'Erro ao listar categorias',
+            error: toErrorMessage(error, 'Erro ao listar categorias'),
         };
     }
 }
@@ -90,18 +112,28 @@ export async function createCategoryAction(
         const companyId = await getCompanyId();
         const validated = CreateCategorySchema.parse(input);
 
-        const category = await createCategory(companyId, validated.name);
+        const category = await createRevenueCategory({ name: validated.name });
 
         revalidatePath('/app/cadastros/produtos');
+        revalidatePath('/app/configuracoes/preferencias');
 
-        return { success: true, data: category as CategoryDTO };
+        return {
+            success: true,
+            data: {
+                id: category.id,
+                company_id: companyId,
+                name: category.name,
+                normalized_name: category.normalized_name,
+                product_count: category.usage_count ?? 0,
+            },
+        };
     } catch (error) {
         if (error instanceof z.ZodError) {
             return { success: false, error: error.issues[0].message };
         }
         return {
             success: false,
-            error: error instanceof Error ? error.message : 'Erro ao criar categoria',
+            error: toErrorMessage(error, 'Erro ao criar categoria'),
         };
     }
 }
@@ -113,21 +145,31 @@ export async function updateCategoryAction(
     input: z.infer<typeof UpdateCategorySchema>
 ): Promise<ActionResult<CategoryDTO>> {
     try {
-        await getCompanyId(); // Verify auth
+        const companyId = await getCompanyId();
         const validated = UpdateCategorySchema.parse(input);
 
-        const category = await updateCategory(validated.id, validated.name);
+        const category = await updateRevenueCategory(validated.id, validated.name);
 
         revalidatePath('/app/cadastros/produtos');
+        revalidatePath('/app/configuracoes/preferencias');
 
-        return { success: true, data: category as CategoryDTO };
+        return {
+            success: true,
+            data: {
+                id: category.id,
+                company_id: companyId,
+                name: category.name,
+                normalized_name: category.normalized_name,
+                product_count: category.usage_count ?? 0,
+            },
+        };
     } catch (error) {
         if (error instanceof z.ZodError) {
             return { success: false, error: error.issues[0].message };
         }
         return {
             success: false,
-            error: error instanceof Error ? error.message : 'Erro ao atualizar categoria',
+            error: toErrorMessage(error, 'Erro ao atualizar categoria'),
         };
     }
 }
@@ -142,9 +184,10 @@ export async function deleteCategoryAction(
         await getCompanyId(); // Verify auth
         const validated = DeleteCategorySchema.parse(input);
 
-        await deleteCategory(validated.id);
+        await deleteRevenueCategory(validated.id);
 
         revalidatePath('/app/cadastros/produtos');
+        revalidatePath('/app/configuracoes/preferencias');
 
         return { success: true, data: undefined };
     } catch (error) {
@@ -153,7 +196,7 @@ export async function deleteCategoryAction(
         }
         return {
             success: false,
-            error: error instanceof Error ? error.message : 'Erro ao excluir categoria',
+            error: toErrorMessage(error, 'Erro ao excluir categoria'),
         };
     }
 }
