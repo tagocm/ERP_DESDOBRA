@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
-import { Search, Loader2, Upload, Trash2, MapPin, Phone, Building2, UserCircle, Image as ImageIcon, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Search, Loader2, Upload, Trash2, MapPin, Phone, Building2, UserCircle, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { CompanySettings } from "@/lib/types/settings-types";
 import { extractDigits, formatCNPJ } from "@/lib/cnpj";
 import { useEffect, useState, useRef } from "react";
@@ -13,6 +13,8 @@ import { validateLogoFile } from "@/lib/upload-helpers";
 import { useCompany } from "@/contexts/CompanyContext";
 import { cn, toTitleCase } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
+import { normalizeOptionalUrl } from "@/lib/normalize-optional-url";
+import { CompanyLogo } from "./CompanyLogo";
 
 interface TabIdentificationProps {
     data: Partial<CompanySettings>;
@@ -31,11 +33,20 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
     const [uploadingLogo, setUploadingLogo] = useState(false);
     const [logoError, setLogoError] = useState<string | null>(null);
     const [isDragOver, setIsDragOver] = useState(false);
-    const [logoSignedUrl, setLogoSignedUrl] = useState<string | null>(null);
+    const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!selectedCompany || !data.logo_path) {
-            setLogoSignedUrl(null);
+        return () => {
+            if (logoUrl?.startsWith("blob:")) {
+                URL.revokeObjectURL(logoUrl);
+            }
+        };
+    }, [logoUrl]);
+
+    useEffect(() => {
+        const normalizedLogoPath = normalizeOptionalUrl(data.logo_path);
+        if (!selectedCompany || !normalizedLogoPath) {
+            setLogoUrl(null);
             return;
         }
 
@@ -48,18 +59,18 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                     body: JSON.stringify({ companyId: selectedCompany.id })
                 });
                 if (!response.ok) {
-                    if (mounted) setLogoSignedUrl(null);
+                    if (mounted) setLogoUrl(null);
                     return;
                 }
-                const payload = await response.json();
-                if (mounted) setLogoSignedUrl(payload.signedUrl || null);
+                const payload = (await response.json()) as { signedUrl?: string | null };
+                if (mounted) setLogoUrl(normalizeOptionalUrl(payload.signedUrl));
             } catch {
-                if (mounted) setLogoSignedUrl(null);
+                if (mounted) setLogoUrl(null);
             }
         };
 
-        if (String(data.logo_path).startsWith('data:')) {
-            setLogoSignedUrl(String(data.logo_path));
+        if (normalizedLogoPath.startsWith("data:")) {
+            setLogoUrl(normalizedLogoPath);
             return;
         }
 
@@ -78,6 +89,8 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
 
         setLogoError(null);
         setUploadingLogo(true);
+        const objectUrl = URL.createObjectURL(file);
+        setLogoUrl(objectUrl);
 
         try {
             const formData = new FormData();
@@ -94,11 +107,11 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                 throw new Error(payload.error || 'Erro ao enviar logo');
             }
 
-            onChange('logo_path', payload.logoPath || null);
-            setLogoSignedUrl(null);
+            onChange('logo_path', normalizeOptionalUrl(payload.logoPath));
 
         } catch (err: any) {
             setLogoError("Erro ao enviar logo: " + err.message);
+            setLogoUrl(null);
         } finally {
             setUploadingLogo(false);
             if (fileInputRef.current) fileInputRef.current.value = "";
@@ -147,7 +160,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                 throw new Error(payload.error || 'Erro ao remover logo');
             }
             onChange('logo_path', null);
-            setLogoSignedUrl(null);
+            setLogoUrl(null);
             setLogoError(null);
         } catch (err: any) {
             setLogoError("Erro ao remover logo: " + err.message);
@@ -313,13 +326,9 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                                 onDragLeave={handleDragLeave}
                                 onDrop={handleDrop}
                             >
-                                {data.logo_path ? (
+                                {logoUrl ? (
                                     <>
-                                        <img
-                                            src={logoSignedUrl || ''}
-                                            alt="Logo"
-                                            className="absolute inset-0 w-full h-full object-contain p-2"
-                                        />
+                                        <CompanyLogo url={logoUrl} />
                                         {isAdmin && (
                                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                                 <Button
@@ -334,10 +343,7 @@ export function TabIdentification({ data, onChange, isAdmin }: TabIdentification
                                         )}
                                     </>
                                 ) : (
-                                    <div className="text-gray-300 flex flex-col items-center gap-2">
-                                        <ImageIcon className="w-10 h-10" />
-                                        <span className="text-xs text-gray-400 font-medium">Sem logo</span>
-                                    </div>
+                                    <CompanyLogo url={null} />
                                 )}
                             </div>
 

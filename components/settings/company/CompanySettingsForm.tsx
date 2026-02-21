@@ -25,6 +25,7 @@ import { TabFiscal } from "./TabFiscal";
 import { TabCertificate } from "./TabCertificate";
 import { TabFinancial } from "./TabFinancial";
 import { ReauthModal } from "./ReauthModal";
+import { normalizeOptionalUrl } from "@/lib/normalize-optional-url";
 
 export function CompanySettingsForm() {
     const { selectedCompany, user } = useCompany();
@@ -71,6 +72,7 @@ export function CompanySettingsForm() {
 
                 setSettings({
                     ...(data || { company_id: selectedCompany.id }),
+                    logo_path: normalizeOptionalUrl(data?.logo_path),
                     nfe_series: data?.nfe_series || "1" // Default to 1
                 });
 

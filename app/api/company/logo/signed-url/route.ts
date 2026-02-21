@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/logger';
 import { resolveCompanyContext } from '@/lib/auth/resolve-company';
+import { normalizeOptionalUrl } from '@/lib/normalize-optional-url';
 
 function normalizeLogoPath(rawPath: string): string | null {
     const value = String(rawPath || '').trim();
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
         }
 
         return NextResponse.json({
-            signedUrl: signedUrlData.signedUrl
+            signedUrl: normalizeOptionalUrl(signedUrlData.signedUrl)
         });
 
     } catch (error: unknown) {

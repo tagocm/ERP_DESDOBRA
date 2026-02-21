@@ -9,6 +9,7 @@ import {
     updateCompanyName
 } from '@/lib/data/company-settings';
 import { CompanySettings } from '@/lib/types/settings-types';
+import { normalizeOptionalUrl } from '@/lib/normalize-optional-url';
 
 // ============================================================================
 // TYPES
@@ -96,7 +97,11 @@ export async function getCompanySettingsAction(companyId?: string): Promise<Acti
         const resolvedCompanyId = await getCompanyId(companyId);
         const supabase = await createClient();
         const data = await getCompanySettings(supabase, resolvedCompanyId);
-        return { success: true, data };
+        const normalizedData = {
+            ...data,
+            logo_path: normalizeOptionalUrl(data?.logo_path)
+        };
+        return { success: true, data: normalizedData };
     } catch (e: any) {
         return { success: false, error: e.message };
     }

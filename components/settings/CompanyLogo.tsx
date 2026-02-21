@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Upload, X, Loader2, Image as ImageIcon } from "lucide-react";
+import { normalizeOptionalUrl } from "@/lib/normalize-optional-url";
 
 interface CompanyLogoProps {
     companyId: string;
@@ -17,6 +18,15 @@ export function CompanyLogo({ companyId, onMessage }: CompanyLogoProps) {
     const [logoUrl, setLogoUrl] = useState<string | null>(null);
     const [logoUploading, setLogoUploading] = useState(false);
     const [logoPreview, setLogoPreview] = useState<string | null>(null);
+    const resolvedLogoUrl = normalizeOptionalUrl(logoPreview) ?? normalizeOptionalUrl(logoUrl);
+
+    useEffect(() => {
+        return () => {
+            if (logoPreview?.startsWith("blob:")) {
+                URL.revokeObjectURL(logoPreview);
+            }
+        };
+    }, [logoPreview]);
 
     // Load logo on mount
     useEffect(() => {
@@ -30,12 +40,8 @@ export function CompanyLogo({ companyId, onMessage }: CompanyLogoProps) {
         const file = e.target.files?.[0];
         if (file) {
             setLogoFile(file);
-            // Create preview
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setLogoPreview(reader.result as string);
-            };
-            reader.readAsDataURL(file);
+            const objectUrl = URL.createObjectURL(file);
+            setLogoPreview(objectUrl);
         }
     };
 
@@ -83,7 +89,7 @@ export function CompanyLogo({ companyId, onMessage }: CompanyLogoProps) {
 
             if (response.ok) {
                 const data = await response.json();
-                setLogoUrl(data.signedUrl);
+                setLogoUrl(normalizeOptionalUrl(data.signedUrl));
             }
         } catch (error) {
             console.error('Error fetching logo URL:', error);
@@ -129,10 +135,10 @@ export function CompanyLogo({ companyId, onMessage }: CompanyLogoProps) {
                 {/* Logo Preview */}
                 <div className="mb-6">
                     <div className="relative w-full aspect-video bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden group">
-                        {(logoUrl || logoPreview) ? (
+                        {resolvedLogoUrl ? (
                             <>
                                 <img
-                                    src={logoPreview || logoUrl || ''}
+                                    src={resolvedLogoUrl}
                                     alt="Logo"
                                     className="max-w-full max-h-full object-contain p-4"
                                 />
