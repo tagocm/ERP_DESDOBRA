@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
 // Define types locally since codegen hasn't run yet
@@ -39,23 +41,73 @@ export const updateCategorySchema = z.object({
     name: z.string().min(3, "Nome muito curto").max(100, "Nome muito longo"),
 });
 
+const createRevenueCategoryRpcSchema = z.object({
+    category_id: z.string().uuid(),
+    category_name: z.string(),
+    account_id: z.string().uuid(),
+    account_code: z.string(),
+    is_active: z.boolean(),
+});
+
+async function getCurrentCompanyId(supabase: SupabaseClient): Promise<string> {
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) throw new Error('Unauthorized');
+
+    const { data: member, error: memberError } = await supabase
+        .from('company_members')
+        .select('company_id')
+        .eq('auth_user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+
+    if (memberError) throw new Error(`Erro ao resolver empresa ativa: ${memberError.message}`);
+    if (!member?.company_id) throw new Error('Usuário sem empresa vinculada.');
+
+    return member.company_id;
+}
+
 // --- Server Actions ---
 
 export async function getAccountsTree() {
     const supabase = await createClient();
 
-    // Fetch all accounts
-    const { data, error } = await supabase
+    const fetchAccounts = async () => supabase
         .from('gl_accounts')
         .select('*')
         .order('code');
+
+    // Fetch all accounts visible for the current company context
+    let { data, error } = await fetchAccounts();
 
     if (error) {
         console.error('Error fetching chart of accounts:', error);
         throw new Error('Falha ao carregar plano de contas.');
     }
 
-    const accounts = data as GLAccount[];
+    let accounts = (data ?? []) as GLAccount[];
+
+    // Backfill-on-read: if a company has no chart yet, seed the fixed system spine.
+    if (accounts.length === 0) {
+        const companyId = await getCurrentCompanyId(supabase);
+
+        const admin = createAdminClient();
+        const { error: seedError } = await admin.rpc('seed_chart_spine', {
+            p_company_id: companyId
+        });
+
+        if (seedError) {
+            console.error('Error seeding chart spine:', seedError);
+            throw new Error('Falha ao inicializar estrutura fixa do plano de contas.');
+        } else {
+            const refetch = await fetchAccounts();
+            if (refetch.error) {
+                console.error('Error refetching chart after seed:', refetch.error);
+                throw new Error('Falha ao carregar plano de contas.');
+            }
+            accounts = (refetch.data ?? []) as GLAccount[];
+        }
+    }
+
     return buildTree(accounts);
 }
 
@@ -91,101 +143,36 @@ export async function getRevenueCategories() {
 export async function createRevenueCategory(input: z.infer<typeof createCategorySchema>) {
     const validated = createCategorySchema.parse(input);
     const supabase = await createClient();
+    const companyId = await getCurrentCompanyId(supabase);
 
-    // 1. Check duplicate name
-    // normalized_name generator (simple lowercase/trim)
-    const normalizedName = validated.name.trim().toLowerCase();
-
-    // 2. Get user's company (from auth)
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Unauthorized');
-
-    // We need company_id. Assuming RLS handles it, but for explicit operations we might need it.
-    // Usually supabase client with RLS contexts the company. 
-    // To generate code, we need company_id for the RPC.
-
-    // Fetch company_id from user metadata or profile? 
-    // Best practice in this codebase: rely on RLS, but for RPC we pass it?
-    // Let's first try to insert using Supabase and let triggers handle? 
-    // No, we need transaction.
-
-    // Since we don't have a robust "Get Company ID" readily available without context,
-    // we'll assume the user is logged in and query their profile or company context.
-    // Or we fetch one record to get company_id.
-    const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .single();
-
-    if (!profile?.company_id) throw new Error('Empresa não encontrada.');
-    const companyId = profile.company_id;
-
-    // 3. Generate Next Code
-    const { data: nextCode, error: codeError } = await supabase.rpc('generate_next_revenue_code', {
-        p_company_id: companyId
+    const { data, error } = await supabase.rpc('create_revenue_category_for_finished_product', {
+        p_company_id: companyId,
+        p_name: validated.name,
     });
 
-    if (codeError || !nextCode) {
-        console.error('Error generating code:', codeError);
-        throw new Error('Falha ao gerar código da conta.');
+    if (error) {
+        if (error.code === '23505') {
+            throw new Error('Já existe uma categoria com este nome.');
+        }
+        throw new Error(error.message || 'Falha ao criar categoria e conta contábil.');
     }
 
-    // 4. Perform Transaction (Supabase doesn't support client-side transactions easily without RPC)
-    // We will do optimistic formatting. 
-    // Since we can't do strict SQL transaction here without writing another RPC,
-    // we will create the Account FIRST, then Category. 
-    // If category fails, we should delete account (compensating transaction).
-
-    // A. Create GL Account
-    const { data: account, error: accError } = await supabase
-        .from('gl_accounts')
-        .insert({
-            company_id: companyId,
-            code: nextCode,
-            name: validated.name, // Display name matches category
-            type: 'ANALITICA',
-            nature: 'RECEITA',
-            parent_id: (await getSystemRevenueParentId(supabase, companyId)), // 1.1 ID
-            is_system_locked: false,
-            origin: 'PRODUCT_CATEGORY',
-            is_active: true
-        })
-        .select()
-        .single();
-
-    if (accError) {
-        if (accError.code === '23505') throw new Error('Já existe uma conta com este código (race condition). Tente novamente.');
-        throw new Error(`Erro ao criar conta: ${accError.message}`);
+    const parsedRows = z.array(createRevenueCategoryRpcSchema).safeParse(data);
+    if (!parsedRows.success || parsedRows.data.length === 0) {
+        throw new Error('Falha ao criar categoria e conta contábil.');
     }
 
-    // B. Create Product Category
-    const { data: category, error: catError } = await supabase
-        .from('product_categories')
-        .insert({
-            company_id: companyId,
-            name: validated.name,
-            normalized_name: normalizedName,
-            is_active: true,
-            revenue_account_id: account.id
-        })
-        .select()
-        .single();
+    const row = parsedRows.data[0];
+    const createdCategory: RevenueCategory = {
+        id: row.category_id,
+        name: row.category_name,
+        normalized_name: row.category_name.trim().toLowerCase(),
+        revenue_account_id: row.account_id,
+        is_active: row.is_active,
+        account_code: row.account_code,
+    };
 
-    if (catError) {
-        // Rollback account
-        await supabase.from('gl_accounts').delete().eq('id', account.id);
-        if (catError.code === '23505') throw new Error('Já existe uma categoria com este nome.');
-        throw new Error(`Erro ao criar categoria: ${catError.message}`);
-    }
-
-    // C. Update Account with Origin ID (Circular reference, but useful)
-    await supabase
-        .from('gl_accounts')
-        .update({ origin_id: category.id })
-        .eq('id', account.id);
-
-    return category;
+    return createdCategory;
 }
 
 export async function updateRevenueCategory(id: string, name: string) {
@@ -423,16 +410,4 @@ function buildTree(accounts: GLAccount[]): GLAccount[] {
     });
 
     return roots;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function getSystemRevenueParentId(supabase: any, companyId: string) {
-    const { data } = await supabase
-        .from('gl_accounts')
-        .select('id')
-        .eq('company_id', companyId)
-        .eq('code', '1.1')
-        .single();
-
-    return data?.id;
 }
