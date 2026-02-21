@@ -291,7 +291,9 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
 
                 {/* List Container */}
                 <Card className="border-gray-200 overflow-hidden shadow-none flex-1 min-h-0">
-                    <div className="h-full overflow-y-auto">
+                    {/* Table component wraps itself in an overflow container.
+                        We constrain that wrapper to fill remaining space so scrolling works. */}
+                    <div className="flex-1 min-h-0 [&>div]:h-full">
                         <Table>
                         <TableHeader className="bg-gray-50/50 sticky top-0 z-10">
                             <TableRow className="hover:bg-transparent border-gray-100">

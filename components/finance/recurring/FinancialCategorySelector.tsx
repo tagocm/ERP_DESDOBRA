@@ -139,8 +139,13 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                                     <CommandItem
                                         key={cat.id}
                                         value={`${cat.name} ${cat.account_code ?? ''}`.toLowerCase()} // Search by name + code
-                                        // Prevent focus loss on the input which can break pointer selection in some browsers.
-                                        onMouseDown={(e) => e.preventDefault()}
+                                        // cmdk sometimes fails to select on click inside popovers due to focus/blur.
+                                        // Selecting on mouse down is more reliable and still keeps keyboard support via onSelect.
+                                        onMouseDown={(e) => {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            handleSelect(cat.id);
+                                        }}
                                         onSelect={() => handleSelect(cat.id)}
                                         className="cursor-pointer"
                                     >
