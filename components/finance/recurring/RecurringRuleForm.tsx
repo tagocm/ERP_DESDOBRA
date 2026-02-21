@@ -34,6 +34,7 @@ import {
 import { useCompany } from "@/contexts/CompanyContext";
 import { FinancialCategorySelector } from "./FinancialCategorySelector";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/Button";
 
 // Validation Schema
 const formSchema = z.object({
@@ -288,15 +289,15 @@ export function RecurringRuleForm() {
                     <Card className="border-none shadow-card rounded-2xl bg-white overflow-hidden">
                         <CardHeaderStandard
                             title="Identificação"
-                            description="Informações básicas do contrato."
+                            description="Informações básicas do fato gerador."
                             icon={<FileText className="w-5 h-5 text-brand-500" />}
                         />
                         <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
                             <div className="md:col-span-2 space-y-2">
-                                <Label className="text-sm font-semibold text-gray-700">Nome do Contrato *</Label>
+                                <Label className="text-sm font-semibold text-gray-700">Nome do Fato Gerador *</Label>
                                 <Input
                                     {...register("name")}
-                                    placeholder="Ex: Internet Escritório, Aluguel Galpão..."
+                                    placeholder="Ex: Internet do escritório, Aluguel do galpão..."
                                     className="bg-white border-gray-200 focus:border-brand-500 h-11"
                                 />
                                 {errors.name && <p className="text-xs text-red-500">{errors.name.message}</p>}
@@ -354,7 +355,7 @@ export function RecurringRuleForm() {
                     {/* Card B: Vigência */}
                     <Card className="border-none shadow-card rounded-2xl bg-white overflow-hidden">
                         <CardHeaderStandard
-                            title="Vigência do Contrato"
+                            title="Vigência"
                             description="Período em que o acordo está em vigor."
                             icon={<CalendarRange className="w-5 h-5 text-blue-500" />}
                         />
@@ -367,7 +368,7 @@ export function RecurringRuleForm() {
                             <div className="space-y-2">
                                 <Label className="text-sm font-semibold text-gray-700">Fim da Vigência (Opcional)</Label>
                                 <Input type="date" {...register("valid_to")} className="h-11 border-gray-200 focus:ring-blue-500" />
-                                <p className="text-[10px] text-gray-400">Deixe vazio para contratos sem data de término definida.</p>
+                                <p className="text-[10px] text-gray-400">Deixe vazio para fatos geradores sem data de término definida.</p>
                                 {errors.valid_to && <p className="text-xs text-red-500">{errors.valid_to.message}</p>}
                             </div>
                         </div>
@@ -430,13 +431,15 @@ export function RecurringRuleForm() {
                                                 <CalendarClock className="w-4 h-4 text-brand-600" />
                                                 <span className="text-xs font-bold text-brand-700 uppercase tracking-wider">Pré-visualização dos Lançamentos</span>
                                             </div>
-                                            <button
+                                            <Button
                                                 type="button"
-                                                className="h-8 px-3 text-xs font-semibold rounded-2xl border border-gray-200 hover:bg-gray-50"
+                                                variant="outline"
+                                                size="sm"
+                                                className="rounded-2xl"
                                                 onClick={() => manualInstallmentsFieldArray.append({ installment_number: manualInstallmentsFieldArray.fields.length + 1, due_date: "", amount: 0 })}
                                             >
                                                 + Adicionar parcela
-                                            </button>
+                                            </Button>
                                         </div>
 
                                         {manualInstallmentsFieldArray.fields.length === 0 ? (
@@ -613,7 +616,7 @@ export function RecurringRuleForm() {
                         />
                         <div className="p-5 space-y-5">
                             <div className="space-y-3">
-                                <Label className="text-sm font-semibold text-gray-700">Tipo de Contrato *</Label>
+                                <Label className="text-sm font-semibold text-gray-700">Tipo de Valor *</Label>
                                 <RadioGroup
                                     value={watchAmountType}
                                     onValueChange={(val: any) => {
@@ -702,7 +705,7 @@ export function RecurringRuleForm() {
                                     </div>
                                     <div className="space-y-2">
                                         <div className="flex justify-between">
-                                            <span className="opacity-60">Contrato:</span>
+                                            <span className="opacity-60">Fato gerador:</span>
                                             <span className="truncate max-w-36 text-right">{watchName || "—"}</span>
                                         </div>
                                         <div className="flex justify-between">

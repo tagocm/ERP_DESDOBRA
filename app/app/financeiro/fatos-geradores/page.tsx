@@ -53,7 +53,7 @@ export default async function RecurringRulesPage({ searchParams }: PageProps) {
                 actions={
                     <Link href="/app/financeiro/fatos-geradores/novo">
                         <Button variant="pill">
-                            <Plus className="w-4 h-4 mr-2" /> Novo Contrato
+                            <Plus className="w-4 h-4 mr-2" /> Novo Fato Gerador
                         </Button>
                     </Link>
                 }

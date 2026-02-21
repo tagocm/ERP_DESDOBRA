@@ -12,11 +12,10 @@ export const metadata: Metadata = {
 
 export default function NewRecurringRulePage() {
     return (
-        <div className="flex bg-white animate-in fade-in duration-500">
+        <div className="flex flex-col min-h-screen bg-gray-50/50 animate-in fade-in duration-500">
             <PageHeader
-                className="mb-4"
                 title="Cadastrar Fato Gerador"
-                description="Crie um contrato recorrente para gerar lançamentos automaticamente."
+                description="Crie uma regra recorrente para gerar lançamentos automaticamente."
                 actions={
                     <div className="flex items-center gap-3">
                         <Link href="/app/financeiro/fatos-geradores">
@@ -26,13 +25,13 @@ export default function NewRecurringRulePage() {
                         </Link>
                         <Button type="submit" form="recurring-rule-form" variant="pill" size="lg" className="bg-brand-600 hover:bg-brand-700 text-white min-w-40">
                             <Save className="w-4 h-4 mr-2" />
-                            Salvar Contrato
+                            Salvar
                         </Button>
                     </div>
                 }
             />
 
-            <main className="flex-1 w-full bg-white">
+            <main className="flex-1 w-full">
                 <div className="max-w-screen-2xl mx-auto px-6 pb-6">
                     <RecurringRuleForm />
                 </div>
