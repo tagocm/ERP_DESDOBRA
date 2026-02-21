@@ -45,8 +45,9 @@ function TreeNode({ node, selectedId, onSelect, onAdd, depth }: TreeNodeProps) {
     const [isExpanded, setIsExpanded] = useState(true);
     const hasChildren = node.children && node.children.length > 0;
     const isSelected = node.id === selectedId;
-    // Only sub-folders (SINTETICA at depth >= 1) get the + button
-    const canAddChild = node.type === 'SINTETICA' && depth >= 1;
+    // Only sub-folders (SINTETICA at depth >= 1) get the + button.
+    // Business rule: 1.1 children are created via category modal, not manually here.
+    const canAddChild = node.type === 'SINTETICA' && depth >= 1 && node.code !== '1.1';
 
     const handleToggle = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -95,6 +96,11 @@ function TreeNode({ node, selectedId, onSelect, onAdd, depth }: TreeNodeProps) {
                 <div className="flex-1 truncate flex items-center gap-2">
                     <span className="font-mono text-xs opacity-70 font-semibold w-12">{node.code}</span>
                     <span className="truncate font-medium">{node.name}</span>
+                    {node.origin === 'PRODUCT_CATEGORY' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-700 border border-purple-100">
+                            Categoria
+                        </span>
+                    )}
                 </div>
 
                 <div className="flex items-center gap-1.5 shrink-0">
