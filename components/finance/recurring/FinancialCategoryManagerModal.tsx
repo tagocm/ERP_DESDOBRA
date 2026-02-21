@@ -180,7 +180,7 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
     };
 
     return (
-        <DialogContent hideCloseButton className="max-w-3xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl flex flex-col max-h-screen">
+        <DialogContent hideCloseButton className="max-w-3xl w-full p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl flex flex-col max-h-[90vh]">
             {/* Header */}
             <div className="bg-white px-6 py-4 border-b border-gray-100 flex justify-between items-center">
                 <div>
@@ -205,7 +205,8 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
                 </Button>
             </div>
 
-            <div className="flex-1 p-6 overflow-y-auto">
+            {/* Body: keep header always visible; only the list should scroll */}
+            <div className="flex-1 p-6 overflow-hidden flex flex-col">
                 {/* Create/Edit Form Inline */}
                 {(addBoxOpen || editingId) && (
                     <Card className="mb-6 p-4 border-gray-200 shadow-none animate-in fade-in slide-in-from-top-2">
@@ -281,9 +282,10 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
                 )}
 
                 {/* List Container */}
-                <Card className="border-gray-200 overflow-hidden shadow-none">
-                    <Table>
-                        <TableHeader className="bg-gray-50/50">
+                <Card className="border-gray-200 overflow-hidden shadow-none flex-1 min-h-0">
+                    <div className="h-full overflow-y-auto">
+                        <Table>
+                        <TableHeader className="bg-gray-50/50 sticky top-0 z-10">
                             <TableRow className="hover:bg-transparent border-gray-100">
                                 <TableHead className="w-full text-xs font-semibold text-gray-500 h-10">NOME</TableHead>
                                 <TableHead className="text-xs font-semibold text-gray-500 h-10 text-right pr-4">AÇÕES</TableHead>
@@ -353,7 +355,8 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
                                 ))
                             )}
                         </TableBody>
-                    </Table>
+                        </Table>
+                    </div>
                 </Card>
             </div>
 
