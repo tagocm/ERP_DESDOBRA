@@ -69,6 +69,19 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
         setOpen(false)
     }
 
+    const handlePointerSelectFromList = (e: React.PointerEvent | React.MouseEvent) => {
+        // Some environments (cmdk inside radix Popover) can swallow item-level click events.
+        // Capture at the list level and resolve the intended item via a data attribute.
+        const target = e.target;
+        if (!(target instanceof HTMLElement)) return;
+        const el = target.closest<HTMLElement>("[data-category-id]");
+        const categoryId = el?.dataset?.categoryId;
+        if (!categoryId) return;
+        e.preventDefault();
+        e.stopPropagation();
+        handleSelect(categoryId);
+    };
+
     return (
         <div className={cn("flex items-center gap-2 w-full", className)}>
             <Popover open={open} onOpenChange={(val) => !disabled && setOpen(val)}>
@@ -112,7 +125,12 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                             value={searchValue}
                             onValueChange={setSearchValue}
                         />
-                        <CommandList className="pointer-events-auto">
+                        <CommandList
+                            className="pointer-events-auto"
+                            // Use capture so we get the event even if cmdk/radix stops propagation on items.
+                            onPointerDownCapture={handlePointerSelectFromList}
+                            onClickCapture={handlePointerSelectFromList}
+                        >
                             <CommandEmpty>
                                 <div className="p-2 text-sm text-center">
                                     <p className="mb-2 text-gray-500">Nenhuma categoria encontrada.</p>
@@ -139,20 +157,7 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                                     <CommandItem
                                         key={cat.id}
                                         value={`${cat.name} ${cat.account_code ?? ''}`.toLowerCase()} // Search by name + code
-                                        // cmdk sometimes fails to select on click inside popovers due to focus/blur.
-                                        // Selecting on mouse down is more reliable and still keeps keyboard support via onSelect.
-                                        onPointerDown={(e) => {
-                                            // pointerdown fires for mouse + touch
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            handleSelect(cat.id);
-                                        }}
-                                        onClick={(e) => {
-                                            // fallback if pointerdown is not honored in some environments
-                                            e.preventDefault();
-                                            e.stopPropagation();
-                                            handleSelect(cat.id);
-                                        }}
+                                        data-category-id={cat.id}
                                         onSelect={() => handleSelect(cat.id)}
                                         className="cursor-pointer"
                                     >
