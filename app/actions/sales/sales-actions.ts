@@ -659,6 +659,7 @@ export async function getQuickItemMetaAction(params: {
 export async function searchSalesProductsAction(params: {
     term: string;
     companyId?: string;
+    allowedTypes?: string[];
     limit?: number;
 }): Promise<Array<{
     id: string;
@@ -685,6 +686,10 @@ export async function searchSalesProductsAction(params: {
         });
         const max = Math.min(Math.max(Number(params.limit || 20), 1), 50);
         const preferredSalesTypes = ['finished_good', 'product', 'resale', 'service', 'wip', 'raw_material', 'packaging', 'other'];
+        const explicitTypes = Array.isArray(params.allowedTypes)
+            ? params.allowedTypes.map(t => String(t).trim()).filter(Boolean)
+            : [];
+        const hasExplicitTypes = explicitTypes.length > 0;
 
         // Prefer service-role client for performance, but fallback to session client if unavailable.
         let supabase: any;
@@ -694,7 +699,7 @@ export async function searchSalesProductsAction(params: {
             supabase = await createClient();
         }
 
-        const buildQuery = (limit: number, restrictTypes: boolean) => {
+        const buildQuery = (limit: number, types: string[] | null) => {
             let queryBuilder = supabase
                 .from('items')
                 .select('id, name, sku, uom, avg_cost, net_weight_kg_base, gross_weight_kg_base, fiscal:item_fiscal_profiles(tax_group_id, ncm, cest, origin, cfop_code)')
@@ -704,21 +709,22 @@ export async function searchSalesProductsAction(params: {
                 .or(`name.ilike.%${term}%,sku.ilike.%${term}%`)
                 .order('name', { ascending: true });
 
-            if (restrictTypes) {
-                queryBuilder = queryBuilder.in('type', preferredSalesTypes);
+            if (types && types.length > 0) {
+                queryBuilder = queryBuilder.in('type', types);
             }
 
             return queryBuilder.limit(limit);
         };
 
-        let { data, error } = await buildQuery(max, true);
+        const initialTypes = hasExplicitTypes ? explicitTypes : preferredSalesTypes;
+        let { data, error } = await buildQuery(max, initialTypes);
         if (error) {
             console.error('[searchSalesProductsAction] preferred query error:', error.message);
-            const fallback = await buildQuery(max, false);
+            const fallback = await buildQuery(max, hasExplicitTypes ? explicitTypes : null);
             data = fallback.data;
             error = fallback.error;
-        } else if (!data || data.length === 0) {
-            const fallback = await buildQuery(max, false);
+        } else if ((!data || data.length === 0) && !hasExplicitTypes) {
+            const fallback = await buildQuery(max, null);
             if (!fallback.error && fallback.data) {
                 data = fallback.data;
             }

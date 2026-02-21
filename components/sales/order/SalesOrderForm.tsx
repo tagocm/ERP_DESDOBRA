@@ -2367,6 +2367,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                                                 value={quickItem.product?.id}
                                                 onChange={handleQuickItemSelect}
                                                 companyId={selectedCompany?.id}
+                                                allowedTypes={['finished_good']}
                                                 disabled={isLocked}
                                                 data-testid="order-product-search"
                                             />

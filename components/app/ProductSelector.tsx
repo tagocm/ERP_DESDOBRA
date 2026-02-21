@@ -11,12 +11,13 @@ interface ProductSelectorProps {
     value?: string;
     onChange: (product: any) => void;
     companyId?: string;
+    allowedTypes?: string[];
     className?: string;
     disabled?: boolean;
     "data-testid"?: string;
 }
 
-export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps>(({ value, onChange, companyId, className, disabled, "data-testid": dataTestId }, ref) => {
+export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps>(({ value, onChange, companyId, allowedTypes, className, disabled, "data-testid": dataTestId }, ref) => {
     const { selectedCompany } = useCompany();
     const supabase = useMemo(() => createClient(), []);
     const activeCompanyId = companyId || selectedCompany?.id;
@@ -101,6 +102,7 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
                 const data = await searchSalesProductsAction({
                     term: search,
                     companyId: activeCompanyId,
+                    allowedTypes,
                     limit: 20
                 });
                 if (cancelled) return;
@@ -123,6 +125,7 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
                     .eq('is_active', true)
                     .is('deleted_at', null)
                     .or(`name.ilike.%${search}%,sku.ilike.%${search}%`)
+                    .in('type', (allowedTypes && allowedTypes.length > 0) ? allowedTypes : ['finished_good', 'product', 'resale', 'service', 'wip', 'raw_material', 'packaging', 'other'])
                     .order('name', { ascending: true })
                     .limit(20);
 
@@ -154,7 +157,7 @@ export const ProductSelector = forwardRef<HTMLInputElement, ProductSelectorProps
             cancelled = true;
             clearTimeout(timer);
         };
-    }, [search, activeCompanyId, supabase, selectedProduct]);
+    }, [search, activeCompanyId, supabase, selectedProduct, allowedTypes]);
 
     // Close on click outside
     useEffect(() => {
