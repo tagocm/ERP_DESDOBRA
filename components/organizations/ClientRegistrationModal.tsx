@@ -394,7 +394,6 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
                 email_nfe: sanitizedFiscal.email_nfe || null,
                 is_simple_national: sanitizedFiscal.is_simple_national,
                 is_public_agency: sanitizedFiscal.is_public_agency,
-                // @ts-ignore
                 final_consumer: sanitizedFiscal.final_consumer,
                 icms_contributor: sanitizedFiscal.icms_contributor,
 

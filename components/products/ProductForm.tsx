@@ -415,9 +415,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         if (searchParams && searchParams.get("success") === "created") {
             toast({
                 title: "Item criado com sucesso!",
-                description: "Pronto para cadastrar o próximo.",
-                // @ts-ignore
-                className: "bg-green-600 text-white border-none"
+                description: "Pronto para cadastrar o próximo."
             });
         }
     }, [searchParams]);
@@ -992,7 +990,6 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
 
             {success && (
                 <div className="mb-4">
-                    {/* @ts-ignore */}
                     <Alert variant="success" onClose={() => setSuccess(null)}>
                         {success}
                     </Alert>

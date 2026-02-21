@@ -1,5 +1,6 @@
 import { supabaseServer } from '@/lib/supabase/server'
 import { itemsRepo } from './items'
+import type { Database } from '@/types/supabase'
 
 export interface InventoryMovement {
     id: string
@@ -27,6 +28,8 @@ export interface StockSummary {
     current_stock: number
     avg_cost: number
 }
+
+type InventoryMovementInsert = Database['public']['Tables']['inventory_movements']['Insert']
 
 export const inventoryRepo = {
     async getStock(companyId: string, itemId: string): Promise<number> {
@@ -91,10 +94,10 @@ export const inventoryRepo = {
     },
 
     async createMovement(companyId: string, movement: Partial<InventoryMovement>) {
+        const insertPayload = { ...movement, company_id: companyId } as InventoryMovementInsert
         const { data, error } = await supabaseServer
             .from('inventory_movements')
-            // @ts-ignore - Types will be regenerated after migration
-            .insert({ ...movement, company_id: companyId })
+            .insert(insertPayload)
             .select()
             .single()
 

@@ -1,5 +1,6 @@
 import { supabaseServer } from '@/lib/supabase/server'
 import { OrganizationTag } from '@/lib/clients-db'
+import type { Database } from '@/types/supabase'
 
 type Tag = OrganizationTag
 
@@ -8,6 +9,10 @@ interface TagLink {
     organization_id: string
     tag_id: string
 }
+
+type OrganizationTagInsert = Database['public']['Tables']['organization_tags']['Insert']
+type OrganizationTagUpdate = Database['public']['Tables']['organization_tags']['Update']
+type OrganizationTagLinkInsert = Database['public']['Tables']['organization_tag_links']['Insert']
 
 export const tagsRepo = {
     // --- Tags Management ---
@@ -24,10 +29,10 @@ export const tagsRepo = {
     },
 
     async create(companyId: string, name: string) {
+        const payload: OrganizationTagInsert = { company_id: companyId, name }
         const { data, error } = await supabaseServer
             .from('organization_tags')
-            // @ts-ignore - Types will be regenerated after migration
-            .insert({ company_id: companyId, name })
+            .insert(payload)
             .select()
             .single()
 
@@ -39,10 +44,10 @@ export const tagsRepo = {
         // Tags might be hard deleted if no references, or soft deleted.
         // Spec asked for soft deletions generally, sticking to soft delete column if it exists.
         // Migration has deleted_at column for tags.
+        const payload: OrganizationTagUpdate = { deleted_at: new Date().toISOString() }
         const { error } = await supabaseServer
             .from('organization_tags')
-            // @ts-ignore - Types will be regenerated after migration
-            .update({ deleted_at: new Date().toISOString() })
+            .update(payload)
             .eq('company_id', companyId)
             .eq('id', id)
 
@@ -51,14 +56,14 @@ export const tagsRepo = {
 
     // --- Tag Linking ---
     async linkTag(companyId: string, organizationId: string, tagId: string) {
+        const payload: OrganizationTagLinkInsert = {
+            company_id: companyId,
+            organization_id: organizationId,
+            tag_id: tagId
+        }
         const { data, error } = await supabaseServer
             .from('organization_tag_links')
-            // @ts-ignore - Types will be regenerated after migration
-            .insert({
-                company_id: companyId,
-                organization_id: organizationId,
-                tag_id: tagId
-            })
+            .insert(payload)
             .select()
             .single()
 

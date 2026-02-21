@@ -1,5 +1,9 @@
 import { supabaseServer } from '@/lib/supabase/server'
 import { Address } from '@/lib/clients-db'
+import type { Database } from '@/types/supabase'
+
+type AddressInsert = Database['public']['Tables']['addresses']['Insert']
+type AddressUpdate = Database['public']['Tables']['addresses']['Update']
 
 export const addressesRepo = {
     async list(companyId: string, organizationId?: string) {
@@ -34,10 +38,10 @@ export const addressesRepo = {
     },
 
     async create(companyId: string, payload: Partial<Address>) {
+        const insertPayload = { ...payload, company_id: companyId } as AddressInsert
         const { data, error } = await supabaseServer
             .from('addresses')
-            // @ts-ignore - Types will be regenerated after migration
-            .insert({ ...payload, company_id: companyId })
+            .insert(insertPayload)
             .select()
             .single()
 
@@ -46,10 +50,10 @@ export const addressesRepo = {
     },
 
     async update(companyId: string, id: string, payload: Partial<Address>) {
+        const updatePayload = payload as AddressUpdate
         const { data, error } = await supabaseServer
             .from('addresses')
-            // @ts-ignore - Types will be regenerated after migration
-            .update(payload)
+            .update(updatePayload)
             .eq('company_id', companyId)
             .eq('id', id)
             .select()
@@ -60,10 +64,10 @@ export const addressesRepo = {
     },
 
     async softDelete(companyId: string, id: string) {
+        const payload: AddressUpdate = { deleted_at: new Date().toISOString() }
         const { error } = await supabaseServer
             .from('addresses')
-            // @ts-ignore - Types will be regenerated after migration
-            .update({ deleted_at: new Date().toISOString() })
+            .update(payload)
             .eq('company_id', companyId)
             .eq('id', id)
 

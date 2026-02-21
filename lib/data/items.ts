@@ -1,4 +1,5 @@
 import { supabaseServer } from '@/lib/supabase/server'
+import type { Database } from '@/types/supabase'
 
 export interface Item {
     id: string
@@ -13,6 +14,9 @@ export interface Item {
     updated_at: string
     deleted_at: string | null
 }
+
+type ItemInsert = Database['public']['Tables']['items']['Insert']
+type ItemUpdate = Database['public']['Tables']['items']['Update']
 
 export const itemsRepo = {
     async list(companyId: string, filters?: { type?: string; is_active?: boolean; search?: string }) {
@@ -54,10 +58,10 @@ export const itemsRepo = {
     },
 
     async create(companyId: string, payload: Partial<Item>) {
+        const insertPayload = { ...payload, company_id: companyId } as ItemInsert
         const { data, error } = await supabaseServer
             .from('items')
-            // @ts-ignore - Types will be regenerated after migration
-            .insert({ ...payload, company_id: companyId })
+            .insert(insertPayload)
             .select()
             .single()
 
@@ -66,10 +70,10 @@ export const itemsRepo = {
     },
 
     async update(companyId: string, id: string, payload: Partial<Item>) {
+        const updatePayload = payload as ItemUpdate
         const { data, error } = await supabaseServer
             .from('items')
-            // @ts-ignore - Types will be regenerated after migration
-            .update(payload)
+            .update(updatePayload)
             .eq('company_id', companyId)
             .eq('id', id)
             .select()
@@ -80,10 +84,10 @@ export const itemsRepo = {
     },
 
     async softDelete(companyId: string, id: string) {
+        const payload: ItemUpdate = { deleted_at: new Date().toISOString() }
         const { error } = await supabaseServer
             .from('items')
-            // @ts-ignore - Types will be regenerated after migration
-            .update({ deleted_at: new Date().toISOString() })
+            .update(payload)
             .eq('company_id', companyId)
             .eq('id', id)
 
@@ -91,10 +95,10 @@ export const itemsRepo = {
     },
 
     async updateAvgCost(companyId: string, id: string, newAvgCost: number) {
+        const payload: ItemUpdate = { avg_cost: newAvgCost }
         const { error } = await supabaseServer
             .from('items')
-            // @ts-ignore - Types will be regenerated after migration
-            .update({ avg_cost: newAvgCost })
+            .update(payload)
             .eq('company_id', companyId)
             .eq('id', id)
 

@@ -2,6 +2,7 @@ import { supabaseServer } from '@/lib/supabase/server'
 import { bomsRepo } from './boms'
 import { itemsRepo } from './items'
 import { inventoryRepo } from './inventory'
+import type { Database } from '@/types/supabase'
 
 export interface WorkOrder {
     id: string
@@ -33,6 +34,9 @@ export interface WorkOrderWithDetails extends WorkOrder {
         yield_uom: string
     }
 }
+
+type WorkOrderInsert = Database['public']['Tables']['work_orders']['Insert']
+type WorkOrderUpdate = Database['public']['Tables']['work_orders']['Update']
 
 export const workOrdersRepo = {
     async list(companyId: string, filters?: { status?: string; item_id?: string }) {
@@ -78,10 +82,10 @@ export const workOrdersRepo = {
     },
 
     async create(companyId: string, payload: Partial<WorkOrder>) {
+        const insertPayload = { ...payload, company_id: companyId } as WorkOrderInsert
         const { data, error } = await supabaseServer
             .from('work_orders')
-            // @ts-ignore - Types will be regenerated after migration
-            .insert({ ...payload, company_id: companyId })
+            .insert(insertPayload)
             .select()
             .single()
 
@@ -90,10 +94,10 @@ export const workOrdersRepo = {
     },
 
     async update(companyId: string, id: string, payload: Partial<WorkOrder>) {
+        const updatePayload = payload as WorkOrderUpdate
         const { data, error } = await supabaseServer
             .from('work_orders')
-            // @ts-ignore - Types will be regenerated after migration
-            .update(payload)
+            .update(updatePayload)
             .eq('company_id', companyId)
             .eq('id', id)
             .select()
@@ -104,10 +108,10 @@ export const workOrdersRepo = {
     },
 
     async softDelete(companyId: string, id: string) {
+        const payload: WorkOrderUpdate = { deleted_at: new Date().toISOString() }
         const { error } = await supabaseServer
             .from('work_orders')
-            // @ts-ignore - Types will be regenerated after migration
-            .update({ deleted_at: new Date().toISOString() })
+            .update(payload)
             .eq('company_id', companyId)
             .eq('id', id)
 
@@ -115,7 +119,7 @@ export const workOrdersRepo = {
     },
 
     async updateStatus(companyId: string, id: string, status: WorkOrder['status'], additionalFields?: Partial<WorkOrder>) {
-        const updateData: any = { status, ...additionalFields }
+        const updateData: WorkOrderUpdate = { ...(additionalFields || {}), status }
 
         if (status === 'in_progress' && !additionalFields?.started_at) {
             updateData.started_at = new Date().toISOString()
@@ -127,7 +131,6 @@ export const workOrdersRepo = {
 
         const { data, error } = await supabaseServer
             .from('work_orders')
-            // @ts-ignore - Types will be regenerated after migration
             .update(updateData)
             .eq('company_id', companyId)
             .eq('id', id)
@@ -140,10 +143,7 @@ export const workOrdersRepo = {
 
     async applyWorkOrderStockMovements(companyId: string, workOrderId: string) {
         // 1. Idempotency Check
-        const existingMovements = await inventoryRepo.getMovements(companyId, {
-            // @ts-ignore - helpers might not support detailed filtering yet, so we verify manually or use direct query if needed
-            // But let's try to trust the repo or just query directly check
-        })
+        const existingMovements = await inventoryRepo.getMovements(companyId, {})
 
         // Direct query for idempotency to be safe
         const { count } = await supabaseServer

@@ -119,16 +119,14 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
                 notes: `Origem: PCP (Projeção)`
             }));
 
-            const { data: newPO } = await createPurchaseOrderAction({
+            const result = await createPurchaseOrderAction({
                 items: poItems,
                 notes: `Gerado automaticamente via Necessidades PCP em ${format(new Date(), 'dd/MM/yyyy HH:mm')}`
             });
 
-            // @ts-ignore
-            if (newPO?.id) {
+            if (result.data?.id) {
                 toast({ title: "Pedido criado!", description: "Redirecionando para edição..." });
-                // @ts-ignore
-                router.push(`/app/compras/pedidos/${newPO.id}`);
+                router.push(`/app/compras/pedidos/${result.data.id}`);
             }
         } catch (err: any) {
             console.error(err);

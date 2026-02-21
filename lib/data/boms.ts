@@ -1,4 +1,5 @@
 import { supabaseServer } from '@/lib/supabase/server'
+import type { Database } from '@/types/supabase'
 
 export interface BomHeader {
     id: string
@@ -32,6 +33,10 @@ export interface BomWithLines extends BomHeader {
         sku: string | null
     }
 }
+
+type BomHeaderInsert = Database['public']['Tables']['bom_headers']['Insert']
+type BomHeaderUpdate = Database['public']['Tables']['bom_headers']['Update']
+type BomLineInsert = Database['public']['Tables']['bom_lines']['Insert']
 
 export const bomsRepo = {
     async listByItem(companyId: string, itemId: string) {
@@ -115,10 +120,10 @@ export const bomsRepo = {
 
     async create(companyId: string, header: Partial<BomHeader>, lines: Partial<BomLine>[]) {
         // Create header
+        const headerPayload = { ...header, company_id: companyId } as BomHeaderInsert
         const { data: newHeader, error: headerError } = await supabaseServer
             .from('bom_headers')
-            // @ts-ignore - Types will be regenerated after migration
-            .insert({ ...header, company_id: companyId })
+            .insert(headerPayload)
             .select()
             .single()
 
@@ -130,11 +135,10 @@ export const bomsRepo = {
                 ...line,
                 company_id: companyId,
                 bom_id: (newHeader as any).id
-            }))
+            })) as BomLineInsert[]
 
             const { error: linesError } = await supabaseServer
                 .from('bom_lines')
-                // @ts-ignore - Types will be regenerated after migration
                 .insert(linesWithBomId)
 
             if (linesError) throw linesError
@@ -145,10 +149,10 @@ export const bomsRepo = {
 
     async update(companyId: string, id: string, header: Partial<BomHeader>, lines: Partial<BomLine>[]) {
         // Update header
+        const headerPayload = header as BomHeaderUpdate
         const { data: updatedHeader, error: headerError } = await supabaseServer
             .from('bom_headers')
-            // @ts-ignore - Types will be regenerated after migration
-            .update(header)
+            .update(headerPayload)
             .eq('company_id', companyId)
             .eq('id', id)
             .select()
@@ -170,11 +174,10 @@ export const bomsRepo = {
                 ...line,
                 company_id: companyId,
                 bom_id: id
-            }))
+            })) as BomLineInsert[]
 
             const { error: linesError } = await supabaseServer
                 .from('bom_lines')
-                // @ts-ignore - Types will be regenerated after migration
                 .insert(linesWithBomId)
 
             if (linesError) throw linesError
@@ -184,10 +187,10 @@ export const bomsRepo = {
     },
 
     async softDelete(companyId: string, id: string) {
+        const payload: BomHeaderUpdate = { deleted_at: new Date().toISOString() }
         const { error } = await supabaseServer
             .from('bom_headers')
-            // @ts-ignore - Types will be regenerated after migration
-            .update({ deleted_at: new Date().toISOString() })
+            .update(payload)
             .eq('company_id', companyId)
             .eq('id', id)
 

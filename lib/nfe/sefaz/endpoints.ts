@@ -2,7 +2,12 @@
 // Fonte: http://www.nfe.fazenda.gov.br/portal/WebServices.aspx
 // Atualizado: 2026-01-16
 
-export const SEFAZ_ENDPOINTS = {
+type SefazEnvironmentEndpoints = {
+    homologacao: Record<SefazService, string>;
+    producao: Record<SefazService, string>;
+};
+
+export const SEFAZ_ENDPOINTS: Record<string, SefazEnvironmentEndpoints> = {
     SP: {
         homologacao: {
             NFeAutorizacao4: "https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx",
@@ -42,7 +47,6 @@ export type SefazService = "NFeAutorizacao4" | "NFeRetAutorizacao4" | "NFeStatus
 export function getSefazUrl(uf: string, amb: "1" | "2", service: SefazService): string {
     const env = amb === "2" ? "homologacao" : "producao";
 
-    // @ts-ignore - dynamic access
     const ufConfig = SEFAZ_ENDPOINTS[uf];
 
     if (!ufConfig) {
