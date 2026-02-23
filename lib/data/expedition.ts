@@ -666,6 +666,7 @@ export async function checkAndCleanupExpiredRoutes(supabase: SupabaseClient, com
         .from('delivery_routes')
         .select(`
             id, 
+            status,
             orders:delivery_route_orders(
                 sales_order:sales_documents(status_logistic)
             )
@@ -677,11 +678,20 @@ export async function checkAndCleanupExpiredRoutes(supabase: SupabaseClient, com
     if (error) throw error;
     if (!expiredCandidates || expiredCandidates.length === 0) return 0;
 
-    // Filter routes that are truly "unprocessed"
-    // Unprocessed = No orders are 'in_route', 'delivered', 'nao_entregue'
-    // If a route has NO orders, it is also considered unprocessed/expired
+    // Business rule:
+    // - A rota so volta para "nao agendada" se ela NAO foi iniciada.
+    // - A partir do momento que foi iniciada (status em rota/progresso/concluida/cancelada),
+    //   ela deve permanecer aguardando tratamento do retorno, mesmo que a data agendada ja tenha passado.
+    const startedRouteStatuses = new Set(['in_route', 'in_progress', 'completed', 'cancelled', 'done', 'closed']);
+
+    // Filter routes that are truly "unprocessed" AND not started.
+    // Unprocessed (legacy heuristic) = No orders are 'in_route', 'delivered', 'returned', 'partial'
+    // If a route has NO orders, it is considered unprocessed/expired only when not started.
     const toResetIds = expiredCandidates
         .filter((route: any) => {
+            const routeStatus = String(route.status || '').toLowerCase();
+            if (startedRouteStatuses.has(routeStatus)) return false;
+
             const orders = route.orders || [];
             if (orders.length === 0) return true;
 
