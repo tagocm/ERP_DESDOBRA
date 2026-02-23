@@ -455,7 +455,10 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
             dup: payments.map((payment: any, idx: number) => {
                 const seqBase = Number(payment.installment_number);
                 const validBase = (Number.isInteger(seqBase) && seqBase > 0) ? seqBase : (idx + 1);
-                const nDup = `${ide.nNF}-${String(validBase).padStart(2, '0')}`;
+                // SEFAZ Rejeicao 852: numero da parcela invalido/nao informado.
+                // In practice, some SEFAZ validators expect nDup to be numeric (parcel number),
+                // not an arbitrary identifier. Keep it strictly digits.
+                const nDup = String(validBase).padStart(3, '0');
 
                 return {
                     nDup,
@@ -563,4 +566,3 @@ function mapAddress(addr: AddressData | null, settings: any, contextName: string
         xPais: 'BRASIL'
     };
 }
-

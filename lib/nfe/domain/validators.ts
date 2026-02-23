@@ -82,10 +82,11 @@ const nfeSchema = z.object({
             nFat: z.string().optional(),
             vOrig: z.number().nonnegative(),
             vDesc: z.number().nonnegative().optional(),
-            vLiq: z.number().nonnegative()
+        vLiq: z.number().nonnegative()
         }).optional(),
         dup: z.array(z.object({
-            nDup: z.string().min(1),
+            // Avoid SEFAZ 852 (numero da parcela invalido): keep parcel identifier numeric.
+            nDup: z.string().regex(/^\d+$/, 'nDup deve conter apenas numeros'),
             dVenc: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
             vDup: z.number().nonnegative()
         })).optional()

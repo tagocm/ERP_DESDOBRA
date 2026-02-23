@@ -145,4 +145,24 @@ describe("buildNfeXml", () => {
             );
         }
     });
+
+    it("should include cobr/dup with numeric nDup when pagamento a prazo", () => {
+        const draft = JSON.parse(JSON.stringify(basicDraft));
+        // Force transmissible mode behavior to include cobr only when pag.indicates prazo
+        draft.pag.detPag = [{ tPag: "15", vPag: 500.0, indPag: "1" }];
+        draft.cobr = {
+            fat: { nFat: "1001", vOrig: 500.0, vDesc: 0, vLiq: 500.0 },
+            dup: [
+                { nDup: "001", dVenc: "2023-11-10", vDup: 250.0 },
+                { nDup: "002", dVenc: "2023-12-10", vDup: 250.0 },
+            ],
+        };
+
+        // Draft mode is enough to validate cobr/dup rendering; transmissible mode requires a 44-digit key.
+        const result = buildNfeXml(draft as any as NfeDraft, { mode: "draft" });
+        expect(result.xml).toContain("<cobr>");
+        expect(result.xml).toContain("<dup>");
+        expect(result.xml).toContain("<nDup>001</nDup>");
+        expect(result.xml).toContain("<nDup>002</nDup>");
+    });
 });
