@@ -108,9 +108,11 @@ async function ensureChartSpineForCompany(supabase: SupabaseClient, companyId: s
     const { error: seedError } = await admin.rpc('seed_chart_spine', {
         p_company_id: companyId,
     });
-
     if (seedError) {
-        throw new Error(seedError.message || 'Falha ao inicializar estrutura fixa do plano de contas.');
+        const details = [seedError.message, seedError.details, seedError.hint, seedError.code ? `SQLSTATE ${seedError.code}` : null]
+            .filter(Boolean)
+            .join(' | ');
+        throw new Error(`Falha ao inicializar estrutura fixa do plano de contas: ${details || 'erro desconhecido da RPC seed_chart_spine'}`);
     }
 }
 
@@ -125,7 +127,7 @@ export async function getAccountsTree() {
         .order('code');
 
     // Fetch all accounts visible for the current company context
-    let { data, error } = await fetchAccounts();
+    const { data, error } = await fetchAccounts();
 
     if (error) {
         console.error('Error fetching chart of accounts:', error);
@@ -138,22 +140,13 @@ export async function getAccountsTree() {
     if (accounts.length === 0) {
         const companyId = await getCurrentCompanyId(supabase);
 
-        const admin = createAdminClient();
-        const { error: seedError } = await admin.rpc('seed_chart_spine', {
-            p_company_id: companyId
-        });
-
-        if (seedError) {
-            console.error('Error seeding chart spine:', seedError);
-            throw new Error('Falha ao inicializar estrutura fixa do plano de contas.');
-        } else {
-            const refetch = await fetchAccounts();
-            if (refetch.error) {
-                console.error('Error refetching chart after seed:', refetch.error);
-                throw new Error('Falha ao carregar plano de contas.');
-            }
-            accounts = (refetch.data ?? []) as GLAccount[];
+        await ensureChartSpineForCompany(supabase, companyId);
+        const refetch = await fetchAccounts();
+        if (refetch.error) {
+            console.error('Error refetching chart after seed:', refetch.error);
+            throw new Error('Falha ao carregar plano de contas.');
         }
+        accounts = (refetch.data ?? []) as GLAccount[];
     }
 
     return buildTree(accounts);
