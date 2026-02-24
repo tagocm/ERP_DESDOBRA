@@ -111,8 +111,6 @@ export async function renderDanfeHtml(data: DanfeData): Promise<string> {
     const pagamentoVista = (data.pag?.detPag || []).find((p) => String(p?.indPag || '0') === '0');
 
     const css = `
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
-        
         * { box-sizing: border-box; margin: 0; padding: 0; }
         
         @page {
@@ -121,7 +119,7 @@ export async function renderDanfeHtml(data: DanfeData): Promise<string> {
         }
 
         body {
-            font-family: 'Inter', Arial, sans-serif;
+            font-family: Arial, "Liberation Sans", sans-serif;
             font-size: 7pt;
             line-height: 1.2;
             color: #000;

@@ -68,7 +68,7 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
   <style>
     @page { size: A4; margin: 10mm; }
     html, body { height: 100%; }
-    body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; font-size: 10px; color: #333; line-height: 1.2; display: flex; flex-direction: column; min-height: 100%; }
+    body { font-family: Arial, "Liberation Sans", sans-serif; font-size: 10px; color: #333; line-height: 1.2; display: flex; flex-direction: column; min-height: 100%; }
     .page-break { break-before: page; page-break-before: always; }
     
     .box { border: 1px solid #ccc; margin-bottom: 8px; padding: 7px; border-radius: 4px; }
@@ -92,7 +92,6 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
     .text-right { text-align: right; }
     .text-red { color: #555; }
     
-    .footer-note { font-size: 8px; text-align: center; margin-top: 8px; border-top: 1px solid #eee; padding-top: 5px; color: #888; }
     .main-content { flex: 1 1 auto; display: flex; flex-direction: column; }
     .items-box { flex: 1 1 auto; display: flex; flex-direction: column; }
     .items-table-wrap { flex: 1 1 auto; }
@@ -283,10 +282,6 @@ export function renderOrderA4Html({ company, order, items }: TemplateData): stri
          <div class="value">${(translateLogisticsStatusPt(order.status_logistic) || "Pendente").toUpperCase()}</div>
        </div>
     </div>
-  </div>
-
-  <div class="footer-note">
-    Documento auxiliar de pedido. Não possui valor fiscal. Gerado em ${format(new Date(), "dd/MM/yyyy HH:mm")}.
   </div>
 
 </body>

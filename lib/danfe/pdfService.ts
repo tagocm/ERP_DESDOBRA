@@ -105,7 +105,12 @@ export async function generateDanfePdf(
 
     try {
         const page = await browser.newPage();
-        await page.setContent(html);
+        await page.setContent(html, {
+            waitUntil: 'networkidle'
+        });
+        await page.evaluate(async () => {
+            await document.fonts.ready;
+        });
 
         // Use 'print' media type to ensure CSS @page rules work
         await page.emulateMedia({ media: 'print' });
