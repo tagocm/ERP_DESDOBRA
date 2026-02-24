@@ -205,9 +205,11 @@ export function InboundReversalModal(props: Props) {
                     // Override base DialogContent layout (grid) to avoid min-height issues with scrollable children.
                     "flex flex-col",
                     // Pin to top and override base centering transform to avoid clipping the header on tall modals.
-                    "!top-4 !translate-y-0",
+                    // Offset below the app header (the shell header can overlap z-50 content).
+                    "!top-20 !translate-y-0",
                     "w-[calc(100vw-2rem)] max-w-5xl",
-                    "!max-h-[calc(100vh-2rem)] overflow-hidden p-0",
+                    // Account for the top offset to keep bottom inside viewport.
+                    "!max-h-[calc(100vh-6rem)] overflow-hidden p-0",
                 ].join(" ")}
             >
                 <div className="sticky top-0 z-10 border-b border-gray-100 bg-white px-6 py-4">
