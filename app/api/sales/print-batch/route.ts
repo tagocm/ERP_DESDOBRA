@@ -6,6 +6,7 @@ import { generatePdfFromHtml } from "@/lib/print/pdf-generator";
 import archiver from 'archiver';
 import { logger } from '@/lib/logger';
 import { rateLimit } from '@/lib/rate-limit';
+import { resolveCompanyLogoDataUri } from '@/lib/fiscal/nfe/logo-resolver';
 
 // Helper to zip buffers
 function zipPdfs(files: { filename: string, buffer: Buffer }[]): Promise<Buffer> {
@@ -196,31 +197,8 @@ export async function POST(request: Request) {
                 ].filter(Boolean);
                 const address = parts.join(', ');
 
-                // Logo Processing: Download and convert to Base64 to ensure it renders in PDF
-                let logoDataUri = null;
-                if (settings.logo_path) {
-                    try {
-                        const { data: blob, error: downloadError } = await supabase.storage
-                            .from('company-assets')
-                            .download(settings.logo_path);
-
-                        if (!downloadError && blob) {
-                            const buffer = Buffer.from(await blob.arrayBuffer());
-                            const base64 = buffer.toString('base64');
-                            // Detect mime type simple (assume png/jpg based on logic, or default to png)
-                            const mime = settings.logo_path.endsWith('.jpg') || settings.logo_path.endsWith('.jpeg') ? 'image/jpeg' : 'image/png';
-                            logoDataUri = `data:${mime};base64,${base64}`;
-                        } else {
-                            // Fallback to public URL (risky for PDF generator if network blocked)
-                            const { data } = supabase.storage.from('company-assets').getPublicUrl(settings.logo_path);
-                            // But we prefer null if download failed to avoid broken image icon usually
-                            // logoDataUri = data.publicUrl;
-                        }
-                    } catch (e) {
-                        const message = e instanceof Error ? e.message : 'Unknown error';
-                        logger.warn('[sales/print-batch] Failed processing logo for PDF (non-blocking)', { message });
-                    }
-                }
+                // Robust logo resolver: supports bucket paths, prefixed paths, fallback folders and remote URLs.
+                const logoDataUri = await resolveCompanyLogoDataUri(supabase, companyId) || null;
 
                 companyData = {
                     trade_name: (settings.trade_name || settings.legal_name || "").toUpperCase(),
