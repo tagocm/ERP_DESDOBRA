@@ -18,6 +18,17 @@ function mapInboundCfop(args: { idDest: "1" | "2" | "3"; isProduced: boolean }):
     return interstate ? "2202" : "1202";
 }
 
+function inferIsProducedFromOutboundCfop(outboundCfop: string): boolean | null {
+    const digits = String(outboundCfop || "").replace(/\D/g, "");
+    if (digits.length !== 4) return null;
+    // We only infer from outbound sale CFOPs (5xxx/6xxx/7xxx).
+    if (!["5", "6", "7"].includes(digits[0])) return null;
+    const suffix = digits.slice(-3);
+    if (suffix === "101") return true; // venda de producao do estabelecimento
+    if (suffix === "102") return false; // venda de mercadoria adquirida/terceiros
+    return null;
+}
+
 export function buildInboundReversalNfe(args: {
     outboundDraft: NfeDraft;
     outboundAccessKey: string;
@@ -59,7 +70,7 @@ export function buildInboundReversalNfe(args: {
         const originalQty = item.prod.qCom;
         const selected = isPartial
             ? args.selectionByNItem.get(item.nItem) || null
-            : { qty: originalQty, isProduced: false };
+            : { qty: originalQty, isProduced: inferIsProducedFromOutboundCfop(item.prod.cfop) ?? false };
 
         if (!selected || selected.qty <= 0) continue;
         if (selected.qty > originalQty) {
@@ -149,4 +160,3 @@ export function buildInboundReversalNfe(args: {
         infAdic: { infCpl },
     };
 }
-

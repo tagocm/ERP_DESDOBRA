@@ -125,7 +125,23 @@ describe("buildInboundReversalNfe", () => {
         expect(out.pag.detPag[0].tPag).toBe("90");
         expect(out.pag.detPag[0].vPag).toBe(0);
         expect(out.itens).toHaveLength(2);
-        expect(out.itens[0].prod.cfop).toBe("1202"); // default isProduced=false
+        expect(out.itens[0].prod.cfop).toBe("1202"); // inferred from outbound CFOP 5102
+    });
+
+    it("infers produced items from outbound CFOP 5101 and uses 1201", () => {
+        const draft = sampleOutboundDraft();
+        draft.itens[0].prod.cfop = "5101";
+
+        const out = buildInboundReversalNfe({
+            outboundDraft: draft,
+            outboundAccessKey: "1".repeat(44),
+            mode: "TOTAL",
+            selectionByNItem: new Map(),
+            reasonCode: "MERCADORIA_NAO_ENTREGUE",
+            nowIso: "2026-02-23T12:00:00.000-03:00",
+        });
+
+        expect(out.itens[0].prod.cfop).toBe("1201");
     });
 
     it("builds partial reversal with proportional qty and cfop by isProduced", () => {
@@ -155,4 +171,3 @@ describe("buildInboundReversalNfe", () => {
         expect(out.infAdic?.infCpl).toContain("Estorno parcial");
     });
 });
-
