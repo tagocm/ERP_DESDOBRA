@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { ListPagination } from '@/components/ui/ListPagination';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/DropdownMenu';
+import { InboundReversalModal } from '@/components/fiscal/InboundReversalModal';
 
 interface Props {
     data: any[];
@@ -48,6 +49,8 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
     const [isBatchDownloadingXml, setIsBatchDownloadingXml] = useState(false);
     const [isBatchDownloadingDanfe, setIsBatchDownloadingDanfe] = useState(false);
     const [isBatchPrinting, setIsBatchPrinting] = useState(false);
+    const [reversalModalOpen, setReversalModalOpen] = useState(false);
+    const [selectedReversalNfe, setSelectedReversalNfe] = useState<any | null>(null);
 
     useEffect(() => {
         const validIds = new Set(data.map((nfe) => nfe.id));
@@ -612,6 +615,11 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
         setCorrectionModalOpen(true);
     };
 
+    const openReversalModal = (nfe: any) => {
+        setSelectedReversalNfe(nfe);
+        setReversalModalOpen(true);
+    };
+
     const handleSubmitCorrection = async () => {
         if (!selectedCorrectionNfe?.id) return;
 
@@ -964,6 +972,14 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                             </DropdownMenuItem>
 
                                             <DropdownMenuItem
+                                                onSelect={() => openReversalModal(nfe)}
+                                                disabled={!(nfe.status === 'authorized' && nfe._source === 'emission')}
+                                            >
+                                                <Receipt className="mr-2 h-4 w-4" />
+                                                <span>Gerar NF-e de Entrada (Estorno)</span>
+                                            </DropdownMenuItem>
+
+                                            <DropdownMenuItem
                                                 onSelect={() => openCancellationModal(nfe)}
                                                 disabled={!(nfe.status === 'authorized' || nfe.status === 'processing')}
                                                 className="text-red-600 focus:text-red-700 focus:bg-red-50"
@@ -987,6 +1003,17 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                 onPageChange={pagination.onPageChange}
                 label="notas"
                 disabled={isLoading}
+            />
+
+            <InboundReversalModal
+                open={reversalModalOpen}
+                onOpenChange={(open) => {
+                    setReversalModalOpen(open);
+                    if (!open) setSelectedReversalNfe(null);
+                }}
+                outboundEmissionId={selectedReversalNfe?._source === 'emission' ? selectedReversalNfe.id : null}
+                disabled={selectedReversalNfe?._source !== 'emission'}
+                onCreated={onInvoiceCancelled}
             />
 
             <Dialog open={correctionModalOpen} onOpenChange={setCorrectionModalOpen}>
