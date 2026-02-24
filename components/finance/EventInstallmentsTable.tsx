@@ -370,7 +370,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                                 <div className="flex flex-col gap-1 flex-1">
                                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Classificação</span>
                                     <div className="h-8 px-2 rounded border bg-white flex items-center justify-between text-xs">
-                                        <span className="text-gray-600 font-medium">Automática ({classificationSummary})</span>
+                                        <span className="text-gray-600 font-medium">Classificação automática • {classificationSummary}</span>
                                         <Button
                                             variant="ghost"
                                             size="sm"

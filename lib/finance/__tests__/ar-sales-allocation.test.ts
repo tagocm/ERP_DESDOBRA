@@ -6,6 +6,23 @@ function sum(values: number[]): number {
 }
 
 describe('buildInstallmentAllocationsMatrix', () => {
+    it('suporta venda com 2 categorias em 1 parcela', () => {
+        const buckets: RevenueBucket[] = [
+            { glAccountId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', amountCents: 8200 },
+            { glAccountId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', amountCents: 1800 }
+        ];
+
+        const rows = buildInstallmentAllocationsMatrix({
+            installmentIds: ['unique-installment'],
+            installmentAmountsCents: [10000],
+            normalizedBuckets: buckets
+        });
+
+        expect(rows).toHaveLength(1);
+        expect(rows[0].allocations).toHaveLength(2);
+        expect(sum(rows[0].allocations.map((allocation) => Math.round(allocation.amount * 100)))).toBe(10000);
+    });
+
     it('distribui rateio proporcional e fecha totais por parcela e por conta', () => {
         const buckets: RevenueBucket[] = [
             { glAccountId: '11111111-1111-1111-1111-111111111111', amountCents: 7000 },
