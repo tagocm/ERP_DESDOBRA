@@ -46,6 +46,8 @@ const statusMap: Record<string, { label: string, className: string }> = {
     in_route: { label: 'Em Rota', className: 'bg-blue-100 text-blue-800' },
     delivered: { label: 'Entregue', className: 'bg-green-100 text-green-800' },
     returned: { label: 'Devolvido', className: 'bg-red-100 text-red-800' },
+    returned_partial: { label: 'Parcial', className: 'bg-orange-100 text-orange-800' },
+    returned_total: { label: 'Devolvido Total', className: 'bg-red-100 text-red-800' },
     cancelled: { label: 'Cancelado', className: 'bg-red-50 text-red-600' }
 };
 
@@ -59,14 +61,20 @@ export function DeliveryDetailDrawer({ deliveryId, open, onClose }: DeliveryDeta
             // Start async work immediately, setState only in async callbacks
             (async () => {
                 setLoading(true);
+                setData(null);
                 try {
                     const res = await fetch(`/api/deliveries/${deliveryId}`);
                     console.log('[DeliveryDetailDrawer] Response status:', res.status);
+                    if (!res.ok) {
+                        throw new Error(`Failed to fetch delivery details: ${res.status}`);
+                    }
+
                     const json = await res.json();
                     console.log('[DeliveryDetailDrawer] Received data:', json);
-                    setData(json);
+                    setData(json?.id ? json : null);
                 } catch (err) {
                     console.error('[DeliveryDetailDrawer] Error:', err);
+                    setData(null);
                 } finally {
                     setLoading(false);
                 }

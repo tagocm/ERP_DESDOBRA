@@ -21,9 +21,13 @@ export async function GET(
                 *,
                 items:delivery_items(
                     *,
-                    sales_item:sales_document_items(
+                    sales_item:sales_document_items!fk_delivery_item_sales_item(
                         unit_price,
-                        product:item_id(*)
+                        product:items!fk_sales_item_product(
+                            name,
+                            sku,
+                            uom
+                        )
                     )
                 ),
                 route:delivery_routes(*)
@@ -35,7 +39,7 @@ export async function GET(
 
         return NextResponse.json(delivery);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Unknown error";
         logger.error("[deliveries] Error fetching delivery", { deliveryId: id, message });
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

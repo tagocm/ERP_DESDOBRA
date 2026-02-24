@@ -20,7 +20,10 @@ export async function GET(
             .select(`
                 *,
                 items:delivery_items(
-                    *
+                    *,
+                    sales_item:sales_document_items!fk_delivery_item_sales_item(
+                        unit_price
+                    )
                 ),
                 route:delivery_routes(name, route_date)
             `)
