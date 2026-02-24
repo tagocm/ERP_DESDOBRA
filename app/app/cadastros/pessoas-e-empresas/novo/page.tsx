@@ -440,35 +440,34 @@ export default function NewOrganizationPage() {
         if (cnpjDigits.length !== 14) return;
         setCnpjLoading(true);
         try {
-            const res = await fetch("/api/cnpj/" + cnpjDigits);
+            const res = await fetch("/api/cnpj/" + cnpjDigits, { cache: "no-store" });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
 
             setFormData(prev => ({
                 ...prev,
-                legal_name: prev.legal_name || data.legal_name || "",
-                trade_name: prev.trade_name || data.trade_name || "",
-                email: prev.email || data.email || "",
-                phone: prev.phone || data.phone || "",
+                legal_name: toTitleCase(data.legal_name || prev.legal_name || ""),
+                trade_name: toTitleCase(data.trade_name || prev.trade_name || ""),
+                email: normalizeEmail(data.email || prev.email || ""),
+                phone: data.phone || prev.phone || "",
             }));
-            if (!billingAddress.zip && data.address.zip) {
-                setBillingAddress({
-                    zip: data.address.zip || "",
-                    street: toTitleCase(data.address.street) || "",
-                    number: data.address.number || "",
-                    complement: toTitleCase(data.address.complement) || "",
-                    neighborhood: toTitleCase(data.address.neighborhood) || "",
-                    city: toTitleCase(data.address.city) || "",
-                    state: data.address.state?.toUpperCase() || "",
-                    city_code_ibge: data.address.ibge || "",
-                    country: "BR"
-                });
-            }
+            setBillingAddress(prev => ({
+                ...prev,
+                zip: data.address?.zip || prev.zip || "",
+                street: toTitleCase(data.address?.street || prev.street || ""),
+                number: data.address?.number || prev.number || "",
+                complement: toTitleCase(data.address?.complement || prev.complement || ""),
+                neighborhood: toTitleCase(data.address?.neighborhood || prev.neighborhood || ""),
+                city: toTitleCase(data.address?.city || prev.city || ""),
+                state: (data.address?.state || prev.state || "").toUpperCase(),
+                city_code_ibge: data.address?.ibge || prev.city_code_ibge || "",
+                country: "BR"
+            }));
             setCnpjFetched(true);
-        } catch (err) {
+        } catch (err: any) {
             toast({
                 title: "Erro ao buscar CNPJ",
-                description: "Não foi possível buscar dados para o CNPJ informado.",
+                description: err?.message || "Não foi possível buscar dados para o CNPJ informado.",
                 variant: "destructive",
             });
         } finally {

@@ -205,7 +205,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
 
         setCnpjLoading(true);
         try {
-            const res = await fetch(`/api/cnpj/${cleanDoc}`);
+            const res = await fetch(`/api/cnpj/${cleanDoc}`, { cache: "no-store" });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error);
 
@@ -216,26 +216,24 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
 
             setFormData(prev => ({
                 ...prev,
-                legal_name: toTitleCase(data.legal_name) || "",
-                trade_name: toTitleCase(data.trade_name) || "",
-                phone: data.phone || "",
-                email: normalizeEmail(data.email) || ""
+                legal_name: toTitleCase(data.legal_name || prev.legal_name || ""),
+                trade_name: toTitleCase(data.trade_name || prev.trade_name || ""),
+                phone: data.phone || prev.phone || "",
+                email: normalizeEmail(data.email || prev.email || "")
             }));
 
-            // Only update address if current address fields are empty or if the fetched data is more complete
-            if (!billingAddress.zip && data.address.zip) {
-                setBillingAddress(prev => ({
-                    zip: data.address.zip || "",
-                    street: toTitleCase(data.address.street) || "",
-                    number: data.address.number || "",
-                    complement: toTitleCase(data.address.complement) || "",
-                    neighborhood: toTitleCase(data.address.neighborhood) || "",
-                    city: toTitleCase(data.address.city) || "",
-                    state: data.address.state || "",
-                    country: "BR",
-                    city_code_ibge: data.address.ibge || "" // Use IBGE from API
-                }));
-            }
+            setBillingAddress(prev => ({
+                ...prev,
+                zip: data.address?.zip || prev.zip || "",
+                street: toTitleCase(data.address?.street || prev.street || ""),
+                number: data.address?.number || prev.number || "",
+                complement: toTitleCase(data.address?.complement || prev.complement || ""),
+                neighborhood: toTitleCase(data.address?.neighborhood || prev.neighborhood || ""),
+                city: toTitleCase(data.address?.city || prev.city || ""),
+                state: (data.address?.state || prev.state || "").toUpperCase(),
+                country: "BR",
+                city_code_ibge: data.address?.ibge || prev.city_code_ibge || ""
+            }));
 
 
             // Note: Simplificated fiscal update as state is limited in this modal
