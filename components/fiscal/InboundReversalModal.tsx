@@ -200,8 +200,16 @@ export function InboundReversalModal(props: Props) {
 
     return (
         <Dialog open={props.open} onOpenChange={props.onOpenChange}>
-            <DialogContent className="w-[calc(100vw-1.5rem)] max-w-4xl max-h-[calc(100vh-1.5rem)] overflow-hidden p-0">
-                <div className="flex max-h-[calc(100vh-1.5rem)] flex-col">
+            <DialogContent
+                className={[
+                    // Override base DialogContent layout (grid) to avoid min-height issues with scrollable children.
+                    "flex flex-col",
+                    // Avoid clipping the header on shorter viewports: pin to top on mobile/small height, center on sm+.
+                    "top-3 translate-y-0 sm:top-1/2 sm:-translate-y-1/2",
+                    "w-[calc(100vw-1.5rem)] max-w-4xl",
+                    "max-h-[calc(100vh-1.5rem)] overflow-hidden p-0",
+                ].join(" ")}
+            >
                     <div className="px-6 py-5">
                         <DialogHeader className="space-y-2">
                             <DialogTitle>Gerar NF-e de Entrada (Estorno)</DialogTitle>
@@ -211,7 +219,7 @@ export function InboundReversalModal(props: Props) {
                         </DialogHeader>
                     </div>
 
-                    <div className="flex-1 overflow-auto px-6 pb-6">
+                    <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
                         <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm">
                             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                 <div>
@@ -395,7 +403,6 @@ export function InboundReversalModal(props: Props) {
                             </Button>
                         </DialogFooter>
                     </div>
-                </div>
             </DialogContent>
         </Dialog>
     );
