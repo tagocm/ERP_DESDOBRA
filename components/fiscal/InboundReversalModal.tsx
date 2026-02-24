@@ -321,9 +321,9 @@ export function InboundReversalModal(props: Props) {
                                 <div className="text-xs text-gray-500">Read-only</div>
 
                                 <div className="mt-3 rounded-2xl border border-gray-200 bg-gray-50 p-3 text-xs leading-5">
-                                    <div className="text-gray-600">natOp</div>
+                                    <div className="text-gray-600">Natureza da operacao (natOp)</div>
                                     <div className="font-semibold text-gray-900 break-words">{REVERSAL_NATOP}</div>
-                                    <div className="mt-3 text-gray-600">infCpl</div>
+                                    <div className="mt-3 text-gray-600">Informacoes complementares (infCpl)</div>
                                     <div className="text-gray-900 break-words">{infCplPreview || "Selecione o motivo para ver a prévia."}</div>
                                 </div>
                             </div>
