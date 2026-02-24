@@ -221,18 +221,18 @@ export function InboundReversalModal(props: Props) {
                     </DialogHeader>
 
                     <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-3 text-sm">
-                        <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-                            <div>
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-12">
+                            <div className="md:col-span-4">
                                 <div className="text-xs font-medium uppercase tracking-wider text-gray-500">NF-e de saída</div>
                                 <div className="font-semibold text-gray-900">
                                     {emissionSummary?.numero ?? "-"} / Série {emissionSummary?.serie ?? "-"}
                                 </div>
                             </div>
-                            <div>
+                            <div className="md:col-span-5">
                                 <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Cliente</div>
                                 <div className="font-semibold text-gray-900">{emissionSummary?.clientName ?? "-"}</div>
                             </div>
-                            <div>
+                            <div className="md:col-span-3">
                                 <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Total</div>
                                 <div className="font-semibold text-gray-900">
                                     {typeof emissionSummary?.totalAmount === "number"
@@ -240,9 +240,12 @@ export function InboundReversalModal(props: Props) {
                                         : "-"}
                                 </div>
                             </div>
-                            <div className="md:col-span-1">
+                            <div className="md:col-span-12">
                                 <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Chave</div>
-                                <div className="font-mono text-[11px] leading-4 text-gray-900 break-all">
+                                <div
+                                    className="font-mono text-[11px] leading-4 text-gray-900 whitespace-nowrap overflow-x-auto"
+                                    title={emissionSummary?.accessKey ?? ""}
+                                >
                                     {emissionSummary?.accessKey ?? "-"}
                                 </div>
                             </div>
