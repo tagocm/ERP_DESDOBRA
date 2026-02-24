@@ -23,6 +23,7 @@ async function applyAutomaticArAllocations(params: {
         return;
     }
 
+    const supabase = await createAdminClient();
     const orderedInstallments = [...installments].sort(
         (left, right) => left.installment_number - right.installment_number
     );
@@ -43,16 +44,24 @@ async function applyAutomaticArAllocations(params: {
         normalizedBuckets: buckets
     });
 
-    await Promise.all(
-        matrix.map((row) =>
-            replaceArInstallmentAllocations({
-                companyId: event.company_id,
-                installmentId: row.installmentId,
-                installmentAmount: row.installmentAmountCents / 100,
-                allocations: row.allocations
-            })
-        )
-    );
+    for (const row of matrix) {
+        await replaceArInstallmentAllocations({
+            companyId: event.company_id,
+            installmentId: row.installmentId,
+            installmentAmount: row.installmentAmountCents / 100,
+            allocations: row.allocations
+        });
+
+        const singleAccountId = row.allocations.length === 1 ? row.allocations[0].gl_account_id : null;
+        const { error: updateLegacyError } = await supabase
+            .from('ar_installments')
+            .update({ account_id: singleAccountId })
+            .eq('id', row.installmentId);
+
+        if (updateLegacyError) {
+            throw new Error(`Failed to sync legacy account_id on AR installment: ${updateLegacyError.message}`);
+        }
+    }
 }
 
 /**
@@ -97,7 +106,7 @@ export async function generateARTitle(event: FinancialEvent): Promise<string> {
             amount_open: inst.amount,
             status: 'OPEN',
             payment_method: inst.payment_method,
-            account_id: inst.suggested_account_id,
+            account_id: event.origin_type === 'SALE' ? null : inst.suggested_account_id,
             financial_account_id: inst.financial_account_id,
             cost_center_id: inst.cost_center_id
         }));
