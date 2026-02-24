@@ -1,0 +1,152 @@
+import { NfeDraft, NfeItem, NfePag } from "@/lib/nfe/domain/types";
+import { buildReversalInfCpl, REVERSAL_NATOP, ReversalReasonCode } from "./texts";
+
+function round2(value: number) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function scaleMaybeNumber(value: unknown, ratio: number): number | undefined {
+    if (value === null || value === undefined) return undefined;
+    const n = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(n)) return undefined;
+    return round2(n * ratio);
+}
+
+function mapInboundCfop(args: { idDest: "1" | "2" | "3"; isProduced: boolean }): string {
+    const interstate = args.idDest === "2";
+    if (args.isProduced) return interstate ? "2201" : "1201";
+    return interstate ? "2202" : "1202";
+}
+
+export function buildInboundReversalNfe(args: {
+    outboundDraft: NfeDraft;
+    outboundAccessKey: string;
+    mode: "TOTAL" | "PARCIAL";
+    selectionByNItem: Map<number, { qty: number; isProduced: boolean }>;
+    reasonCode: ReversalReasonCode;
+    reasonOther?: string | null;
+    nowIso: string;
+}): NfeDraft {
+    const isPartial = args.mode === "PARCIAL";
+
+    const outbound = args.outboundDraft;
+    const ide = {
+        ...outbound.ide,
+        tpNF: "0" as const,
+        finNFe: "4" as const,
+        natOp: REVERSAL_NATOP,
+        dhEmi: args.nowIso,
+        NFref: [{ refNFe: args.outboundAccessKey }],
+    };
+
+    const emit = { ...outbound.emit, enderEmit: { ...outbound.emit.enderEmit } };
+
+    const destName = ide.tpAmb === "2"
+        ? "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
+        : emit.xNome;
+
+    const dest = {
+        cpfOuCnpj: emit.cnpj,
+        xNome: destName.slice(0, 60),
+        indIEDest: "1" as const,
+        ie: emit.ie,
+        enderDest: { ...emit.enderEmit },
+    };
+
+    const itens: NfeItem[] = [];
+
+    for (const item of outbound.itens) {
+        const originalQty = item.prod.qCom;
+        const selected = isPartial
+            ? args.selectionByNItem.get(item.nItem) || null
+            : { qty: originalQty, isProduced: false };
+
+        if (!selected || selected.qty <= 0) continue;
+        if (selected.qty > originalQty) {
+            throw new Error(`Quantidade de estorno maior que o original no item ${item.nItem}.`);
+        }
+
+        const ratio = originalQty > 0 ? selected.qty / originalQty : 0;
+
+        const qCom = selected.qty;
+        const qTrib = (item.prod.qCom > 0)
+            ? round2((item.prod.qTrib / item.prod.qCom) * qCom)
+            : qCom;
+
+        const vUnCom = item.prod.vUnCom;
+        const vProd = round2(vUnCom * qCom);
+
+        const cfop = mapInboundCfop({ idDest: outbound.ide.idDest, isProduced: selected.isProduced });
+
+        itens.push({
+            ...item,
+            prod: {
+                ...item.prod,
+                cfop,
+                qCom,
+                qTrib,
+                vProd,
+            },
+            imposto: {
+                ...item.imposto,
+                icms: item.imposto.icms
+                    ? {
+                        ...item.imposto.icms,
+                        vBC: scaleMaybeNumber(item.imposto.icms.vBC, ratio),
+                        vICMS: scaleMaybeNumber(item.imposto.icms.vICMS, ratio),
+                        vCredICMSSN: scaleMaybeNumber(item.imposto.icms.vCredICMSSN, ratio),
+                    }
+                    : undefined,
+                pis: item.imposto.pis
+                    ? {
+                        ...item.imposto.pis,
+                        vBC: scaleMaybeNumber(item.imposto.pis.vBC, ratio),
+                        vPIS: scaleMaybeNumber(item.imposto.pis.vPIS, ratio),
+                    }
+                    : undefined,
+                cofins: item.imposto.cofins
+                    ? {
+                        ...item.imposto.cofins,
+                        vBC: scaleMaybeNumber(item.imposto.cofins.vBC, ratio),
+                        vCOFINS: scaleMaybeNumber(item.imposto.cofins.vCOFINS, ratio),
+                    }
+                    : undefined,
+                vTotTrib: scaleMaybeNumber(item.imposto.vTotTrib, ratio),
+            },
+            vDesc: scaleMaybeNumber(item.vDesc, ratio),
+            vFrete: scaleMaybeNumber(item.vFrete, ratio),
+            vOutro: scaleMaybeNumber(item.vOutro, ratio),
+            vSeg: scaleMaybeNumber(item.vSeg, ratio),
+        });
+    }
+
+    if (itens.length === 0) {
+        throw new Error("Selecione ao menos 1 item para estorno.");
+    }
+
+    const pag: NfePag = {
+        detPag: [{
+            indPag: "0",
+            tPag: "90", // Sem pagamento
+            vPag: 0,
+        }],
+    };
+
+    const infCpl = buildReversalInfCpl({
+        outboundAccessKey: args.outboundAccessKey,
+        reasonCode: args.reasonCode,
+        reasonOther: args.reasonOther,
+        isPartial,
+    });
+
+    return {
+        ide,
+        emit,
+        dest,
+        itens: itens.map((i, idx) => ({ ...i, nItem: idx + 1 })), // re-number sequentially
+        transp: { modFrete: "9" },
+        pag,
+        infAdic: { infCpl },
+    };
+}
+
