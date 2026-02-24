@@ -59,6 +59,9 @@ export function buildIde(ide: NfeIde, cDV: string, tzOffset: string) {
         indFinal: ide.indFinal,
         indPres: ide.indPres,
         procEmi: ide.procEmi,
-        verProc: ide.verProc
+        verProc: ide.verProc,
+        ...(Array.isArray(ide.NFref) && ide.NFref.length > 0
+            ? { NFref: ide.NFref.map((ref) => ({ refNFe: ref.refNFe })) }
+            : {})
     };
 }

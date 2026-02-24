@@ -30,6 +30,9 @@ export interface NfeIde {
     chNFe?: string; // 44 digits, optional in draft
     cNF?: string; // Código Numérico
     cDV?: string; // Dígito Verificador
+    NFref?: Array<{
+        refNFe: string; // 44 digits
+    }>;
 }
 
 export interface NfeEmit {
