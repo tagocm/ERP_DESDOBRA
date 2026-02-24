@@ -18,14 +18,29 @@ function mapInboundCfop(args: { idDest: "1" | "2" | "3"; isProduced: boolean }):
     return interstate ? "2202" : "1202";
 }
 
-function inferIsProducedFromOutboundCfop(outboundCfop: string): boolean | null {
+function inferInboundStCfopFromOutboundCfop(outboundCfop: string, idDest: "1" | "2" | "3"): string | null {
     const digits = String(outboundCfop || "").replace(/\D/g, "");
     if (digits.length !== 4) return null;
     // We only infer from outbound sale CFOPs (5xxx/6xxx/7xxx).
     if (!["5", "6", "7"].includes(digits[0])) return null;
+    const interstate = idDest === "2";
     const suffix = digits.slice(-3);
-    if (suffix === "101") return true; // venda de producao do estabelecimento
-    if (suffix === "102") return false; // venda de mercadoria adquirida/terceiros
+    // ST sales: 5401/6401 (producao sujeita a ST) => devolucao 1410/2410
+    if (suffix === "401" || suffix === "402") return interstate ? "2410" : "1410";
+    // ST sales of third-party: 5403/5405/6403/6404/6405 (varies by UF) => devolucao 1411/2411
+    if (suffix === "403" || suffix === "404" || suffix === "405") return interstate ? "2411" : "1411";
+    return null;
+}
+
+function inferInboundRegularCfopFromOutboundCfop(outboundCfop: string, idDest: "1" | "2" | "3"): string | null {
+    const digits = String(outboundCfop || "").replace(/\D/g, "");
+    if (digits.length !== 4) return null;
+    // We only infer from outbound sale CFOPs (5xxx/6xxx/7xxx).
+    if (!["5", "6", "7"].includes(digits[0])) return null;
+    const interstate = idDest === "2";
+    const suffix = digits.slice(-3);
+    if (suffix === "101") return interstate ? "2201" : "1201"; // venda de producao do estabelecimento
+    if (suffix === "102") return interstate ? "2202" : "1202"; // venda de mercadoria adquirida/terceiros
     return null;
 }
 
@@ -68,9 +83,13 @@ export function buildInboundReversalNfe(args: {
 
     for (const item of outbound.itens) {
         const originalQty = item.prod.qCom;
+        const stCfopFromOutbound = inferInboundStCfopFromOutboundCfop(item.prod.cfop, outbound.ide.idDest);
+        const regularCfopFromOutbound = isPartial
+            ? null
+            : inferInboundRegularCfopFromOutboundCfop(item.prod.cfop, outbound.ide.idDest);
         const selected = isPartial
             ? args.selectionByNItem.get(item.nItem) || null
-            : { qty: originalQty, isProduced: inferIsProducedFromOutboundCfop(item.prod.cfop) ?? false };
+            : { qty: originalQty, isProduced: false };
 
         if (!selected || selected.qty <= 0) continue;
         if (selected.qty > originalQty) {
@@ -87,7 +106,9 @@ export function buildInboundReversalNfe(args: {
         const vUnCom = item.prod.vUnCom;
         const vProd = round2(vUnCom * qCom);
 
-        const cfop = mapInboundCfop({ idDest: outbound.ide.idDest, isProduced: selected.isProduced });
+        const cfop = stCfopFromOutbound
+            ?? regularCfopFromOutbound
+            ?? mapInboundCfop({ idDest: outbound.ide.idDest, isProduced: selected.isProduced });
 
         itens.push({
             ...item,

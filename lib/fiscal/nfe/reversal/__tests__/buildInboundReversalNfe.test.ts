@@ -144,6 +144,40 @@ describe("buildInboundReversalNfe", () => {
         expect(out.itens[0].prod.cfop).toBe("1201");
     });
 
+    it("infers ST return CFOP from outbound CFOP 5401 and uses 1410 (intra-state)", () => {
+        const draft = sampleOutboundDraft();
+        draft.ide.idDest = "1";
+        draft.itens[0].prod.cfop = "5401";
+
+        const out = buildInboundReversalNfe({
+            outboundDraft: draft,
+            outboundAccessKey: "1".repeat(44),
+            mode: "TOTAL",
+            selectionByNItem: new Map(),
+            reasonCode: "MERCADORIA_NAO_ENTREGUE",
+            nowIso: "2026-02-23T12:00:00.000-03:00",
+        });
+
+        expect(out.itens[0].prod.cfop).toBe("1410");
+    });
+
+    it("infers ST return CFOP from outbound CFOP 6401 and uses 2410 (inter-state)", () => {
+        const draft = sampleOutboundDraft();
+        draft.ide.idDest = "2";
+        draft.itens[0].prod.cfop = "6401";
+
+        const out = buildInboundReversalNfe({
+            outboundDraft: draft,
+            outboundAccessKey: "1".repeat(44),
+            mode: "TOTAL",
+            selectionByNItem: new Map(),
+            reasonCode: "MERCADORIA_NAO_ENTREGUE",
+            nowIso: "2026-02-23T12:00:00.000-03:00",
+        });
+
+        expect(out.itens[0].prod.cfop).toBe("2410");
+    });
+
     it("builds partial reversal with proportional qty and cfop by isProduced", () => {
         const draft = sampleOutboundDraft();
         const sel = new Map<number, { qty: number; isProduced: boolean }>([
