@@ -65,30 +65,19 @@ export async function replaceArInstallmentAllocations(params: {
     assertAllocationTotal(parsed.installmentAmount, parsed.allocations);
 
     const supabase = await createAdminClient();
-
-    const { error: deleteError } = await supabase
-        .from('ar_installment_allocations')
-        .delete()
-        .eq('ar_installment_id', parsed.installmentId);
-
-    if (deleteError) {
-        throw new Error(`Falha ao limpar rateios AR: ${deleteError.message}`);
-    }
-
     const payload = parsed.allocations.map((allocation) => ({
-        company_id: parsed.companyId,
-        ar_installment_id: parsed.installmentId,
         gl_account_id: allocation.gl_account_id,
         cost_center_id: allocation.cost_center_id ?? null,
         amount: allocation.amount
     }));
 
-    const { error: insertError } = await supabase
-        .from('ar_installment_allocations')
-        .insert(payload);
+    const { error } = await supabase.rpc('set_ar_installment_allocations', {
+        p_installment_id: parsed.installmentId,
+        p_allocations: payload
+    });
 
-    if (insertError) {
-        throw new Error(`Falha ao inserir rateios AR: ${insertError.message}`);
+    if (error) {
+        throw new Error(`Falha ao salvar rateios AR: ${error.message}`);
     }
 }
 
@@ -108,30 +97,19 @@ export async function replaceApInstallmentAllocations(params: {
     assertAllocationTotal(parsed.installmentAmount, parsed.allocations);
 
     const supabase = await createAdminClient();
-
-    const { error: deleteError } = await supabase
-        .from('ap_installment_allocations')
-        .delete()
-        .eq('ap_installment_id', parsed.installmentId);
-
-    if (deleteError) {
-        throw new Error(`Falha ao limpar rateios AP: ${deleteError.message}`);
-    }
-
     const payload = parsed.allocations.map((allocation) => ({
-        company_id: parsed.companyId,
-        ap_installment_id: parsed.installmentId,
         gl_account_id: allocation.gl_account_id,
         cost_center_id: allocation.cost_center_id ?? null,
         amount: allocation.amount
     }));
 
-    const { error: insertError } = await supabase
-        .from('ap_installment_allocations')
-        .insert(payload);
+    const { error } = await supabase.rpc('set_ap_installment_allocations', {
+        p_installment_id: parsed.installmentId,
+        p_allocations: payload
+    });
 
-    if (insertError) {
-        throw new Error(`Falha ao inserir rateios AP: ${insertError.message}`);
+    if (error) {
+        throw new Error(`Falha ao salvar rateios AP: ${error.message}`);
     }
 }
 
