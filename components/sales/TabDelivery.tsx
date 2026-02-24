@@ -7,7 +7,6 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { CarrierSelector } from "@/components/app/CarrierSelector";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { DecimalInput } from "@/components/ui/DecimalInput";
-import { Badge } from "@/components/ui/Badge";
 import { Truck, MapPin, Package, Calendar, CheckCircle2, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabaseBrowser";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -22,6 +21,19 @@ interface TabProps {
     onChange: (field: keyof SalesOrderDTO, value: any) => void;
     disabled?: boolean;
     useDeliveriesModel?: boolean;
+}
+
+function formatDateOnlyPtBr(value?: string | null): string {
+    if (!value) return '';
+    const isoDateMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoDateMatch) {
+        const [, year, month, day] = isoDateMatch;
+        return `${day}/${month}/${year}`;
+    }
+
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toLocaleDateString('pt-BR');
 }
 
 export function TabDelivery({ data, onChange, disabled, useDeliveriesModel }: TabProps) {
@@ -243,7 +255,7 @@ export function TabDelivery({ data, onChange, disabled, useDeliveriesModel }: Ta
                     <div className="relative">
                         <Input
                             type="text"
-                            value={data.scheduled_delivery_date ? new Date(data.scheduled_delivery_date).toLocaleDateString('pt-BR') : ''}
+                            value={formatDateOnlyPtBr(data.scheduled_delivery_date)}
                             disabled
                             placeholder="Definido pela rota"
                             className="bg-gray-50 cursor-not-allowed"
