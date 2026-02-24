@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { Textarea } from "@/components/ui/Textarea";
 import { Split, Trash2 } from "lucide-react";
 
 interface InstallmentDetailPanelProps {
@@ -19,8 +18,11 @@ interface InstallmentDetailPanelProps {
     costCenters?: CostCenterOption[];
 }
 
-export function InstallmentDetailPanel({ installment, isEditing, onChange, glAccounts = [], costCenters = [] }: InstallmentDetailPanelProps) {
-    const handleChange = (field: keyof EventInstallment, value: any) => {
+export function InstallmentDetailPanel({ installment, isEditing, onChange, glAccounts: _glAccounts = [], costCenters = [] }: InstallmentDetailPanelProps) {
+    const handleChange = (
+        field: keyof EventInstallment,
+        value: EventInstallment[keyof EventInstallment]
+    ) => {
         onChange({ ...installment, [field]: value });
     };
 
@@ -75,24 +77,12 @@ export function InstallmentDetailPanel({ installment, isEditing, onChange, glAcc
                     </Select>
                 </div>
 
-                {/* Conta (GL Account) */}
+                {/* Classificação Contábil */}
                 <div>
-                    <Label className="text-[10px] text-gray-500 mb-1 block uppercase tracking-wide">Conta Financeira</Label>
-                    <Select
-                        value={installment.suggested_account_id || 'none'}
-                        onValueChange={(v) => handleChange('suggested_account_id', v === 'none' ? null : v)}
-                        disabled={!isEditing}
-                    >
-                        <SelectTrigger className="bg-white h-8 text-xs">
-                            <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">Selecione...</SelectItem>
-                            {glAccounts.map(acc => (
-                                <SelectItem key={acc.id} value={acc.id}>{acc.code} - {acc.name}</SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <Label className="text-[10px] text-gray-500 mb-1 block uppercase tracking-wide">Classificação</Label>
+                    <div className="h-8 px-2 rounded border bg-white flex items-center text-xs text-blue-700 font-medium">
+                        Automática por categoria
+                    </div>
                 </div>
 
                 {/* Centro de Custo */}

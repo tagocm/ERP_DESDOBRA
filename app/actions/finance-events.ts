@@ -26,6 +26,7 @@ import {
 } from '@/lib/finance/events-db';
 import { generateTitleFromEvent } from '@/lib/finance/title-generator';
 import { recalculateInstallments } from '@/lib/utils/finance-calculations';
+import { buildRevenueBucketsFromSalesDocument } from '@/lib/finance/ar-sales-allocation';
 
 export interface ActionResult<T = any> {
     success: boolean;
@@ -57,6 +58,13 @@ export interface PaymentTermOption {
     installments_count: number;
     first_due_days: number;
     cadence_days: number;
+}
+
+export interface AutomaticAllocationPreviewRow {
+    gl_account_id: string;
+    code: string;
+    name: string;
+    amount: number;
 }
 
 /**
@@ -148,6 +156,79 @@ export async function listPaymentTermsAction(companyId: string): Promise<ActionR
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         logger.error('[listPaymentTermsAction] Error', { message });
+        return { success: false, error: message };
+    }
+}
+
+/**
+ * Read-only preview of automatic accounting allocation for an event.
+ */
+export async function getAutomaticAllocationPreviewAction(
+    eventId: string
+): Promise<ActionResult<AutomaticAllocationPreviewRow[]>> {
+    try {
+        const supabase = await createClient();
+        const event = await getEventWithDetails(eventId);
+
+        if (!event) {
+            return { success: false, error: 'Evento não encontrado' };
+        }
+
+        let grouped = new Map<string, number>();
+
+        if (event.origin_type === 'SALE' && event.origin_id) {
+            const buckets = await buildRevenueBucketsFromSalesDocument({
+                companyId: event.company_id,
+                salesDocumentId: event.origin_id,
+                totalAmount: event.total_amount
+            });
+
+            grouped = buckets.reduce<Map<string, number>>((acc, bucket) => {
+                acc.set(bucket.glAccountId, bucket.amountCents / 100);
+                return acc;
+            }, new Map<string, number>());
+        } else {
+            for (const installment of event.installments ?? []) {
+                if (!installment.suggested_account_id) continue;
+                grouped.set(
+                    installment.suggested_account_id,
+                    (grouped.get(installment.suggested_account_id) ?? 0) + installment.amount
+                );
+            }
+        }
+
+        const accountIds = Array.from(grouped.keys());
+        if (accountIds.length === 0) {
+            return { success: true, data: [] };
+        }
+
+        const { data: accounts, error: accountError } = await supabase
+            .from('gl_accounts')
+            .select('id, code, name')
+            .eq('company_id', event.company_id)
+            .in('id', accountIds);
+
+        if (accountError) {
+            throw accountError;
+        }
+
+        const accountMap = new Map((accounts ?? []).map((row) => [row.id, row]));
+        const rows: AutomaticAllocationPreviewRow[] = accountIds
+            .map((accountId) => {
+                const account = accountMap.get(accountId);
+                return {
+                    gl_account_id: accountId,
+                    code: account?.code ?? 'N/D',
+                    name: account?.name ?? 'Conta não encontrada',
+                    amount: grouped.get(accountId) ?? 0
+                };
+            })
+            .sort((left, right) => left.code.localeCompare(right.code));
+
+        return { success: true, data: rows };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[getAutomaticAllocationPreviewAction] Error', { message });
         return { success: false, error: message };
     }
 }
