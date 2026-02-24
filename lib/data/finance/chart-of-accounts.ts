@@ -55,8 +55,7 @@ const revenueCategoryRowSchema = z.object({
     normalized_name: z.string(),
     revenue_account_id: z.string().uuid().nullable(),
     is_active: z.boolean().nullable(),
-    account: z.object({ code: z.string() }).nullable(),
-    items: z.array(z.object({ count: z.number().int().nonnegative() })).nullable(),
+    account: z.object({ code: z.string() }).nullable().optional(),
 });
 
 const setRevenueCategoryActiveRpcSchema = z.object({
@@ -158,30 +157,36 @@ export async function getRevenueCategories() {
 
     const { data, error } = await supabase
         .from('product_categories')
-        .select(`
-            id,
-            name,
-            normalized_name,
-            revenue_account_id,
-            is_active,
-            account:gl_accounts!revenue_account_id (
-                code
-            ),
-            items:items!items_category_id_fkey(
-                count
-            )
-        `)
+        .select('id,name,normalized_name,revenue_account_id,is_active')
         .eq('company_id', companyId)
         .order('name');
 
     if (error) {
         console.error('Error fetching revenue categories:', error);
-        throw new Error('Falha ao carregar categorias de receita.');
+        throw new Error(`Falha ao carregar categorias de receita: ${error.message}`);
     }
 
     const parsed = z.array(revenueCategoryRowSchema).safeParse(data ?? []);
     if (!parsed.success) {
         throw new Error('Falha ao interpretar categorias de receita.');
+    }
+
+    const { data: itemsData, error: itemsError } = await supabase
+        .from('items')
+        .select('category_id')
+        .eq('company_id', companyId)
+        .not('category_id', 'is', null);
+
+    if (itemsError) {
+        console.error('Error fetching category usage:', itemsError);
+        throw new Error(`Falha ao carregar categorias de receita: ${itemsError.message}`);
+    }
+
+    const usageByCategoryId = new Map<string, number>();
+    for (const row of itemsData ?? []) {
+        const categoryId = (row as { category_id: string | null }).category_id;
+        if (!categoryId) continue;
+        usageByCategoryId.set(categoryId, (usageByCategoryId.get(categoryId) ?? 0) + 1);
     }
 
     return parsed.data.map((item): RevenueCategory => ({
@@ -191,7 +196,7 @@ export async function getRevenueCategories() {
         revenue_account_id: item.revenue_account_id ?? '',
         is_active: item.is_active ?? true,
         account_code: item.account?.code,
-        usage_count: item.items?.[0]?.count ?? 0,
+        usage_count: usageByCategoryId.get(item.id) ?? 0,
     }));
 }
 
