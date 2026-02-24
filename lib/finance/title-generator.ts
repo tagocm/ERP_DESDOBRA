@@ -5,6 +5,55 @@
 
 import { createAdminClient } from '@/lib/supabaseServer';
 import { FinancialEvent } from './events-db';
+import { buildInstallmentAllocationsMatrix, buildRevenueBucketsFromSalesDocument } from './ar-sales-allocation';
+import { replaceArInstallmentAllocations } from './installment-allocations';
+
+interface ArInstallmentRow {
+    id: string;
+    installment_number: number;
+    amount_original: number;
+}
+
+async function applyAutomaticArAllocations(params: {
+    event: FinancialEvent;
+    installments: ArInstallmentRow[];
+}): Promise<void> {
+    const { event, installments } = params;
+    if (event.origin_type !== 'SALE' || !event.origin_id) {
+        return;
+    }
+
+    const orderedInstallments = [...installments].sort(
+        (left, right) => left.installment_number - right.installment_number
+    );
+
+    const installmentIds = orderedInstallments.map((installment) => installment.id);
+    const installmentAmountsCents = orderedInstallments.map((installment) => Math.round(installment.amount_original * 100));
+    const totalInstallmentsCents = installmentAmountsCents.reduce((sum, current) => sum + current, 0);
+
+    const buckets = await buildRevenueBucketsFromSalesDocument({
+        companyId: event.company_id,
+        salesDocumentId: event.origin_id,
+        totalAmount: totalInstallmentsCents / 100
+    });
+
+    const matrix = buildInstallmentAllocationsMatrix({
+        installmentIds,
+        installmentAmountsCents,
+        normalizedBuckets: buckets
+    });
+
+    await Promise.all(
+        matrix.map((row) =>
+            replaceArInstallmentAllocations({
+                companyId: event.company_id,
+                installmentId: row.installmentId,
+                installmentAmount: row.installmentAmountCents / 100,
+                allocations: row.allocations
+            })
+        )
+    );
+}
 
 /**
  * Generate AR title and installments from approved event
@@ -19,23 +68,23 @@ export async function generateARTitle(event: FinancialEvent): Promise<string> {
         throw new Error('Failed to create AR title: partner_id (customer_id) is required');
     }
 
-    const ensureInstallmentsForTitle = async (titleId: string) => {
+    const ensureInstallmentsForTitle = async (titleId: string): Promise<ArInstallmentRow[]> => {
         if (!event.installments || event.installments.length === 0) {
             throw new Error('Cannot create AR title without installments');
         }
 
         const { data: existingInstallments, error: existingInstError } = await supabase
             .from('ar_installments')
-            .select('id')
+            .select('id, installment_number, amount_original')
             .eq('ar_title_id', titleId)
-            .limit(1);
+            .order('installment_number', { ascending: true });
 
         if (existingInstError) {
             throw new Error(`Failed to verify AR installments: ${existingInstError.message}`);
         }
 
         if (existingInstallments && existingInstallments.length > 0) {
-            return;
+            return existingInstallments as ArInstallmentRow[];
         }
 
         const installments = event.installments.map(inst => ({
@@ -53,13 +102,16 @@ export async function generateARTitle(event: FinancialEvent): Promise<string> {
             cost_center_id: inst.cost_center_id
         }));
 
-        const { error: instError } = await supabase
+        const { data: insertedInstallments, error: instError } = await supabase
             .from('ar_installments')
-            .insert(installments);
+            .insert(installments)
+            .select('id, installment_number, amount_original');
 
         if (instError) {
             throw new Error(`Failed to create AR installments: ${instError.message}`);
         }
+
+        return (insertedInstallments ?? []) as ArInstallmentRow[];
     };
 
     // Idempotency: if title already exists for this sales document, reuse it.
@@ -81,7 +133,11 @@ export async function generateARTitle(event: FinancialEvent): Promise<string> {
                 .update({ source_event_id: event.id })
                 .eq('id', existingTitle.id);
         }
-        await ensureInstallmentsForTitle(existingTitle.id);
+        const installments = await ensureInstallmentsForTitle(existingTitle.id);
+        await applyAutomaticArAllocations({
+            event,
+            installments
+        });
         return existingTitle.id;
     }
 
@@ -131,7 +187,11 @@ export async function generateARTitle(event: FinancialEvent): Promise<string> {
 
     // 2. Create ar_installments from event installments (if absent)
     try {
-        await ensureInstallmentsForTitle(title.id);
+        const installments = await ensureInstallmentsForTitle(title.id);
+        await applyAutomaticArAllocations({
+            event,
+            installments
+        });
     } catch (error) {
         // Rollback title creation
         await supabase.from('ar_titles').delete().eq('id', title.id);

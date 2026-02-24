@@ -146,6 +146,36 @@ export interface InstallmentAllocationView {
     amount: number;
 }
 
+function extractRelationObject(
+    value: unknown
+): { code: string | null; name: string | null } | null {
+    if (!value) return null;
+    if (Array.isArray(value)) {
+        const first = value[0];
+        if (!first || typeof first !== 'object') return null;
+        const parsed = z.object({
+            code: z.string().nullable().optional(),
+            name: z.string().nullable().optional()
+        }).safeParse(first);
+        if (!parsed.success) return null;
+        return {
+            code: parsed.data.code ?? null,
+            name: parsed.data.name ?? null
+        };
+    }
+
+    if (typeof value !== 'object') return null;
+    const parsed = z.object({
+        code: z.string().nullable().optional(),
+        name: z.string().nullable().optional()
+    }).safeParse(value);
+    if (!parsed.success) return null;
+    return {
+        code: parsed.data.code ?? null,
+        name: parsed.data.name ?? null
+    };
+}
+
 export async function listArAllocationsByTitle(
     titleId: string
 ): Promise<Record<string, InstallmentAllocationView[]>> {
@@ -183,14 +213,16 @@ export async function listArAllocationsByTitle(
         throw new Error(error.message);
     }
 
-    const rows = (data ?? []) as Array<{
-        amount: number;
-        ar_installment_id: string;
-        gl_account_id: string;
-        cost_center_id: string | null;
-        gl_account: { code: string; name: string } | null;
-        cost_center: { code: string | null; name: string } | null;
-    }>;
+    const rows = z.array(
+        z.object({
+            amount: z.coerce.number(),
+            ar_installment_id: z.string().uuid(),
+            gl_account_id: z.string().uuid(),
+            cost_center_id: z.string().uuid().nullable(),
+            gl_account: z.unknown().optional(),
+            cost_center: z.unknown().optional()
+        })
+    ).parse(data ?? []);
 
     return rows.reduce<Record<string, InstallmentAllocationView[]>>((acc, row) => {
         const key = row.ar_installment_id;
@@ -200,11 +232,11 @@ export async function listArAllocationsByTitle(
         acc[key].push({
             installment_id: row.ar_installment_id,
             gl_account_id: row.gl_account_id,
-            gl_account_code: row.gl_account?.code ?? '',
-            gl_account_name: row.gl_account?.name ?? '',
+            gl_account_code: extractRelationObject(row.gl_account)?.code ?? '',
+            gl_account_name: extractRelationObject(row.gl_account)?.name ?? '',
             cost_center_id: row.cost_center_id,
-            cost_center_code: row.cost_center?.code ?? null,
-            cost_center_name: row.cost_center?.name ?? null,
+            cost_center_code: extractRelationObject(row.cost_center)?.code ?? null,
+            cost_center_name: extractRelationObject(row.cost_center)?.name ?? null,
             amount: row.amount
         });
         return acc;
@@ -248,14 +280,16 @@ export async function listApAllocationsByTitle(
         throw new Error(error.message);
     }
 
-    const rows = (data ?? []) as Array<{
-        amount: number;
-        ap_installment_id: string;
-        gl_account_id: string;
-        cost_center_id: string | null;
-        gl_account: { code: string; name: string } | null;
-        cost_center: { code: string | null; name: string } | null;
-    }>;
+    const rows = z.array(
+        z.object({
+            amount: z.coerce.number(),
+            ap_installment_id: z.string().uuid(),
+            gl_account_id: z.string().uuid(),
+            cost_center_id: z.string().uuid().nullable(),
+            gl_account: z.unknown().optional(),
+            cost_center: z.unknown().optional()
+        })
+    ).parse(data ?? []);
 
     return rows.reduce<Record<string, InstallmentAllocationView[]>>((acc, row) => {
         const key = row.ap_installment_id;
@@ -265,11 +299,11 @@ export async function listApAllocationsByTitle(
         acc[key].push({
             installment_id: row.ap_installment_id,
             gl_account_id: row.gl_account_id,
-            gl_account_code: row.gl_account?.code ?? '',
-            gl_account_name: row.gl_account?.name ?? '',
+            gl_account_code: extractRelationObject(row.gl_account)?.code ?? '',
+            gl_account_name: extractRelationObject(row.gl_account)?.name ?? '',
             cost_center_id: row.cost_center_id,
-            cost_center_code: row.cost_center?.code ?? null,
-            cost_center_name: row.cost_center?.name ?? null,
+            cost_center_code: extractRelationObject(row.cost_center)?.code ?? null,
+            cost_center_name: extractRelationObject(row.cost_center)?.name ?? null,
             amount: row.amount
         });
         return acc;
