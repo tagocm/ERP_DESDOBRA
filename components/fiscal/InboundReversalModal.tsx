@@ -204,51 +204,56 @@ export function InboundReversalModal(props: Props) {
                 className={[
                     // Override base DialogContent layout (grid) to avoid min-height issues with scrollable children.
                     "flex flex-col",
-                    // Avoid clipping the header: always pin near the top (centering can push the title out of viewport on tall modals).
-                    "top-3 translate-y-0",
-                    "w-[calc(100vw-1.5rem)] max-w-4xl",
-                    "max-h-[calc(100vh-1.5rem)] overflow-hidden p-0",
+                    // Pin to top and override base centering transform to avoid clipping the header on tall modals.
+                    "!top-4 !translate-y-0",
+                    "w-[calc(100vw-2rem)] max-w-5xl",
+                    "!max-h-[calc(100vh-2rem)] overflow-hidden p-0",
                 ].join(" ")}
             >
-                    <div className="px-6 py-5">
-                        <DialogHeader className="space-y-2">
-                            <DialogTitle>Gerar NF-e de Entrada (Estorno)</DialogTitle>
-                            <DialogDescription>
-                                Isso não cancela a NF-e original. Gera uma NF-e de entrada (devolução) referenciando a chave da NF-e de saída.
-                            </DialogDescription>
-                        </DialogHeader>
-                    </div>
+                <div className="sticky top-0 z-10 border-b border-gray-100 bg-white px-6 py-4">
+                    <DialogHeader className="space-y-1">
+                        <DialogTitle className="text-xl">Gerar NF-e de Entrada (Estorno)</DialogTitle>
+                        <DialogDescription>
+                            Isso não cancela a NF-e original. Gera uma NF-e de entrada (devolução) referenciando a chave da NF-e de saída.
+                        </DialogDescription>
+                    </DialogHeader>
 
-                    <div className="min-h-0 flex-1 overflow-auto px-6 pb-6">
-                        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm">
-                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                <div>
-                                    <div className="text-gray-600">NF-e de saída</div>
-                                    <div className="font-semibold text-gray-900">
-                                        {emissionSummary?.numero ?? "-"} / Série {emissionSummary?.serie ?? "-"}
-                                    </div>
+                    <div className="mt-4 rounded-2xl border border-gray-200 bg-gray-50 p-3 text-sm">
+                        <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+                            <div>
+                                <div className="text-xs font-medium uppercase tracking-wider text-gray-500">NF-e de saída</div>
+                                <div className="font-semibold text-gray-900">
+                                    {emissionSummary?.numero ?? "-"} / Série {emissionSummary?.serie ?? "-"}
                                 </div>
-                                <div>
-                                    <div className="text-gray-600">Chave</div>
-                                    <div className="font-mono text-xs text-gray-900 break-all">{emissionSummary?.accessKey ?? "-"}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Cliente</div>
+                                <div className="font-semibold text-gray-900">{emissionSummary?.clientName ?? "-"}</div>
+                            </div>
+                            <div>
+                                <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Total</div>
+                                <div className="font-semibold text-gray-900">
+                                    {typeof emissionSummary?.totalAmount === "number"
+                                        ? emissionSummary.totalAmount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                                        : "-"}
                                 </div>
-                                <div>
-                                    <div className="text-gray-600">Cliente</div>
-                                    <div className="font-semibold text-gray-900">{emissionSummary?.clientName ?? "-"}</div>
-                                </div>
-                                <div>
-                                    <div className="text-gray-600">Total</div>
-                                    <div className="font-semibold text-gray-900">
-                                        {typeof emissionSummary?.totalAmount === "number"
-                                            ? emissionSummary.totalAmount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-                                            : "-"}
-                                    </div>
+                            </div>
+                            <div className="md:col-span-1">
+                                <div className="text-xs font-medium uppercase tracking-wider text-gray-500">Chave</div>
+                                <div className="font-mono text-[11px] leading-4 text-gray-900 break-all">
+                                    {emissionSummary?.accessKey ?? "-"}
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2">
-                            <div className="space-y-4">
+                <div className="min-h-0 flex-1 overflow-auto p-6">
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[380px_1fr]">
+                        <div className="space-y-4">
+                            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                                <div className="mb-3 text-sm font-semibold text-gray-900">Configuração</div>
+
                                 <div className="space-y-2">
                                     <Label>Tipo de estorno</Label>
                                     <RadioGroup
@@ -256,18 +261,18 @@ export function InboundReversalModal(props: Props) {
                                         onValueChange={(value) => setMode(ReversalModeSchema.parse(value))}
                                         className="grid grid-cols-2 gap-2"
                                     >
-                                        <label className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+                                        <label className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white p-3 shadow-card">
                                             <RadioGroupItem value="TOTAL" />
                                             <div className="text-sm font-medium text-gray-900">Total</div>
                                         </label>
-                                        <label className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white p-3 shadow-sm">
+                                        <label className="flex items-center gap-2 rounded-2xl border border-gray-200 bg-white p-3 shadow-card">
                                             <RadioGroupItem value="PARCIAL" />
                                             <div className="text-sm font-medium text-gray-900">Parcial</div>
                                         </label>
                                     </RadioGroup>
                                 </div>
 
-                                <div className="space-y-2">
+                                <div className="mt-4 space-y-2">
                                     <Label>Motivo (obrigatório)</Label>
                                     <Select value={reasonCode ?? ""} onValueChange={(value) => setReasonCode(ReversalReasonCodeSchema.parse(value))}>
                                         <SelectTrigger>
@@ -284,7 +289,7 @@ export function InboundReversalModal(props: Props) {
                                 </div>
 
                                 {reasonCode === "OUTROS" && (
-                                    <div className="space-y-2">
+                                    <div className="mt-4 space-y-2">
                                         <Label>Descreva o motivo</Label>
                                         <Textarea
                                             value={reasonOther}
@@ -295,7 +300,7 @@ export function InboundReversalModal(props: Props) {
                                     </div>
                                 )}
 
-                                <div className="space-y-2">
+                                <div className="mt-4 space-y-2">
                                     <Label>Observações internas (opcional)</Label>
                                     <Textarea
                                         value={internalNotes}
@@ -306,103 +311,106 @@ export function InboundReversalModal(props: Props) {
                                 </div>
                             </div>
 
-                            <div className="space-y-4">
-                                <div className="space-y-2">
-                                    <Label>Prévia (read-only)</Label>
-                                    <div className="rounded-2xl border border-gray-200 bg-white p-3 text-sm">
-                                        <div className="text-gray-600">natOp</div>
-                                        <div className="font-semibold text-gray-900">{REVERSAL_NATOP}</div>
-                                        <div className="mt-3 text-gray-600">infCpl</div>
-                                        <div className="text-gray-900">{infCplPreview || "Selecione o motivo para ver a prévia."}</div>
-                                    </div>
-                                </div>
+                            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+                                <div className="mb-2 text-sm font-semibold text-gray-900">Texto para SEFAZ (prévia)</div>
+                                <div className="text-xs text-gray-500">Read-only</div>
 
-                                <div className="space-y-2">
-                                    <Label>Itens</Label>
-                                    <div className="rounded-2xl border border-gray-200 bg-white">
-                                        <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
-                                            <div className="text-sm font-semibold text-gray-900">
-                                                {isPartial ? "Selecione as quantidades para estorno" : "Estorno total (quantidades originais)"}
-                                            </div>
-                                            {isLoading && <Loader2 className="h-4 w-4 animate-spin text-gray-500" />}
-                                        </div>
-                                        <div className="max-h-[320px] overflow-auto">
-                                            {isLoading && (
-                                                <div className="p-4 text-sm text-gray-600">Carregando itens...</div>
-                                            )}
-                                            {!isLoading && !details && (
-                                                <div className="p-4 text-sm text-gray-600">Nenhum dado carregado.</div>
-                                            )}
-                                            {!isLoading && details && details.items.length === 0 && (
-                                                <div className="p-4 text-sm text-gray-600">Nenhum item encontrado.</div>
-                                            )}
-                                            {!isLoading && details && details.items.length > 0 && (
-                                                <table className="w-full text-sm">
-                                                    <thead className="sticky top-0 bg-white">
-                                                        <tr className="text-left text-xs uppercase tracking-wider text-gray-500">
-                                                            <th className="px-4 py-2">#</th>
-                                                            <th className="px-4 py-2">Produto</th>
-                                                            <th className="px-4 py-2">Qtd. original</th>
-                                                            <th className="px-4 py-2">{isPartial ? "Qtd. estorno" : "Qtd."}</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-gray-100">
-                                                        {details.items.map((it) => (
-                                                            <tr key={it.nItem}>
-                                                                <td className="px-4 py-2 text-gray-500">{it.nItem}</td>
-                                                                <td className="px-4 py-2">
-                                                                    <div className="font-medium text-gray-900">{it.name}</div>
-                                                                    {it.sku ? <div className="text-xs text-gray-500">SKU {it.sku}</div> : null}
-                                                                </td>
-                                                                <td className="px-4 py-2 text-gray-900">{it.quantity}</td>
-                                                                <td className="px-4 py-2">
-                                                                    <Input
-                                                                        type="number"
-                                                                        step="0.0001"
-                                                                        min={0}
-                                                                        max={it.quantity}
-                                                                        disabled={!isPartial}
-                                                                        value={qtyByNItem.get(it.nItem) ?? ""}
-                                                                        onChange={(e) => {
-                                                                            const next = new Map(qtyByNItem);
-                                                                            next.set(it.nItem, e.target.value);
-                                                                            setQtyByNItem(next);
-                                                                        }}
-                                                                        className="h-9 w-32"
-                                                                    />
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                        Dica: para estorno parcial, informe apenas as quantidades que devem retornar (0 ignora o item).
-                                    </div>
+                                <div className="mt-3 rounded-2xl border border-gray-200 bg-gray-50 p-3 text-sm">
+                                    <div className="text-gray-600">natOp</div>
+                                    <div className="font-semibold text-gray-900">{REVERSAL_NATOP}</div>
+                                    <div className="mt-3 text-gray-600">infCpl</div>
+                                    <div className="text-gray-900">{infCplPreview || "Selecione o motivo para ver a prévia."}</div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="border-t border-gray-100 px-6 py-4">
-                        <DialogFooter className="gap-2">
-                            <Button variant="outline" onClick={() => props.onOpenChange(false)} disabled={isSubmitting}>
-                                Cancelar
-                            </Button>
-                            <Button onClick={handleSubmit} disabled={props.disabled || isSubmitting || isLoading || !details}>
-                                {isSubmitting ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        Gerando...
-                                    </>
-                                ) : (
-                                    "Gerar NF-e de Entrada"
+                        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm">
+                            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                                <div>
+                                    <div className="text-sm font-semibold text-gray-900">Itens do estorno</div>
+                                    <div className="text-xs text-gray-500">
+                                        {isPartial ? "Informe as quantidades que devem retornar." : "Estorno total usa as quantidades originais."}
+                                    </div>
+                                </div>
+                                {isLoading && <Loader2 className="h-4 w-4 animate-spin text-gray-500" />}
+                            </div>
+
+                            <div className="max-h-[520px] overflow-auto">
+                                {isLoading && (
+                                    <div className="p-4 text-sm text-gray-600">Carregando itens...</div>
                                 )}
-                            </Button>
-                        </DialogFooter>
+                                {!isLoading && !details && (
+                                    <div className="p-4 text-sm text-gray-600">Nenhum dado carregado.</div>
+                                )}
+                                {!isLoading && details && details.items.length === 0 && (
+                                    <div className="p-4 text-sm text-gray-600">Nenhum item encontrado.</div>
+                                )}
+                                {!isLoading && details && details.items.length > 0 && (
+                                    <table className="w-full text-sm">
+                                        <thead className="sticky top-0 bg-white">
+                                            <tr className="text-left text-xs uppercase tracking-wider text-gray-500">
+                                                <th className="px-4 py-2">#</th>
+                                                <th className="px-4 py-2">Produto</th>
+                                                <th className="px-4 py-2">Qtd. original</th>
+                                                <th className="px-4 py-2">{isPartial ? "Qtd. estorno" : "Qtd."}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {details.items.map((it) => (
+                                                <tr key={it.nItem}>
+                                                    <td className="px-4 py-3 text-gray-500">{it.nItem}</td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="font-medium text-gray-900">{it.name}</div>
+                                                        {it.sku ? <div className="text-xs text-gray-500">SKU {it.sku}</div> : null}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-gray-900">{it.quantity}</td>
+                                                    <td className="px-4 py-3">
+                                                        <Input
+                                                            type="number"
+                                                            step="0.0001"
+                                                            min={0}
+                                                            max={it.quantity}
+                                                            disabled={!isPartial}
+                                                            value={qtyByNItem.get(it.nItem) ?? ""}
+                                                            onChange={(e) => {
+                                                                const next = new Map(qtyByNItem);
+                                                                next.set(it.nItem, e.target.value);
+                                                                setQtyByNItem(next);
+                                                            }}
+                                                            className="h-9 w-32"
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                )}
+                            </div>
+
+                            <div className="border-t border-gray-100 px-4 py-3 text-xs text-gray-500">
+                                Dica: no estorno parcial, informe apenas as quantidades que devem retornar (0 ignora o item).
+                            </div>
+                        </div>
                     </div>
+                </div>
+
+                <div className="sticky bottom-0 border-t border-gray-100 bg-white px-6 py-4">
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => props.onOpenChange(false)} disabled={isSubmitting}>
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleSubmit} disabled={props.disabled || isSubmitting || isLoading || !details}>
+                            {isSubmitting ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Gerando...
+                                </>
+                            ) : (
+                                "Gerar NF-e de Entrada"
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </div>
             </DialogContent>
         </Dialog>
     );
