@@ -204,8 +204,8 @@ export function InboundReversalModal(props: Props) {
                 className={[
                     // Override base DialogContent layout (grid) to avoid min-height issues with scrollable children.
                     "flex flex-col",
-                    // Avoid clipping the header on shorter viewports: pin to top on mobile/small height, center on sm+.
-                    "top-3 translate-y-0 sm:top-1/2 sm:-translate-y-1/2",
+                    // Avoid clipping the header: always pin near the top (centering can push the title out of viewport on tall modals).
+                    "top-3 translate-y-0",
                     "w-[calc(100vw-1.5rem)] max-w-4xl",
                     "max-h-[calc(100vh-1.5rem)] overflow-hidden p-0",
                 ].join(" ")}
