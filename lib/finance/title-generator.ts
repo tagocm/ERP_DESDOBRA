@@ -114,6 +114,26 @@ export async function generateARTitle(event: FinancialEvent): Promise<string> {
         return (insertedInstallments ?? []) as ArInstallmentRow[];
     };
 
+    const { data: existingByEvent, error: existingByEventError } = await supabase
+        .from('ar_titles')
+        .select('id')
+        .eq('company_id', event.company_id)
+        .eq('source_event_id', event.id)
+        .maybeSingle();
+
+    if (existingByEventError) {
+        throw new Error(`Failed to check existing AR title by event: ${existingByEventError.message}`);
+    }
+
+    if (existingByEvent?.id) {
+        const installments = await ensureInstallmentsForTitle(existingByEvent.id);
+        await applyAutomaticArAllocations({
+            event,
+            installments
+        });
+        return existingByEvent.id;
+    }
+
     // Idempotency: if title already exists for this sales document, reuse it.
     const { data: existingTitle, error: existingTitleError } = await supabase
         .from('ar_titles')
