@@ -12,7 +12,7 @@ import { buildDraftFromDb } from '@/lib/fiscal/nfe/offline/mappers';
  * - NFe Draft Snapshot
  * - Connected Financial Events
  */
-export async function validateOrderIntegrity(supabase: SupabaseClient, orderId: string, companyId: string) {
+export async function validateOrderIntegrity(supabase: SupabaseClient, orderId: string, _companyId: string) {
     logger.info(`[OrderAudit] Starting integrity check for order ${orderId}`);
 
     // 1. Fetch Order with full details
@@ -21,8 +21,9 @@ export async function validateOrderIntegrity(supabase: SupabaseClient, orderId: 
         throw new Error(`Pedido não encontrado: ${orderId}`);
     }
 
-    if (order.status_commercial !== 'confirmed') {
-        logger.info(`[OrderAudit] Order is not CONFIRMED (status: ${order.status_commercial}). Skipping deep audit.`);
+    const isFinanciallyRelevantStatus = ['confirmed', 'approved'].includes(order.status_commercial || '');
+    if (!isFinanciallyRelevantStatus) {
+        logger.info(`[OrderAudit] Order is not financially relevant (status: ${order.status_commercial}). Skipping deep audit.`);
         return { status: 'skipped', reason: 'Not confirmed' };
     }
 
@@ -156,33 +157,86 @@ export async function validateOrderIntegrity(supabase: SupabaseClient, orderId: 
 
     // --- 4. Sync Financial Events ---
     // Make sure the financial_event totals and status match
-    const { data: events } = await supabase.from('financial_events').select('*').eq('origin_id', orderId);
+    const { data: events } = await supabase
+        .from('financial_events')
+        .select('*')
+        .eq('origin_type', 'SALE')
+        .eq('origin_id', orderId);
 
     if (events && events.length > 0) {
+        // Use explicit order installments as the source of truth; fallback to 1x if none exists.
+        const { data: currentPayments } = await supabase
+            .from('sales_document_payments')
+            .select('installment_number, due_date, amount')
+            .eq('document_id', orderId)
+            .order('installment_number', { ascending: true });
+
+        const normalizedInstallments = (currentPayments && currentPayments.length > 0)
+            ? currentPayments.map((p, idx) => ({
+                installment_number: p.installment_number || (idx + 1),
+                due_date: p.due_date,
+                amount: Number(p.amount || 0)
+            }))
+            : [{
+                installment_number: 1,
+                due_date: order.date_issued || new Date().toISOString().split('T')[0],
+                amount: Number(order.total_amount || 0)
+            }];
+
         for (const event of events) {
-            if (Math.abs(event.total_amount - order.total_amount) > 0.01) {
-                logger.warn(`[OrderAudit] Rebuilding financial events. Event ${event.id} total mismatch (Event=${event.total_amount}, Order=${order.total_amount}).`);
-                needsFinancialEventSync = true;
+            // Never mutate finalized events; user requested sync only for non-approved records.
+            if (event.status === 'approved' || event.status === 'approving') continue;
 
-                await supabase.from('financial_events').update({
-                    total_amount: order.total_amount
-                }).eq('id', event.id);
+            const hasTotalMismatch = Math.abs(Number(event.total_amount || 0) - Number(order.total_amount || 0)) > 0.01;
+            if (hasTotalMismatch) {
+                logger.warn(`[OrderAudit] Syncing pending financial event ${event.id}. Total mismatch (Event=${event.total_amount}, Order=${order.total_amount}).`);
+            }
 
-                // Also rebuild financial event installments
-                await supabase.from('financial_event_installments').delete().eq('event_id', event.id);
+            const { error: eventUpdateError } = await supabase
+                .from('financial_events')
+                .update({ total_amount: order.total_amount })
+                .eq('id', event.id);
 
-                const freshOrderForPayments = await getSalesDocumentById(supabase, orderId);
-                const eventInstallments = (freshOrderForPayments.payments || []).map((p, idx) => ({
-                    event_id: event.id,
-                    installment_number: p.installment_number || (idx + 1),
-                    due_date: p.due_date,
-                    amount: p.amount
-                }));
+            if (eventUpdateError) throw eventUpdateError;
 
-                if (eventInstallments.length > 0) {
-                    await supabase.from('financial_event_installments').insert(eventInstallments);
+            const eventInstallments = normalizedInstallments.map((p) => ({
+                event_id: event.id,
+                installment_number: p.installment_number,
+                due_date: p.due_date,
+                amount: p.amount
+            }));
+
+            const { error: upsertInstallmentsError } = await supabase
+                .from('financial_event_installments')
+                .upsert(eventInstallments, { onConflict: 'event_id,installment_number' });
+
+            if (upsertInstallmentsError) throw upsertInstallmentsError;
+
+            // Best-effort cleanup of stale installments when event is mutable.
+            if (event.status === 'pending' || event.status === 'attention') {
+                const keepNumbers = new Set(eventInstallments.map((row) => row.installment_number));
+                const { data: existingRows } = await supabase
+                    .from('financial_event_installments')
+                    .select('id, installment_number')
+                    .eq('event_id', event.id);
+
+                const staleIds = (existingRows || [])
+                    .filter((row) => !keepNumbers.has(row.installment_number))
+                    .map((row) => row.id);
+
+                if (staleIds.length > 0) {
+                    const { error: deleteStaleError } = await supabase
+                        .from('financial_event_installments')
+                        .delete()
+                        .in('id', staleIds);
+
+                    if (deleteStaleError) {
+                        logger.warn(`[OrderAudit] Could not remove stale installments for event ${event.id}: ${deleteStaleError.message}`);
+                    }
                 }
             }
+
+            needsFinancialEventSync = true;
         }
     }
 
