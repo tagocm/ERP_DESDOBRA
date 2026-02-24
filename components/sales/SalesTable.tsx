@@ -2,7 +2,7 @@
 
 import { SalesOrderDTO } from "@/lib/types/sales-dto";
 import { format } from "date-fns";
-import { Eye, FileText, Trash2, X, Printer, Loader2, Download, CheckCircle } from "lucide-react";
+import { Eye, FileText, Trash2, X, Printer, Loader2, Download, CheckCircle, MoreVertical, Copy } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import Link from "next/link";
@@ -17,7 +17,12 @@ import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
 import { useToast } from "@/components/ui/use-toast";
 import { useRouter } from "next/navigation";
 import { Checkbox } from "@/components/ui/Checkbox";
-// DropdownMenu imports removed
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/DropdownMenu";
 
 interface SalesTableProps {
     data: SalesOrderDTO[];
@@ -31,6 +36,7 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [orderToDelete, setOrderToDelete] = useState<SalesOrderDTO | null>(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [duplicatingOrderId, setDuplicatingOrderId] = useState<string | null>(null);
 
     // Batch actions state
     const [isBatchPrinting, setIsBatchPrinting] = useState(false);
@@ -97,6 +103,41 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
         }
         setOrderToDelete(order);
         setDeleteDialogOpen(true);
+    };
+
+    const handleDuplicateClick = async (order: SalesOrderDTO) => {
+        setDuplicatingOrderId(order.id);
+        try {
+            const response = await fetch(`/api/sales/orders/${order.id}/duplicate`, {
+                method: 'POST',
+            });
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Erro ao duplicar pedido');
+            }
+
+            const newOrderId = result?.data?.id;
+            if (!newOrderId) {
+                throw new Error('Orçamento duplicado sem ID de retorno');
+            }
+
+            toast({
+                title: 'Orçamento duplicado',
+                description: `Pedido #${order.document_number?.toString().padStart(4, '0')} duplicado com sucesso.`
+            });
+
+            router.push(`/app/vendas/pedidos/${newOrderId}`);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : 'Não foi possível duplicar o pedido.';
+            toast({
+                title: 'Erro ao duplicar',
+                description: message,
+                variant: 'destructive'
+            });
+        } finally {
+            setDuplicatingOrderId(null);
+        }
     };
 
     const handleConfirmDelete = async () => {
@@ -528,6 +569,29 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
                                                     <Eye className="h-4 w-4" />
                                                 </Button>
                                             </Link>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 w-8 p-0"
+                                                        disabled={duplicatingOrderId === order.id}
+                                                        title="Mais ações"
+                                                    >
+                                                        {duplicatingOrderId === order.id ? (
+                                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                                        ) : (
+                                                            <MoreVertical className="h-4 w-4" />
+                                                        )}
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => handleDuplicateClick(order)}>
+                                                        <Copy className="mr-2 h-4 w-4" />
+                                                        Duplicar pedido
+                                                    </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
                                             <Button
                                                 variant="ghost"
                                                 size="sm"

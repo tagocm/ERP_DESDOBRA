@@ -269,7 +269,7 @@ export async function upsertSalesItem(supabase: SupabaseClient, item: Partial<Sa
     });
 
     // Explicitly remove computed fields that are NOT columns if they exist
-    const nonColumnFields = ['total_price', 'product_name', 'deliveries', 'history', 'nfes'];
+    const nonColumnFields = ['total_price', 'product_name', 'deliveries', 'history', 'nfes', 'fiscal_operation'];
     nonColumnFields.forEach(k => delete cleanItem[k]);
 
     // Guard for mixed environments where UI still carries this derived field.
