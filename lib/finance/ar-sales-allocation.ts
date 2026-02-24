@@ -1,5 +1,3 @@
-import 'server-only';
-
 import { createAdminClient } from '@/lib/supabaseServer';
 import { z } from 'zod';
 
