@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense, useRef } from "react";
+import { useEffect, useState, Suspense, useRef, useCallback, useMemo } from "react";
 import { useCompany } from "@/contexts/CompanyContext";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { createClient } from "@/lib/supabaseBrowser";
@@ -8,7 +8,6 @@ import { getOrganizations, Organization, deleteOrganization } from "@/lib/client
 import { DataTable, Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Plus, Search, Trash2, Edit2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -38,14 +37,15 @@ function PessoasEmpresasContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const [data, setData] = useState<OrganizationList[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [search, setSearch] = useState("");
+    const [sortBy, setSortBy] = useState<"trade_name" | "document_number" | "city" | "status">("trade_name");
+    const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+
     const [currentPage, setCurrentPage] = useState(1);
     const PAGE_SIZE = 100;
     const [allData, setAllData] = useState<OrganizationList[]>([]); // Store all records
     const [filteredData, setFilteredData] = useState<OrganizationList[]>([]); // Store filtered records
-    // const [searchDebounced, setSearchDebounced] = useState(""); // Removed server-side debounce
 
     const { toast } = useToast();
     const toastShownRef = useRef<string | null>(null);
@@ -65,13 +65,13 @@ function PessoasEmpresasContent() {
     }, [searchParams, router, toast]);
 
     // Fetch ALL organizations once
-    const fetchOrganizations = async () => {
+    const fetchOrganizations = useCallback(async () => {
         if (!selectedCompany) return;
         setIsLoading(true);
         try {
             // Fetch all (no search param)
             const orgs = await getOrganizations(supabase, selectedCompany.id);
-            const list = orgs as any[];
+            const list = orgs as OrganizationList[];
             setAllData(list);
             setFilteredData(list);
         } catch (error) {
@@ -80,54 +80,76 @@ function PessoasEmpresasContent() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [selectedCompany, supabase, toast]);
 
     useEffect(() => {
         fetchOrganizations();
-    }, [selectedCompany]);
+    }, [fetchOrganizations]);
 
-    // Client-side filtering logic
-    useEffect(() => {
-        if (!allData) return;
-
-        // 1. Filter by Text (Search)
+    const applyFilters = useCallback((searchValue: string) => {
         let result = allData;
 
-        if (search.trim()) {
-            const lower = search.toLowerCase();
-            result = result.filter(item =>
-                (item.trade_name?.toLowerCase().includes(lower)) ||
-                (item.legal_name?.toLowerCase().includes(lower)) ||
-                (item.document_number?.includes(lower))
+        const searchTerm = searchValue.trim().toLowerCase();
+        if (searchTerm) {
+            result = result.filter((item) =>
+                (item.trade_name?.toLowerCase().includes(searchTerm)) ||
+                (item.legal_name?.toLowerCase().includes(searchTerm)) ||
+                (item.document_number?.toLowerCase().includes(searchTerm))
             );
         }
 
-        // 2. Filter by Role (Optional - user has this UI but it said "In Development")
-        // If we want to implement it now since we have the data... The user didn't ask explicitly but it makes sense.
-        // The previous code had a warning saying it wasn't working.
-        // Let's implement it if feasible. The 'role' check might require fetching roles too or checking properties.
-        // OrganizationList doesn't explicitly have 'roles' array attached in the simple fetch?
-        // getOrganizations returns "*, addresses(...)". 
-        // It does NOT return roles by default unless joined (organization_roles).
-        // So I will stick to just SEARCH filtering for now to be safe and identical to request.
-
         setFilteredData(result);
-
-    }, [search, allData]);
+        setCurrentPage(1);
+    }, [allData]);
 
     useEffect(() => {
-        setCurrentPage(1);
-    }, [search, allData.length]);
+        applyFilters(search);
+    }, [applyFilters, search]);
 
     const totalFiltered = filteredData.length;
+    const getSortValue = useCallback((item: OrganizationList, key: "trade_name" | "document_number" | "city" | "status") => {
+        if (key === "city") {
+            return (item.addresses?.[0]?.city || "").toLowerCase();
+        }
+        if (key === "document_number") {
+            return (item.document_number || "").replace(/\D/g, "");
+        }
+        if (key === "status") {
+            return (item.status || "").toLowerCase();
+        }
+        return (item.trade_name || "").toLowerCase();
+    }, []);
+
+    const sortedData = useMemo(() => {
+        const copy = [...filteredData];
+        copy.sort((a, b) => {
+            const aValue = getSortValue(a, sortBy);
+            const bValue = getSortValue(b, sortBy);
+            const comparison = aValue.localeCompare(bValue, "pt-BR", { numeric: true, sensitivity: "base" });
+            return sortDirection === "asc" ? comparison : -comparison;
+        });
+        return copy;
+    }, [filteredData, getSortValue, sortBy, sortDirection]);
+
     const startIndex = (currentPage - 1) * PAGE_SIZE;
-    const pagedData = filteredData.slice(startIndex, startIndex + PAGE_SIZE);
+    const pagedData = sortedData.slice(startIndex, startIndex + PAGE_SIZE);
 
-
+    const handleSort = (columnSortKey: string) => {
+        if (!["trade_name", "document_number", "city", "status"].includes(columnSortKey)) return;
+        const nextSortBy = columnSortKey as "trade_name" | "document_number" | "city" | "status";
+        if (sortBy === nextSortBy) {
+            setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+            return;
+        }
+        setSortBy(nextSortBy);
+        setSortDirection("asc");
+    };
 
     const columns: Column<OrganizationList>[] = [
         {
             header: "Nome / Razão Social",
+            sortable: true,
+            sortKey: "trade_name",
             cell: (row) => (
                 <div>
                     <div className="text-sm font-bold text-gray-900 leading-tight">{row.trade_name}</div>
@@ -139,6 +161,8 @@ function PessoasEmpresasContent() {
         },
         {
             header: "Documento",
+            sortable: true,
+            sortKey: "document_number",
             cell: (row) => (
                 <span className="font-mono text-xs font-medium text-gray-500 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
                     {row.document_number ? formatCNPJ(row.document_number) : "-"}
@@ -147,6 +171,8 @@ function PessoasEmpresasContent() {
         },
         {
             header: "Cidade/UF",
+            sortable: true,
+            sortKey: "city",
             cell: (row) => {
                 const addr = row.addresses?.[0];
                 if (!addr) return <span className="text-gray-400">-</span>;
@@ -159,6 +185,8 @@ function PessoasEmpresasContent() {
         },
         {
             header: "Status",
+            sortable: true,
+            sortKey: "status",
             className: "text-center",
             cell: (row) => (
                 <span
@@ -250,6 +278,9 @@ function PessoasEmpresasContent() {
                     data={pagedData}
                     columns={columns}
                     isLoading={isLoading}
+                    sortBy={sortBy}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
                     onRowClick={(row) => router.push(`/app/cadastros/pessoas-e-empresas/${row.id}`)}
                     emptyMessage="Nenhum cadastro encontrado."
                 />

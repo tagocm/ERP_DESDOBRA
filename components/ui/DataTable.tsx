@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import {
     Table,
     TableBody,
@@ -16,6 +17,8 @@ export interface Column<T> {
     accessorKey?: keyof T;
     cell?: (item: T) => React.ReactNode;
     className?: string;
+    sortable?: boolean;
+    sortKey?: string;
 }
 
 interface DataTableProps<T> {
@@ -24,6 +27,9 @@ interface DataTableProps<T> {
     onRowClick?: (item: T) => void;
     isLoading?: boolean;
     emptyMessage?: string;
+    sortBy?: string | null;
+    sortDirection?: "asc" | "desc";
+    onSort?: (sortKey: string) => void;
 }
 
 export function DataTable<T>({
@@ -32,6 +38,9 @@ export function DataTable<T>({
     onRowClick,
     isLoading,
     emptyMessage = "Nenhum registro encontrado.",
+    sortBy,
+    sortDirection,
+    onSort,
 }: DataTableProps<T>) {
     if (isLoading) {
         return <div className="p-12 text-center text-gray-500">Carregando...</div>;
@@ -58,7 +67,25 @@ export function DataTable<T>({
                                     col.className
                                 )}
                             >
-                                {col.header}
+                                {col.sortable && onSort ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => onSort(col.sortKey || String(col.accessorKey || ""))}
+                                        className="inline-flex items-center gap-1.5 hover:text-gray-700 transition-colors"
+                                    >
+                                        <span>{col.header}</span>
+                                        {(() => {
+                                            const currentSortKey = col.sortKey || String(col.accessorKey || "");
+                                            if (!currentSortKey) return null;
+                                            if (sortBy !== currentSortKey) return <ArrowUpDown className="h-3.5 w-3.5" />;
+                                            return sortDirection === "asc"
+                                                ? <ArrowUp className="h-3.5 w-3.5" />
+                                                : <ArrowDown className="h-3.5 w-3.5" />;
+                                        })()}
+                                    </button>
+                                ) : (
+                                    col.header
+                                )}
                             </TableHead>
                         ))}
                     </TableRow>
