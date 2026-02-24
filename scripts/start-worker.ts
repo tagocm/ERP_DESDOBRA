@@ -27,6 +27,12 @@ async function main() {
             pollIntervalMs: 2000,
             maxPollIntervalMs: 30000,
             backoffMultiplier: 2
+        }),
+        new JobWorker({
+            jobType: 'NFE_INBOUND_REVERSAL_EMIT',
+            pollIntervalMs: 2000,
+            maxPollIntervalMs: 30000,
+            backoffMultiplier: 2
         })
     ];
 

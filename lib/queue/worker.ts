@@ -1,5 +1,6 @@
 
 import { createAdminClient } from '@/lib/supabaseServer';
+import { z } from "zod";
 
 // Fallback Type Definition (until types/supabase.ts is updated)
 export type JobStatus = 'pending' | 'processing' | 'completed' | 'failed';
@@ -181,6 +182,15 @@ export class JobWorker {
             const { processNfeCancellationJob } = await import('@/lib/fiscal/nfe/cancellation-worker');
             await processNfeCancellationJob(job.payload || {});
             console.log(`[Worker] NFE cancel processed successfully for payload ${JSON.stringify({ cancellationId: job.payload?.cancellationId })}`);
+        } else if (this.jobType === 'NFE_INBOUND_REVERSAL_EMIT') {
+            const PayloadSchema = z.object({
+                companyId: z.string().uuid(),
+                reversalId: z.string().uuid(),
+            });
+            const payload = PayloadSchema.parse(job.payload);
+            const { emitInboundReversalFromOutbound } = await import('@/lib/fiscal/nfe/reversal/emitInboundReversal');
+            await emitInboundReversalFromOutbound({ companyId: payload.companyId, reversalId: payload.reversalId });
+            console.log(`[Worker] NFE inbound reversal processed successfully for payload ${JSON.stringify({ reversalId: payload.reversalId })}`);
         } else {
             console.warn(`[Worker] No handler for job type: ${this.jobType}`);
         }
