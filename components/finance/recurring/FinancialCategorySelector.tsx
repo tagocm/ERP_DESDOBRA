@@ -17,6 +17,48 @@ interface FinancialCategorySelectorProps {
     companyId: string;
 }
 
+const PARENT_ACCOUNT_LABEL_FALLBACK: Record<string, string> = {
+    "3.3": "Custos Indiretos de Fabricação (CIF)",
+    "4.1": "Despesas Comerciais",
+    "4.2": "Despesas Administrativas",
+    "4.3": "Despesas Logísticas",
+};
+
+const compareByCode = (left?: string, right?: string): number => {
+    const a = left ?? "";
+    const b = right ?? "";
+    return a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" });
+};
+
+const getParentCode = (category: FinancialCategory): string | null => {
+    if (category.parent_account_code?.trim()) return category.parent_account_code.trim();
+    const accountCode = category.account_code?.trim();
+    if (!accountCode) return null;
+    const parts = accountCode.split(".");
+    if (parts.length < 2) return null;
+    return `${parts[0]}.${parts[1]}`;
+};
+
+const getParentName = (category: FinancialCategory, parentCode: string | null): string => {
+    if (category.parent_account_name?.trim()) return category.parent_account_name.trim();
+    if (parentCode && PARENT_ACCOUNT_LABEL_FALLBACK[parentCode]) {
+        return PARENT_ACCOUNT_LABEL_FALLBACK[parentCode];
+    }
+    return "Subcategoria não identificada";
+};
+
+const formatCategoryInputLabel = (category: FinancialCategory): string => {
+    if (category.account_code?.trim()) return `${category.account_code.trim()} — ${category.name}`;
+    return category.name;
+};
+
+type GroupedCategory = {
+    key: string;
+    parentCode: string | null;
+    parentName: string;
+    items: FinancialCategory[];
+};
+
 export function FinancialCategorySelector({ value, onChange, className, disabled, companyId }: FinancialCategorySelectorProps) {
     const [open, setOpen] = React.useState(false)
     const [categories, setCategories] = React.useState<FinancialCategory[]>([])
@@ -26,7 +68,7 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
     const wrapperRef = React.useRef<HTMLDivElement>(null)
 
     // Fetch initial
-    const fetchCategories = async () => {
+    const fetchCategories = React.useCallback(async () => {
         if (!companyId) return;
         try {
             const result = await getFinancialCategoriesAction(companyId);
@@ -38,11 +80,11 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
         } catch (e) {
             console.error(e);
         }
-    }
+    }, [companyId]);
 
     React.useEffect(() => {
-        fetchCategories();
-    }, [companyId]);
+        void fetchCategories();
+    }, [fetchCategories]);
 
     const handleOpenCreateModal = () => {
         if (!searchValue.trim()) return;
@@ -52,9 +94,19 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
     };
 
     const selectedCategory = categories.find((c) => c.id === value)
+    const selectedInputLabel = React.useMemo(() => {
+        if (!selectedCategory) return "";
+        return formatCategoryInputLabel(selectedCategory);
+    }, [selectedCategory]);
 
-    const handleSelect = (categoryId: string) => {
-        onChange(categoryId === value ? null : categoryId)
+    const handleSelect = (category: FinancialCategory) => {
+        if (category.id === value) {
+            onChange(null);
+            setSearchValue("");
+        } else {
+            onChange(category.id);
+            setSearchValue(formatCategoryInputLabel(category));
+        }
         setOpen(false)
     }
 
@@ -66,14 +118,14 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
 
     React.useEffect(() => {
         // Keep input text in sync when value changes externally.
-        if (selectedCategory && searchValue !== selectedCategory.name) {
-            setSearchValue(selectedCategory.name);
+        if (selectedCategory && searchValue !== selectedInputLabel) {
+            setSearchValue(selectedInputLabel);
         }
         if (!value && searchValue && selectedCategory?.id !== value) {
             // leave user typed text as-is
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [value, selectedCategory?.id]);
+    }, [value, selectedCategory?.id, selectedInputLabel]);
 
     React.useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -89,10 +141,49 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
     const filtered = React.useMemo(() => {
         if (!normalizedQuery) return categories;
         return categories.filter((c) => {
-            const hay = `${c.account_code ?? ""} ${c.name}`.toLowerCase();
+            const parentCode = getParentCode(c);
+            const parentName = getParentName(c, parentCode);
+            const hay = `${c.account_code ?? ""} ${c.name} ${parentCode ?? ""} ${parentName}`.toLowerCase();
             return hay.includes(normalizedQuery);
         });
     }, [categories, normalizedQuery]);
+
+    const groupedCategories = React.useMemo((): GroupedCategory[] => {
+        const grouped = new Map<string, GroupedCategory>();
+
+        for (const category of filtered) {
+            const parentCode = getParentCode(category);
+            const parentName = getParentName(category, parentCode);
+            const key = `${parentCode ?? "sem-grupo"}::${parentName}`;
+            const current = grouped.get(key);
+            if (current) {
+                current.items.push(category);
+                continue;
+            }
+            grouped.set(key, {
+                key,
+                parentCode,
+                parentName,
+                items: [category],
+            });
+        }
+
+        return Array.from(grouped.values())
+            .sort((left, right) => {
+                if (!left.parentCode && !right.parentCode) return left.parentName.localeCompare(right.parentName, "pt-BR");
+                if (!left.parentCode) return 1;
+                if (!right.parentCode) return -1;
+                return compareByCode(left.parentCode, right.parentCode);
+            })
+            .map((group) => ({
+                ...group,
+                items: [...group.items].sort((left, right) => {
+                    const byAccountCode = compareByCode(left.account_code, right.account_code);
+                    if (byAccountCode !== 0) return byAccountCode;
+                    return left.name.localeCompare(right.name, "pt-BR", { sensitivity: "base" });
+                }),
+            }));
+    }, [filtered]);
 
     return (
         <div className={cn("flex items-center gap-2 w-full", className)} ref={wrapperRef}>
@@ -102,13 +193,17 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                     value={searchValue}
                     disabled={disabled}
                     placeholder="Selecione..."
-                    onFocus={() => !disabled && setOpen(true)}
+                    onFocus={(event) => {
+                        if (disabled) return;
+                        setOpen(true);
+                        event.currentTarget.select();
+                    }}
                     onChange={(e) => {
                         const next = e.target.value;
                         setSearchValue(next);
                         setOpen(true);
                         // if user edits text, clear current selection to avoid inconsistency
-                        if (selectedCategory && next !== selectedCategory.name) {
+                        if (selectedCategory && next !== selectedInputLabel) {
                             onChange(null);
                         }
                     }}
@@ -160,22 +255,39 @@ export function FinancialCategorySelector({ value, onChange, className, disabled
                                 </div>
                             ) : (
                                 <>
-                                    <div className="px-3 py-1 text-xs font-semibold text-gray-500">Categorias</div>
-                                    {filtered.map((cat) => (
-                                        <button
-                                            key={cat.id}
-                                            type="button"
-                                            onMouseDown={(e) => e.preventDefault()}
-                                            onClick={() => handleSelect(cat.id)}
-                                            className={cn(
-                                                "w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-gray-50",
-                                                value === cat.id && "bg-gray-50"
-                                            )}
-                                        >
-                                            <Check className={cn("h-4 w-4", value === cat.id ? "opacity-100" : "opacity-0")} />
-                                            <span className="font-mono text-xs text-gray-400 w-14 shrink-0">{cat.account_code ?? ""}</span>
-                                            <span className="truncate text-gray-900">{cat.name}</span>
-                                        </button>
+                                    {groupedCategories.map((group) => (
+                                        <div key={group.key} className="py-1">
+                                            <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                                                {group.parentCode ? `${group.parentCode} · ${group.parentName}` : group.parentName}
+                                            </div>
+                                            {group.items.map((cat) => {
+                                                const parentCode = getParentCode(cat);
+                                                const parentName = getParentName(cat, parentCode);
+                                                return (
+                                                    <button
+                                                        key={cat.id}
+                                                        type="button"
+                                                        onMouseDown={(e) => e.preventDefault()}
+                                                        onClick={() => handleSelect(cat)}
+                                                        className={cn(
+                                                            "w-full text-left px-3 py-2 text-sm flex items-start gap-2 hover:bg-gray-50",
+                                                            value === cat.id && "bg-gray-50"
+                                                        )}
+                                                    >
+                                                        <Check className={cn("mt-0.5 h-4 w-4 shrink-0", value === cat.id ? "opacity-100" : "opacity-0")} />
+                                                        <div className="min-w-0 flex-1">
+                                                            <div className="flex min-w-0 items-center gap-2">
+                                                                <span className="font-mono text-[11px] text-gray-500 shrink-0">{cat.account_code ?? "—"}</span>
+                                                                <span className="truncate text-gray-900">{cat.name}</span>
+                                                            </div>
+                                                            <p className="mt-0.5 truncate text-xs text-gray-500">
+                                                                {parentCode ? `${parentCode} · ${parentName}` : parentName}
+                                                            </p>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     ))}
                                 </>
                             )}

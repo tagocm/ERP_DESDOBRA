@@ -119,10 +119,13 @@ async function ensureChartSpineForCompany(supabase: SupabaseClient, companyId: s
 
 export async function getAccountsTree() {
     const supabase = await createClient();
+    const companyId = await getCurrentCompanyId(supabase);
+    await ensureChartSpineForCompany(supabase, companyId);
 
     const fetchAccounts = async () => supabase
         .from('gl_accounts')
         .select('*')
+        .eq('company_id', companyId)
         .order('code');
 
     // Fetch all accounts visible for the current company context
@@ -135,10 +138,8 @@ export async function getAccountsTree() {
 
     let accounts = (data ?? []) as GLAccount[];
 
-    // Backfill-on-read: if a company has no chart yet, seed the fixed system spine.
+    // Safety fallback: should not happen after ensure, but keep a single retry path.
     if (accounts.length === 0) {
-        const companyId = await getCurrentCompanyId(supabase);
-
         await ensureChartSpineForCompany(supabase, companyId);
         const refetch = await fetchAccounts();
         if (refetch.error) {

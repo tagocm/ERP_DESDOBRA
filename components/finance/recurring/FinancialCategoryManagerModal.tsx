@@ -16,14 +16,6 @@ import {
 } from "@/app/actions/financial-categories";
 import { cn } from "@/lib/utils";
 import { ConfirmDialogDesdobra } from "@/components/ui/ConfirmDialogDesdobra";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
 import { Card } from "@/components/ui/Card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
@@ -113,7 +105,7 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
     const handleCreate = async () => {
         if (!newItemName.trim()) return;
         if (!parentAccountId) {
-            toast({ title: "Subcategoria obrigatória", description: "Selecione onde a conta final ficará vinculada no Plano de Contas (item 4).", variant: "destructive" });
+            toast({ title: "Subcategoria obrigatória", description: "Selecione onde a conta final ficará vinculada no Plano de Contas (3.3, 4.1, 4.2 ou 4.3).", variant: "destructive" });
             return;
         }
         setIsCreating(true);
@@ -185,7 +177,7 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
             className={cn(
                 // Keep the modal comfortably within the viewport on small/medium screens.
                 "w-[min(860px,92vw)] max-w-none",
-                "p-0 gap-0 bg-gray-50 overflow-hidden rounded-2xl flex flex-col",
+                "p-0 gap-0 bg-gray-50 overflow-y-auto rounded-2xl flex flex-col",
                 "max-h-[80vh]"
             )}
         >
@@ -214,7 +206,7 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
             </div>
 
             {/* Body: keep header always visible; only the list should scroll */}
-            <div className="flex-1 p-4 overflow-hidden flex flex-col">
+            <div className="flex-1 p-4 flex flex-col">
                 {/* Create/Edit Form Inline */}
                 {(addBoxOpen || editingId) && (
                     <Card className="mb-4 p-4 border-gray-200 shadow-none animate-in fade-in slide-in-from-top-2">
@@ -252,7 +244,7 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
                                         </SelectContent>
                                     </Select>
                                     <p className="mt-1 text-[11px] text-gray-400">
-                                        A conta final será criada dentro desta pasta do item 4 (Despesas Operacionais).
+                                        A conta final será criada dentro de 3.3 (CIF), 4.1, 4.2 ou 4.3.
                                     </p>
                                 </div>
                             )}
@@ -291,35 +283,74 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
 
                 {/* List Container */}
                 <Card className="border-gray-200 overflow-hidden shadow-none flex-1 min-h-0">
-                    {/* Table component wraps itself in an overflow container.
-                        We constrain that wrapper to fill remaining space so scrolling works. */}
-                    <div className="flex-1 min-h-0 [&>div]:h-full">
-                        <Table>
-                        <TableHeader className="bg-gray-50/50 sticky top-0 z-10">
-                            <TableRow className="hover:bg-transparent border-gray-100">
-                                <TableHead className="w-full text-xs font-semibold text-gray-500 h-9">NOME</TableHead>
-                                <TableHead className="text-xs font-semibold text-gray-500 h-9 text-right pr-4">AÇÕES</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
+                    <div
+                        tabIndex={0}
+                        role="region"
+                        aria-label="Lista de categorias financeiras"
+                        className="max-h-[60vh] min-h-0 overflow-y-auto overscroll-contain focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                        onWheel={(event) => {
+                            event.preventDefault();
+                            event.currentTarget.scrollTop += event.deltaY;
+                        }}
+                        onKeyDown={(event) => {
+                            const container = event.currentTarget;
+                            if (event.key === 'ArrowDown') {
+                                container.scrollTop += 48;
+                                event.preventDefault();
+                                return;
+                            }
+                            if (event.key === 'ArrowUp') {
+                                container.scrollTop -= 48;
+                                event.preventDefault();
+                                return;
+                            }
+                            if (event.key === 'PageDown' || event.key === ' ') {
+                                container.scrollTop += container.clientHeight * 0.9;
+                                event.preventDefault();
+                                return;
+                            }
+                            if (event.key === 'PageUp') {
+                                container.scrollTop -= container.clientHeight * 0.9;
+                                event.preventDefault();
+                                return;
+                            }
+                            if (event.key === 'Home') {
+                                container.scrollTop = 0;
+                                event.preventDefault();
+                                return;
+                            }
+                            if (event.key === 'End') {
+                                container.scrollTop = container.scrollHeight;
+                                event.preventDefault();
+                            }
+                        }}
+                    >
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-50/50 sticky top-0 z-10">
+                                <tr className="border-b border-gray-100">
+                                    <th className="w-full px-4 h-9 text-left text-xs font-semibold text-gray-500">NOME</th>
+                                    <th className="px-4 h-9 text-right pr-4 text-xs font-semibold text-gray-500">AÇÕES</th>
+                                </tr>
+                            </thead>
+                            <tbody>
                             {isLoading ? (
-                                <TableRow>
-                                    <TableCell colSpan={2} className="h-32 text-center">
+                                <tr>
+                                    <td colSpan={2} className="h-32 text-center">
                                         <Loader2 className="h-6 w-6 animate-spin mx-auto text-gray-300" />
-                                    </TableCell>
-                                </TableRow>
+                                    </td>
+                                </tr>
                             ) : categories.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={2} className="h-32 text-center text-gray-400 text-sm">
+                                <tr>
+                                    <td colSpan={2} className="h-32 text-center text-gray-400 text-sm">
                                         Nenhuma categoria cadastrada.
-                                    </TableCell>
-                                </TableRow>
+                                    </td>
+                                </tr>
                             ) : (
                                 categories.map((cat) => (
                                     // account_is_system_locked is populated by the server action
                                     // to prevent edits/removals on fixed chart accounts.
-                                    <TableRow key={cat.id} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
-                                        <TableCell className="py-2 font-medium text-gray-900">
+                                    <tr key={cat.id} className="group border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                                        <td className="p-4 py-2 font-medium text-gray-900">
                                             <div className="flex items-center gap-2 min-w-0">
                                                 {cat.account_code && (
                                                     <span className="font-mono text-xs text-gray-500 shrink-0">{cat.account_code}</span>
@@ -331,8 +362,8 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
                                                     </Badge>
                                                 )}
                                             </div>
-                                        </TableCell>
-                                        <TableCell className="py-2 text-right pr-4">
+                                        </td>
+                                        <td className="p-4 py-2 text-right pr-4">
                                             <div className="flex justify-end gap-1">
                                                 <Button
                                                     variant="ghost"
@@ -360,12 +391,12 @@ export function FinancialCategoryManagerModal({ companyId, onClose, onChange, pr
                                                     <Trash2 className="h-3.5 w-3.5" />
                                                 </Button>
                                             </div>
-                                        </TableCell>
-                                    </TableRow>
+                                        </td>
+                                    </tr>
                                 ))
                             )}
-                        </TableBody>
-                        </Table>
+                            </tbody>
+                        </table>
                     </div>
                 </Card>
             </div>

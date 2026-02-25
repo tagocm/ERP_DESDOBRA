@@ -6,6 +6,8 @@ import { getActiveCompanyId } from '@/lib/auth/get-active-company';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
 
+const normalizeCategoryName = (value: string): string => value.trim().toLocaleLowerCase('pt-BR');
+
 export interface FinancialCategory {
     id: string;
     company_id: string;
@@ -14,6 +16,9 @@ export interface FinancialCategory {
     is_active: boolean;
     expense_account_id?: string | null;
     account_code?: string;
+    parent_account_id?: string | null;
+    parent_account_code?: string;
+    parent_account_name?: string;
     account_is_system_locked?: boolean;
     account_origin?: string;
     created_at?: string;
@@ -33,11 +38,20 @@ const financialCategoryRowSchema = z.object({
     description: z.string().nullable().optional(),
     is_active: z.boolean().nullable().transform(v => v ?? true),
     expense_account_id: z.string().uuid().nullable().optional(),
-    expense_account: z.object({
-        code: z.string(),
-        is_system_locked: z.boolean().nullable().transform(v => v ?? false),
-        origin: z.string(),
-    }).nullable().optional(),
+    expense_account: z.union([
+        z.object({
+            code: z.string(),
+            parent_id: z.string().uuid().nullable().optional(),
+            is_system_locked: z.boolean().nullable().transform(v => v ?? false),
+            origin: z.string(),
+        }),
+        z.array(z.object({
+            code: z.string(),
+            parent_id: z.string().uuid().nullable().optional(),
+            is_system_locked: z.boolean().nullable().transform(v => v ?? false),
+            origin: z.string(),
+        })),
+    ]).nullable().optional(),
     created_at: z.string().optional(),
     updated_at: z.string().optional(),
 });
@@ -45,6 +59,17 @@ const financialCategoryRowSchema = z.object({
 const operationalExpenseParentAccountRowSchema = z.object({
     id: z.string().uuid(),
     code: z.string(),
+    name: z.string(),
+});
+
+const parentAccountLookupRowSchema = z.object({
+    id: z.string().uuid(),
+    code: z.string(),
+    name: z.string(),
+});
+
+const glAccountNameRowSchema = z.object({
+    id: z.string().uuid(),
     name: z.string(),
 });
 
@@ -79,6 +104,7 @@ export async function getFinancialCategoriesAction(companyId: string) {
                 updated_at,
                 expense_account:gl_accounts!expense_account_id (
                     code,
+                    parent_id,
                     is_system_locked,
                     origin
                 )
@@ -90,19 +116,64 @@ export async function getFinancialCategoriesAction(companyId: string) {
         if (error) throw error;
         const parsed = z.array(financialCategoryRowSchema).safeParse(data ?? []);
         if (!parsed.success) return { error: 'Falha ao carregar categorias financeiras.' };
-        const mapped: FinancialCategory[] = parsed.data.map((row) => ({
-            id: row.id,
-            company_id: row.company_id,
-            name: row.name,
-            description: row.description ?? undefined,
-            is_active: row.is_active,
-            expense_account_id: row.expense_account_id ?? null,
-            account_code: row.expense_account?.code,
-            account_is_system_locked: row.expense_account?.is_system_locked ?? false,
-            account_origin: row.expense_account?.origin,
-            created_at: row.created_at,
-            updated_at: row.updated_at,
-        }));
+        const parentAccountIds = Array.from(
+            new Set(
+                parsed.data
+                    .map((row) => {
+                        const expense = Array.isArray(row.expense_account)
+                            ? row.expense_account[0]
+                            : row.expense_account;
+                        return expense?.parent_id ?? null;
+                    })
+                    .filter((value): value is string => Boolean(value))
+            )
+        );
+
+        const parentAccountById = new Map<string, z.infer<typeof parentAccountLookupRowSchema>>();
+        if (parentAccountIds.length > 0) {
+            const { data: parentRows, error: parentError } = await supabase
+                .from('gl_accounts')
+                .select('id, code, name')
+                .eq('company_id', activeCompanyId)
+                .in('id', parentAccountIds);
+
+            if (parentError) {
+                return { error: `Falha ao carregar estrutura de contas: ${parentError.message}` };
+            }
+
+            const parsedParents = z.array(parentAccountLookupRowSchema).safeParse(parentRows ?? []);
+            if (!parsedParents.success) {
+                return { error: 'Falha ao interpretar estrutura de contas.' };
+            }
+
+            for (const parent of parsedParents.data) {
+                parentAccountById.set(parent.id, parent);
+            }
+        }
+
+        const mapped: FinancialCategory[] = parsed.data.map((row) => {
+            const expense = Array.isArray(row.expense_account)
+                ? row.expense_account[0]
+                : row.expense_account;
+            const parent = expense?.parent_id ? parentAccountById.get(expense.parent_id) : undefined;
+
+            return {
+                id: row.id,
+                company_id: row.company_id,
+                name: row.name,
+                description: row.description ?? undefined,
+                is_active: row.is_active,
+                expense_account_id: row.expense_account_id ?? null,
+                account_code: expense?.code,
+                parent_account_id: expense?.parent_id ?? null,
+                parent_account_code: parent?.code,
+                parent_account_name: parent?.name,
+                account_is_system_locked: expense?.is_system_locked ?? false,
+                account_origin: expense?.origin,
+                created_at: row.created_at,
+                updated_at: row.updated_at,
+            };
+        });
         return { data: mapped };
     } catch (error: unknown) {
         return { error: error instanceof Error ? error.message : 'Erro inesperado' };
@@ -116,12 +187,12 @@ export async function getOperationalExpenseParentAccountsAction(companyId: strin
         if (!activeCompanyId) return { error: 'Empresa não encontrada' };
         if (companyId !== activeCompanyId) return { error: 'Empresa inválida' };
 
-        // Ensure chart spine exists (idempotent). We check for root "4".
+        // Ensure chart spine exists (idempotent). We check one required parent folder.
         const { data: root, error: rootError } = await supabase
             .from('gl_accounts')
             .select('id')
             .eq('company_id', activeCompanyId)
-            .eq('code', '4')
+            .eq('code', '4.1')
             .maybeSingle();
 
         if (rootError) throw rootError;
@@ -139,8 +210,7 @@ export async function getOperationalExpenseParentAccountsAction(companyId: strin
             .select('id, code, name')
             .eq('company_id', activeCompanyId)
             .eq('type', 'SINTETICA')
-            .eq('nature', 'DESPESA')
-            .or('code.eq.4,code.like.4.%')
+            .in('code', ['3.3', '4.1', '4.2', '4.3'])
             .order('code');
 
         if (error) throw error;
@@ -180,8 +250,8 @@ export async function createFinancialCategoryAction(input: z.infer<typeof create
         });
 
         if (rpcError) {
-            if (rpcError.code === '23505') {
-                return { error: 'Já existe uma categoria financeira com este nome.' };
+            if (rpcError.code === '23505' || rpcError.code === 'P0001' || rpcError.code === '22023') {
+                return { error: rpcError.message || 'Falha ao criar categoria financeira.' };
             }
             throw new Error(rpcError.message || 'Falha ao criar categoria e conta contábil.');
         }
@@ -220,7 +290,8 @@ export async function updateFinancialCategoryAction(id: string, name: string) {
                 id,
                 expense_account_id,
                 expense_account:gl_accounts!expense_account_id (
-                    is_system_locked
+                    is_system_locked,
+                    parent_id
                 )
             `)
             .eq('id', id)
@@ -232,8 +303,14 @@ export async function updateFinancialCategoryAction(id: string, name: string) {
             expense_account_id: z.string().uuid().nullable().optional(),
             // Supabase may type many-to-one joins as arrays depending on inferred relationship metadata.
             expense_account: z.union([
-                z.object({ is_system_locked: z.boolean().nullable().transform(v => v ?? false) }),
-                z.array(z.object({ is_system_locked: z.boolean().nullable().transform(v => v ?? false) })),
+                z.object({
+                    is_system_locked: z.boolean().nullable().transform(v => v ?? false),
+                    parent_id: z.string().uuid().nullable().optional(),
+                }),
+                z.array(z.object({
+                    is_system_locked: z.boolean().nullable().transform(v => v ?? false),
+                    parent_id: z.string().uuid().nullable().optional(),
+                })),
             ]).nullable().optional(),
         });
         const parsedMeta = metaSchema.safeParse(meta);
@@ -243,6 +320,9 @@ export async function updateFinancialCategoryAction(id: string, name: string) {
         const isLocked = Array.isArray(expenseJoin)
             ? (expenseJoin[0]?.is_system_locked ?? false)
             : (expenseJoin?.is_system_locked ?? false);
+        const parentAccountId = Array.isArray(expenseJoin)
+            ? (expenseJoin[0]?.parent_id ?? null)
+            : (expenseJoin?.parent_id ?? null);
 
         if (isLocked) {
             return { error: 'Esta categoria é do sistema e não pode ser renomeada.' };
@@ -257,6 +337,32 @@ export async function updateFinancialCategoryAction(id: string, name: string) {
         if (!validated.success) {
             return { error: validated.error.issues[0]?.message ?? 'Dados inválidos.' };
         }
+        const normalizedTargetName = normalizeCategoryName(validated.data.name);
+
+        if (parsedMeta.data.expense_account_id && parentAccountId) {
+            const { data: siblingAccounts, error: siblingsError } = await supabase
+                .from('gl_accounts')
+                .select('id, name')
+                .eq('company_id', companyId)
+                .eq('parent_id', parentAccountId)
+                .eq('is_active', true)
+                .neq('id', parsedMeta.data.expense_account_id);
+
+            if (siblingsError) throw siblingsError;
+
+            const parsedSiblings = z.array(glAccountNameRowSchema).safeParse(siblingAccounts ?? []);
+            if (!parsedSiblings.success) {
+                return { error: 'Falha ao validar duplicidade na subcategoria.' };
+            }
+
+            const duplicateInSameParent = parsedSiblings.data.some((row) =>
+                normalizeCategoryName(row.name) === normalizedTargetName
+            );
+
+            if (duplicateInSameParent) {
+                return { error: 'Já existe uma conta com este nome nesta mesma subcategoria.' };
+            }
+        }
 
         const { data, error } = await supabase
             .from('financial_categories')
@@ -268,7 +374,7 @@ export async function updateFinancialCategoryAction(id: string, name: string) {
 
         if (error) {
             if (error.code === '23505') {
-                return { error: "Já existe uma categoria financeira com este nome." };
+                return { error: error.message || "Conflito ao atualizar categoria financeira." };
             }
             throw error;
         }
