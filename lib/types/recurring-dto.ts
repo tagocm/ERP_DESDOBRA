@@ -9,6 +9,7 @@ export interface RecurringRuleDTO {
     name: string;
     partner_name: string;
     partner_id?: string | null;
+    payment_mode_id?: string | null;
     category_id: string;
     cost_center_id?: string | null;
     description?: string | null;

@@ -11,10 +11,12 @@ import {
     listCostCentersAction,
     listBankAccountsAction,
     listPaymentTermsAction,
+    listPaymentModesAction,
     type GLAccountOption,
     type CostCenterOption,
     type BankAccountOption,
     type PaymentTermOption,
+    type PaymentModeOption,
 } from "@/app/actions/finance-events";
 import { rejectSalesFinancial } from "@/app/actions/financial/reject-sales";
 import { rejectPurchaseFinancial } from "@/app/actions/financial/reject-purchase";
@@ -56,6 +58,39 @@ interface UnifiedApprovalTableProps {
     companyId: string;
 }
 
+function parseOriginReference(originReference: string | null, originType: string) {
+    const raw = (originReference || "").trim();
+    const upperType = originType.toUpperCase();
+
+    if (!raw) {
+        return {
+            title: upperType === "MANUAL" ? "Lançamento manual" : "Sem origem identificada",
+            subtitle: upperType,
+        };
+    }
+
+    if (raw.startsWith("FATO_GERADOR:")) {
+        const id = raw.slice("FATO_GERADOR:".length).trim();
+        return {
+            title: "Fato gerador",
+            subtitle: id ? `Ref. ${id.slice(0, 8)}` : upperType,
+        };
+    }
+
+    if (raw.startsWith("MOBILE:")) {
+        const id = raw.slice("MOBILE:".length).trim();
+        return {
+            title: "Despesa mobile",
+            subtitle: id ? `Ref. ${id.slice(0, 8)}` : upperType,
+        };
+    }
+
+    return {
+        title: raw,
+        subtitle: upperType,
+    };
+}
+
 export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
     const { toast } = useToast();
     const [events, setEvents] = useState<FinancialEvent[]>([]);
@@ -88,11 +123,13 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
         costCenters: CostCenterOption[];
         bankAccounts: BankAccountOption[];
         paymentTerms: PaymentTermOption[];
+        paymentModes: PaymentModeOption[];
     }>({
         glAccounts: [],
         costCenters: [],
         bankAccounts: [],
-        paymentTerms: []
+        paymentTerms: [],
+        paymentModes: []
     });
 
     // Fetch static options on mount
@@ -102,13 +139,15 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
             listGLAccountsAction(companyId),
             listCostCentersAction(companyId),
             listBankAccountsAction(companyId),
-            listPaymentTermsAction(companyId)
-        ]).then(([accRes, ccRes, bankRes, termRes]) => {
+            listPaymentTermsAction(companyId),
+            listPaymentModesAction(companyId)
+        ]).then(([accRes, ccRes, bankRes, termRes, modeRes]) => {
             setOptions({
                 glAccounts: accRes.success ? accRes.data || [] : [],
                 costCenters: ccRes.success ? ccRes.data || [] : [],
                 bankAccounts: bankRes.success ? bankRes.data || [] : [],
-                paymentTerms: termRes.success ? termRes.data || [] : []
+                paymentTerms: termRes.success ? termRes.data || [] : [],
+                paymentModes: modeRes.success ? modeRes.data || [] : []
             });
         });
     }, [companyId]);
@@ -141,11 +180,15 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
 
         if (searchQuery) {
             const lower = searchQuery.toLowerCase();
-            filtered = filtered.filter(t =>
-                (t.partner_name || '').toLowerCase().includes(lower) ||
-                (t.origin_reference || '').toLowerCase().includes(lower) ||
-                String(t.total_amount).includes(lower)
-            );
+            filtered = filtered.filter(t => {
+                const origin = parseOriginReference(t.origin_reference, t.origin_type);
+                return (
+                    (t.partner_name || '').toLowerCase().includes(lower) ||
+                    origin.title.toLowerCase().includes(lower) ||
+                    origin.subtitle.toLowerCase().includes(lower) ||
+                    String(t.total_amount).includes(lower)
+                );
+            });
         }
 
         return filtered;
@@ -374,8 +417,16 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
     };
 
     // --- Helpers ---
-    const getOperationalStatusLabel = (status: string | null | undefined, type: string) => {
+    const getOperationalStatusLabel = (
+        status: string | null | undefined,
+        type: string,
+        originReference: string | null | undefined
+    ) => {
         if (!status) return 'Desconhecido';
+
+        const isRecurringOrigin = (originReference || '').toUpperCase().startsWith('FATO_GERADOR:') ||
+            (originReference || '').toLowerCase().startsWith('fato gerador:');
+        if (isRecurringOrigin && status === 'pending') return 'Ativo';
 
         const map: Record<string, string> = {
             // Logistics
@@ -398,7 +449,13 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
         return map[status] || toTitleCase(status);
     };
 
-    const getOperationalStatusColor = (status: string | null | undefined) => {
+    const getOperationalStatusColor = (status: string | null | undefined, originReference: string | null | undefined) => {
+        const isRecurringOrigin = (originReference || '').toUpperCase().startsWith('FATO_GERADOR:') ||
+            (originReference || '').toLowerCase().startsWith('fato gerador:');
+        if (isRecurringOrigin && status === 'pending') {
+            return "bg-green-50 text-green-700 border-green-200";
+        }
+
         switch (status) {
             case 'separation':
             case 'expedition':
@@ -550,14 +607,21 @@ export function UnifiedApprovalTable({ companyId }: UnifiedApprovalTableProps) {
                                                 </span>
                                             </TableCell>
                                             <TableCell>
+                                                {(() => {
+                                                    const origin = parseOriginReference(event.origin_reference, event.origin_type);
+                                                    return (
                                                 <div className="flex flex-col text-sm text-gray-600">
-                                                    <span className="font-medium text-gray-700">{event.origin_reference}</span>
-                                                    <span className="text-[10px] text-gray-400 uppercase">{event.origin_type}</span>
+                                                    <span className="font-medium text-gray-700" title={event.origin_reference || origin.title}>
+                                                        {origin.title}
+                                                    </span>
+                                                    <span className="text-[10px] text-gray-400 uppercase">{origin.subtitle}</span>
                                                 </div>
+                                                    );
+                                                })()}
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant="outline" className={cn("text-[10px] font-semibold", getOperationalStatusColor(event.operational_status))}>
-                                                    {getOperationalStatusLabel(event.operational_status, event.origin_type)}
+                                                <Badge variant="outline" className={cn("text-[10px] font-semibold", getOperationalStatusColor(event.operational_status, event.origin_reference))}>
+                                                    {getOperationalStatusLabel(event.operational_status, event.origin_type, event.origin_reference)}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell className="text-xs text-gray-500">

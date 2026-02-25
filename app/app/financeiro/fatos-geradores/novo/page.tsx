@@ -20,10 +20,10 @@ export default function NewRecurringRulePage() {
                     <div className="flex items-center gap-3">
                         <Link href="/app/financeiro/fatos-geradores">
                             <Button variant="ghost" type="button" className="text-gray-500 hover:text-gray-900">
-                                Cancelar
+                                Voltar
                             </Button>
                         </Link>
-                        <Button type="submit" form="recurring-rule-form" variant="pill" size="lg" className="bg-brand-600 hover:bg-brand-700 text-white min-w-40">
+                        <Button type="submit" form="recurring-rule-form" className="font-medium min-w-32">
                             <Save className="w-4 h-4 mr-2" />
                             Salvar
                         </Button>

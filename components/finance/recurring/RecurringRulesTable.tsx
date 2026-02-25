@@ -24,6 +24,7 @@ import {
 import { cn, toTitleCase } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
     updateRecurringRuleStatusAction,
     deleteRecurringRuleAction,
@@ -52,6 +53,7 @@ interface RecurringRulesTableProps {
 
 export function RecurringRulesTable({ rules, loading }: RecurringRulesTableProps) {
     const { toast } = useToast();
+    const router = useRouter();
     const [actionLoading, setActionLoading] = useState<string | null>(null);
 
     // Dialog state
@@ -229,6 +231,7 @@ export function RecurringRulesTable({ rules, loading }: RecurringRulesTableProps
                                         size="sm"
                                         className="h-8 w-8 p-0 text-gray-400 hover:text-gray-900"
                                         title="Editar"
+                                        onClick={() => router.push(`/app/financeiro/fatos-geradores/novo?id=${rule.id}`)}
                                     >
                                         <Edit2 className="w-4 h-4" />
                                     </Button>

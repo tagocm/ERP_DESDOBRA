@@ -27,8 +27,9 @@ import {
 import { generateTitleFromEvent } from '@/lib/finance/title-generator';
 import { recalculateInstallments } from '@/lib/utils/finance-calculations';
 import { buildRevenueBucketsFromSalesDocument } from '@/lib/finance/ar-sales-allocation';
+import { z } from 'zod';
 
-export interface ActionResult<T = any> {
+export interface ActionResult<T = unknown> {
     success: boolean;
     data?: T;
     error?: string;
@@ -60,11 +61,23 @@ export interface PaymentTermOption {
     cadence_days: number;
 }
 
+export interface PaymentModeOption {
+    id: string;
+    name: string;
+}
+
 export interface AutomaticAllocationPreviewRow {
     gl_account_id: string;
     code: string;
     name: string;
     amount: number;
+}
+
+export type AutomaticAllocationPreviewStatus = 'calculated' | 'persisted' | 'missing';
+
+export interface AutomaticAllocationPreviewResult {
+    status: AutomaticAllocationPreviewStatus;
+    rows: AutomaticAllocationPreviewRow[];
 }
 
 /**
@@ -161,11 +174,33 @@ export async function listPaymentTermsAction(companyId: string): Promise<ActionR
 }
 
 /**
+ * List Payment Modes (Active)
+ */
+export async function listPaymentModesAction(companyId: string): Promise<ActionResult<PaymentModeOption[]>> {
+    try {
+        const supabase = await createClient();
+        const { data, error } = await supabase
+            .from('payment_modes')
+            .select('id, name')
+            .eq('company_id', companyId)
+            .eq('is_active', true)
+            .order('name', { ascending: true });
+
+        if (error) throw error;
+        return { success: true, data: data || [] };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error';
+        logger.error('[listPaymentModesAction] Error', { message });
+        return { success: false, error: message };
+    }
+}
+
+/**
  * Read-only preview of automatic accounting allocation for an event.
  */
 export async function getAutomaticAllocationPreviewAction(
     eventId: string
-): Promise<ActionResult<AutomaticAllocationPreviewRow[]>> {
+): Promise<ActionResult<AutomaticAllocationPreviewResult>> {
     try {
         const supabase = await createClient();
         const event = await getEventWithDetails(eventId);
@@ -175,18 +210,73 @@ export async function getAutomaticAllocationPreviewAction(
         }
 
         let grouped = new Map<string, number>();
+        let status: AutomaticAllocationPreviewStatus = 'calculated';
 
         if (event.origin_type === 'SALE' && event.origin_id) {
-            const buckets = await buildRevenueBucketsFromSalesDocument({
-                companyId: event.company_id,
-                salesDocumentId: event.origin_id,
-                totalAmount: event.total_amount
-            });
+            const { data: titleByEvent } = await supabase
+                .from('ar_titles')
+                .select('id')
+                .eq('company_id', event.company_id)
+                .eq('source_event_id', event.id)
+                .maybeSingle();
 
-            grouped = buckets.reduce<Map<string, number>>((acc, bucket) => {
-                acc.set(bucket.glAccountId, bucket.amountCents / 100);
-                return acc;
-            }, new Map<string, number>());
+            const { data: titleByDocument } = await supabase
+                .from('ar_titles')
+                .select('id')
+                .eq('company_id', event.company_id)
+                .eq('sales_document_id', event.origin_id)
+                .maybeSingle();
+
+            const titleId = titleByEvent?.id || titleByDocument?.id || null;
+
+            if (titleId) {
+                const { data: installments } = await supabase
+                    .from('ar_installments')
+                    .select('id')
+                    .eq('ar_title_id', titleId);
+
+                const installmentIds = (installments ?? []).map((item) => item.id);
+                if (installmentIds.length > 0) {
+                    const { data: persistedAllocations } = await supabase
+                        .from('ar_installment_allocations')
+                        .select('gl_account_id, amount')
+                        .in('ar_installment_id', installmentIds);
+
+                    const parsedAllocations = z.array(
+                        z.object({
+                            gl_account_id: z.string().uuid(),
+                            amount: z.coerce.number()
+                        })
+                    ).safeParse(persistedAllocations ?? []);
+
+                    if (parsedAllocations.success && parsedAllocations.data.length > 0) {
+                        status = 'persisted';
+                        grouped = parsedAllocations.data.reduce<Map<string, number>>((acc, allocation) => {
+                            acc.set(
+                                allocation.gl_account_id,
+                                (acc.get(allocation.gl_account_id) ?? 0) + allocation.amount
+                            );
+                            return acc;
+                        }, new Map<string, number>());
+                    } else {
+                        status = 'missing';
+                    }
+                } else {
+                    status = 'missing';
+                }
+            } else {
+                const buckets = await buildRevenueBucketsFromSalesDocument({
+                    companyId: event.company_id,
+                    salesDocumentId: event.origin_id,
+                    totalAmount: event.total_amount
+                });
+
+                grouped = buckets.reduce<Map<string, number>>((acc, bucket) => {
+                    acc.set(bucket.glAccountId, bucket.amountCents / 100);
+                    return acc;
+                }, new Map<string, number>());
+                status = 'calculated';
+            }
         } else {
             for (const installment of event.installments ?? []) {
                 if (!installment.suggested_account_id) continue;
@@ -199,7 +289,7 @@ export async function getAutomaticAllocationPreviewAction(
 
         const accountIds = Array.from(grouped.keys());
         if (accountIds.length === 0) {
-            return { success: true, data: [] };
+            return { success: true, data: { status, rows: [] } };
         }
 
         const { data: accounts, error: accountError } = await supabase
@@ -225,7 +315,7 @@ export async function getAutomaticAllocationPreviewAction(
             })
             .sort((left, right) => left.code.localeCompare(right.code));
 
-        return { success: true, data: rows };
+        return { success: true, data: { status, rows } };
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         logger.error('[getAutomaticAllocationPreviewAction] Error', { message });

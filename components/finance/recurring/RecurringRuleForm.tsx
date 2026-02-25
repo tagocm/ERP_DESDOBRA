@@ -1,9 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
 import { Input } from "@/components/ui/Input";
@@ -18,13 +19,19 @@ import {
 import { Textarea } from "@/components/ui/Textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/components/ui/use-toast";
-import { createRecurringRuleAction, CreateRecurringRuleInput } from "@/app/actions/recurring-rules";
+import {
+    createRecurringRuleAction,
+    updateRecurringRuleAction,
+    getRecurringRuleByIdAction,
+    CreateRecurringRuleInput
+} from "@/app/actions/recurring-rules";
+import { listPaymentModesAction } from "@/app/actions/payment-mode-actions";
+import { RecurringRuleDTO } from "@/lib/types/recurring-dto";
 import { OrganizationSelector } from "@/components/app/OrganizationSelector";
 import { CurrencyInput } from "@/components/ui/CurrencyInput";
 import {
     CalendarClock,
     FileText,
-    Settings2,
     Wallet,
     Info,
     CalendarRange,
@@ -41,6 +48,7 @@ const formSchema = z.object({
     name: z.string().min(3, "Nome muito curto"),
     partner_name: z.string().min(3, "Fornecedor obrigatório"),
     partner_id: z.string().optional().nullable(),
+    payment_mode_id: z.string().optional().nullable(),
     category_id: z.string().min(1, "Categoria obrigatória"),
     cost_center_id: z.string().optional().nullable(),
     description: z.string().optional().nullable(),
@@ -165,8 +173,12 @@ function formatCurrencyPtBr(value: number): string {
 
 export function RecurringRuleForm() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const { toast } = useToast();
     const { selectedCompany } = useCompany();
+    const recurringRuleId = searchParams.get("id");
+    const [isLoadingRule, setIsLoadingRule] = useState(false);
+    const [paymentModes, setPaymentModes] = useState<Array<{ id: string; name: string }>>([]);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(formSchema) as any,
@@ -177,13 +189,14 @@ export function RecurringRuleForm() {
             amount_type: 'FIXO',
             status: 'ATIVO',
             frequency: 'MENSAL',
+            payment_mode_id: null,
             category_id: '',
             contract_amount: null,
             manual_installments: []
         }
     });
 
-    const { register, control, handleSubmit, watch, setValue, formState: { errors } } = form;
+    const { register, control, handleSubmit, watch, setValue, getValues, formState: { errors } } = form;
     const manualInstallmentsFieldArray = useFieldArray({
         control,
         name: "manual_installments",
@@ -194,25 +207,234 @@ export function RecurringRuleForm() {
     const watchPlanType = watch("billing_plan_type");
     const watchAmountType = watch("amount_type");
     const watchInstallments = watch("installments_count");
-    const watchStart = watch("valid_from");
     const watchValidTo = watch("valid_to");
     const watchFirstDue = watch("first_due_date");
     const watchFrequency = watch("frequency");
     const watchFixedAmount = watch("fixed_amount");
     const watchContractAmount = watch("contract_amount");
     const watchEstimatedAmount = watch("estimated_amount");
-    const watchName = watch("name");
-    const watchPartnerName = watch("partner_name");
-    const watchManualInstallments = watch("manual_installments") || [];
+    const watchPaymentModeId = watch("payment_mode_id");
+    const watchManualInstallments = watch("manual_installments");
+    const watchManualInstallmentsLength = watchManualInstallments?.length ?? 0;
+    const [activeFixedValueField, setActiveFixedValueField] = useState<"RECORRENTE" | "CONTRATO">("RECORRENTE");
+    const [hasManualInstallmentAmountOverride, setHasManualInstallmentAmountOverride] = useState(false);
+    const forceAutomaticGeneration = watchAmountType === "VARIAVEL" || (watchAmountType === "FIXO" && activeFixedValueField === "RECORRENTE");
+    const forceManualGeneration = watchAmountType === "FIXO" && activeFixedValueField === "CONTRATO";
+    const effectiveGenerationMode = forceAutomaticGeneration
+        ? "AUTOMATICO"
+        : forceManualGeneration
+            ? "MANUAL"
+            : watchGenMode;
+    const contractAmountValue = Number(watchContractAmount || 0);
+    const manualInstallmentsTotal = (watchManualInstallments || []).reduce(
+        (acc, item) => acc + Number(item?.amount || 0),
+        0
+    );
+    const isContractManualMismatch = forceManualGeneration
+        && contractAmountValue > 0
+        && Math.round(manualInstallmentsTotal * 100) !== Math.round(contractAmountValue * 100);
     const selectedFrequency =
         FREQUENCY_OPTIONS.find((opt) => opt.value === watchFrequency) ||
         FREQUENCY_OPTIONS[0];
 
+    useEffect(() => {
+        const loadPaymentModes = async () => {
+            const result = await listPaymentModesAction();
+            if (!result.ok) {
+                toast({
+                    title: "Erro ao carregar formas de pagamento",
+                    description: result.error?.message || "Não foi possível carregar as formas de pagamento.",
+                    variant: "destructive",
+                });
+                return;
+            }
+            setPaymentModes((result.data || []).filter((mode) => mode.is_active).map((mode) => ({ id: mode.id, name: mode.name })));
+        };
+
+        if (selectedCompany?.id) {
+            loadPaymentModes();
+        } else {
+            setPaymentModes([]);
+        }
+    }, [selectedCompany?.id, toast]);
+
+    useEffect(() => {
+        let active = true;
+        const loadRule = async () => {
+            if (!recurringRuleId) return;
+            setIsLoadingRule(true);
+            const result = await getRecurringRuleByIdAction(recurringRuleId);
+            if (!active) return;
+
+            if (!result.success || !result.data) {
+                toast({
+                    title: "Erro ao carregar",
+                    description: result.error || "Fato gerador não encontrado.",
+                    variant: "destructive",
+                });
+                router.push("/app/financeiro/fatos-geradores");
+                return;
+            }
+
+            const rule = result.data as RecurringRuleDTO;
+            setValue("name", rule.name || "");
+            setValue("partner_name", rule.partner_name || "");
+            setValue("partner_id", rule.partner_id || null);
+            setValue("payment_mode_id", rule.payment_mode_id || null);
+            setValue("category_id", rule.category_id || "");
+            setValue("cost_center_id", rule.cost_center_id || null);
+            setValue("description", rule.description || "");
+            setValue("valid_from", rule.valid_from || "");
+            setValue("valid_to", rule.valid_to || null);
+            setValue("generation_mode", rule.generation_mode || "AUTOMATICO");
+            setValue("billing_plan_type", rule.billing_plan_type || null);
+            setValue("first_due_date", rule.first_due_date || null);
+            setValue("installments_count", rule.installments_count || null);
+            setValue("frequency", rule.frequency || "MENSAL");
+            setValue("amount_type", rule.amount_type || "FIXO");
+            setValue("fixed_amount", rule.fixed_amount || null);
+            setValue("contract_amount", rule.contract_amount || null);
+            setValue("estimated_amount", rule.estimated_amount || null);
+            setValue("manual_installments", (rule.manual_installments || []).map((item, index) => ({
+                installment_number: Number(item.installment_number || index + 1),
+                due_date: item.due_date || "",
+                amount: Number(item.amount || 0),
+            })));
+
+            if (rule.amount_type === "FIXO") {
+                if (Number(rule.contract_amount || 0) > 0 && Number(rule.fixed_amount || 0) <= 0) {
+                    setActiveFixedValueField("CONTRATO");
+                } else {
+                    setActiveFixedValueField("RECORRENTE");
+                }
+            }
+            setIsLoadingRule(false);
+        };
+
+        loadRule();
+        return () => {
+            active = false;
+        };
+    }, [recurringRuleId, router, setValue, toast]);
+
+    useEffect(() => {
+        const recurringValue = Number(watchFixedAmount || 0);
+        const contractValue = Number(watchContractAmount || 0);
+
+        if (recurringValue > 0 && contractValue <= 0) {
+            setActiveFixedValueField("RECORRENTE");
+            return;
+        }
+
+        if (contractValue > 0 && recurringValue <= 0) {
+            setActiveFixedValueField("CONTRATO");
+        }
+    }, [watchFixedAmount, watchContractAmount]);
+
+    useEffect(() => {
+        if (!forceAutomaticGeneration) return;
+        if (watchGenMode !== "AUTOMATICO") {
+            setValue("generation_mode", "AUTOMATICO");
+        }
+        if (watchPlanType !== "RECORRENTE") {
+            setValue("billing_plan_type", "RECORRENTE");
+        }
+        if (watchManualInstallmentsLength > 0) {
+            setValue("manual_installments", []);
+        }
+        if (watchInstallments) {
+            setValue("installments_count", null);
+        }
+    }, [forceAutomaticGeneration, setValue, watchGenMode, watchInstallments, watchManualInstallmentsLength, watchPlanType]);
+
+    useEffect(() => {
+        if (!forceManualGeneration) return;
+        if (watchGenMode !== "MANUAL") {
+            setValue("generation_mode", "MANUAL");
+        }
+        if (watchPlanType) {
+            setValue("billing_plan_type", null);
+        }
+        if (watchFirstDue) {
+            setValue("first_due_date", null);
+        }
+        if (watchInstallments) {
+            setValue("installments_count", null);
+        }
+        if (watchManualInstallmentsLength === 0) {
+            setValue("manual_installments", [{ installment_number: 1, due_date: "", amount: 0 }], { shouldValidate: true });
+        }
+    }, [forceManualGeneration, setValue, watchFirstDue, watchGenMode, watchInstallments, watchManualInstallmentsLength, watchPlanType]);
+
+    useEffect(() => {
+        if (!forceManualGeneration) return;
+        if (hasManualInstallmentAmountOverride) return;
+        if (watchManualInstallmentsLength <= 0) return;
+
+        const totalCents = Math.round(contractAmountValue * 100);
+        const baseCents = Math.floor(totalCents / watchManualInstallmentsLength);
+        const remainder = totalCents - (baseCents * watchManualInstallmentsLength);
+        const currentInstallments = watchManualInstallments || [];
+
+        const distributed = currentInstallments.map((item, index) => {
+            const cents = baseCents + (index < remainder ? 1 : 0);
+            return {
+                installment_number: Number(item?.installment_number || index + 1),
+                due_date: item?.due_date || "",
+                amount: cents / 100,
+            };
+        });
+
+        const hasChanges = distributed.some((item, index) => {
+            const current = currentInstallments[index];
+            return (
+                Number(current?.installment_number || 0) !== item.installment_number
+                || String(current?.due_date || "") !== item.due_date
+                || Math.round(Number(current?.amount || 0) * 100) !== Math.round(item.amount * 100)
+            );
+        });
+
+        if (!hasChanges) return;
+
+        setValue("manual_installments", distributed, { shouldValidate: true });
+    }, [
+        contractAmountValue,
+        forceManualGeneration,
+        hasManualInstallmentAmountOverride,
+        setValue,
+        watchManualInstallments,
+        watchManualInstallmentsLength,
+    ]);
+
+    useEffect(() => {
+        if (watchManualInstallmentsLength <= 0) return;
+        const currentInstallments = getValues("manual_installments") || [];
+        const needsRenumber = currentInstallments.some((item, index) => Number(item?.installment_number || 0) !== index + 1);
+        if (!needsRenumber) return;
+
+        const renumberedInstallments = currentInstallments.map((item, index) => ({
+            ...item,
+            installment_number: index + 1,
+        }));
+
+        setValue("manual_installments", renumberedInstallments, { shouldValidate: true });
+    }, [getValues, setValue, watchManualInstallments, watchManualInstallmentsLength]);
+
     const onSubmit = async (data: FormValues) => {
-        const result = await createRecurringRuleAction(data as CreateRecurringRuleInput);
+        const payload: CreateRecurringRuleInput = {
+            ...data,
+            cost_center_id: data.cost_center_id && data.cost_center_id !== "default" ? data.cost_center_id : null,
+            status: "ATIVO",
+        };
+        const result = recurringRuleId
+            ? await updateRecurringRuleAction(recurringRuleId, payload)
+            : await createRecurringRuleAction(payload);
 
         if (result.success) {
-            toast({ title: "Sucesso!", description: "Fato gerador cadastrado com sucesso." });
+            toast({
+                title: "Sucesso!",
+                description: recurringRuleId ? "Fato gerador atualizado com sucesso." : "Fato gerador cadastrado com sucesso."
+            });
             router.push("/app/financeiro/fatos-geradores");
         } else {
             toast({ title: "Erro ao salvar", description: result.error, variant: "destructive" });
@@ -220,8 +442,8 @@ export function RecurringRuleForm() {
     };
 
     const previewRows = (() => {
-        if (watchGenMode === "MANUAL") {
-            const sortedManual = [...watchManualInstallments]
+        if (effectiveGenerationMode === "MANUAL") {
+            const sortedManual = [...(watchManualInstallments || [])]
                 .filter((item) => item?.due_date)
                 .sort((a, b) => {
                     const aNum = Number(a?.installment_number || 0);
@@ -281,18 +503,27 @@ export function RecurringRuleForm() {
         return rows;
     })();
 
+    if (isLoadingRule) {
+        return (
+            <div className="h-52 flex items-center justify-center text-gray-500 text-sm font-medium">
+                Carregando fato gerador...
+            </div>
+        );
+    }
+
     return (
         <form id="recurring-rule-form" onSubmit={handleSubmit(onSubmit)} className="w-full">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                <div className="lg:col-span-2 space-y-5">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:items-stretch">
+                <div className="lg:col-span-2">
                     {/* Card A: Identificação */}
                     <Card className="border-none shadow-card rounded-2xl bg-white overflow-hidden">
                         <CardHeaderStandard
                             title="Identificação"
                             description="Informações básicas do fato gerador."
                             icon={<FileText className="w-5 h-5 text-brand-500" />}
+                            className="p-4 pb-2"
                         />
-                        <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-2">
                             <div className="md:col-span-2 space-y-2">
                                 <Label className="text-sm font-semibold text-gray-700">Nome do Fato Gerador *</Label>
                                 <Input
@@ -320,6 +551,43 @@ export function RecurringRuleForm() {
                             </div>
 
                             <div className="space-y-2">
+                                <Label className="text-sm font-semibold text-gray-700">Forma de Pagamento</Label>
+                                <Select
+                                    onValueChange={(val) => setValue("payment_mode_id", val === "none" ? null : val)}
+                                    value={watchPaymentModeId || "none"}
+                                    disabled={!selectedCompany}
+                                >
+                                    <SelectTrigger className="bg-white h-11">
+                                        <SelectValue placeholder="Selecione..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">Não definido</SelectItem>
+                                        {paymentModes.map((mode) => (
+                                            <SelectItem key={mode.id} value={mode.id}>
+                                                {mode.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {errors.payment_mode_id && <p className="text-xs text-red-500">{errors.payment_mode_id.message}</p>}
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label className="text-sm font-semibold text-gray-700">Centro de Custo (Opcional)</Label>
+                                <Select
+                                    onValueChange={(val) => setValue("cost_center_id", val === "default" ? null : val)}
+                                    value={watch("cost_center_id") || "default"}
+                                >
+                                    <SelectTrigger className="bg-white h-11">
+                                        <SelectValue placeholder="Selecione..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="default">Geral</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-2">
                                 <Label className="text-sm font-semibold text-gray-700">Categoria *</Label>
                                 <FinancialCategorySelector
                                     companyId={selectedCompany?.id || ''}
@@ -330,53 +598,148 @@ export function RecurringRuleForm() {
                                 {errors.category_id && <p className="text-xs text-red-500">{errors.category_id.message}</p>}
                             </div>
 
-                            <div className="space-y-2">
-                                <Label className="text-sm font-semibold text-gray-700">Centro de Custo (Opcional)</Label>
-                                <Select onValueChange={(val) => setValue("cost_center_id", val)} value={watch("cost_center_id") || "default"}>
-                                    <SelectTrigger className="bg-white h-11">
-                                        <SelectValue placeholder="Selecione..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="default">Geral</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
                             <div className="md:col-span-2 space-y-2">
                                 <Label className="text-sm font-semibold text-gray-700">Observações</Label>
                                 <Textarea
                                     {...register("description")}
                                     placeholder="Detalhes internos relevantes..."
-                                    className="resize-none h-20 bg-white border-gray-200"
+                                    className="h-16 resize-none bg-white border-gray-200"
                                 />
                             </div>
                         </div>
                     </Card>
 
-                    {/* Card B: Vigência */}
-                    <Card className="border-none shadow-card rounded-2xl bg-white overflow-hidden">
-                        <CardHeaderStandard
-                            title="Vigência"
-                            description="Período em que o acordo está em vigor."
-                            icon={<CalendarRange className="w-5 h-5 text-blue-500" />}
-                        />
-                        <div className="p-5 grid grid-cols-1 md:grid-cols-2 gap-5">
-                            <div className="space-y-2">
-                                <Label className="text-sm font-semibold text-gray-700">Início da Vigência *</Label>
-                                <Input type="date" {...register("valid_from")} className="h-11 border-gray-200 focus:ring-blue-500" />
-                                {errors.valid_from && <p className="text-xs text-red-500">{errors.valid_from.message}</p>}
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-sm font-semibold text-gray-700">Fim da Vigência (Opcional)</Label>
-                                <Input type="date" {...register("valid_to")} className="h-11 border-gray-200 focus:ring-blue-500" />
-                                <p className="text-[10px] text-gray-400">Deixe vazio para fatos geradores sem data de término definida.</p>
-                                {errors.valid_to && <p className="text-xs text-red-500">{errors.valid_to.message}</p>}
-                            </div>
-                        </div>
-                    </Card>
+                </div>
 
-                    {/* Card C: Geração de Lançamentos */}
-                    <Card className="border-none shadow-card rounded-2xl bg-white overflow-hidden">
+                <div className="h-full">
+                    <div className="flex h-full flex-col justify-between gap-5">
+                        {/* Card D: Tipo e Valores */}
+                        <Card className="border-none shadow-card rounded-2xl bg-white overflow-hidden">
+                            <CardHeaderStandard
+                                title="Valores e Tipo"
+                                description="Configuração financeira."
+                                icon={<Wallet className="w-5 h-5 text-emerald-500" />}
+                                className="p-4 pb-2"
+                            />
+                            <div className="space-y-4 p-4">
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-semibold text-gray-700">Tipo de Valor *</Label>
+                                    <RadioGroup
+                                        value={watchAmountType}
+                                        onValueChange={(val: any) => {
+                                            setValue("amount_type", val);
+                                            if (val === 'VARIAVEL') {
+                                                setValue("fixed_amount", null);
+                                                setValue("contract_amount", null);
+                                            }
+                                        }}
+                                        className="grid grid-cols-2 gap-2"
+                                    >
+                                        <div className={`flex items-center space-x-2 border rounded-2xl p-2.5 cursor-pointer transition-all ${watchAmountType === 'FIXO' ? 'border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500' : 'border-gray-200'}`}>
+                                            <RadioGroupItem value="FIXO" id="at-fixo" />
+                                            <Label htmlFor="at-fixo" className="flex-1 cursor-pointer font-medium">Valor Fixo</Label>
+                                        </div>
+                                        <div className={`flex items-center space-x-2 border rounded-2xl p-2.5 cursor-pointer transition-all ${watchAmountType === 'VARIAVEL' ? 'border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500' : 'border-gray-200'}`}>
+                                            <RadioGroupItem value="VARIAVEL" id="at-var" />
+                                            <Label htmlFor="at-var" className="flex-1 cursor-pointer font-medium">Valor Variável</Label>
+                                        </div>
+                                    </RadioGroup>
+                                </div>
+
+                                {watchAmountType === 'FIXO' ? (
+                                    <div className="space-y-3 animate-in fade-in slide-in-from-top-1">
+                                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setActiveFixedValueField("RECORRENTE");
+                                                    setHasManualInstallmentAmountOverride(false);
+                                                    setValue("contract_amount", 0);
+                                                }}
+                                                className={`space-y-2 rounded-2xl border p-2 text-left transition-colors ${activeFixedValueField === "RECORRENTE" ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}
+                                            >
+                                                <Label className="text-sm font-semibold text-gray-700">Valor Recorrente (R$)</Label>
+                                                <CurrencyInput
+                                                    value={watch("fixed_amount") || 0}
+                                                    onChange={(val) => {
+                                                        setActiveFixedValueField("RECORRENTE");
+                                                        setHasManualInstallmentAmountOverride(false);
+                                                        setValue("fixed_amount", val || 0);
+                                                        setValue("contract_amount", 0);
+                                                    }}
+                                                    disabled={activeFixedValueField !== "RECORRENTE"}
+                                                    className="h-11 bg-white border-gray-200 focus:border-emerald-500"
+                                                />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setActiveFixedValueField("CONTRATO");
+                                                    setHasManualInstallmentAmountOverride(false);
+                                                    setValue("fixed_amount", 0);
+                                                }}
+                                                className={`space-y-2 rounded-2xl border p-2 text-left transition-colors ${activeFixedValueField === "CONTRATO" ? "border-emerald-300 bg-emerald-50/40" : "border-gray-200 bg-white"}`}
+                                            >
+                                                <Label className="text-sm font-semibold text-gray-700">Valor do Contrato (R$)</Label>
+                                                <CurrencyInput
+                                                    value={watch("contract_amount") || 0}
+                                                    onChange={(val) => {
+                                                        setActiveFixedValueField("CONTRATO");
+                                                        setHasManualInstallmentAmountOverride(false);
+                                                        setValue("contract_amount", val || 0);
+                                                        setValue("fixed_amount", 0);
+                                                    }}
+                                                    disabled={activeFixedValueField !== "CONTRATO"}
+                                                    className="h-11 bg-white border-gray-200 focus:border-emerald-500"
+                                                />
+                                            </button>
+                                        </div>
+                                        {errors.fixed_amount && <p className="text-xs text-red-500 mt-1">{errors.fixed_amount.message}</p>}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
+                                        <Label className="text-sm font-semibold text-gray-700">Valor Estimado (R$)</Label>
+                                        <CurrencyInput
+                                            value={watch("estimated_amount") || 0}
+                                            onChange={(val) => setValue("estimated_amount", val || 0)}
+                                            className="h-11 bg-white"
+                                        />
+                                        <p className="text-[10px] text-gray-400">Usado apenas para previsão orçamentária.</p>
+                                    </div>
+                                )}
+                            </div>
+                        </Card>
+
+                        {/* Card B: Vigência */}
+                        <Card className="border-none shadow-card rounded-2xl bg-white overflow-hidden">
+                            <CardHeaderStandard
+                                title="Vigência"
+                                description="Período em que o acordo está em vigor."
+                                icon={<CalendarRange className="w-5 h-5 text-blue-500" />}
+                                className="p-4 pb-2"
+                            />
+                            <div className="p-4">
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                        <Label className="text-sm font-semibold text-gray-700">Início da Vigência *</Label>
+                                        <Input type="date" {...register("valid_from")} className="h-11 border-gray-200 focus:ring-blue-500" />
+                                        {errors.valid_from && <p className="text-xs text-red-500">{errors.valid_from.message}</p>}
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label className="text-sm font-semibold text-gray-700">Fim da Vigência (Opcional)</Label>
+                                        <Input type="date" {...register("valid_to")} className="h-11 border-gray-200 focus:ring-blue-500" />
+                                        {errors.valid_to && <p className="text-xs text-red-500">{errors.valid_to.message}</p>}
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+                    </div>
+                </div>
+            </div>
+
+            <div className="mt-5">
+                {/* Card C: Geração de Lançamentos */}
+                <Card className={`rounded-2xl overflow-hidden ${isContractManualMismatch ? "border border-red-300 bg-red-50/30 shadow-none" : "border-none shadow-card bg-white"}`}>
                         <CardHeaderStandard
                             title="Geração de Lançamentos"
                             description="Como o sistema deve criar as previsões financeiras."
@@ -385,36 +748,52 @@ export function RecurringRuleForm() {
                         <div className="p-5 space-y-5">
                             <div className="space-y-4">
                                 <Label className="text-sm font-semibold text-gray-700">Modo de Geração *</Label>
-                                <RadioGroup
-                                    value={watchGenMode}
-                                    onValueChange={(val: any) => {
-                                        setValue("generation_mode", val);
-                                        if (val === 'MANUAL') {
-                                            setValue("billing_plan_type", null);
-                                            setValue("first_due_date", null);
-                                            setValue("installments_count", null);
-                                            if ((watchManualInstallments?.length || 0) === 0) {
-                                                setValue("manual_installments", [{ installment_number: 1, due_date: "", amount: 0 }], { shouldValidate: true });
+                                {forceAutomaticGeneration ? (
+                                    <div className="flex items-center space-x-3 rounded-2xl border border-brand-500 bg-brand-50/50 p-4 ring-1 ring-brand-500">
+                                        <span className="relative inline-flex h-5 w-5 items-center justify-center rounded-full border border-brand-500 bg-white">
+                                            <span className="h-2.5 w-2.5 rounded-full bg-brand-600" />
+                                        </span>
+                                        <span className="flex-1 font-medium text-gray-900">Automático</span>
+                                    </div>
+                                ) : forceManualGeneration ? (
+                                    <div className={`flex items-center space-x-3 rounded-2xl p-4 ring-1 ${isContractManualMismatch ? "border border-red-400 bg-red-50 ring-red-300" : "border border-brand-500 bg-brand-50/50 ring-brand-500"}`}>
+                                        <span className={`relative inline-flex h-5 w-5 items-center justify-center rounded-full bg-white ${isContractManualMismatch ? "border border-red-500" : "border border-brand-500"}`}>
+                                            <span className={`h-2.5 w-2.5 rounded-full ${isContractManualMismatch ? "bg-red-600" : "bg-brand-600"}`} />
+                                        </span>
+                                        <span className={`flex-1 font-medium ${isContractManualMismatch ? "text-red-900" : "text-gray-900"}`}>Manual</span>
+                                    </div>
+                                ) : (
+                                    <RadioGroup
+                                        value={watchGenMode}
+                                        onValueChange={(val: "AUTOMATICO" | "MANUAL") => {
+                                            setValue("generation_mode", val);
+                                            if (val === 'MANUAL') {
+                                                setValue("billing_plan_type", null);
+                                                setValue("first_due_date", null);
+                                                setValue("installments_count", null);
+                                                if (watchManualInstallmentsLength === 0) {
+                                                    setValue("manual_installments", [{ installment_number: 1, due_date: "", amount: 0 }], { shouldValidate: true });
+                                                }
+                                            } else {
+                                                setValue("billing_plan_type", 'RECORRENTE');
+                                                setValue("manual_installments", []);
                                             }
-                                        } else {
-                                            setValue("billing_plan_type", 'RECORRENTE');
-                                            setValue("manual_installments", []);
-                                        }
-                                    }}
-                                    className="grid grid-cols-2 gap-4"
-                                >
-                                    <div className={`flex items-center space-x-3 border rounded-2xl p-4 cursor-pointer transition-all ${watchGenMode === 'MANUAL' ? 'border-brand-500 bg-brand-50/50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}>
-                                        <RadioGroupItem value="MANUAL" id="gm-manual" />
-                                        <Label htmlFor="gm-manual" className="flex-1 cursor-pointer font-medium">Manual</Label>
-                                    </div>
-                                    <div className={`flex items-center space-x-3 border rounded-2xl p-4 cursor-pointer transition-all ${watchGenMode === 'AUTOMATICO' ? 'border-brand-500 bg-brand-50/50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}>
-                                        <RadioGroupItem value="AUTOMATICO" id="gm-auto" />
-                                        <Label htmlFor="gm-auto" className="flex-1 cursor-pointer font-medium">Automático</Label>
-                                    </div>
-                                </RadioGroup>
+                                        }}
+                                        className="grid grid-cols-2 gap-4"
+                                    >
+                                        <div className={`flex items-center space-x-3 border rounded-2xl p-4 cursor-pointer transition-all ${watchGenMode === 'MANUAL' ? 'border-brand-500 bg-brand-50/50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}>
+                                            <RadioGroupItem value="MANUAL" id="gm-manual" />
+                                            <Label htmlFor="gm-manual" className="flex-1 cursor-pointer font-medium">Manual</Label>
+                                        </div>
+                                        <div className={`flex items-center space-x-3 border rounded-2xl p-4 cursor-pointer transition-all ${watchGenMode === 'AUTOMATICO' ? 'border-brand-500 bg-brand-50/50 ring-1 ring-brand-500' : 'border-gray-200 hover:border-gray-300'}`}>
+                                            <RadioGroupItem value="AUTOMATICO" id="gm-auto" />
+                                            <Label htmlFor="gm-auto" className="flex-1 cursor-pointer font-medium">Automático</Label>
+                                        </div>
+                                    </RadioGroup>
+                                )}
                             </div>
 
-                            {watchGenMode === 'MANUAL' ? (
+                            {effectiveGenerationMode === 'MANUAL' ? (
                                 <div className="space-y-6 animate-in fade-in slide-in-from-top-2">
                                     <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100 flex gap-4 items-start">
                                         <Info className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
@@ -461,17 +840,13 @@ export function RecurringRuleForm() {
                                                     {manualInstallmentsFieldArray.fields.map((field, index) => (
                                                         <TableRow key={field.id} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
                                                             <TableCell className="px-4 py-2.5 align-top">
-                                                                <Input
-                                                                    type="number"
-                                                                    min={1}
+                                                                <div className="flex h-9 items-center rounded-2xl border border-gray-200 bg-gray-50 px-3 text-sm font-medium text-gray-700">
+                                                                    {index + 1}
+                                                                </div>
+                                                                <input
+                                                                    type="hidden"
                                                                     {...register(`manual_installments.${index}.installment_number` as const, { valueAsNumber: true })}
-                                                                    className="h-9"
                                                                 />
-                                                                {(errors.manual_installments as any)?.[index]?.installment_number?.message && (
-                                                                    <p className="text-xs text-red-500 mt-1">
-                                                                        {(errors.manual_installments as any)?.[index]?.installment_number?.message}
-                                                                    </p>
-                                                                )}
                                                             </TableCell>
                                                             <TableCell className="px-4 py-2.5 align-top">
                                                                 <Input
@@ -488,7 +863,10 @@ export function RecurringRuleForm() {
                                                             <TableCell className="px-4 py-2.5 align-top">
                                                                 <CurrencyInput
                                                                     value={Number(watchManualInstallments[index]?.amount || 0)}
-                                                                    onChange={(val) => setValue(`manual_installments.${index}.amount`, Number(val || 0), { shouldValidate: true })}
+                                                                    onChange={(val) => {
+                                                                        setHasManualInstallmentAmountOverride(true);
+                                                                        setValue(`manual_installments.${index}.amount`, Number(val || 0), { shouldValidate: true });
+                                                                    }}
                                                                     className="h-9"
                                                                 />
                                                                 {(errors.manual_installments as any)?.[index]?.amount?.message && (
@@ -515,23 +893,30 @@ export function RecurringRuleForm() {
                                         {errors.manual_installments?.message && (
                                             <p className="px-4 pb-3 text-xs text-red-500">{errors.manual_installments.message}</p>
                                         )}
+                                        {isContractManualMismatch && (
+                                            <p className="px-4 pb-3 text-xs font-medium text-red-600">
+                                                A soma das parcelas deve ser igual ao Valor do Contrato.
+                                            </p>
+                                        )}
                                     </Card>
                                 </div>
                             ) : (
                                 <div className="space-y-8 animate-in fade-in slide-in-from-top-2">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-2">
-                                            <Label className="text-sm font-semibold text-gray-700">Tipo de Plano *</Label>
-                                            <Select onValueChange={(val: any) => setValue("billing_plan_type", val)} value={watchPlanType || ""}>
-                                                <SelectTrigger className="h-11">
-                                                    <SelectValue placeholder="Selecione..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="RECORRENTE">Recorrente (Contínuo)</SelectItem>
-                                                    <SelectItem value="PARCELADO">Parcelado (N vezes)</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
+                                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                                        {!forceAutomaticGeneration && !forceManualGeneration && (
+                                            <div className="space-y-2">
+                                                <Label className="text-sm font-semibold text-gray-700">Tipo de Plano *</Label>
+                                                <Select onValueChange={(val: "RECORRENTE" | "PARCELADO") => setValue("billing_plan_type", val)} value={watchPlanType || ""}>
+                                                    <SelectTrigger className="h-11">
+                                                        <SelectValue placeholder="Selecione..." />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="RECORRENTE">Recorrente (Contínuo)</SelectItem>
+                                                        <SelectItem value="PARCELADO">Parcelado (N vezes)</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        )}
 
                                         <div className="space-y-2">
                                             <Label className="text-sm font-semibold text-gray-700">Data do 1º Vencimento *</Label>
@@ -549,7 +934,7 @@ export function RecurringRuleForm() {
 
                                         <div className="space-y-2">
                                             <Label className="text-sm font-semibold text-gray-700">Periodicidade</Label>
-                                            <Select value={watchFrequency || "MENSAL"} onValueChange={(val: any) => setValue("frequency", val)}>
+                                            <Select value={watchFrequency || "MENSAL"} onValueChange={(val: string) => setValue("frequency", val)}>
                                                 <SelectTrigger className="h-11 bg-white">
                                                     <SelectValue placeholder="Mensal" />
                                                 </SelectTrigger>
@@ -606,132 +991,6 @@ export function RecurringRuleForm() {
                         </div>
                     </Card>
                 </div>
-
-                <div className="space-y-5">
-                    {/* Card D: Tipo e Valores */}
-                    <Card className="border-none shadow-card rounded-2xl bg-white overflow-hidden">
-                        <CardHeaderStandard
-                            title="Valores e Tipo"
-                            description="Configuração financeira."
-                            icon={<Wallet className="w-5 h-5 text-emerald-500" />}
-                        />
-                        <div className="p-5 space-y-5">
-                            <div className="space-y-3">
-                                <Label className="text-sm font-semibold text-gray-700">Tipo de Valor *</Label>
-                                <RadioGroup
-                                    value={watchAmountType}
-                                    onValueChange={(val: any) => {
-                                        setValue("amount_type", val);
-                                        if (val === 'VARIAVEL') {
-                                            setValue("fixed_amount", null);
-                                            setValue("contract_amount", null);
-                                        }
-                                    }}
-                                    className="flex flex-col gap-3"
-                                >
-                                    <div className={`flex items-center space-x-3 border rounded-2xl p-3 cursor-pointer transition-all ${watchAmountType === 'FIXO' ? 'border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500' : 'border-gray-200'}`}>
-                                        <RadioGroupItem value="FIXO" id="at-fixo" />
-                                        <Label htmlFor="at-fixo" className="flex-1 cursor-pointer font-medium">Valor Fixo</Label>
-                                    </div>
-                                    <div className={`flex items-center space-x-3 border rounded-2xl p-3 cursor-pointer transition-all ${watchAmountType === 'VARIAVEL' ? 'border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500' : 'border-gray-200'}`}>
-                                        <RadioGroupItem value="VARIAVEL" id="at-var" />
-                                        <Label htmlFor="at-var" className="flex-1 cursor-pointer font-medium">Valor Variável</Label>
-                                    </div>
-                                </RadioGroup>
-                            </div>
-
-                            {watchAmountType === 'FIXO' ? (
-                                <div className="space-y-4 animate-in fade-in slide-in-from-top-1">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        <div className="space-y-2">
-                                            <Label className="text-sm font-semibold text-gray-700">Valor Recorrente (R$)</Label>
-                                            <CurrencyInput
-                                                value={watch("fixed_amount") || 0}
-                                                onChange={(val) => setValue("fixed_amount", val || 0)}
-                                                className="h-11 bg-white border-gray-200 focus:border-emerald-500"
-                                            />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <Label className="text-sm font-semibold text-gray-700">Valor do Contrato (R$)</Label>
-                                            <CurrencyInput
-                                                value={watch("contract_amount") || 0}
-                                                onChange={(val) => setValue("contract_amount", val || 0)}
-                                                className="h-11 bg-white border-gray-200 focus:border-emerald-500"
-                                            />
-                                        </div>
-                                    </div>
-                                    <p className="text-[11px] text-gray-500">Preencha pelo menos um dos campos.</p>
-                                    {errors.fixed_amount && <p className="text-xs text-red-500 mt-1">{errors.fixed_amount.message}</p>}
-                                </div>
-                            ) : (
-                                <div className="space-y-2 animate-in fade-in slide-in-from-top-1">
-                                    <Label className="text-sm font-semibold text-gray-700">Valor Estimado (R$)</Label>
-                                    <CurrencyInput
-                                        value={watch("estimated_amount") || 0}
-                                        onChange={(val) => setValue("estimated_amount", val || 0)}
-                                        className="h-11 bg-white"
-                                    />
-                                    <p className="text-[10px] text-gray-400">Usado apenas para previsão orçamentária.</p>
-                                </div>
-                            )}
-                        </div>
-                    </Card>
-
-                    {/* Card E: Status */}
-                    <Card className="border-none shadow-card rounded-2xl bg-white overflow-hidden">
-                        <CardHeaderStandard
-                            title="Finalização"
-                            description="Status e resumo."
-                            icon={<Settings2 className="w-5 h-5 text-gray-400" />}
-                        />
-                        <div className="p-5 space-y-5">
-                            <div className="space-y-2">
-                                <Label className="text-sm font-semibold text-gray-700">Status Inicial *</Label>
-                                <Select onValueChange={(val: any) => setValue("status", val)} value={watch("status")}>
-                                    <SelectTrigger className="h-11">
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="ATIVO">Ativo</SelectItem>
-                                        <SelectItem value="RASCUNHO">Rascunho</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-
-                            <div className="pt-4 border-t border-gray-100">
-                                <div className="p-4 bg-gray-900 rounded-2xl text-white text-[13px] font-medium space-y-3">
-                                    <div className="flex items-center gap-2 opacity-50 mb-1">
-                                        <Info className="w-3.5 h-3.5" />
-                                        <span className="text-[10px] uppercase font-bold tracking-widest">RESUMO</span>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between">
-                                            <span className="opacity-60">Fato gerador:</span>
-                                            <span className="truncate max-w-36 text-right">{watchName || "—"}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="opacity-60">Fornecedor:</span>
-                                            <span className="truncate max-w-36 text-right">{watchPartnerName || "—"}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="opacity-60">Geração:</span>
-                                            <span>{watchGenMode === 'AUTOMATICO' ? (watchPlanType === 'RECORRENTE' ? 'Recorrente' : `Parcelado (${watchInstallments || '0'}x)`) : 'Manual'}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="opacity-60">Cadência:</span>
-                                            <span>{selectedFrequency.label}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span className="opacity-60">Vigência:</span>
-                                            <span className="text-right">{watchStart ? formatDatePtBr(watchStart) : '...'}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </Card>
-                </div>
-            </div>
         </form>
     );
 }

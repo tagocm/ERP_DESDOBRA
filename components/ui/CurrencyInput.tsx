@@ -10,7 +10,7 @@
  */
 
 import { Input } from "@/components/ui/Input";
-import { forwardRef, useState, useEffect } from "react";
+import { forwardRef } from "react";
 
 interface CurrencyInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'> {
     value: number;
@@ -24,9 +24,7 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
             return Math.round(num * 100);
         };
 
-        // Initialize from prop value once
-        const [cents, setCents] = useState(() => numberToCents(value || 0));
-        const [isFullySelected, setIsFullySelected] = useState(false);
+        const cents = numberToCents(value || 0);
 
         // Format cents to Brazilian currency display
         const formatCents = (centsValue: number): string => {
@@ -62,13 +60,10 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
 
                     // If fully selected, reset to 0
                     if (isSelected) {
-                        setCents(0);
                         onChange(0);
-                        setIsFullySelected(false);
                     } else {
                         // Otherwise just remove last digit
                         const newCents = Math.floor(cents / 10);
-                        setCents(newCents);
                         onChange(centsToNumber(newCents));
                     }
                 }
@@ -89,7 +84,6 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
             // If fully selected, replace entire value
             if (isSelected) {
                 newCents = parseInt(digit);
-                setIsFullySelected(false);
             } else {
                 // Otherwise append digit (multiply by 10 and add new digit)
                 newCents = cents * 10 + parseInt(digit);
@@ -100,21 +94,12 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
                 return;
             }
 
-            setCents(newCents);
             onChange(centsToNumber(newCents));
         };
 
         const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
             // Select all on focus for easy replacement
             e.target.select();
-            setIsFullySelected(true);
-        };
-
-        const handleSelect = (e: React.SyntheticEvent<HTMLInputElement>) => {
-            const input = e.currentTarget;
-            const isSelected = input.selectionStart === 0 &&
-                input.selectionEnd === input.value.length;
-            setIsFullySelected(isSelected);
         };
 
         return (
@@ -125,7 +110,6 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
                 value={formatCents(cents)}
                 onKeyDown={handleKeyDown}
                 onFocus={handleFocus}
-                onSelect={handleSelect}
                 readOnly // Prevent typing outside of keyDown handler
                 className={className}
                 {...props}
@@ -135,4 +119,3 @@ export const CurrencyInput = forwardRef<HTMLInputElement, CurrencyInputProps>(
 );
 
 CurrencyInput.displayName = "CurrencyInput";
-

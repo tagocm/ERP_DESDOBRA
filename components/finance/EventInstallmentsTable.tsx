@@ -14,11 +14,14 @@ import {
     listCostCentersAction,
     listBankAccountsAction,
     listPaymentTermsAction,
+    listPaymentModesAction,
     getAutomaticAllocationPreviewAction,
+    type AutomaticAllocationPreviewStatus,
     type GLAccountOption,
     type CostCenterOption,
     type BankAccountOption,
-    type PaymentTermOption
+    type PaymentTermOption,
+    type PaymentModeOption
 } from "@/app/actions/finance-events";
 import { recalculateInstallments } from "@/lib/utils/finance-calculations";
 import { useToast } from "@/components/ui/use-toast";
@@ -43,7 +46,26 @@ interface EventInstallmentsTableProps {
         costCenters: CostCenterOption[];
         bankAccounts: BankAccountOption[];
         paymentTerms: PaymentTermOption[];
+        paymentModes: PaymentModeOption[];
     }
+}
+
+const LEGACY_PAYMENT_METHOD_LABELS: Record<string, string> = {
+    boleto: "Boleto",
+    pix: "PIX",
+    transferencia: "Transferência",
+    cartao_credito: "Cartão de Crédito",
+    dinheiro: "Dinheiro",
+    cheque: "Cheque"
+};
+
+function normalizePaymentMethodLabel(value: string | null): string | null {
+    if (!value) return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const legacyLabel = LEGACY_PAYMENT_METHOD_LABELS[trimmed.toLowerCase()];
+    return legacyLabel ?? trimmed;
 }
 
 export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: EventInstallmentsTableProps) {
@@ -56,10 +78,12 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
     const [allocationPreviewOpen, setAllocationPreviewOpen] = useState(false);
     const [allocationPreviewLoading, setAllocationPreviewLoading] = useState(false);
     const [allocationPreviewRows, setAllocationPreviewRows] = useState<AllocationPreviewRow[]>([]);
+    const [allocationPreviewStatus, setAllocationPreviewStatus] = useState<AutomaticAllocationPreviewStatus>('calculated');
 
     const [costCenters, setCostCenters] = useState<CostCenterOption[]>(preloadedOptions?.costCenters || []);
     const [bankAccounts, setBankAccounts] = useState<BankAccountOption[]>(preloadedOptions?.bankAccounts || []);
     const [paymentTerms, setPaymentTerms] = useState<PaymentTermOption[]>(preloadedOptions?.paymentTerms || []);
+    const [paymentModes, setPaymentModes] = useState<PaymentModeOption[]>(preloadedOptions?.paymentModes || []);
     const [loadingOptions, setLoadingOptions] = useState(false);
 
     useEffect(() => {
@@ -67,6 +91,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
             setCostCenters(preloadedOptions.costCenters);
             setBankAccounts(preloadedOptions.bankAccounts);
             setPaymentTerms(preloadedOptions.paymentTerms);
+            setPaymentModes(preloadedOptions.paymentModes);
         }
     }, [preloadedOptions]);
 
@@ -79,13 +104,13 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
         setLocalInstallments(
             event.installments?.map((installment) => ({
                 ...installment,
-                payment_method: installment.payment_method ? installment.payment_method.toLowerCase() : null
+                payment_method: normalizePaymentMethodLabel(installment.payment_method)
             })) || []
         );
     }, [event.installments]);
 
     useEffect(() => {
-        const methods = new Set(localInstallments.map((item) => (item.payment_method ? item.payment_method.toLowerCase() : null)));
+        const methods = new Set(localInstallments.map((item) => item.payment_method || null));
         setGlobalMethod(methods.size === 1 ? (Array.from(methods)[0] as string) || "" : "");
 
         const accounts = new Set(localInstallments.map((item) => item.financial_account_id));
@@ -107,21 +132,27 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
     }, [localInstallments, paymentTerms]);
 
     useEffect(() => {
-        if (isEditing && costCenters.length === 0 && !preloadedOptions) {
+        if (
+            isEditing &&
+            !preloadedOptions &&
+            (costCenters.length === 0 || bankAccounts.length === 0 || paymentTerms.length === 0 || paymentModes.length === 0)
+        ) {
             setLoadingOptions(true);
             Promise.all([
                 listCostCentersAction(event.company_id),
                 listBankAccountsAction(event.company_id),
-                listPaymentTermsAction(event.company_id)
+                listPaymentTermsAction(event.company_id),
+                listPaymentModesAction(event.company_id)
             ])
-                .then(([ccRes, bankRes, termRes]) => {
+                .then(([ccRes, bankRes, termRes, modeRes]) => {
                     if (ccRes.success) setCostCenters(ccRes.data || []);
                     if (bankRes.success) setBankAccounts(bankRes.data || []);
                     if (termRes.success) setPaymentTerms(termRes.data || []);
+                    if (modeRes.success) setPaymentModes(modeRes.data || []);
                 })
                 .finally(() => setLoadingOptions(false));
         }
-    }, [isEditing, event.company_id, costCenters.length, preloadedOptions]);
+    }, [isEditing, event.company_id, costCenters.length, bankAccounts.length, paymentTerms.length, paymentModes.length, preloadedOptions]);
 
     const handleApplyToAll = (field: 'cost_center_id' | 'payment_method' | 'payment_condition' | 'financial_account_id', value: string | null) => {
         setLocalInstallments((previous) => previous.map((installment) => ({ ...installment, [field]: value })));
@@ -175,7 +206,8 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                 setAllocationPreviewRows([]);
                 return;
             }
-            setAllocationPreviewRows(response.data);
+            setAllocationPreviewStatus(response.data.status);
+            setAllocationPreviewRows(response.data.rows);
         } finally {
             setAllocationPreviewLoading(false);
         }
@@ -318,19 +350,18 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                                         }}
                                     >
                                         <option value="">Selecione...</option>
-                                        <option value="boleto">Boleto</option>
-                                        <option value="pix">PIX</option>
-                                        <option value="transferencia">Transferência</option>
-                                        <option value="cartao_credito">Cartão de Crédito</option>
-                                        <option value="dinheiro">Dinheiro</option>
-                                        <option value="cheque">Cheque</option>
+                                        {paymentModes.map((paymentMode) => (
+                                            <option key={paymentMode.id} value={paymentMode.name}>
+                                                {paymentMode.name}
+                                            </option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>
 
                             <div className="flex items-center gap-4">
                                 <div className="flex flex-col gap-1 flex-1">
-                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Conta Corrente (Todos)</span>
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Conta (Todos)</span>
                                     <select
                                         className="h-8 text-xs border rounded bg-white w-full px-2"
                                         value={globalAccountId}
@@ -370,15 +401,29 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                                 <div className="flex flex-col gap-1 flex-1">
                                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Classificação</span>
                                     <div className="h-8 px-2 rounded border bg-white flex items-center justify-between text-xs">
-                                        <span className="text-gray-600 font-medium">Classificação automática • {classificationSummary}</span>
+                                        <span
+                                            className={cn(
+                                                "font-medium",
+                                                allocationPreviewStatus === 'missing' ? "text-red-600" : "text-gray-600"
+                                            )}
+                                        >
+                                            {allocationPreviewStatus === 'missing'
+                                                ? "Sem rateio contábil — revisar"
+                                                : `Classificação automática • ${classificationSummary}`}
+                                        </span>
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            className="h-6 text-xs text-blue-600 hover:text-blue-700"
+                                            className={cn(
+                                                "h-6 text-xs",
+                                                allocationPreviewStatus === 'missing'
+                                                    ? "text-red-600 hover:text-red-700"
+                                                    : "text-blue-600 hover:text-blue-700"
+                                            )}
                                             onClick={openAllocationPreview}
                                         >
                                             <ListTree className="w-3.5 h-3.5 mr-1" />
-                                            Ver rateio
+                                            {allocationPreviewStatus === 'missing' ? "Recalcular do pedido" : "Ver rateio"}
                                         </Button>
                                     </div>
                                 </div>
@@ -450,7 +495,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                         <TableHead className="w-48 font-bold text-gray-500">Vencimento</TableHead>
                         <TableHead className="w-48 text-right font-bold text-gray-500">Valor</TableHead>
                         <TableHead className="w-56 font-bold text-gray-500">Forma Pagto</TableHead>
-                        <TableHead className="w-48 font-bold text-gray-500">Conta Destino</TableHead>
+                        <TableHead className="w-48 font-bold text-gray-500">Conta</TableHead>
                         <TableHead className="font-bold text-gray-500">Classificação</TableHead>
                         <TableHead className="w-20 text-center font-bold text-gray-500">Status</TableHead>
                         <TableHead className="w-12" />
@@ -505,12 +550,11 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                                             onClick={(eventClick) => eventClick.stopPropagation()}
                                         >
                                             <option value="">Selecione...</option>
-                                            <option value="boleto">Boleto</option>
-                                            <option value="pix">PIX</option>
-                                            <option value="transferencia">Transferência</option>
-                                            <option value="cartao_credito">Cartão de Crédito</option>
-                                            <option value="dinheiro">Dinheiro</option>
-                                            <option value="cheque">Cheque</option>
+                                            {paymentModes.map((paymentMode) => (
+                                                <option key={paymentMode.id} value={paymentMode.name}>
+                                                    {paymentMode.name}
+                                                </option>
+                                            ))}
                                         </select>
                                     ) : (
                                         <span className="text-xs text-gray-600 block truncate" title={installment.payment_method || ''}>
@@ -546,13 +590,18 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="h-6 text-[10px] text-blue-600 hover:text-blue-700"
+                                                    className={cn(
+                                                        "h-6 text-[10px]",
+                                                        allocationPreviewStatus === 'missing'
+                                                            ? "text-red-600 hover:text-red-700"
+                                                            : "text-blue-600 hover:text-blue-700"
+                                                    )}
                                                     onClick={(eventClick) => {
                                                         eventClick.stopPropagation();
                                                         void openAllocationPreview();
                                                     }}
                                                 >
-                                                    Ver rateio
+                                                    {allocationPreviewStatus === 'missing' ? "Recalcular do pedido" : "Ver rateio"}
                                                 </Button>
                                             </div>
                                             <div className="flex items-center gap-1">
@@ -643,6 +692,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                 open={allocationPreviewOpen}
                 loading={allocationPreviewLoading}
                 rows={allocationPreviewRows}
+                status={allocationPreviewStatus}
                 onOpenChange={setAllocationPreviewOpen}
             />
         </Card>
@@ -694,6 +744,7 @@ function AllocationPreviewDialog({
     onOpenChange: (open: boolean) => void;
     loading: boolean;
     rows: AllocationPreviewRow[];
+    status: AutomaticAllocationPreviewStatus;
 }) {
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -715,6 +766,12 @@ function AllocationPreviewDialog({
                                 <TableRow>
                                     <TableCell colSpan={3} className="text-center text-sm text-gray-500">Carregando rateio...</TableCell>
                                 </TableRow>
+                            ) : status === 'missing' ? (
+                                <TableRow>
+                                    <TableCell colSpan={3} className="text-center text-sm text-red-600">
+                                        Sem rateio contábil — revisar. Use “Recalcular do pedido”.
+                                    </TableCell>
+                                </TableRow>
                             ) : rows.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={3} className="text-center text-sm text-gray-500">
@@ -734,6 +791,11 @@ function AllocationPreviewDialog({
                     </Table>
                 </div>
                 <DialogFooter>
+                    {status === 'missing' && (
+                        <Button variant="outline" className="text-red-600 border-red-200">
+                            Recalcular do pedido
+                        </Button>
+                    )}
                     <Button variant="outline" onClick={() => onOpenChange(false)}>Fechar</Button>
                 </DialogFooter>
             </DialogContent>
