@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { seedChartSpineRpc } from '@/lib/finance/seed-chart-spine-rpc';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 
@@ -104,15 +105,7 @@ async function ensureChartSpineForCompany(supabase: SupabaseClient, companyId: s
     }
 
     const admin = createAdminClient();
-    const { error: seedError } = await admin.rpc('seed_chart_spine', {
-        p_company_id: companyId,
-    });
-    if (seedError) {
-        const details = [seedError.message, seedError.details, seedError.hint, seedError.code ? `SQLSTATE ${seedError.code}` : null]
-            .filter(Boolean)
-            .join(' | ');
-        throw new Error(`Falha ao inicializar estrutura fixa do plano de contas: ${details || 'erro desconhecido da RPC seed_chart_spine'}`);
-    }
+    await seedChartSpineRpc(admin, companyId);
 }
 
 // --- Server Actions ---

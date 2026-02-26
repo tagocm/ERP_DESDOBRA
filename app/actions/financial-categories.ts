@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { getActiveCompanyId } from '@/lib/auth/get-active-company';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { seedChartSpineRpc } from '@/lib/finance/seed-chart-spine-rpc';
 
 const normalizeCategoryName = (value: string): string => value.trim().toLocaleLowerCase('pt-BR');
 
@@ -199,10 +200,7 @@ export async function getOperationalExpenseParentAccountsAction(companyId: strin
 
         if (!root?.id) {
             const admin = createAdminClient();
-            const { error: seedError } = await admin.rpc('seed_chart_spine', {
-                p_company_id: activeCompanyId,
-            });
-            if (seedError) throw new Error(seedError.message || 'Falha ao inicializar plano de contas.');
+            await seedChartSpineRpc(admin, activeCompanyId);
         }
 
         const { data, error } = await supabase
