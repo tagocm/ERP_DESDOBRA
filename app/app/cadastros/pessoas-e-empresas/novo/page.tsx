@@ -32,6 +32,49 @@ import { Dialog, DialogContent } from "@/components/ui/Dialog";
 import { Settings } from "lucide-react";
 import { CarrierSelector } from "@/components/app/CarrierSelector";
 
+type CnpjLookupAddress = {
+    zip?: string;
+    street?: string;
+    number?: string | number;
+    complement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+    ibge?: string;
+};
+
+type CnpjLookupResponse = {
+    legal_name?: string;
+    trade_name?: string;
+    phone?: string;
+    email?: string;
+    is_simple_national?: boolean;
+    address?: CnpjLookupAddress;
+    error?: string;
+};
+
+function coerceText(value: unknown): string | null {
+    if (typeof value === "string") {
+        const trimmed = value.trim();
+        return trimmed.length > 0 ? trimmed : null;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return String(value);
+    }
+    return null;
+}
+
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) return error.message;
+    if (typeof error === "object" && error !== null) {
+        const maybeMessage = (error as { message?: unknown }).message;
+        if (typeof maybeMessage === "string" && maybeMessage.trim().length > 0) {
+            return maybeMessage;
+        }
+    }
+    return "Não foi possível buscar dados para o CNPJ informado.";
+}
+
 
 
 export default function NewOrganizationPage() {
@@ -441,33 +484,33 @@ export default function NewOrganizationPage() {
         setCnpjLoading(true);
         try {
             const res = await fetch("/api/cnpj/" + cnpjDigits, { cache: "no-store" });
-            const data = await res.json();
+            const data: CnpjLookupResponse = await res.json();
             if (!res.ok) throw new Error(data.error);
 
             setFormData(prev => ({
                 ...prev,
-                legal_name: toTitleCase(data.legal_name || prev.legal_name || ""),
-                trade_name: toTitleCase(data.trade_name || prev.trade_name || ""),
-                email: normalizeEmail(data.email || prev.email || ""),
-                phone: data.phone || prev.phone || "",
+                legal_name: toTitleCase(coerceText(data.legal_name) ?? prev.legal_name) ?? prev.legal_name,
+                trade_name: toTitleCase(coerceText(data.trade_name) ?? prev.trade_name) ?? prev.trade_name,
+                email: normalizeEmail(coerceText(data.email) ?? prev.email) ?? prev.email,
+                phone: coerceText(data.phone) ?? prev.phone,
             }));
             setBillingAddress(prev => ({
                 ...prev,
-                zip: data.address?.zip || prev.zip || "",
-                street: toTitleCase(data.address?.street || prev.street || ""),
-                number: data.address?.number || prev.number || "",
-                complement: toTitleCase(data.address?.complement || prev.complement || ""),
-                neighborhood: toTitleCase(data.address?.neighborhood || prev.neighborhood || ""),
-                city: toTitleCase(data.address?.city || prev.city || ""),
-                state: (data.address?.state || prev.state || "").toUpperCase(),
-                city_code_ibge: data.address?.ibge || prev.city_code_ibge || "",
+                zip: coerceText(data.address?.zip) ?? prev.zip,
+                street: toTitleCase(coerceText(data.address?.street) ?? prev.street) ?? prev.street,
+                number: coerceText(data.address?.number) ?? prev.number,
+                complement: toTitleCase(coerceText(data.address?.complement) ?? prev.complement) ?? prev.complement,
+                neighborhood: toTitleCase(coerceText(data.address?.neighborhood) ?? prev.neighborhood) ?? prev.neighborhood,
+                city: toTitleCase(coerceText(data.address?.city) ?? prev.city) ?? prev.city,
+                state: (coerceText(data.address?.state) ?? prev.state).toUpperCase(),
+                city_code_ibge: coerceText(data.address?.ibge) ?? prev.city_code_ibge,
                 country: "BR"
             }));
             setCnpjFetched(true);
-        } catch (err: any) {
+        } catch (err: unknown) {
             toast({
                 title: "Erro ao buscar CNPJ",
-                description: err?.message || "Não foi possível buscar dados para o CNPJ informado.",
+                description: getErrorMessage(err),
                 variant: "destructive",
             });
         } finally {

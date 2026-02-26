@@ -20,6 +20,49 @@ import { extractDigits, validateCNPJ } from "@/lib/cnpj";
 import { Loader2, Search, CheckCircle2, Save, Settings } from "lucide-react";
 import { cn, toTitleCase, normalizeEmail } from "@/lib/utils"; // Import cn and new helpers
 
+type CnpjLookupAddress = {
+    zip?: string;
+    street?: string;
+    number?: string | number;
+    complement?: string;
+    neighborhood?: string;
+    city?: string;
+    state?: string;
+    ibge?: string;
+};
+
+type CnpjLookupResponse = {
+    legal_name?: string;
+    trade_name?: string;
+    phone?: string;
+    email?: string;
+    is_simple_national?: boolean;
+    address?: CnpjLookupAddress;
+    error?: string;
+};
+
+function coerceText(value: unknown): string | null {
+    if (typeof value === "string") {
+        const trimmed = value.trim();
+        return trimmed.length > 0 ? trimmed : null;
+    }
+    if (typeof value === "number" && Number.isFinite(value)) {
+        return String(value);
+    }
+    return null;
+}
+
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) return error.message;
+    if (typeof error === "object" && error !== null) {
+        const maybeMessage = (error as { message?: unknown }).message;
+        if (typeof maybeMessage === "string" && maybeMessage.trim().length > 0) {
+            return maybeMessage;
+        }
+    }
+    return "Não foi possível localizar os dados.";
+}
+
 interface ClientRegistrationModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -206,7 +249,7 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
         setCnpjLoading(true);
         try {
             const res = await fetch(`/api/cnpj/${cleanDoc}`, { cache: "no-store" });
-            const data = await res.json();
+            const data: CnpjLookupResponse = await res.json();
             if (!res.ok) throw new Error(data.error);
 
             toast({
@@ -216,37 +259,37 @@ export function ClientRegistrationModal({ isOpen, onClose, onSuccess }: ClientRe
 
             setFormData(prev => ({
                 ...prev,
-                legal_name: toTitleCase(data.legal_name || prev.legal_name || ""),
-                trade_name: toTitleCase(data.trade_name || prev.trade_name || ""),
-                phone: data.phone || prev.phone || "",
-                email: normalizeEmail(data.email || prev.email || "")
+                legal_name: toTitleCase(coerceText(data.legal_name) ?? prev.legal_name) ?? prev.legal_name,
+                trade_name: toTitleCase(coerceText(data.trade_name) ?? prev.trade_name) ?? prev.trade_name,
+                phone: coerceText(data.phone) ?? prev.phone,
+                email: normalizeEmail(coerceText(data.email) ?? prev.email) ?? prev.email
             }));
 
             setBillingAddress(prev => ({
                 ...prev,
-                zip: data.address?.zip || prev.zip || "",
-                street: toTitleCase(data.address?.street || prev.street || ""),
-                number: data.address?.number || prev.number || "",
-                complement: toTitleCase(data.address?.complement || prev.complement || ""),
-                neighborhood: toTitleCase(data.address?.neighborhood || prev.neighborhood || ""),
-                city: toTitleCase(data.address?.city || prev.city || ""),
-                state: (data.address?.state || prev.state || "").toUpperCase(),
+                zip: coerceText(data.address?.zip) ?? prev.zip,
+                street: toTitleCase(coerceText(data.address?.street) ?? prev.street) ?? prev.street,
+                number: coerceText(data.address?.number) ?? prev.number,
+                complement: toTitleCase(coerceText(data.address?.complement) ?? prev.complement) ?? prev.complement,
+                neighborhood: toTitleCase(coerceText(data.address?.neighborhood) ?? prev.neighborhood) ?? prev.neighborhood,
+                city: toTitleCase(coerceText(data.address?.city) ?? prev.city) ?? prev.city,
+                state: (coerceText(data.address?.state) ?? prev.state).toUpperCase(),
                 country: "BR",
-                city_code_ibge: data.address?.ibge || prev.city_code_ibge || ""
+                city_code_ibge: coerceText(data.address?.ibge) ?? prev.city_code_ibge ?? ""
             }));
 
 
             // Note: Simplificated fiscal update as state is limited in this modal
             setFiscalData(prev => ({
                 ...prev,
-                is_simple_national: data.is_simple_national || false
+                is_simple_national: Boolean(data.is_simple_national)
             }));
 
             setCnpjFetched(true);
-        } catch (err: any) {
+        } catch (err: unknown) {
             toast({
                 title: "Erro ao buscar CNPJ",
-                description: err.message || "Não foi possível localizar os dados.",
+                description: getErrorMessage(err),
                 variant: "destructive",
             });
         } finally {

@@ -11,7 +11,7 @@ function sampleOutboundDraft() {
             nNF: "10",
             dhEmi: "2026-02-23T10:00:00.000-03:00",
             tpNF: "1" as const,
-            idDest: "1" as const,
+            idDest: "1" as "1" | "2",
             cMunFG: "3550308",
             tpImp: "1" as const,
             tpEmis: "1" as const,
