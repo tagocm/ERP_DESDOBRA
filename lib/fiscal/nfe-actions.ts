@@ -157,6 +157,16 @@ export async function fetchIssuedInvoices(
     options?: { page?: number; pageSize?: number }
 ): Promise<FetchIssuedInvoicesResult> {
     const supabase = await createClient();
+    const formatDocument = (value: string | null | undefined): string | null => {
+        const digits = String(value || "").replace(/\D/g, "");
+        if (digits.length === 11) {
+            return digits.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+        }
+        if (digits.length === 14) {
+            return digits.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, "$1.$2.$3/$4-$5");
+        }
+        return digits.length > 0 ? digits : null;
+    };
     const issuedStatusesInput = filters?.status;
     const issuedStatuses = (
         Array.isArray(issuedStatusesInput)
@@ -236,7 +246,7 @@ export async function fetchIssuedInvoices(
     // Canonical source: nfe_emissions (compat layer to keep current UI shape)
     let emissionsQuery = supabase
         .from('nfe_emissions')
-        .select('id, sales_document_id, access_key, numero, serie, status, authorized_at, updated_at, created_at, xml_nfe_proc, xml_signed')
+        .select('id, sales_document_id, access_key, numero, serie, status, authorized_at, updated_at, created_at, xml_nfe_proc, xml_signed, source_system, is_read_only, legacy_protocol_status, dest_document, dest_uf, total_vnf')
         .eq('company_id', companyId)
         .in('status', issuedStatuses)
         .order('updated_at', { ascending: false });
@@ -283,9 +293,26 @@ export async function fetchIssuedInvoices(
         nfe_key: emission.access_key,
         status: emission.status,
         issued_at: emission.authorized_at || emission.updated_at || emission.created_at,
-        document: emission.sales_document_id ? docsMap.get(emission.sales_document_id) || null : null,
+        document: emission.sales_document_id
+            ? docsMap.get(emission.sales_document_id) || null
+            : emission.source_system === 'LEGACY_IMPORT'
+                ? {
+                    id: null,
+                    document_number: null,
+                    total_amount: emission.total_vnf || null,
+                    client: {
+                        trade_name: emission.dest_document ? `Destinatário ${formatDocument(emission.dest_document) || ''}`.trim() : 'NF-e legada',
+                        document_number: emission.dest_document || null,
+                    },
+                }
+                : null,
         _source: 'emission',
-        _xml_inline: emission.xml_nfe_proc || emission.xml_signed || null
+        _xml_inline: emission.xml_nfe_proc || emission.xml_signed || null,
+        source_system: emission.source_system || 'LIVE_EMISSION',
+        is_read_only: Boolean(emission.is_read_only),
+        legacy_protocol_status: emission.legacy_protocol_status || null,
+        legacy_destination_document: emission.dest_document || null,
+        legacy_destination_uf: emission.dest_uf || null,
     }));
 
     // Merge by access key (canonical first), keep legacy rows not present in canonical

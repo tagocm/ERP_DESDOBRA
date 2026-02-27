@@ -6,6 +6,7 @@ import { loadCompanyCertificate } from "@/lib/nfe/sefaz/services/certificateLoad
 import { buildNfeProc, upsertNfeEmission } from "@/lib/nfe/sefaz/services/persistence";
 import { buildDraftFromDb } from "@/lib/fiscal/nfe/offline/mappers";
 import { buildInboundReversalNfe } from "./buildInboundReversalNfe";
+import type { NfeDraft, NfeEndereco } from "@/lib/nfe/domain/types";
 import { ReversalReasonCodeSchema, ReversalSelectionItemSchema } from "./schemas";
 import { z } from "zod";
 
@@ -50,6 +51,10 @@ const CompanySettingsSchema = z.object({
     nfe_next_number: z.union([z.number(), z.string()]).nullable().optional(),
     nfe_environment: z.string().nullable().optional(),
     cnpj: z.string().nullable().optional(),
+    ie: z.string().nullable().optional(),
+    tax_regime: z.string().nullable().optional(),
+    legal_name: z.string().nullable().optional(),
+    trade_name: z.string().nullable().optional(),
     address_street: z.string().nullable().optional(),
     address_number: z.string().nullable().optional(),
     address_neighborhood: z.string().nullable().optional(),
@@ -91,10 +96,170 @@ const OutboundEmissionSchema = z.object({
     status: z.string(),
     access_key: z.string().nullable().optional(),
     sales_document_id: z.string().uuid().nullable().optional(),
+    source_system: z.string().nullable().optional(),
+    emit_uf: z.string().nullable().optional(),
+    dest_document: z.string().nullable().optional(),
+    dest_uf: z.string().nullable().optional(),
 });
+
+const LegacyImportedItemSchema = z.object({
+    item_number: z.coerce.number().int().positive(),
+    cprod: z.string().nullable().optional(),
+    xprod: z.string().nullable().optional(),
+    ncm: z.string().nullable().optional(),
+    cfop: z.string().nullable().optional(),
+    ucom: z.string().nullable().optional(),
+    qcom: z.coerce.number().positive(),
+    vuncom: z.coerce.number().nonnegative(),
+    vprod: z.coerce.number().nonnegative(),
+    is_produced: z.boolean().nullable().optional(),
+}).passthrough();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === "object" && value !== null;
+}
+
+function cleanDigits(value: string | null | undefined): string {
+    return String(value || "").replace(/\D/g, "");
+}
+
+function toNonEmpty(value: string | null | undefined, fallback: string): string {
+    const trimmed = String(value || "").trim();
+    return trimmed.length > 0 ? trimmed : fallback;
+}
+
+function toNfeEndereco(address: {
+    street?: string | null;
+    number?: string | null;
+    neighborhood?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
+    city_code_ibge?: string | null;
+}): NfeEndereco {
+    const uf = toNonEmpty(address.state, "SP").toUpperCase();
+    const cityCode = cleanDigits(address.city_code_ibge).slice(0, 7) || `${getIbgeUf(uf)}0000`;
+    const zip = cleanDigits(address.zip).slice(0, 8) || "00000000";
+
+    return {
+        xLgr: toNonEmpty(address.street, "SEM LOGRADOURO").slice(0, 60),
+        nro: toNonEmpty(address.number, "SN").slice(0, 60),
+        xBairro: toNonEmpty(address.neighborhood, "GERAL").slice(0, 60),
+        cMun: cityCode,
+        xMun: toNonEmpty(address.city, "CIDADE").slice(0, 60),
+        uf,
+        cep: zip,
+        cPais: "1058",
+        xPais: "BRASIL",
+    };
+}
+
+function normalizeCfop(value: string | null | undefined, fallback: string): string {
+    const digits = cleanDigits(value);
+    return digits.length === 4 ? digits : fallback;
+}
+
+function buildLegacyOutboundDraft(args: {
+    outbound: z.infer<typeof OutboundEmissionSchema>;
+    items: Array<z.infer<typeof LegacyImportedItemSchema>>;
+    nowIso: string;
+    tpAmb: "1" | "2";
+    company: {
+        cnpj: string;
+        ie: string;
+        legalName: string;
+        tradeName: string;
+        crt: "1" | "3";
+        endereco: NfeEndereco;
+    };
+}): NfeDraft {
+    const idDest: "1" | "2" = args.outbound.emit_uf && args.outbound.dest_uf && args.outbound.emit_uf === args.outbound.dest_uf ? "1" : "2";
+    const fallbackCfop = idDest === "2" ? "6102" : "5102";
+    const destinationDocument = cleanDigits(args.outbound.dest_document);
+    const destinationName = args.tpAmb === "2"
+        ? "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
+        : "DESTINATARIO LEGADO";
+
+    return {
+        ide: {
+            cUF: getIbgeUf(args.company.endereco.uf),
+            natOp: "VENDA DE MERCADORIA",
+            mod: "55",
+            serie: "1",
+            nNF: "1",
+            dhEmi: args.nowIso,
+            tpNF: "1",
+            idDest,
+            cMunFG: args.company.endereco.cMun,
+            tpImp: "1",
+            tpEmis: "1",
+            tpAmb: args.tpAmb,
+            finNFe: "1",
+            indFinal: "1",
+            indPres: "1",
+            procEmi: "0",
+            verProc: "ERP_DESDOBRA_1.0",
+        },
+        emit: {
+            cnpj: args.company.cnpj,
+            xNome: args.company.legalName.slice(0, 60),
+            xFant: args.company.tradeName.slice(0, 60),
+            ie: args.company.ie,
+            crt: args.company.crt,
+            enderEmit: args.company.endereco,
+        },
+        dest: {
+            cpfOuCnpj: destinationDocument.length === 11 || destinationDocument.length === 14
+                ? destinationDocument
+                : args.company.cnpj,
+            xNome: destinationName.slice(0, 60),
+            indIEDest: "9",
+            enderDest: args.company.endereco,
+        },
+        itens: args.items.map((item) => {
+            const quantity = item.qcom;
+            const unitPrice = item.vuncom;
+            const total = item.vprod > 0 ? item.vprod : quantity * unitPrice;
+            const cProd = toNonEmpty(item.cprod, `LEGACY-${item.item_number}`);
+            const xProd = toNonEmpty(item.xprod, `Item legado ${item.item_number}`);
+            const ncm = cleanDigits(item.ncm).slice(0, 8) || "00000000";
+            const uCom = toNonEmpty(item.ucom, "UN");
+
+            return {
+                nItem: item.item_number,
+                prod: {
+                    cProd: cProd.slice(0, 60),
+                    xProd: xProd.slice(0, 120),
+                    ncm,
+                    cfop: normalizeCfop(item.cfop, fallbackCfop),
+                    uCom: uCom.slice(0, 6),
+                    qCom: quantity,
+                    vUnCom: unitPrice,
+                    vProd: total,
+                    cean: "SEM GTIN",
+                    ceanTrib: "SEM GTIN",
+                    uTrib: uCom.slice(0, 6),
+                    qTrib: quantity,
+                    vUnTrib: unitPrice,
+                },
+                imposto: {
+                    vTotTrib: 0,
+                },
+            };
+        }),
+        transp: {
+            modFrete: "9",
+        },
+        pag: {
+            detPag: [
+                {
+                    indPag: "0",
+                    tPag: "90",
+                    vPag: 0,
+                },
+            ],
+        },
+    };
 }
 
 export async function emitInboundReversalFromOutbound(args: { companyId: string; reversalId: string }) {
@@ -118,7 +283,7 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
 
     const { data: outbound, error: outboundError } = await admin
         .from("nfe_emissions")
-        .select("id, company_id, sales_document_id, access_key, status")
+        .select("id, company_id, sales_document_id, access_key, status, source_system, emit_uf, dest_document, dest_uf")
         .eq("id", reversalRow.outbound_emission_id)
         .eq("company_id", args.companyId)
         .maybeSingle();
@@ -128,7 +293,6 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
     const outboundRow = OutboundEmissionSchema.parse(outbound);
     if (outboundRow.status !== "authorized") throw new Error("NF-e de saída precisa estar AUTORIZADA.");
     if (!outboundRow.access_key || String(outboundRow.access_key).length !== 44) throw new Error("Chave de acesso inválida na NF-e de saída.");
-    if (!outboundRow.sales_document_id) throw new Error("NF-e de saída sem pedido vinculado. Não é possível gerar estorno automaticamente.");
 
     // Mark processing (best-effort)
     await admin
@@ -136,37 +300,6 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
         .update({ status: "processing", updated_at: nowIso })
         .eq("id", reversalRow.id)
         .eq("company_id", args.companyId);
-
-    const { data: order, error: orderError } = await admin
-        .from("sales_documents")
-        .select(`
-            *,
-            client:organizations!client_id(*, addresses(*)),
-            items:sales_document_items!sales_document_items_document_id_fkey(
-                *,
-                product:items!sales_document_items_item_id_fkey(*, fiscal:item_fiscal_profiles(*)),
-                packaging:item_packaging(*),
-                fiscal_operation:fiscal_operations(*)
-            ),
-            payments:sales_document_payments(*),
-            carrier:organizations!carrier_id(*, addresses(*))
-        `)
-        .eq("id", outboundRow.sales_document_id)
-        .single();
-
-    if (orderError || !order) throw new Error("Pedido não encontrado para gerar NF-e de entrada.");
-
-    const orderNormalized = (() => {
-        if (!isRecord(order) || !Array.isArray(order.items)) return order;
-        const items = order.items.filter(isRecord);
-        items.sort((a, b) => {
-            const ad = String(a.created_at ?? "");
-            const bd = String(b.created_at ?? "");
-            if (ad !== bd) return ad.localeCompare(bd);
-            return String(a.id ?? "").localeCompare(String(b.id ?? ""));
-        });
-        return { ...order, items };
-    })();
 
     const [companyResult, settingsResult] = await Promise.all([
         admin.from("companies").select(`*, addresses(*)`).eq("id", args.companyId).single(),
@@ -226,21 +359,118 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
         settings,
     };
 
-    const outboundDraft = buildDraftFromDb({
-        order: orderNormalized,
-        company: companyForMapper,
-        keyParams: {
-            cNF,
-            cUF,
-            serie,
-            nNF: String(nNF),
-            tpAmb,
-        },
+    const companyCnpj = cleanDigits(settings.cnpj || companyRow.document_number);
+    if (companyCnpj.length !== 14) {
+        throw new Error("CNPJ da empresa inválido para emissão de estorno.");
+    }
+
+    const companyIe = cleanDigits(settings.ie);
+    if (!companyIe) {
+        throw new Error("Inscrição Estadual da empresa não configurada.");
+    }
+
+    const fiscalAddress = toNfeEndereco({
+        street: selectedAddress?.street,
+        number: selectedAddress?.number,
+        neighborhood: selectedAddress?.neighborhood,
+        city: selectedAddress?.city,
+        state: selectedAddress?.state,
+        zip: selectedAddress?.zip,
+        city_code_ibge: selectedAddress?.city_code_ibge,
     });
 
-    outboundDraft.ide.cDV = cDV;
-    outboundDraft.ide.chNFe = chNFe;
-    outboundDraft.ide.cNF = cNF;
+    const outboundDraft = (() => {
+        if (outboundRow.sales_document_id) {
+            return (async () => {
+                const { data: order, error: orderError } = await admin
+                    .from("sales_documents")
+                    .select(`
+                        *,
+                        client:organizations!client_id(*, addresses(*)),
+                        items:sales_document_items!sales_document_items_document_id_fkey(
+                            *,
+                            product:items!sales_document_items_item_id_fkey(*, fiscal:item_fiscal_profiles(*)),
+                            packaging:item_packaging(*),
+                            fiscal_operation:fiscal_operations(*)
+                        ),
+                        payments:sales_document_payments(*),
+                        carrier:organizations!carrier_id(*, addresses(*))
+                    `)
+                    .eq("id", outboundRow.sales_document_id)
+                    .single();
+
+                if (orderError || !order) throw new Error("Pedido não encontrado para gerar NF-e de entrada.");
+
+                const orderNormalized = (() => {
+                    if (!isRecord(order) || !Array.isArray(order.items)) return order;
+                    const items = order.items.filter(isRecord);
+                    items.sort((a, b) => {
+                        const ad = String(a.created_at ?? "");
+                        const bd = String(b.created_at ?? "");
+                        if (ad !== bd) return ad.localeCompare(bd);
+                        return String(a.id ?? "").localeCompare(String(b.id ?? ""));
+                    });
+                    return { ...order, items };
+                })();
+
+                return buildDraftFromDb({
+                    order: orderNormalized,
+                    company: companyForMapper,
+                    keyParams: {
+                        cNF,
+                        cUF,
+                        serie,
+                        nNF: String(nNF),
+                        tpAmb,
+                    },
+                });
+            })();
+        }
+
+        if (outboundRow.source_system !== "LEGACY_IMPORT") {
+            throw new Error("NF-e de saída sem pedido vinculado. Não é possível gerar estorno automaticamente.");
+        }
+
+        return (async () => {
+            const { data: importedItemsRaw, error: importedItemsError } = await admin
+                .from("nfe_legacy_import_items")
+                .select("item_number,cprod,xprod,ncm,cfop,ucom,qcom,vuncom,vprod,is_produced")
+                .eq("company_id", args.companyId)
+                .eq("nfe_emission_id", outboundRow.id)
+                .order("item_number", { ascending: true });
+
+            if (importedItemsError) {
+                throw new Error(`Falha ao carregar itens importados da NF-e legada: ${importedItemsError.message}`);
+            }
+
+            const importedItems = (importedItemsRaw || []).map((row) => LegacyImportedItemSchema.parse(row));
+            if (importedItems.length === 0) {
+                throw new Error("NF-e legada sem itens importados para gerar estorno.");
+            }
+
+            const crt: "1" | "3" = settings.tax_regime === "simples_nacional" ? "1" : "3";
+            return buildLegacyOutboundDraft({
+                outbound: outboundRow,
+                items: importedItems,
+                nowIso,
+                tpAmb,
+                company: {
+                    cnpj: companyCnpj,
+                    ie: companyIe,
+                    legalName: toNonEmpty(settings.legal_name, String((baseCompany as { name?: string }).name || "EMPRESA")),
+                    tradeName: toNonEmpty(settings.trade_name, String((baseCompany as { trade_name?: string }).trade_name || (baseCompany as { slug?: string }).slug || "EMPRESA")),
+                    crt,
+                    endereco: fiscalAddress,
+                },
+            });
+        })();
+    })();
+
+    const resolvedOutboundDraft = await outboundDraft;
+
+    resolvedOutboundDraft.ide.cDV = cDV;
+    resolvedOutboundDraft.ide.chNFe = chNFe;
+    resolvedOutboundDraft.ide.cNF = cNF;
 
     const selectionParsed = Array.isArray(reversal.selection) ? reversal.selection : [];
     const selectionByNItem = new Map<number, { qty: number; isProduced: boolean }>();
@@ -253,7 +483,7 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
     const reasonCode = ReversalReasonCodeSchema.parse(reversalRow.reason_code);
 
     const inboundDraft = buildInboundReversalNfe({
-        outboundDraft,
+        outboundDraft: resolvedOutboundDraft,
         outboundAccessKey: String(outboundRow.access_key),
         mode: reversalRow.mode,
         selectionByNItem,
@@ -282,7 +512,7 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
     const cStat = result.cStat;
     const xMotivo = result.xMotivo;
 
-    const docId = String(outboundRow.sales_document_id);
+    const docId = outboundRow.sales_document_id ? String(outboundRow.sales_document_id) : "legacy-import";
     const nfeIdForArtifacts = reversalRow.id;
 
     const [xmlPath, signedPath, protocolPath] = await Promise.all([
@@ -298,7 +528,7 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
 
     const record = await upsertNfeEmission({
         company_id: args.companyId,
-        sales_document_id: docId,
+        sales_document_id: outboundRow.sales_document_id ? docId : undefined,
         access_key: chNFe,
         numero: String(nNF),
         serie: String(serie),

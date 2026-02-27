@@ -36,11 +36,23 @@ const NfeEmissionRowSchema = z.object({
     sales_document_id: z.string().uuid().nullable().optional(),
     access_key: z.string(),
     status: z.string(),
+    source_system: z.string().nullable().optional(),
     numero: z.union([z.number(), z.string()]).nullable().optional(),
     serie: z.union([z.number(), z.string()]).nullable().optional(),
+    dest_document: z.string().nullable().optional(),
     authorized_at: z.string().nullable().optional(),
     updated_at: z.string().nullable().optional(),
     created_at: z.string().nullable().optional(),
+}).passthrough();
+
+const LegacyImportedItemSchema = z.object({
+    item_number: z.coerce.number().int().positive(),
+    cprod: z.string().nullable().optional(),
+    xprod: z.string().nullable().optional(),
+    qcom: z.coerce.number().positive(),
+    vuncom: z.coerce.number().nullable().optional(),
+    vprod: z.coerce.number().nullable().optional(),
+    is_produced: z.boolean().nullable().optional(),
 }).passthrough();
 
 const ProductionProfileRowSchema = z.object({
@@ -86,7 +98,7 @@ export async function POST(req: NextRequest) {
 
         const { data: emissionRow, error: emissionError } = await admin
             .from("nfe_emissions")
-            .select("id,company_id,sales_document_id,access_key,status,numero,serie,authorized_at,updated_at,created_at")
+            .select("id,company_id,sales_document_id,access_key,status,source_system,numero,serie,dest_document,authorized_at,updated_at,created_at")
             .eq("id", emission.id)
             .eq("company_id", emission.company_id)
             .maybeSingle();
@@ -97,7 +109,60 @@ export async function POST(req: NextRequest) {
         const emissionParsed = NfeEmissionRowSchema.parse(emissionRow);
 
         if (!emissionParsed.sales_document_id) {
-            return NextResponse.json({ error: "NF-e sem pedido vinculado. Não é possível listar itens." }, { status: 400 });
+            const { data: importedItemsRaw, error: importedItemsError } = await admin
+                .from("nfe_legacy_import_items")
+                .select("item_number,cprod,xprod,qcom,vuncom,vprod,is_produced")
+                .eq("company_id", emissionParsed.company_id)
+                .eq("nfe_emission_id", emissionParsed.id)
+                .order("item_number", { ascending: true });
+
+            if (importedItemsError) {
+                return NextResponse.json(
+                    { error: `Falha ao carregar itens importados da NF-e: ${importedItemsError.message}` },
+                    { status: 500 },
+                );
+            }
+
+            const importedItems = (importedItemsRaw || []).map((row) => LegacyImportedItemSchema.parse(row));
+            if (importedItems.length === 0) {
+                return NextResponse.json(
+                    { error: "NF-e sem pedido vinculado e sem itens importados. Não é possível gerar estorno." },
+                    { status: 400 },
+                );
+            }
+
+            const response = {
+                emission: {
+                    id: emissionParsed.id,
+                    status: emissionParsed.status,
+                    accessKey: emissionParsed.access_key,
+                    numero: toNumberOrNull(emissionParsed.numero),
+                    serie: toNumberOrNull(emissionParsed.serie),
+                    authorizedAt: emissionParsed.authorized_at ?? null,
+                    issuedAt: emissionParsed.authorized_at ?? emissionParsed.updated_at ?? emissionParsed.created_at ?? null,
+                    documentNumber: null,
+                    clientName: emissionParsed.dest_document ?? "NF-e legada importada",
+                    totalAmount: importedItems.reduce((sum, row) => sum + (row.vprod ?? row.qcom * (row.vuncom ?? 0)), 0),
+                },
+                items: importedItems.map((row) => {
+                    const unitPrice = row.vuncom ?? null;
+                    const total = row.vprod ?? (unitPrice !== null ? unitPrice * row.qcom : null);
+                    return {
+                        nItem: row.item_number,
+                        salesDocumentItemId: null,
+                        itemId: null,
+                        name: row.xprod || "Item importado",
+                        sku: row.cprod ?? null,
+                        quantity: row.qcom,
+                        unitPrice,
+                        total,
+                        isProduced: Boolean(row.is_produced),
+                    };
+                }),
+            };
+
+            const validated = OutboundReversalDetailsResponseSchema.parse(response);
+            return NextResponse.json(validated);
         }
 
         const { data: orderRow, error: orderError } = await admin
@@ -193,4 +258,3 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: message }, { status: 500 });
     }
 }
-

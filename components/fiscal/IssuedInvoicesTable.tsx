@@ -13,8 +13,31 @@ import { ListPagination } from '@/components/ui/ListPagination';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/DropdownMenu';
 import { InboundReversalModal } from '@/components/fiscal/InboundReversalModal';
 
+type IssuedInvoiceRow = {
+    id: string;
+    nfe_number: number | null;
+    nfe_series: number | null;
+    nfe_key: string | null;
+    status: string;
+    issued_at: string;
+    has_correction_letter?: boolean;
+    _source?: string;
+    source_system?: string;
+    is_read_only?: boolean;
+    legacy_protocol_status?: string | null;
+    document?: {
+        id: string | null;
+        document_number: number | null;
+        total_amount: number | null;
+        client?: {
+            trade_name: string | null;
+            document_number: string | null;
+        } | null;
+    } | null;
+};
+
 interface Props {
-    data: any[];
+    data: IssuedInvoiceRow[];
     companyId: string;
     isLoading: boolean;
     onInvoiceCancelled: () => void;
@@ -39,18 +62,18 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
     const [verifyingId, setVerifyingId] = useState<string | null>(null);
     const [correctionModalOpen, setCorrectionModalOpen] = useState(false);
     const [correctionText, setCorrectionText] = useState('');
-    const [selectedCorrectionNfe, setSelectedCorrectionNfe] = useState<any | null>(null);
+    const [selectedCorrectionNfe, setSelectedCorrectionNfe] = useState<IssuedInvoiceRow | null>(null);
     const [submittingCorrectionId, setSubmittingCorrectionId] = useState<string | null>(null);
     const [cancellationModalOpen, setCancellationModalOpen] = useState(false);
     const [cancellationReason, setCancellationReason] = useState('');
-    const [selectedCancellationNfe, setSelectedCancellationNfe] = useState<any | null>(null);
+    const [selectedCancellationNfe, setSelectedCancellationNfe] = useState<IssuedInvoiceRow | null>(null);
     const [submittingCancellationId, setSubmittingCancellationId] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [isBatchDownloadingXml, setIsBatchDownloadingXml] = useState(false);
     const [isBatchDownloadingDanfe, setIsBatchDownloadingDanfe] = useState(false);
     const [isBatchPrinting, setIsBatchPrinting] = useState(false);
     const [reversalModalOpen, setReversalModalOpen] = useState(false);
-    const [selectedReversalNfe, setSelectedReversalNfe] = useState<any | null>(null);
+    const [selectedReversalNfe, setSelectedReversalNfe] = useState<IssuedInvoiceRow | null>(null);
 
     useEffect(() => {
         const validIds = new Set(data.map((nfe) => nfe.id));
@@ -248,7 +271,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
         }
     };
 
-    const handleVerifySefaz = async (nfe: any) => {
+    const handleVerifySefaz = async (nfe: IssuedInvoiceRow) => {
         const nfeId = nfe?.id;
         if (!nfeId) {
             toast({
@@ -518,7 +541,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
         }
     };
 
-    const openCancellationModal = (nfe: any) => {
+    const openCancellationModal = (nfe: IssuedInvoiceRow) => {
         setSelectedCancellationNfe(nfe);
         setCancellationReason('');
         setCancellationModalOpen(true);
@@ -609,13 +632,13 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
         }
     };
 
-    const openCorrectionModal = (nfe: any) => {
+    const openCorrectionModal = (nfe: IssuedInvoiceRow) => {
         setSelectedCorrectionNfe(nfe);
         setCorrectionText('');
         setCorrectionModalOpen(true);
     };
 
-    const openReversalModal = (nfe: any) => {
+    const openReversalModal = (nfe: IssuedInvoiceRow) => {
         setSelectedReversalNfe(nfe);
         setReversalModalOpen(true);
     };
@@ -801,11 +824,17 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                         </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {data.map((nfe) => (
-                            <tr
-                                key={nfe.id}
-                                className={`transition-colors ${selectedIds.has(nfe.id) ? 'bg-brand-50/50 hover:bg-brand-50' : 'hover:bg-gray-50'}`}
-                            >
+                        {data.map((nfe) => {
+                            const isLegacy = nfe.source_system === 'LEGACY_IMPORT';
+                            const hasNoProtocol = nfe.legacy_protocol_status === 'SEM_PROTOCOLO';
+                            const canUseSefazActions = !isLegacy;
+                            const canUseReversal = nfe.status === 'authorized' || nfe.status === 'issued';
+
+                            return (
+                                <tr
+                                    key={nfe.id}
+                                    className={`transition-colors ${selectedIds.has(nfe.id) ? 'bg-brand-50/50 hover:bg-brand-50' : 'hover:bg-gray-50'}`}
+                                >
                                 <td className="px-4 py-4 text-center">
                                     <Checkbox
                                         checked={selectedIds.has(nfe.id)}
@@ -814,12 +843,28 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                     />
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                    <span className="text-sm font-medium text-gray-900">
-                                        {nfe.nfe_number}
-                                    </span>
-                                    <span className="text-xs text-gray-500 ml-2">
-                                        Série {nfe.nfe_series}
-                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-gray-900">
+                                            {nfe.nfe_number}
+                                        </span>
+                                        <span className="text-xs text-gray-500">
+                                            Série {nfe.nfe_series}
+                                        </span>
+                                    </div>
+                                    {(isLegacy || hasNoProtocol) && (
+                                        <div className="mt-1 flex items-center gap-1.5">
+                                            {isLegacy && (
+                                                <span className="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
+                                                    LEGADO
+                                                </span>
+                                            )}
+                                            {hasNoProtocol && (
+                                                <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                                                    SEM PROTOCOLO
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <span className="text-sm text-gray-900">
@@ -828,12 +873,12 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <span className="text-sm text-gray-900">
-                                        {nfe.document?.client?.trade_name || '-'}
+                                        {nfe.document?.client?.trade_name || 'NF-e sem pedido'}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <span className="text-sm text-gray-500">
-                                        #{nfe.document?.document_number || '-'}
+                                        {nfe.document?.document_number ? `#${nfe.document.document_number}` : '-'}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right">
@@ -856,7 +901,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                             }`}
                                     >
                                         {nfe.status === 'authorized'
-                                            ? 'Autorizada'
+                                            ? isLegacy ? 'Autorizada (Legado)' : 'Autorizada'
                                             : nfe.status === 'cancelled'
                                                 ? 'Cancelada'
                                                 : nfe.status === 'processing'
@@ -866,7 +911,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
                                     {/* Sync Button for Processing Status */}
-                                    {nfe.status === 'processing' && (
+                                    {nfe.status === 'processing' && canUseSefazActions && (
                                         <Button
                                             size="sm"
                                             variant="outline"
@@ -957,7 +1002,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuItem
                                                 onSelect={() => handleVerifySefaz(nfe)}
-                                                disabled={verifyingId === nfe.id}
+                                                disabled={verifyingId === nfe.id || !canUseSefazActions}
                                             >
                                                 <RefreshCw className={`mr-2 h-4 w-4 ${verifyingId === nfe.id ? 'animate-spin' : ''}`} />
                                                 <span>Consultar SEFAZ</span>
@@ -965,7 +1010,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
 
                                             <DropdownMenuItem
                                                 onSelect={() => openCorrectionModal(nfe)}
-                                                disabled={nfe.status !== 'authorized'}
+                                                disabled={nfe.status !== 'authorized' || !canUseSefazActions}
                                             >
                                                 <FilePenLine className="mr-2 h-4 w-4" />
                                                 <span>Carta de Correção</span>
@@ -973,7 +1018,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
 
                                             <DropdownMenuItem
                                                 onSelect={() => openReversalModal(nfe)}
-                                                disabled={!(nfe.status === 'authorized' && nfe._source === 'emission')}
+                                                disabled={!canUseReversal}
                                             >
                                                 <Receipt className="mr-2 h-4 w-4" />
                                                 <span>Gerar NF-e de Entrada (Estorno)</span>
@@ -981,7 +1026,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
 
                                             <DropdownMenuItem
                                                 onSelect={() => openCancellationModal(nfe)}
-                                                disabled={!(nfe.status === 'authorized' || nfe.status === 'processing')}
+                                                disabled={!(nfe.status === 'authorized' || nfe.status === 'processing') || !canUseSefazActions}
                                                 className="text-red-600 focus:text-red-700 focus:bg-red-50"
                                             >
                                                 <XCircle className="mr-2 h-4 w-4" />
@@ -991,7 +1036,8 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                     </DropdownMenu>
                                 </td>
                             </tr>
-                        ))}
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
@@ -1011,8 +1057,8 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                     setReversalModalOpen(open);
                     if (!open) setSelectedReversalNfe(null);
                 }}
-                outboundEmissionId={selectedReversalNfe?._source === 'emission' ? selectedReversalNfe.id : null}
-                disabled={selectedReversalNfe?._source !== 'emission'}
+                outboundEmissionId={selectedReversalNfe?.id ?? null}
+                disabled={!selectedReversalNfe}
                 onCreated={onInvoiceCancelled}
             />
 

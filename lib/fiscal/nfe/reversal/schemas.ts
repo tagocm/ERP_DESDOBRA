@@ -48,8 +48,8 @@ export const OutboundReversalDetailsResponseSchema = z.object({
     }),
     items: z.array(z.object({
         nItem: z.number().int().min(1),
-        salesDocumentItemId: z.string().uuid(),
-        itemId: z.string().uuid(),
+        salesDocumentItemId: z.string().uuid().nullable(),
+        itemId: z.string().uuid().nullable(),
         name: z.string(),
         sku: z.string().nullable(),
         quantity: z.number(),
