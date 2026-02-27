@@ -6,6 +6,7 @@ import { loadCompanyCertificate } from "@/lib/nfe/sefaz/services/certificateLoad
 import { buildNfeProc, upsertNfeEmission } from "@/lib/nfe/sefaz/services/persistence";
 import { buildDraftFromDb } from "@/lib/fiscal/nfe/offline/mappers";
 import { buildInboundReversalNfe } from "./buildInboundReversalNfe";
+import { parseLegacyNfeXml } from "@/lib/fiscal/nfe/legacy-import/parser";
 import type { NfeDraft, NfeEndereco } from "@/lib/nfe/domain/types";
 import { ReversalReasonCodeSchema, ReversalSelectionItemSchema } from "./schemas";
 import { z } from "zod";
@@ -100,6 +101,10 @@ const OutboundEmissionSchema = z.object({
     emit_uf: z.string().nullable().optional(),
     dest_document: z.string().nullable().optional(),
     dest_uf: z.string().nullable().optional(),
+    xml_nfe_proc: z.string().nullable().optional(),
+    xml_signed: z.string().nullable().optional(),
+    xml_sent: z.string().nullable().optional(),
+    xml_unsigned: z.string().nullable().optional(),
 });
 
 const LegacyImportedItemSchema = z.object({
@@ -157,6 +162,24 @@ function toNfeEndereco(address: {
 function normalizeCfop(value: string | null | undefined, fallback: string): string {
     const digits = cleanDigits(value);
     return digits.length === 4 ? digits : fallback;
+}
+
+function resolveOutboundXmlContent(outbound: z.infer<typeof OutboundEmissionSchema>): string | null {
+    const candidates = [
+        outbound.xml_nfe_proc,
+        outbound.xml_signed,
+        outbound.xml_sent,
+        outbound.xml_unsigned,
+    ];
+
+    for (const candidate of candidates) {
+        if (typeof candidate !== "string") continue;
+        const trimmed = candidate.trim();
+        if (trimmed.length === 0) continue;
+        return trimmed;
+    }
+
+    return null;
 }
 
 function buildLegacyOutboundDraft(args: {
@@ -427,41 +450,77 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
             })();
         }
 
-        if (outboundRow.source_system !== "LEGACY_IMPORT") {
-            throw new Error("NF-e de saída sem pedido vinculado. Não é possível gerar estorno automaticamente.");
-        }
-
         return (async () => {
-            const { data: importedItemsRaw, error: importedItemsError } = await admin
-                .from("nfe_legacy_import_items")
-                .select("item_number,cprod,xprod,ncm,cfop,ucom,qcom,vuncom,vprod,is_produced")
-                .eq("company_id", args.companyId)
-                .eq("nfe_emission_id", outboundRow.id)
-                .order("item_number", { ascending: true });
-
-            if (importedItemsError) {
-                throw new Error(`Falha ao carregar itens importados da NF-e legada: ${importedItemsError.message}`);
-            }
-
-            const importedItems = (importedItemsRaw || []).map((row) => LegacyImportedItemSchema.parse(row));
-            if (importedItems.length === 0) {
-                throw new Error("NF-e legada sem itens importados para gerar estorno.");
-            }
-
             const crt: "1" | "3" = settings.tax_regime === "simples_nacional" ? "1" : "3";
+            const companyForLegacyDraft = {
+                cnpj: companyCnpj,
+                ie: companyIe,
+                legalName: toNonEmpty(settings.legal_name, String((baseCompany as { name?: string }).name || "EMPRESA")),
+                tradeName: toNonEmpty(settings.trade_name, String((baseCompany as { trade_name?: string }).trade_name || (baseCompany as { slug?: string }).slug || "EMPRESA")),
+                crt,
+                endereco: fiscalAddress,
+            };
+
+            if (outboundRow.source_system === "LEGACY_IMPORT") {
+                const { data: importedItemsRaw, error: importedItemsError } = await admin
+                    .from("nfe_legacy_import_items")
+                    .select("item_number,cprod,xprod,ncm,cfop,ucom,qcom,vuncom,vprod,is_produced")
+                    .eq("company_id", args.companyId)
+                    .eq("nfe_emission_id", outboundRow.id)
+                    .order("item_number", { ascending: true });
+
+                if (importedItemsError) {
+                    throw new Error(`Falha ao carregar itens importados da NF-e legada: ${importedItemsError.message}`);
+                }
+
+                const importedItems = (importedItemsRaw || []).map((row) => LegacyImportedItemSchema.parse(row));
+                if (importedItems.length === 0) {
+                    throw new Error("NF-e legada sem itens importados para gerar estorno.");
+                }
+
+                return buildLegacyOutboundDraft({
+                    outbound: outboundRow,
+                    items: importedItems,
+                    nowIso,
+                    tpAmb,
+                    company: companyForLegacyDraft,
+                });
+            }
+
+            // Fallback: NF-e emitida sem `sales_document_id` (ex.: documentos antigos) mas com XML armazenado.
+            // Nesses casos, montamos o draft de saída a partir do XML e prosseguimos com o estorno.
+            const outboundXml = resolveOutboundXmlContent(outboundRow);
+            if (!outboundXml) {
+                throw new Error("NF-e de saída sem pedido vinculado e sem XML armazenado. Não é possível gerar estorno automaticamente.");
+            }
+
+            const parsed = parseLegacyNfeXml(outboundXml);
+            const itemsFromXml = parsed.items.map((item) => LegacyImportedItemSchema.parse({
+                item_number: item.itemNumber,
+                cprod: item.cProd,
+                xprod: item.xProd,
+                ncm: item.ncm,
+                cfop: item.cfop,
+                ucom: item.uCom,
+                qcom: item.qCom,
+                vuncom: item.vUnCom,
+                vprod: item.vProd,
+                is_produced: item.isProduced,
+            }));
+
+            const outboundForDraft = OutboundEmissionSchema.parse({
+                ...outboundRow,
+                emit_uf: outboundRow.emit_uf ?? parsed.header.emitUf,
+                dest_uf: outboundRow.dest_uf ?? parsed.header.destUf,
+                dest_document: outboundRow.dest_document ?? parsed.header.destDocument,
+            });
+
             return buildLegacyOutboundDraft({
-                outbound: outboundRow,
-                items: importedItems,
+                outbound: outboundForDraft,
+                items: itemsFromXml,
                 nowIso,
                 tpAmb,
-                company: {
-                    cnpj: companyCnpj,
-                    ie: companyIe,
-                    legalName: toNonEmpty(settings.legal_name, String((baseCompany as { name?: string }).name || "EMPRESA")),
-                    tradeName: toNonEmpty(settings.trade_name, String((baseCompany as { trade_name?: string }).trade_name || (baseCompany as { slug?: string }).slug || "EMPRESA")),
-                    crt,
-                    endereco: fiscalAddress,
-                },
+                company: companyForLegacyDraft,
             });
         })();
     })();
