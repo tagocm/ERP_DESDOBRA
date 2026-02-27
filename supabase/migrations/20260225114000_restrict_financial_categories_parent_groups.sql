@@ -204,7 +204,11 @@ BEGIN
         AND c.deleted_at IS NULL
         AND c.expense_account_id = a.id
     )
-  ON CONFLICT (company_id, name) WHERE deleted_at IS NULL DO NOTHING;
+  -- Idempotência defensiva:
+  -- `ON CONFLICT (cols) WHERE ...` exige um unique index exatamente inferível, o que pode variar em
+  -- bases locais já existentes (drift/restore). Como já filtramos via NOT EXISTS, aqui usamos um
+  -- `ON CONFLICT DO NOTHING` genérico para evitar quebra por ausência do índice.
+  ON CONFLICT DO NOTHING;
 
   GET DIAGNOSTICS v_inserted = ROW_COUNT;
   RETURN v_inserted;
