@@ -340,7 +340,16 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
         throw new Error("Certificado A1 não configurado.");
     }
 
-    const serie = String(settings.nfe_series ?? "1");
+    const serieRaw = String(settings.nfe_series ?? "1");
+    const serieDigits = cleanDigits(serieRaw);
+    if (!serieDigits) {
+        throw new Error("Série de NF-e não configurada nas configurações da empresa.");
+    }
+    if (serieDigits.length > 3) {
+        throw new Error(`Série de NF-e inválida (máx. 3 dígitos). Valor atual: "${serieRaw}".`);
+    }
+    const serie = serieDigits;
+
     const nNF = Number(settings.nfe_next_number ?? 0);
     if (!nNF || nNF <= 0) {
         throw new Error("Próximo número de NF-e não configurado nas configurações da empresa.");
