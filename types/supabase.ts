@@ -2776,23 +2776,34 @@ export type Database = {
           c_stat: string | null
           company_id: string
           created_at: string | null
+          dest_document: string | null
+          dest_uf: string | null
           dh_recbto: string | null
+          emit_cnpj: string | null
+          emit_uf: string | null
           digest_value: string | null
           error_message: string | null
           id: string
           id_lote: string | null
           ind_sinc: string | null
+          imported_at: string | null
+          imported_by: string | null
+          is_read_only: boolean
           last_attempt_at: string | null
+          legacy_protocol_status: string | null
           modelo: string | null
           n_prot: string | null
           n_recibo: string | null
           numero: string
           sales_document_id: string | null
           serie: string
+          source_system: string
           status: string
+          total_vnf: number | null
           tp_amb: string
           uf: string | null
           updated_at: string | null
+          xml_storage_path: string | null
           x_motivo: string | null
           xml_nfe_proc: string | null
           xml_sent: string | null
@@ -2806,23 +2817,34 @@ export type Database = {
           c_stat?: string | null
           company_id: string
           created_at?: string | null
+          dest_document?: string | null
+          dest_uf?: string | null
           dh_recbto?: string | null
+          emit_cnpj?: string | null
+          emit_uf?: string | null
           digest_value?: string | null
           error_message?: string | null
           id?: string
           id_lote?: string | null
           ind_sinc?: string | null
+          imported_at?: string | null
+          imported_by?: string | null
+          is_read_only?: boolean
           last_attempt_at?: string | null
+          legacy_protocol_status?: string | null
           modelo?: string | null
           n_prot?: string | null
           n_recibo?: string | null
           numero: string
           sales_document_id?: string | null
           serie: string
+          source_system?: string
           status?: string
+          total_vnf?: number | null
           tp_amb: string
           uf?: string | null
           updated_at?: string | null
+          xml_storage_path?: string | null
           x_motivo?: string | null
           xml_nfe_proc?: string | null
           xml_sent?: string | null
@@ -2836,23 +2858,34 @@ export type Database = {
           c_stat?: string | null
           company_id?: string
           created_at?: string | null
+          dest_document?: string | null
+          dest_uf?: string | null
           dh_recbto?: string | null
+          emit_cnpj?: string | null
+          emit_uf?: string | null
           digest_value?: string | null
           error_message?: string | null
           id?: string
           id_lote?: string | null
           ind_sinc?: string | null
+          imported_at?: string | null
+          imported_by?: string | null
+          is_read_only?: boolean
           last_attempt_at?: string | null
+          legacy_protocol_status?: string | null
           modelo?: string | null
           n_prot?: string | null
           n_recibo?: string | null
           numero?: string
           sales_document_id?: string | null
           serie?: string
+          source_system?: string
           status?: string
+          total_vnf?: number | null
           tp_amb?: string
           uf?: string | null
           updated_at?: string | null
+          xml_storage_path?: string | null
           x_motivo?: string | null
           xml_nfe_proc?: string | null
           xml_sent?: string | null
@@ -2872,6 +2905,75 @@ export type Database = {
             columns: ["sales_document_id"]
             isOneToOne: false
             referencedRelation: "sales_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nfe_legacy_import_items: {
+        Row: {
+          cfop: string | null
+          company_id: string
+          cprod: string
+          created_at: string
+          id: string
+          is_produced: boolean
+          item_number: number
+          ncm: string | null
+          nfe_emission_id: string
+          qcom: number
+          ucom: string
+          updated_at: string
+          vuncom: number
+          vprod: number
+          xprod: string
+        }
+        Insert: {
+          cfop?: string | null
+          company_id: string
+          cprod: string
+          created_at?: string
+          id?: string
+          is_produced?: boolean
+          item_number: number
+          ncm?: string | null
+          nfe_emission_id: string
+          qcom: number
+          ucom: string
+          updated_at?: string
+          vuncom: number
+          vprod: number
+          xprod: string
+        }
+        Update: {
+          cfop?: string | null
+          company_id?: string
+          cprod?: string
+          created_at?: string
+          id?: string
+          is_produced?: boolean
+          item_number?: number
+          ncm?: string | null
+          nfe_emission_id?: string
+          qcom?: number
+          ucom?: string
+          updated_at?: string
+          vuncom?: number
+          vprod?: number
+          xprod?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nfe_legacy_import_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nfe_legacy_import_items_nfe_emission_id_fkey"
+            columns: ["nfe_emission_id"]
+            isOneToOne: false
+            referencedRelation: "nfe_emissions"
             referencedColumns: ["id"]
           },
         ]
