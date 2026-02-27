@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { ModuleTabs } from '@/components/app/ModuleTabs';
 import { InvoiceListClient } from '@/components/fiscal/InvoiceListClient';
 import { Button } from '@/components/ui/Button';
-import { Plus, FileText } from 'lucide-react';
+import { Plus, FileText, UploadCloud } from 'lucide-react';
 import Link from 'next/link';
 
 type NfeListView = 'pending' | 'issued' | 'cancelled' | 'processing' | 'events';
@@ -16,6 +16,10 @@ const tabs = [
     {
         name: 'Notas de Entrada',
         href: '/app/fiscal/configuracoes'
+    },
+    {
+        name: 'Importar XML (Legado)',
+        href: '/app/fiscal/nfe/importar-legado'
     }
 ];
 
@@ -56,6 +60,11 @@ export default async function NFeEntradaPage({
                         <Link href="/app/fiscal/nfe/avulsa">
                             <Button variant="secondary" className="font-medium">
                                 <Plus className="w-4 h-4 mr-2" /> NF-e Avulsa
+                            </Button>
+                        </Link>
+                        <Link href="/app/fiscal/nfe/importar-legado">
+                            <Button variant="secondary" className="font-medium">
+                                <UploadCloud className="w-4 h-4 mr-2" /> Importar XML Legado
                             </Button>
                         </Link>
                         <Button variant="secondary" className="font-medium">
