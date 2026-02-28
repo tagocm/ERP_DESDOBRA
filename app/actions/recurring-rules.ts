@@ -34,25 +34,37 @@ function isMissingColumnError(error: unknown, columnName: string): boolean {
     );
 }
 
+const COMPAT_OPTIONAL_COLUMNS = [
+    'frequency',
+    'payment_mode_id',
+    'contract_amount',
+    'estimated_amount',
+    'manual_installments',
+] as const;
+
+function hasAnyMissingColumnError(error: unknown): boolean {
+    return COMPAT_OPTIONAL_COLUMNS.some((columnName) => isMissingColumnError(error, columnName));
+}
+
 function removeMissingColumnsFromPayload(
     payload: Record<string, unknown>,
     error: unknown
 ): Record<string, unknown> {
     const nextPayload = { ...payload };
-    if (isMissingColumnError(error, 'frequency')) {
-        delete nextPayload.frequency;
-    }
-    if (isMissingColumnError(error, 'payment_mode_id')) {
-        delete nextPayload.payment_mode_id;
+    for (const columnName of COMPAT_OPTIONAL_COLUMNS) {
+        if (isMissingColumnError(error, columnName)) {
+            delete nextPayload[columnName];
+        }
     }
     // Defensive fallback for schema-cache incompatibilities:
-    // if PostgREST cache is stale and points to missing columns, strip both optional new fields.
+    // if PostgREST cache is stale and points to missing columns, strip all optional compat fields.
     if (typeof error === 'object' && error !== null) {
         const maybeMessage = (error as { message?: unknown }).message;
         const message = typeof maybeMessage === 'string' ? maybeMessage.toLowerCase() : '';
         if (message.includes('schema cache')) {
-            delete nextPayload.frequency;
-            delete nextPayload.payment_mode_id;
+            for (const columnName of COMPAT_OPTIONAL_COLUMNS) {
+                delete nextPayload[columnName];
+            }
         }
     }
     return nextPayload;
@@ -359,10 +371,7 @@ export async function createRecurringRuleAction(input: CreateRecurringRuleInput)
 
         let recurringRuleId: string | null = insertResult.data?.id ?? null;
 
-        if (
-            insertResult.error
-            && (isMissingColumnError(insertResult.error, 'frequency') || isMissingColumnError(insertResult.error, 'payment_mode_id'))
-        ) {
+        if (insertResult.error && hasAnyMissingColumnError(insertResult.error)) {
             const legacyPayload = removeMissingColumnsFromPayload(payloadWithFrequency as Record<string, unknown>, insertResult.error);
             const fallbackResult = await supabase
                 .from('recurring_rules')
@@ -414,10 +423,7 @@ export async function updateRecurringRuleAction(id: string, input: CreateRecurri
             .eq('id', id)
             .eq('company_id', companyId);
 
-        if (
-            updateResult.error
-            && (isMissingColumnError(updateResult.error, 'frequency') || isMissingColumnError(updateResult.error, 'payment_mode_id'))
-        ) {
+        if (updateResult.error && hasAnyMissingColumnError(updateResult.error)) {
             const legacyPayload = removeMissingColumnsFromPayload(payloadWithFrequency as Record<string, unknown>, updateResult.error);
             const fallbackResult = await supabase
                 .from('recurring_rules')

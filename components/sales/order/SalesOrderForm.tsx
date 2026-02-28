@@ -33,7 +33,6 @@ import {
     confirmOrderAction,
     deleteSalesItemAction,
     cancelOrderAction,
-    dispatchOrderAction,
     deleteOrderAction,
     cleanupDraftsAction,
     recalculateFiscalAction,
@@ -1261,6 +1260,35 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         handleConfirmTrigger({ isNew: true });
     };
 
+    const sendOrderToAutomaticRoute = async (orderId: string) => {
+        const routeRes = await getOrCreateDispatcherRouteAction();
+        if (!routeRes.success) {
+            throw new Error(routeRes.error || "Falha ao obter rota automática");
+        }
+        if (!routeRes.data) {
+            throw new Error("Falha ao obter rota automática");
+        }
+
+        const route = routeRes.data;
+        const addRes = await addOrderToRouteAction(orderId, route.id);
+        if (!addRes.success) {
+            throw new Error(addRes.error || "Falha ao adicionar pedido na rota");
+        }
+
+        const startRes = await fetch('/api/expedition/start-route', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ routeId: route.id })
+        });
+
+        const startPayload = await startRes.json().catch(() => null as { error?: string } | null);
+        if (!startRes.ok) {
+            throw new Error(startPayload?.error || "Falha ao iniciar rota para entrega.");
+        }
+
+        return route;
+    };
+
     const handleConfirmAndDispatch = async () => {
         if (!selectedCompany) return;
         setIsSaving(true);
@@ -1269,39 +1297,8 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
             const savedOrder = await executeSave('confirmed', 'order');
             const orderId = savedOrder.id;
 
-            // 2. Get/Create Automatic Route (In Transit)
-            const routeRes = await getOrCreateDispatcherRouteAction();
-            if (!routeRes.success || !routeRes.data) throw new Error("Falha ao obter rota automática");
-            const route = routeRes.data;
-
-            // 3. Add Order to Route
-            const addRes = await addOrderToRouteAction(orderId, route.id);
-            if (!addRes.success) throw new Error("Falha ao adicionar pedido na rota: " + addRes.error);
-
-            // Force status update to EM_ROTA because addOrderToRoute sets it to 'roteirizado'
-            // This should ideally be handled by the server action itself or a dedicated action
-            // For now, keeping client-side update for immediate feedback
-            setFormData(prev => ({ ...prev, status_logistic: 'in_route' }));
-
-            // Removed dummy adjustment creation (caused 403 and unnecessary)
-
-            // 4. Force Start Route Logic (Create Deliveries + Deduct Stock)
-            try {
-                const startRes = await fetch('/api/expedition/start-route', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ routeId: route.id })
-                });
-
-                if (!startRes.ok) {
-                    const err = await startRes.json();
-                    console.error("Start Route Error (Background):", err);
-                    // We don't block the UI flow, but we log it.
-                    // Stock will be fixed when route is processed again if needed.
-                }
-            } catch (err) {
-                console.error("Start Route Fetch Error:", err);
-            }
+            // 2. Include in route, mark as loaded, start route and trigger delivery/stock flow
+            const route = await sendOrderToAutomaticRoute(orderId);
 
             toast({
                 title: "Pedido em Rota!",
@@ -1488,14 +1485,16 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
     const onConfirmDispatch = async () => {
         setIsLoading(true);
         try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user || !selectedCompany) throw new Error("Usuário ou empresa não identificados");
+            if (!selectedCompany) throw new Error("Empresa não identificada");
+            if (!formData.id) throw new Error("Pedido não encontrado");
 
-            const res = await dispatchOrderAction(formData.id!);
-            if (!res.success) throw new Error(res.error);
+            const route = await sendOrderToAutomaticRoute(formData.id);
+            await loadOrder(formData.id);
 
-            toast({ title: "Pedido Despachado", description: "Status atualizado para Expedição." });
-            setFormData(prev => ({ ...prev, status_logistic: 'in_route' }));
+            toast({
+                title: "Pedido enviado para entrega",
+                description: `Pedido incluído e carregado na rota ${route.name}.`
+            });
         } catch (e: unknown) {
             const message = e instanceof Error ? e.message : String(e);
             toast({ title: "Erro", description: message, variant: "destructive" });
@@ -1578,7 +1577,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
 
             // Assign order to route
             // 3. Add to Route
-            const addRes = await addOrderToRouteAction(targetRouteId, savedOrder.id);
+            const addRes = await addOrderToRouteAction(savedOrder.id, targetRouteId);
             if (!addRes.success) throw new Error(addRes.error);
 
             toast({
@@ -2030,7 +2029,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                         )}
 
                         {/* --- DISPATCH ACTION (Existing) --- */}
-                        {formData.status_commercial === 'confirmed' && ['pending'].includes(normalizeLogisticsStatus(formData.status_logistic) || (formData.status_logistic as string)) && (
+                        {formData.status_commercial === 'confirmed' && ['pending', 'expedition'].includes(normalizeLogisticsStatus(formData.status_logistic) || (formData.status_logistic as string)) && (
                             <div className="flex items-center -space-x-px overflow-hidden rounded-2xl focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background">
                                 <Button onClick={handleDispatch} disabled={isSaving || isLoading} className="bg-blue-600 hover:bg-blue-700 text-white rounded-none z-10 focus:z-20 pr-2">
                                     <Truck className="w-4 h-4 mr-2" /> Despachar / Enviar
@@ -3011,7 +3010,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                 open={dispatchConfirmOpen}
                 onOpenChange={setDispatchConfirmOpen}
                 title="Confirmação de Despacho"
-                description="Confirma o despacho deste pedido?"
+                description="O pedido será incluído na rota automática, carregado e enviado para retorno de entrega."
                 onConfirm={onConfirmDispatch}
                 isLoading={isLoading}
             />

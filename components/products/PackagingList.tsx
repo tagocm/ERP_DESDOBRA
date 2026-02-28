@@ -13,8 +13,12 @@ import { Badge } from "@/components/ui/Badge";
 import { Card } from "@/components/ui/Card";
 import { Edit2, Trash2, Package, Star } from "lucide-react";
 
+type PackagingRow = Partial<ItemPackagingDTO> & {
+    deleted_at?: string | null;
+};
+
 interface PackagingListProps {
-    packagings: Partial<ItemPackagingDTO>[];
+    packagings: PackagingRow[];
     baseUom: string;
     onEdit: (index: number) => void;
     onDelete: (index: number) => void;
@@ -46,10 +50,11 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {packagings.filter((p: any) => !p.deleted_at).map((pkg) => {
-                        const originalIndex = packagings.findIndex(p => p === pkg);
+                    {packagings.map((pkg, index) => {
+                        if (pkg.deleted_at) return null;
+
                         return (
-                            <TableRow key={originalIndex} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
+                            <TableRow key={index} className="group border-gray-50 hover:bg-gray-50/50 transition-colors">
                                 <TableCell className="px-6 py-4">
                                     <div className="flex items-center">
                                         <Card className="flex-shrink-0 h-9 w-9 bg-brand-50 flex items-center justify-center text-brand-600 border-brand-100/50">
@@ -99,7 +104,7 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            onClick={() => onEdit(originalIndex)}
+                                            onClick={() => onEdit(index)}
                                             className="h-8 w-8 rounded-2xl hover:bg-blue-50 hover:text-blue-600 text-gray-400 transition-colors"
                                         >
                                             <Edit2 className="w-4 h-4" />
@@ -107,7 +112,7 @@ export function PackagingList({ packagings, baseUom, onEdit, onDelete }: Packagi
                                         <Button
                                             variant="ghost"
                                             size="icon"
-                                            onClick={() => onDelete(originalIndex)}
+                                            onClick={() => onDelete(index)}
                                             disabled={pkg.is_used}
                                             className={cn(
                                                 "h-8 w-8 rounded-2xl transition-colors",

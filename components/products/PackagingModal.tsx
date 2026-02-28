@@ -33,42 +33,59 @@ const DEFAULT_TYPES = [
     { value: 'OTHER', label: 'Outro' }
 ];
 
+function buildInitialFormData(initialData?: Partial<ItemPackagingDTO>): Partial<ItemPackagingDTO> {
+    if (initialData) {
+        return {
+            ...initialData,
+            type: initialData.type ?? 'BOX',
+            label: initialData.label ?? '',
+            qty_in_base: initialData.qty_in_base ?? 1,
+            gtin_ean: initialData.gtin_ean ?? '',
+            net_weight_kg: initialData.net_weight_kg ?? 0,
+            gross_weight_kg: initialData.gross_weight_kg ?? 0,
+            height_cm: initialData.height_cm ?? 0,
+            width_cm: initialData.width_cm ?? 0,
+            length_cm: initialData.length_cm ?? 0,
+            is_active: initialData.is_active ?? true,
+            is_default_sales_unit: initialData.is_default_sales_unit ?? false,
+        };
+    }
+
+    return {
+        type: 'BOX',
+        label: '',
+        qty_in_base: 1,
+        gtin_ean: '',
+        net_weight_kg: 0,
+        gross_weight_kg: 0,
+        height_cm: 0,
+        width_cm: 0,
+        length_cm: 0,
+        is_active: true,
+        is_default_sales_unit: false,
+    };
+}
+
 export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, baseNetWeight, baseGrossWeight }: PackagingModalProps) {
     const { selectedCompany } = useCompany();
     const [types, setTypes] = useState<{ value: string, label: string }[]>(DEFAULT_TYPES);
     const [manageTypesOpen, setManageTypesOpen] = useState(false);
 
-    // Initialize formData from initialData or defaults
-    const [formData, setFormData] = useState<Partial<ItemPackagingDTO>>(() => {
-        if (initialData) {
-            return {
-                ...initialData,
-                net_weight_kg: initialData.net_weight_kg || 0,
-                gross_weight_kg: initialData.gross_weight_kg || 0,
-                height_cm: initialData.height_cm || 0,
-                width_cm: initialData.width_cm || 0,
-                length_cm: initialData.length_cm || 0
-            };
-        }
-        return {
-            type: 'BOX',
-            label: '',
-            qty_in_base: 1,
-            gtin_ean: '',
-            net_weight_kg: 0,
-            gross_weight_kg: 0,
-            height_cm: 0,
-            width_cm: 0,
-            length_cm: 0,
-            is_active: true,
-            is_default_sales_unit: false
-        };
-    });
+    const [formData, setFormData] = useState<Partial<ItemPackagingDTO>>(() => buildInitialFormData(initialData));
 
     const [errors, setErrors] = useState<Record<string, string>>({});
     // If editing existing packaging, it only counts as manual if it already has a non-suggested label
-    const [manualWeightOverride, setManualWeightOverride] = useState(!!initialData?.net_weight_kg || !!initialData?.gross_weight_kg);
-    const [manualLabelOverride, setManualLabelOverride] = useState(false); // Start false to allow initial sync even in edit if it matches
+    const [manualWeightOverride, setManualWeightOverride] = useState(Boolean(initialData));
+    const [manualLabelOverride, setManualLabelOverride] = useState(Boolean(initialData));
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        setFormData(buildInitialFormData(initialData));
+        setErrors({});
+        setManualWeightOverride(Boolean(initialData));
+        setManualLabelOverride(Boolean(initialData));
+    }, [isOpen, initialData]);
 
     // Load types when modal opens
     useEffect(() => {
@@ -108,7 +125,10 @@ export function PackagingModal({ isOpen, onClose, onSave, initialData, baseUom, 
     // Sync label when suggested changes, IF not manually overridden
 
 
-    const handleChange = (field: keyof ItemPackagingDTO, value: any) => {
+    const handleChange = (
+        field: keyof ItemPackagingDTO,
+        value: ItemPackagingDTO[keyof ItemPackagingDTO] | string | number | boolean | null
+    ) => {
         setFormData(prev => ({ ...prev, [field]: value }));
 
         // Mark as manually overridden if user edits weights or label
