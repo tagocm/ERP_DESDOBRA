@@ -49,6 +49,7 @@ export interface NfeDest {
     xNome: string;
     indIEDest: "1" | "2" | "9";
     ie?: string;
+    email?: string;
     enderDest: NfeEndereco;
 }
 

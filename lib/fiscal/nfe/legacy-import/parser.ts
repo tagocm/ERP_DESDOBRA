@@ -2,6 +2,7 @@ import { XMLParser } from "fast-xml-parser";
 import {
     ParsedNfeXmlDocument,
     ParsedNfeXmlDocumentSchema,
+    ParsedNfeXmlItemSchema,
     ParsedNfeXmlItem,
 } from "@/lib/fiscal/nfe/legacy-import/schemas";
 
@@ -52,6 +53,12 @@ function sanitizeDigits(value: string | null, expectedLengths?: number[]): strin
     return digits;
 }
 
+function sanitizeOptionalDigits(value: string | null): string | null {
+    if (!value) return null;
+    const digits = value.replace(/\D/g, "");
+    return digits.length > 0 ? digits : null;
+}
+
 function inferProducedFromCfop(cfop: string): boolean {
     const digits = cfop.replace(/\D/g, "");
     return digits.endsWith("101");
@@ -61,6 +68,79 @@ function normalizeUf(raw: string | null): string | null {
     if (!raw) return null;
     const normalized = raw.trim().toUpperCase();
     return normalized.length === 2 ? normalized : null;
+}
+
+function pickFirstRecord(record: JsonRecord | null): JsonRecord | null {
+    if (!record) return null;
+    for (const value of Object.values(record)) {
+        const child = asRecord(value);
+        if (child) return child;
+    }
+    return null;
+}
+
+function parseItemImposto(det: JsonRecord | null): ParsedNfeXmlItem["imposto"] | undefined {
+    const imposto = asRecord(det?.imposto);
+    if (!imposto) return undefined;
+
+    const icmsRoot = asRecord(imposto.ICMS);
+    const icmsNode = pickFirstRecord(icmsRoot);
+    const icmsOrig = pickString(icmsNode, "orig");
+    const icmsCst = pickString(icmsNode, "CST");
+    const icmsCsosn = pickString(icmsNode, "CSOSN");
+    const icmsModBc = pickString(icmsNode, "modBC");
+
+    const icms = icmsNode
+        ? {
+            orig: (icmsOrig && /^[0-8]$/.test(icmsOrig) ? icmsOrig : "0") as NonNullable<NonNullable<ParsedNfeXmlItem["imposto"]>["icms"]>["orig"],
+            cst: icmsCst ?? undefined,
+            csosn: icmsCsosn ?? undefined,
+            modBC: (icmsModBc && ["0", "1", "2", "3"].includes(icmsModBc) ? icmsModBc : undefined) as NonNullable<NonNullable<ParsedNfeXmlItem["imposto"]>["icms"]>["modBC"],
+            vBC: pickNumber(icmsNode, "vBC") ?? undefined,
+            pICMS: pickNumber(icmsNode, "pICMS") ?? undefined,
+            vICMS: pickNumber(icmsNode, "vICMS") ?? undefined,
+            pRedBC: pickNumber(icmsNode, "pRedBC") ?? undefined,
+            pCredSN: pickNumber(icmsNode, "pCredSN") ?? undefined,
+            vCredICMSSN: pickNumber(icmsNode, "vCredICMSSN") ?? undefined,
+        }
+        : undefined;
+
+    const pisRoot = asRecord(imposto.PIS);
+    const pisNode = pickFirstRecord(pisRoot);
+    const pisCst = pickString(pisNode, "CST");
+    const pis = (pisNode && pisCst)
+        ? {
+            cst: pisCst,
+            vBC: pickNumber(pisNode, "vBC") ?? undefined,
+            pPIS: pickNumber(pisNode, "pPIS") ?? undefined,
+            vPIS: pickNumber(pisNode, "vPIS") ?? undefined,
+        }
+        : undefined;
+
+    const cofinsRoot = asRecord(imposto.COFINS);
+    const cofinsNode = pickFirstRecord(cofinsRoot);
+    const cofinsCst = pickString(cofinsNode, "CST");
+    const cofins = (cofinsNode && cofinsCst)
+        ? {
+            cst: cofinsCst,
+            vBC: pickNumber(cofinsNode, "vBC") ?? undefined,
+            pCOFINS: pickNumber(cofinsNode, "pCOFINS") ?? undefined,
+            vCOFINS: pickNumber(cofinsNode, "vCOFINS") ?? undefined,
+        }
+        : undefined;
+
+    const vTotTrib = pickNumber(imposto, "vTotTrib") ?? undefined;
+
+    if (!icms && !pis && !cofins && vTotTrib === undefined) return undefined;
+
+    const parsedImposto = ParsedNfeXmlItemSchema.shape.imposto.parse({
+        icms,
+        pis,
+        cofins,
+        vTotTrib,
+    });
+
+    return parsedImposto;
 }
 
 function resolveNfeRoot(parsed: JsonRecord): { infNFe: JsonRecord; infProt: JsonRecord | null } {
@@ -135,6 +215,7 @@ function parseItems(infNFe: JsonRecord): ParsedNfeXmlItem[] {
             vUnCom,
             vProd,
             isProduced: inferProducedFromCfop(cfop),
+            imposto: parseItemImposto(det),
         };
     });
 
@@ -181,11 +262,19 @@ export function parseLegacyNfeXml(xmlContent: string): ParsedNfeXmlDocument {
     const destCnpj = sanitizeDigits(pickString(dest, "CNPJ"), [14]);
     const destCpf = sanitizeDigits(pickString(dest, "CPF"), [11]);
     const destDocument = destCnpj ?? destCpf;
-    const destUf = normalizeUf(pickString(asRecord(dest?.enderDest), "UF"));
+    const destAddress = asRecord(dest?.enderDest);
+    const destUf = normalizeUf(pickString(destAddress, "UF"));
     const destName = pickString(dest, "xNome");
     if (!destDocument || !destUf || !destName) {
         throw new Error("Dados do destinatário inválidos no XML.");
     }
+
+    const indIEDestRaw = pickString(dest, "indIEDest");
+    const indIEDest = indIEDestRaw === "1" || indIEDestRaw === "2" || indIEDestRaw === "9"
+        ? indIEDestRaw
+        : undefined;
+    const destIe = sanitizeOptionalDigits(pickString(dest, "IE"));
+    const destEmail = pickString(dest, "email");
 
     const totalVnf = pickNumber(asRecord(asRecord(infNFe.total)?.ICMSTot), "vNF");
     if (totalVnf === null || totalVnf <= 0) {
@@ -219,6 +308,24 @@ export function parseLegacyNfeXml(xmlContent: string): ParsedNfeXmlDocument {
             cStat,
             xMotivo,
             status: hasProtocol && cStat === "100" ? "AUTHORIZED_WITH_PROTOCOL" : "SEM_PROTOCOLO",
+        },
+        destination: {
+            cpfOuCnpj: destDocument,
+            xNome: destName,
+            indIEDest,
+            ie: destIe,
+            email: destEmail,
+            enderDest: destAddress ? {
+                xLgr: pickString(destAddress, "xLgr"),
+                nro: pickString(destAddress, "nro"),
+                xBairro: pickString(destAddress, "xBairro"),
+                cMun: sanitizeDigits(pickString(destAddress, "cMun"), [7]),
+                xMun: pickString(destAddress, "xMun"),
+                uf: normalizeUf(pickString(destAddress, "UF")),
+                cep: sanitizeDigits(pickString(destAddress, "CEP"), [8]),
+                cPais: pickString(destAddress, "cPais"),
+                xPais: pickString(destAddress, "xPais"),
+            } : undefined,
         },
         items: parseItems(infNFe),
     };

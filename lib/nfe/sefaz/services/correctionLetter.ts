@@ -6,6 +6,7 @@ import { buildSoapEnvelope } from "../soap/soapEnvelope";
 import { SefazCertConfig, SefazRequestOptions } from "../types";
 import { CCE_USAGE_CONDITIONS } from "@/lib/fiscal/nfe/correction-letter-rules";
 import { signEventXml } from "@/lib/nfe/sign/signEventXml";
+import { formatDateTimeInBrasilia } from "./brasilia-time";
 
 type SubmitCorrectionLetterInput = {
     accessKey: string;
@@ -38,17 +39,6 @@ function escapeXml(input: string): string {
 
 function sanitizeSignedEventXmlForSoap(input: string): string {
     return input.replace(/^\s*<\?xml[^>]*\?>\s*/i, "").trim();
-}
-
-function formatBrazilOffsetDate(date: Date): string {
-    const pad = (value: number) => String(value).padStart(2, "0");
-    const year = date.getFullYear();
-    const month = pad(date.getMonth() + 1);
-    const day = pad(date.getDate());
-    const hour = pad(date.getHours());
-    const minute = pad(date.getMinutes());
-    const second = pad(date.getSeconds());
-    return `${year}-${month}-${day}T${hour}:${minute}:${second}-03:00`;
 }
 
 function parseEventResponse(xml: string): {
@@ -94,7 +84,7 @@ export async function submitCorrectionLetter(
     const sequence = String(input.sequence).padStart(2, "0");
     const eventId = `ID110110${input.accessKey}${sequence}`;
     const cOrgao = input.accessKey.slice(0, 2);
-    const eventTimestamp = formatBrazilOffsetDate(new Date());
+    const eventTimestamp = formatDateTimeInBrasilia(new Date());
 
     const unsignedEventXml =
         `<?xml version="1.0" encoding="utf-8"?>` +

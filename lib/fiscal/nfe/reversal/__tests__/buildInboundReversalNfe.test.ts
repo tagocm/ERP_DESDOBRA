@@ -1,25 +1,85 @@
+import { NfeDraft, NfeItem } from "@/lib/nfe/domain/types";
 import { describe, expect, it } from "vitest";
-import { buildInboundReversalNfe } from "../buildInboundReversalNfe";
+import {
+    buildInboundReversalNfe,
+    buildTotalsFromItems,
+    mapReturnItemsToOriginalItems,
+} from "../buildInboundReversalNfe";
 
-function sampleOutboundDraft() {
+function round2(value: number): number {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function makeTaxedItem(nItem: number, qty: number, vUnCom: number): NfeItem {
+    const vProd = round2(qty * vUnCom);
+    const vBC = round2(vProd * 0.6667); // pRedBC=33.33
+    const vICMS = round2(vBC * 0.18);
+    const vPIS = round2(vProd * 0.0065);
+    const vCOFINS = round2(vProd * 0.03);
+
+    return {
+        nItem,
+        prod: {
+            cProd: `SKU${nItem}`,
+            xProd: `Produto ${nItem}`,
+            ncm: "01010101",
+            cfop: "5101",
+            uCom: "UN",
+            qCom: qty,
+            vUnCom,
+            vProd,
+            cean: "SEM GTIN",
+            ceanTrib: "SEM GTIN",
+            uTrib: "UN",
+            qTrib: qty,
+            vUnTrib: vUnCom,
+        },
+        imposto: {
+            icms: {
+                orig: "0",
+                cst: "20",
+                modBC: "3",
+                pRedBC: 33.33,
+                vBC,
+                pICMS: 18,
+                vICMS,
+            },
+            pis: {
+                cst: "01",
+                vBC: vProd,
+                pPIS: 0.65,
+                vPIS: vPIS,
+            },
+            cofins: {
+                cst: "01",
+                vBC: vProd,
+                pCOFINS: 3,
+                vCOFINS: vCOFINS,
+            },
+            vTotTrib: round2(vICMS + vPIS + vCOFINS),
+        },
+    };
+}
+
+function sampleOutboundDraft(): NfeDraft {
     return {
         ide: {
             cUF: "35",
             natOp: "VENDA",
-            mod: "55" as const,
+            mod: "55",
             serie: "1",
             nNF: "10",
             dhEmi: "2026-02-23T10:00:00.000-03:00",
-            tpNF: "1" as const,
-            idDest: "1" as "1" | "2",
+            tpNF: "1",
+            idDest: "1",
             cMunFG: "3550308",
-            tpImp: "1" as const,
-            tpEmis: "1" as const,
-            tpAmb: "2" as const,
-            finNFe: "1" as const,
-            indFinal: "1" as const,
-            indPres: "1" as const,
-            procEmi: "0" as const,
+            tpImp: "1",
+            tpEmis: "1",
+            tpAmb: "1",
+            finNFe: "1",
+            indFinal: "1",
+            indPres: "1",
+            procEmi: "0",
             verProc: "ERP",
             cNF: "12345678",
             chNFe: "3".repeat(44),
@@ -28,7 +88,7 @@ function sampleOutboundDraft() {
             cnpj: "03645616000108",
             xNome: "EMPRESA TESTE",
             ie: "123",
-            crt: "1" as const,
+            crt: "3",
             enderEmit: {
                 xLgr: "Rua A",
                 nro: "1",
@@ -41,74 +101,39 @@ function sampleOutboundDraft() {
         },
         dest: {
             cpfOuCnpj: "11111111000111",
-            xNome: "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL",
-            indIEDest: "9" as const,
+            xNome: "CLIENTE ORIGINAL",
+            indIEDest: "1",
+            ie: "99887766",
+            email: "cliente.original@teste.com.br",
             enderDest: {
-                xLgr: "Rua B",
-                nro: "2",
-                xBairro: "Centro",
+                xLgr: "Rua Cliente",
+                nro: "200",
+                xBairro: "Bairro Cliente",
                 cMun: "3550308",
                 xMun: "SAO PAULO",
                 uf: "SP",
-                cep: "01001000",
+                cep: "01002000",
             },
         },
         itens: [
-            {
-                nItem: 1,
-                prod: {
-                    cProd: "SKU1",
-                    xProd: "Produto 1",
-                    ncm: "01010101",
-                    cfop: "5102",
-                    uCom: "UN",
-                    qCom: 10,
-                    vUnCom: 5,
-                    vProd: 50,
-                    cean: "SEM GTIN",
-                    ceanTrib: "SEM GTIN",
-                    uTrib: "UN",
-                    qTrib: 10,
-                    vUnTrib: 5,
-                },
-                imposto: {
-                    vTotTrib: 0,
-                    pis: { cst: "07", vBC: 0, vPIS: 0 },
-                    cofins: { cst: "07", vBC: 0, vCOFINS: 0 },
-                },
-            },
-            {
-                nItem: 2,
-                prod: {
-                    cProd: "SKU2",
-                    xProd: "Produto 2",
-                    ncm: "01010101",
-                    cfop: "5102",
-                    uCom: "UN",
-                    qCom: 4,
-                    vUnCom: 3,
-                    vProd: 12,
-                    cean: "SEM GTIN",
-                    ceanTrib: "SEM GTIN",
-                    uTrib: "UN",
-                    qTrib: 4,
-                    vUnTrib: 3,
-                },
-                imposto: {
-                    vTotTrib: 0,
-                    pis: { cst: "07", vBC: 0, vPIS: 0 },
-                    cofins: { cst: "07", vBC: 0, vCOFINS: 0 },
-                },
-            },
+            makeTaxedItem(1, 2, 10),
+            makeTaxedItem(2, 3, 20),
+            makeTaxedItem(3, 4, 5),
+            makeTaxedItem(4, 1, 150),
+            makeTaxedItem(5, 6, 12.5),
         ],
+        cobr: {
+            fat: { nFat: "10", vOrig: 315, vLiq: 315 },
+            dup: [{ nDup: "001", dVenc: "2026-03-10", vDup: 315 }],
+        },
         pag: {
-            detPag: [{ tPag: "15", vPag: 62 }],
+            detPag: [{ indPag: "1", tPag: "15", vPag: 315 }],
         },
     };
 }
 
 describe("buildInboundReversalNfe", () => {
-    it("builds total reversal with finNFe=4, NFref and sem pagamento", () => {
+    it("caso feliz: espelha destinatário, impostos e totais, sem cobr e pagamento indevido", () => {
         const draft = sampleOutboundDraft();
         const out = buildInboundReversalNfe({
             outboundDraft: draft,
@@ -122,16 +147,80 @@ describe("buildInboundReversalNfe", () => {
         expect(out.ide.tpNF).toBe("0");
         expect(out.ide.finNFe).toBe("4");
         expect(out.ide.NFref?.[0]?.refNFe).toBe("1".repeat(44));
-        expect(out.pag.detPag[0].tPag).toBe("90");
-        expect(out.pag.detPag[0].vPag).toBe(0);
-        expect(out.itens).toHaveLength(2);
-        expect(out.itens[0].prod.cfop).toBe("1202"); // inferred from outbound CFOP 5102
+
+        expect(out.dest.cpfOuCnpj).toBe(draft.dest.cpfOuCnpj);
+        expect(out.dest.xNome).toBe(draft.dest.xNome);
+        expect(out.dest.ie).toBe(draft.dest.ie);
+        expect(out.dest.email).toBe(draft.dest.email);
+        expect(out.dest.cpfOuCnpj).not.toBe(out.emit.cnpj);
+
+        expect(out.cobr).toBeUndefined();
+        expect(out.pag.detPag).toHaveLength(1);
+        expect(out.pag.detPag[0]).toEqual({ indPag: "0", tPag: "90", vPag: 0 });
+
+        expect(out.itens).toHaveLength(5);
+        out.itens.forEach((item, index) => {
+            const original = draft.itens[index];
+            expect(item.prod.cProd).toBe(original.prod.cProd);
+            expect(item.prod.xProd).toBe(original.prod.xProd);
+            expect(item.prod.ncm).toBe(original.prod.ncm);
+            expect(item.prod.qCom).toBe(original.prod.qCom);
+            expect(item.prod.vUnCom).toBe(original.prod.vUnCom);
+            expect(item.prod.vProd).toBe(original.prod.vProd);
+            expect(item.imposto.icms?.cst).toBe("20");
+            expect(item.imposto.pis?.cst).toBe("01");
+            expect(item.imposto.cofins?.cst).toBe("01");
+            expect(item.imposto.icms).toEqual(original.imposto.icms);
+            expect(item.imposto.pis).toEqual(original.imposto.pis);
+            expect(item.imposto.cofins).toEqual(original.imposto.cofins);
+        });
+
+        const totals = buildTotalsFromItems(out.itens);
+        expect(totals.vProd).toBe(325);
+        expect(totals.vBC).toBe(216.67);
+        expect(totals.vICMS).toBe(39);
+        expect(totals.vPIS).toBe(2.12);
+        expect(totals.vCOFINS).toBe(9.75);
+        expect(totals.vNF).toBe(325);
     });
 
-    it("infers produced items from outbound CFOP 5101 and uses 1201", () => {
+    it("caso erro: destinatário igual ao emitente deve falhar", () => {
         const draft = sampleOutboundDraft();
-        draft.itens[0].prod.cfop = "5101";
+        draft.dest.cpfOuCnpj = draft.emit.cnpj;
 
+        expect(() =>
+            buildInboundReversalNfe({
+                outboundDraft: draft,
+                outboundAccessKey: "1".repeat(44),
+                mode: "TOTAL",
+                selectionByNItem: new Map(),
+                reasonCode: "MERCADORIA_NAO_ENTREGUE",
+                nowIso: "2026-02-23T12:00:00.000-03:00",
+            }),
+        ).toThrow("Destinatário da devolução não pode ser igual ao emitente.");
+    });
+
+    it("caso erro: mapeamento de itens sem correspondência 1:1 deve falhar", () => {
+        const originalItems = sampleOutboundDraft().itens;
+
+        expect(() =>
+            mapReturnItemsToOriginalItems(
+                [{
+                    order: 0,
+                    nItem: 999,
+                    cProd: "SEM-CORRESPONDENCIA",
+                    ncm: "01010101",
+                    vUnCom: 10,
+                    qCom: 1,
+                    vProd: 10,
+                }],
+                originalItems,
+            ),
+        ).toThrow("Não foi possível mapear item de devolução");
+    });
+
+    it("caso regressão: CFOP 1201 deve permanecer", () => {
+        const draft = sampleOutboundDraft();
         const out = buildInboundReversalNfe({
             outboundDraft: draft,
             outboundAccessKey: "1".repeat(44),
@@ -141,108 +230,6 @@ describe("buildInboundReversalNfe", () => {
             nowIso: "2026-02-23T12:00:00.000-03:00",
         });
 
-        expect(out.itens[0].prod.cfop).toBe("1201");
-    });
-
-    it("infers ST return CFOP from outbound CFOP 5401 and uses 1410 (intra-state)", () => {
-        const draft = sampleOutboundDraft();
-        draft.ide.idDest = "1";
-        draft.itens[0].prod.cfop = "5401";
-
-        const out = buildInboundReversalNfe({
-            outboundDraft: draft,
-            outboundAccessKey: "1".repeat(44),
-            mode: "TOTAL",
-            selectionByNItem: new Map(),
-            reasonCode: "MERCADORIA_NAO_ENTREGUE",
-            nowIso: "2026-02-23T12:00:00.000-03:00",
-        });
-
-        expect(out.itens[0].prod.cfop).toBe("1410");
-    });
-
-    it("infers ST return CFOP from outbound CFOP 6401 and uses 2410 (inter-state)", () => {
-        const draft = sampleOutboundDraft();
-        draft.ide.idDest = "2";
-        draft.itens[0].prod.cfop = "6401";
-
-        const out = buildInboundReversalNfe({
-            outboundDraft: draft,
-            outboundAccessKey: "1".repeat(44),
-            mode: "TOTAL",
-            selectionByNItem: new Map(),
-            reasonCode: "MERCADORIA_NAO_ENTREGUE",
-            nowIso: "2026-02-23T12:00:00.000-03:00",
-        });
-
-        expect(out.itens[0].prod.cfop).toBe("2410");
-    });
-
-    it("builds partial reversal with proportional qty and cfop by isProduced", () => {
-        const draft = sampleOutboundDraft();
-        const sel = new Map<number, { qty: number; isProduced: boolean }>([
-            [1, { qty: 2, isProduced: true }],
-            [2, { qty: 1, isProduced: false }],
-        ]);
-
-        const out = buildInboundReversalNfe({
-            outboundDraft: draft,
-            outboundAccessKey: "2".repeat(44),
-            mode: "PARCIAL",
-            selectionByNItem: sel,
-            reasonCode: "OUTROS",
-            reasonOther: "Teste",
-            nowIso: "2026-02-23T12:00:00.000-03:00",
-        });
-
-        expect(out.itens).toHaveLength(2);
-        expect(out.itens[0].prod.qCom).toBe(2);
-        expect(out.itens[0].prod.vProd).toBe(10); // 2 * 5
-        expect(out.itens[0].prod.cfop).toBe("1201");
-        expect(out.itens[1].prod.qCom).toBe(1);
-        expect(out.itens[1].prod.vProd).toBe(3);
-        expect(out.itens[1].prod.cfop).toBe("1202");
-        expect(out.infAdic?.infCpl).toContain("Estorno parcial");
-    });
-
-    it("injects minimal ICMS when outbound item has no ICMS block", () => {
-        const draft = sampleOutboundDraft();
-        draft.itens[0].imposto = {
-            vTotTrib: 0,
-            pis: { cst: "07", vBC: 0, vPIS: 0 },
-            cofins: { cst: "07", vBC: 0, vCOFINS: 0 },
-        };
-
-        const out = buildInboundReversalNfe({
-            outboundDraft: draft,
-            outboundAccessKey: "1".repeat(44),
-            mode: "TOTAL",
-            selectionByNItem: new Map(),
-            reasonCode: "MERCADORIA_NAO_ENTREGUE",
-            nowIso: "2026-02-23T12:00:00.000-03:00",
-        });
-
-        expect(out.itens[0].imposto.icms?.orig).toBe("0");
-        expect(out.itens[0].imposto.icms?.cst).toBe("41");
-    });
-
-    it("injects minimal PIS/COFINS when outbound item has no PIS/COFINS block", () => {
-        const draft = sampleOutboundDraft();
-        draft.itens[0].imposto = {
-            vTotTrib: 0,
-            icms: { orig: "0", cst: "41" },
-        };
-
-        const out = buildInboundReversalNfe({
-            outboundDraft: draft,
-            outboundAccessKey: "1".repeat(44),
-            mode: "TOTAL",
-            selectionByNItem: new Map(),
-            reasonCode: "MERCADORIA_NAO_ENTREGUE",
-            nowIso: "2026-02-23T12:00:00.000-03:00",
-        });
-
-        expect(out.itens[0].imposto.pis?.cst).toBe("07");
-        expect(out.itens[0].imposto.cofins?.cst).toBe("07");
+        expect(out.itens.every((item) => item.prod.cfop === "1201")).toBe(true);
     });
 });

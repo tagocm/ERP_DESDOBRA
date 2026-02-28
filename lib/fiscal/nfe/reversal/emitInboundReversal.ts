@@ -7,6 +7,7 @@ import { buildNfeProc, upsertNfeEmission } from "@/lib/nfe/sefaz/services/persis
 import { buildDraftFromDb } from "@/lib/fiscal/nfe/offline/mappers";
 import { buildInboundReversalNfe } from "./buildInboundReversalNfe";
 import { parseLegacyNfeXml } from "@/lib/fiscal/nfe/legacy-import/parser";
+import type { ParsedNfeXmlDestination } from "@/lib/fiscal/nfe/legacy-import/schemas";
 import type { NfeDraft, NfeEndereco } from "@/lib/nfe/domain/types";
 import { ReversalReasonCodeSchema, ReversalSelectionItemSchema } from "./schemas";
 import { z } from "zod";
@@ -119,6 +120,33 @@ const LegacyImportedItemSchema = z.object({
     vuncom: z.coerce.number().nonnegative(),
     vprod: z.coerce.number().nonnegative(),
     is_produced: z.boolean().nullable().optional(),
+    imposto: z.object({
+        icms: z.object({
+            orig: z.enum(["0", "1", "2", "3", "4", "5", "6", "7", "8"]),
+            cst: z.string().optional(),
+            csosn: z.string().optional(),
+            modBC: z.enum(["0", "1", "2", "3"]).optional(),
+            vBC: z.number().optional(),
+            pICMS: z.number().optional(),
+            vICMS: z.number().optional(),
+            pRedBC: z.number().optional(),
+            pCredSN: z.number().optional(),
+            vCredICMSSN: z.number().optional(),
+        }).optional(),
+        pis: z.object({
+            cst: z.string(),
+            vBC: z.number().optional(),
+            pPIS: z.number().optional(),
+            vPIS: z.number().optional(),
+        }).optional(),
+        cofins: z.object({
+            cst: z.string(),
+            vBC: z.number().optional(),
+            pCOFINS: z.number().optional(),
+            vCOFINS: z.number().optional(),
+        }).optional(),
+        vTotTrib: z.number().optional(),
+    }).nullable().optional(),
 }).passthrough();
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -132,6 +160,11 @@ function cleanDigits(value: string | null | undefined): string {
 function toNonEmpty(value: string | null | undefined, fallback: string): string {
     const trimmed = String(value || "").trim();
     return trimmed.length > 0 ? trimmed : fallback;
+}
+
+function toOptionalNonEmpty(value: string | null | undefined): string | undefined {
+    const trimmed = String(value || "").trim();
+    return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function toNfeEndereco(address: {
@@ -186,6 +219,7 @@ function resolveOutboundXmlContent(outbound: z.infer<typeof OutboundEmissionSche
 function buildLegacyOutboundDraft(args: {
     outbound: z.infer<typeof OutboundEmissionSchema>;
     items: Array<z.infer<typeof LegacyImportedItemSchema>>;
+    destination?: ParsedNfeXmlDestination;
     nowIso: string;
     tpAmb: "1" | "2";
     company: {
@@ -199,10 +233,31 @@ function buildLegacyOutboundDraft(args: {
 }): NfeDraft {
     const idDest: "1" | "2" = args.outbound.emit_uf && args.outbound.dest_uf && args.outbound.emit_uf === args.outbound.dest_uf ? "1" : "2";
     const fallbackCfop = idDest === "2" ? "6102" : "5102";
-    const destinationDocument = cleanDigits(args.outbound.dest_document);
-    const destinationName = args.tpAmb === "2"
+    const destinationDocument = cleanDigits(args.destination?.cpfOuCnpj || args.outbound.dest_document);
+    const destinationName = args.tpAmb === "2" && !args.destination?.xNome
         ? "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
-        : "DESTINATARIO LEGADO";
+        : toNonEmpty(args.destination?.xNome, "DESTINATARIO LEGADO");
+
+    const destinationIndIEDest: "1" | "2" | "9" = args.destination?.indIEDest
+        ? args.destination.indIEDest
+        : (toOptionalNonEmpty(args.destination?.ie) ? "1" : "9");
+    const destinationIe = cleanDigits(args.destination?.ie);
+    if (destinationIndIEDest === "1" && !destinationIe) {
+        throw new Error("Destinatário da NF-e de saída sem IE válida para indIEDest=1.");
+    }
+
+    const destinationAddress = args.destination?.enderDest;
+    const enderDest: NfeEndereco = {
+        xLgr: toNonEmpty(destinationAddress?.xLgr, args.company.endereco.xLgr).slice(0, 60),
+        nro: toNonEmpty(destinationAddress?.nro, args.company.endereco.nro).slice(0, 60),
+        xBairro: toNonEmpty(destinationAddress?.xBairro, args.company.endereco.xBairro).slice(0, 60),
+        cMun: cleanDigits(destinationAddress?.cMun).slice(0, 7) || args.company.endereco.cMun,
+        xMun: toNonEmpty(destinationAddress?.xMun, args.company.endereco.xMun).slice(0, 60),
+        uf: toNonEmpty(destinationAddress?.uf, args.company.endereco.uf).toUpperCase(),
+        cep: cleanDigits(destinationAddress?.cep).slice(0, 8) || args.company.endereco.cep,
+        cPais: cleanDigits(destinationAddress?.cPais).slice(0, 4) || "1058",
+        xPais: toNonEmpty(destinationAddress?.xPais, "BRASIL").slice(0, 60),
+    };
 
     return {
         ide: {
@@ -237,8 +292,10 @@ function buildLegacyOutboundDraft(args: {
                 ? destinationDocument
                 : args.company.cnpj,
             xNome: destinationName.slice(0, 60),
-            indIEDest: "9",
-            enderDest: args.company.endereco,
+            indIEDest: destinationIndIEDest,
+            ie: destinationIe || undefined,
+            email: toOptionalNonEmpty(args.destination?.email)?.slice(0, 60),
+            enderDest,
         },
         itens: args.items.map((item) => {
             const quantity = item.qcom;
@@ -267,7 +324,10 @@ function buildLegacyOutboundDraft(args: {
                     vUnTrib: unitPrice,
                 },
                 imposto: {
-                    vTotTrib: 0,
+                    icms: item.imposto?.icms ?? undefined,
+                    pis: item.imposto?.pis ?? undefined,
+                    cofins: item.imposto?.cofins ?? undefined,
+                    vTotTrib: item.imposto?.vTotTrib ?? 0,
                 },
             };
         }),
@@ -289,25 +349,28 @@ function buildLegacyOutboundDraft(args: {
 export async function emitInboundReversalFromOutbound(args: { companyId: string; reversalId: string }) {
     const admin = createAdminClient();
     const nowIso = new Date().toISOString();
+    const reversalId = args.reversalId;
 
-    const { data: reversal, error: reversalError } = await admin
-        .from("nfe_inbound_reversals")
-        .select("*")
-        .eq("id", args.reversalId)
-        .eq("company_id", args.companyId)
-        .maybeSingle();
+    try {
 
-    if (reversalError) throw new Error(`Falha ao carregar estorno: ${reversalError.message}`);
-    if (!reversal) throw new Error("Solicitação de estorno não encontrada.");
+        const { data: reversal, error: reversalError } = await admin
+            .from("nfe_inbound_reversals")
+            .select("*")
+            .eq("id", reversalId)
+            .eq("company_id", args.companyId)
+            .maybeSingle();
 
-    const reversalRow = ReversalRowSchema.parse(reversal);
-    if (reversalRow.status === "authorized" && reversalRow.inbound_emission_id) {
-        return { success: true, inboundEmissionId: reversalRow.inbound_emission_id };
-    }
+        if (reversalError) throw new Error(`Falha ao carregar estorno: ${reversalError.message}`);
+        if (!reversal) throw new Error("Solicitação de estorno não encontrada.");
+
+        const reversalRow = ReversalRowSchema.parse(reversal);
+        if (reversalRow.status === "authorized" && reversalRow.inbound_emission_id) {
+            return { success: true, inboundEmissionId: reversalRow.inbound_emission_id };
+        }
 
     const { data: outbound, error: outboundError } = await admin
         .from("nfe_emissions")
-        .select("id, company_id, sales_document_id, access_key, status, tp_amb, source_system, emit_uf, dest_document, dest_uf")
+        .select("id, company_id, sales_document_id, access_key, status, tp_amb, source_system, emit_uf, dest_document, dest_uf, xml_nfe_proc, xml_signed, xml_sent, xml_unsigned")
         .eq("id", reversalRow.outbound_emission_id)
         .eq("company_id", args.companyId)
         .maybeSingle();
@@ -477,6 +540,42 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
             };
 
             if (outboundRow.source_system === "LEGACY_IMPORT") {
+                const outboundXml = resolveOutboundXmlContent(outboundRow);
+                if (outboundXml) {
+                    const parsed = parseLegacyNfeXml(outboundXml);
+                    const parsedItems = parsed.items.map((item) => LegacyImportedItemSchema.parse({
+                        item_number: item.itemNumber,
+                        cprod: item.cProd,
+                        xprod: item.xProd,
+                        ncm: item.ncm,
+                        cfop: item.cfop,
+                        ucom: item.uCom,
+                        qcom: item.qCom,
+                        vuncom: item.vUnCom,
+                        vprod: item.vProd,
+                        is_produced: item.isProduced,
+                        imposto: item.imposto ?? undefined,
+                    }));
+
+                    if (parsedItems.length > 0) {
+                        const outboundForDraft = OutboundEmissionSchema.parse({
+                            ...outboundRow,
+                            emit_uf: outboundRow.emit_uf ?? parsed.header.emitUf,
+                            dest_uf: outboundRow.dest_uf ?? parsed.header.destUf,
+                            dest_document: outboundRow.dest_document ?? parsed.header.destDocument,
+                        });
+
+                        return buildLegacyOutboundDraft({
+                            outbound: outboundForDraft,
+                            items: parsedItems,
+                            destination: parsed.destination,
+                            nowIso,
+                            tpAmb,
+                            company: companyForLegacyDraft,
+                        });
+                    }
+                }
+
                 const { data: importedItemsRaw, error: importedItemsError } = await admin
                     .from("nfe_legacy_import_items")
                     .select("item_number,cprod,xprod,ncm,cfop,ucom,qcom,vuncom,vprod,is_produced")
@@ -533,6 +632,7 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
             return buildLegacyOutboundDraft({
                 outbound: outboundForDraft,
                 items: itemsFromXml,
+                destination: parsed.destination,
                 nowIso,
                 tpAmb,
                 company: companyForLegacyDraft,
@@ -645,14 +745,33 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
         throw new Error(`Transmissão: ${cStat} - ${xMotivo}`);
     }
 
-    return {
-        success: true,
-        inboundEmissionId: record.id!,
-        accessKey: chNFe,
-        artifacts: {
-            xml: xmlPath.path,
-            signed_xml: signedPath.path,
-            protocol: protocolPath?.path || null,
-        },
-    };
+        return {
+            success: true,
+            inboundEmissionId: record.id!,
+            accessKey: chNFe,
+            artifacts: {
+                xml: xmlPath.path,
+                signed_xml: signedPath.path,
+                protocol: protocolPath?.path || null,
+            },
+        };
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Falha ao processar estorno de NF-e de entrada.";
+
+        // Pre-emit failures could leave reversal stuck as "processing" without emissão vinculada.
+        // Mark as failed only in this stale state to allow safe requeue.
+        await admin
+            .from("nfe_inbound_reversals")
+            .update({
+                status: "failed",
+                x_motivo: message,
+                updated_at: new Date().toISOString(),
+            })
+            .eq("id", reversalId)
+            .eq("company_id", args.companyId)
+            .eq("status", "processing")
+            .is("inbound_emission_id", null);
+
+        throw error;
+    }
 }

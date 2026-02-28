@@ -139,6 +139,7 @@ export function buildDraftFromDb(ctx: MapperContext): NfeDraft {
         ),
         indIEDest,
         ie: (indIEDest === '1') ? strip(client.state_registration) : undefined,
+        email: typeof client.email === "string" ? truncate(client.email.trim(), 60) : undefined,
         enderDest: mapAddress(clientAddr, null, 'Destinatário')
     };
 

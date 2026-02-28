@@ -1,4 +1,4 @@
-import { NfeDraft, NfeItem, NfePag } from "@/lib/nfe/domain/types";
+import { NfeDest, NfeDraft, NfeEmit, NfeImposto, NfeItem, NfePag } from "@/lib/nfe/domain/types";
 import { buildReversalInfCpl, REVERSAL_NATOP, ReversalReasonCode } from "./texts";
 
 function round2(value: number) {
@@ -10,6 +10,52 @@ function scaleMaybeNumber(value: unknown, ratio: number): number | undefined {
     const n = typeof value === "number" ? value : Number(value);
     if (!Number.isFinite(n)) return undefined;
     return round2(n * ratio);
+}
+
+const MONEY_TOLERANCE = 0.01;
+const QTY_TOLERANCE = 0.0001;
+
+function normalizeDocument(document: string): string {
+    return String(document || "").replace(/\D/g, "");
+}
+
+function assertMoneyClose(actual: number, expected: number, message: string): void {
+    if (Math.abs(actual - expected) > MONEY_TOLERANCE) {
+        throw new Error(`${message} (esperado ${expected.toFixed(2)}, obtido ${actual.toFixed(2)}).`);
+    }
+}
+
+export interface ReturnItemMappingInput {
+    order: number;
+    nItem: number;
+    cProd: string;
+    ncm: string;
+    vUnCom: number;
+    qCom: number;
+    vProd: number;
+}
+
+interface ReturnItemMapping {
+    returnItem: ReturnItemMappingInput;
+    originalItem: NfeItem;
+    ratio: number;
+}
+
+export interface ReturnNfeItemTotals {
+    vBC: number;
+    vICMS: number;
+    vPIS: number;
+    vCOFINS: number;
+    vProd: number;
+    vFrete: number;
+    vSeg: number;
+    vDesc: number;
+    vOutro: number;
+    vNF: number;
+}
+
+function buildMappingKey(input: Pick<ReturnItemMappingInput, "cProd" | "ncm" | "vUnCom">): string {
+    return `${input.cProd}::${input.ncm}::${round2(input.vUnCom).toFixed(2)}`;
 }
 
 function mapInboundCfop(args: { idDest: "1" | "2" | "3"; isProduced: boolean }): string {
@@ -44,6 +90,166 @@ function inferInboundRegularCfopFromOutboundCfop(outboundCfop: string, idDest: "
     return null;
 }
 
+export function assertDestNotEqualEmit(emit: NfeEmit, dest: NfeDest): void {
+    const emitDoc = normalizeDocument(emit.cnpj);
+    const destDoc = normalizeDocument(dest.cpfOuCnpj);
+    if (!emitDoc || !destDoc) {
+        throw new Error("Emitente/Destinatário inválidos: documento ausente.");
+    }
+    if (emitDoc === destDoc) {
+        throw new Error("Destinatário da devolução não pode ser igual ao emitente.");
+    }
+}
+
+export function mapReturnItemsToOriginalItems(
+    returnItems: ReturnItemMappingInput[],
+    originalItems: NfeItem[],
+): ReturnItemMapping[] {
+    const originalsByKey = new Map<string, NfeItem[]>();
+    const sortedOriginals = [...originalItems].sort((a, b) => a.nItem - b.nItem);
+
+    for (const originalItem of sortedOriginals) {
+        const key = buildMappingKey({
+            cProd: originalItem.prod.cProd,
+            ncm: originalItem.prod.ncm,
+            vUnCom: originalItem.prod.vUnCom,
+        });
+        const bucket = originalsByKey.get(key);
+        if (bucket) bucket.push(originalItem);
+        else originalsByKey.set(key, [originalItem]);
+    }
+
+    const usedOriginalNItems = new Set<number>();
+    const mappings: ReturnItemMapping[] = [];
+    const sortedReturnItems = [...returnItems].sort((a, b) => a.order - b.order);
+
+    for (const returnItem of sortedReturnItems) {
+        const key = buildMappingKey(returnItem);
+        const candidates = originalsByKey.get(key) || [];
+
+        const preferredByNItem = candidates.find((candidate) => candidate.nItem === returnItem.nItem && !usedOriginalNItems.has(candidate.nItem));
+        const originalItem = preferredByNItem || candidates.find((candidate) => !usedOriginalNItems.has(candidate.nItem));
+
+        if (!originalItem) {
+            throw new Error(
+                `Não foi possível mapear item de devolução (ordem ${returnItem.order + 1}, cProd ${returnItem.cProd}) para a NF-e de saída.`,
+            );
+        }
+
+        if (returnItem.qCom <= 0) {
+            throw new Error(`Quantidade inválida no item de devolução (ordem ${returnItem.order + 1}).`);
+        }
+
+        if (returnItem.qCom - originalItem.prod.qCom > QTY_TOLERANCE) {
+            throw new Error(
+                `Quantidade da devolução maior que a quantidade original no item ${originalItem.nItem}.`,
+            );
+        }
+
+        const expectedVProd = round2(returnItem.qCom * originalItem.prod.vUnCom);
+        assertMoneyClose(
+            round2(returnItem.vProd),
+            expectedVProd,
+            `Valor total inconsistente no item ${originalItem.nItem}`,
+        );
+
+        const ratio = originalItem.prod.qCom > 0 ? returnItem.qCom / originalItem.prod.qCom : 0;
+        if (ratio <= 0 || ratio > 1 + QTY_TOLERANCE) {
+            throw new Error(`Não foi possível calcular proporção válida para o item ${originalItem.nItem}.`);
+        }
+
+        usedOriginalNItems.add(originalItem.nItem);
+        mappings.push({
+            returnItem,
+            originalItem,
+            ratio,
+        });
+    }
+
+    if (mappings.length !== returnItems.length) {
+        throw new Error("Falha no mapeamento 1:1 entre itens da devolução e da saída.");
+    }
+
+    return mappings;
+}
+
+export function cloneTaxesFromOriginalItem(originalItem: NfeItem, ratio: number): NfeImposto {
+    if (!originalItem.imposto.icms) {
+        throw new Error(`Item ${originalItem.nItem} da NF-e de saída sem grupo ICMS. Não é possível espelhar tributos.`);
+    }
+    if (!originalItem.imposto.pis) {
+        throw new Error(`Item ${originalItem.nItem} da NF-e de saída sem grupo PIS. Não é possível espelhar tributos.`);
+    }
+    if (!originalItem.imposto.cofins) {
+        throw new Error(`Item ${originalItem.nItem} da NF-e de saída sem grupo COFINS. Não é possível espelhar tributos.`);
+    }
+
+    return {
+        icms: {
+            ...originalItem.imposto.icms,
+            vBC: scaleMaybeNumber(originalItem.imposto.icms.vBC, ratio),
+            vICMS: scaleMaybeNumber(originalItem.imposto.icms.vICMS, ratio),
+            vCredICMSSN: scaleMaybeNumber(originalItem.imposto.icms.vCredICMSSN, ratio),
+        },
+        pis: {
+            ...originalItem.imposto.pis,
+            vBC: scaleMaybeNumber(originalItem.imposto.pis.vBC, ratio),
+            vPIS: scaleMaybeNumber(originalItem.imposto.pis.vPIS, ratio),
+        },
+        cofins: {
+            ...originalItem.imposto.cofins,
+            vBC: scaleMaybeNumber(originalItem.imposto.cofins.vBC, ratio),
+            vCOFINS: scaleMaybeNumber(originalItem.imposto.cofins.vCOFINS, ratio),
+        },
+        vTotTrib: scaleMaybeNumber(originalItem.imposto.vTotTrib, ratio),
+    };
+}
+
+export function buildTotalsFromItems(items: NfeItem[]): ReturnNfeItemTotals {
+    const totals: ReturnNfeItemTotals = {
+        vBC: 0,
+        vICMS: 0,
+        vPIS: 0,
+        vCOFINS: 0,
+        vProd: 0,
+        vFrete: 0,
+        vSeg: 0,
+        vDesc: 0,
+        vOutro: 0,
+        vNF: 0,
+    };
+
+    for (const item of items) {
+        const expectedVProd = round2(item.prod.qCom * item.prod.vUnCom);
+        assertMoneyClose(round2(item.prod.vProd), expectedVProd, `vProd inconsistente no item ${item.nItem}`);
+
+        totals.vProd = round2(totals.vProd + item.prod.vProd);
+        totals.vFrete = round2(totals.vFrete + (item.vFrete || 0));
+        totals.vSeg = round2(totals.vSeg + (item.vSeg || 0));
+        totals.vDesc = round2(totals.vDesc + (item.vDesc || 0));
+        totals.vOutro = round2(totals.vOutro + (item.vOutro || 0));
+        totals.vBC = round2(totals.vBC + (item.imposto.icms?.vBC || 0));
+        totals.vICMS = round2(totals.vICMS + (item.imposto.icms?.vICMS || 0));
+        totals.vPIS = round2(totals.vPIS + (item.imposto.pis?.vPIS || 0));
+        totals.vCOFINS = round2(totals.vCOFINS + (item.imposto.cofins?.vCOFINS || 0));
+    }
+
+    totals.vNF = round2(totals.vProd - totals.vDesc + totals.vFrete + totals.vSeg + totals.vOutro);
+    return totals;
+}
+
+export function stripBillingSectionsForReturnNfe(): { pag: NfePag; cobr?: undefined } {
+    return {
+        pag: {
+            detPag: [{
+                indPag: "0",
+                tPag: "90",
+                vPag: 0,
+            }],
+        },
+    };
+}
+
 export function buildInboundReversalNfe(args: {
     outboundDraft: NfeDraft;
     outboundAccessKey: string;
@@ -67,19 +273,13 @@ export function buildInboundReversalNfe(args: {
 
     const emit = { ...outbound.emit, enderEmit: { ...outbound.emit.enderEmit } };
 
-    const destName = ide.tpAmb === "2"
-        ? "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL"
-        : emit.xNome;
-
-    const dest = {
-        cpfOuCnpj: emit.cnpj,
-        xNome: destName.slice(0, 60),
-        indIEDest: "1" as const,
-        ie: emit.ie,
-        enderDest: { ...emit.enderEmit },
+    const dest: NfeDest = {
+        ...outbound.dest,
+        enderDest: { ...outbound.dest.enderDest },
     };
+    assertDestNotEqualEmit(emit, dest);
 
-    const itens: NfeItem[] = [];
+    const itemsWithoutTaxes: Array<{ sourceNItem: number; item: NfeItem }> = [];
 
     for (const item of outbound.itens) {
         const originalQty = item.prod.qCom;
@@ -110,69 +310,74 @@ export function buildInboundReversalNfe(args: {
             ?? regularCfopFromOutbound
             ?? mapInboundCfop({ idDest: outbound.ide.idDest, isProduced: selected.isProduced });
 
-        itens.push({
-            ...item,
-            prod: {
-                ...item.prod,
-                cfop,
-                qCom,
-                qTrib,
-                vProd,
+        itemsWithoutTaxes.push({
+            sourceNItem: item.nItem,
+            item: {
+                ...item,
+                prod: {
+                    ...item.prod,
+                    cfop,
+                    qCom,
+                    qTrib,
+                    vProd,
+                },
+                imposto: {
+                    ...item.imposto,
+                },
+                vDesc: scaleMaybeNumber(item.vDesc, ratio),
+                vFrete: scaleMaybeNumber(item.vFrete, ratio),
+                vOutro: scaleMaybeNumber(item.vOutro, ratio),
+                vSeg: scaleMaybeNumber(item.vSeg, ratio),
             },
-            imposto: {
-                ...item.imposto,
-                icms: item.imposto.icms
-                    ? {
-                        ...item.imposto.icms,
-                        vBC: scaleMaybeNumber(item.imposto.icms.vBC, ratio),
-                        vICMS: scaleMaybeNumber(item.imposto.icms.vICMS, ratio),
-                        vCredICMSSN: scaleMaybeNumber(item.imposto.icms.vCredICMSSN, ratio),
-                    }
-                    : {
-                        // Legacy source docs may come without ICMS block.
-                        // SEFAZ rejects NF-e with no ICMS/ISSQN in det/imposto,
-                        // so we emit a minimal ICMS40 representation.
-                        orig: "0",
-                        cst: "41",
-                    },
-                pis: item.imposto.pis
-                    ? {
-                        ...item.imposto.pis,
-                        vBC: scaleMaybeNumber(item.imposto.pis.vBC, ratio),
-                        vPIS: scaleMaybeNumber(item.imposto.pis.vPIS, ratio),
-                    }
-                    : {
-                        cst: "07",
-                    },
-                cofins: item.imposto.cofins
-                    ? {
-                        ...item.imposto.cofins,
-                        vBC: scaleMaybeNumber(item.imposto.cofins.vBC, ratio),
-                        vCOFINS: scaleMaybeNumber(item.imposto.cofins.vCOFINS, ratio),
-                    }
-                    : {
-                        cst: "07",
-                    },
-                vTotTrib: scaleMaybeNumber(item.imposto.vTotTrib, ratio),
-            },
-            vDesc: scaleMaybeNumber(item.vDesc, ratio),
-            vFrete: scaleMaybeNumber(item.vFrete, ratio),
-            vOutro: scaleMaybeNumber(item.vOutro, ratio),
-            vSeg: scaleMaybeNumber(item.vSeg, ratio),
         });
     }
 
-    if (itens.length === 0) {
+    if (itemsWithoutTaxes.length === 0) {
         throw new Error("Selecione ao menos 1 item para estorno.");
     }
 
-    const pag: NfePag = {
-        detPag: [{
-            indPag: "0",
-            tPag: "90", // Sem pagamento
-            vPag: 0,
-        }],
-    };
+    const mappingInput: ReturnItemMappingInput[] = itemsWithoutTaxes.map((entry, index) => ({
+        order: index,
+        nItem: entry.sourceNItem,
+        cProd: entry.item.prod.cProd,
+        ncm: entry.item.prod.ncm,
+        vUnCom: entry.item.prod.vUnCom,
+        qCom: entry.item.prod.qCom,
+        vProd: entry.item.prod.vProd,
+    }));
+
+    const mappedItems = mapReturnItemsToOriginalItems(mappingInput, outbound.itens);
+    const mappedByOrder = new Map<number, ReturnItemMapping>(mappedItems.map((mapped) => [mapped.returnItem.order, mapped]));
+
+    const itens: NfeItem[] = itemsWithoutTaxes.map((entry, index) => {
+        const mapped = mappedByOrder.get(index);
+        if (!mapped) {
+            throw new Error(`Falha ao encontrar mapeamento do item de devolução na ordem ${index + 1}.`);
+        }
+        return {
+            ...entry.item,
+            imposto: cloneTaxesFromOriginalItem(mapped.originalItem, mapped.ratio),
+        };
+    });
+
+    const totals = buildTotalsFromItems(itens);
+    const mirroredFromOriginal = mappedItems.reduce<Pick<ReturnNfeItemTotals, "vBC" | "vICMS" | "vPIS" | "vCOFINS">>(
+        (acc, mapped) => {
+            acc.vBC = round2(acc.vBC + ((mapped.originalItem.imposto.icms?.vBC || 0) * mapped.ratio));
+            acc.vICMS = round2(acc.vICMS + ((mapped.originalItem.imposto.icms?.vICMS || 0) * mapped.ratio));
+            acc.vPIS = round2(acc.vPIS + ((mapped.originalItem.imposto.pis?.vPIS || 0) * mapped.ratio));
+            acc.vCOFINS = round2(acc.vCOFINS + ((mapped.originalItem.imposto.cofins?.vCOFINS || 0) * mapped.ratio));
+            return acc;
+        },
+        { vBC: 0, vICMS: 0, vPIS: 0, vCOFINS: 0 },
+    );
+
+    assertMoneyClose(totals.vBC, mirroredFromOriginal.vBC, "Total vBC divergente dos itens espelhados");
+    assertMoneyClose(totals.vICMS, mirroredFromOriginal.vICMS, "Total vICMS divergente dos itens espelhados");
+    assertMoneyClose(totals.vPIS, mirroredFromOriginal.vPIS, "Total vPIS divergente dos itens espelhados");
+    assertMoneyClose(totals.vCOFINS, mirroredFromOriginal.vCOFINS, "Total vCOFINS divergente dos itens espelhados");
+
+    const billingStripped = stripBillingSectionsForReturnNfe();
 
     const infCpl = buildReversalInfCpl({
         outboundAccessKey: args.outboundAccessKey,
@@ -187,7 +392,7 @@ export function buildInboundReversalNfe(args: {
         dest,
         itens: itens.map((i, idx) => ({ ...i, nItem: idx + 1 })), // re-number sequentially
         transp: { modFrete: "9" },
-        pag,
+        ...billingStripped,
         infAdic: { infCpl },
     };
 }

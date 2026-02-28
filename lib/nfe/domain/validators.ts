@@ -48,6 +48,7 @@ const nfeSchema = z.object({
         xNome: z.string().min(2).max(60),
         indIEDest: z.enum(["1", "2", "9"]),
         ie: z.string().optional(),
+        email: z.string().email().max(60).optional(),
         enderDest: z.object({
             xLgr: z.string().min(2).max(60),
             nro: z.string().min(1).max(60),

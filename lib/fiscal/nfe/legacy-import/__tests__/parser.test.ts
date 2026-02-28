@@ -23,8 +23,16 @@ const XML_WITH_PROTOCOL = `<?xml version="1.0" encoding="UTF-8"?>
       <dest>
         <CNPJ>09506351000143</CNPJ>
         <xNome>Comercio de Alimentos RRs Ltda</xNome>
+        <indIEDest>1</indIEDest>
+        <IE>119309230117</IE>
         <enderDest>
+          <xLgr>Rua Projetada</xLgr>
+          <nro>123</nro>
+          <xBairro>Centro</xBairro>
+          <cMun>3550308</cMun>
+          <xMun>Sao Paulo</xMun>
           <UF>SP</UF>
+          <CEP>01001000</CEP>
         </enderDest>
       </dest>
       <det nItem="1">
@@ -111,6 +119,9 @@ describe('parseLegacyNfeXml', () => {
     expect(parsed.header.number).toBe('8580');
     expect(parsed.protocol.status).toBe('AUTHORIZED_WITH_PROTOCOL');
     expect(parsed.protocol.nProt).toBe('135260717254933');
+    expect(parsed.destination.indIEDest).toBe('1');
+    expect(parsed.destination.ie).toBe('119309230117');
+    expect(parsed.destination.enderDest?.cMun).toBe('3550308');
     expect(parsed.items).toHaveLength(1);
     expect(parsed.items[0].isProduced).toBe(true);
   });
@@ -124,4 +135,3 @@ describe('parseLegacyNfeXml', () => {
     expect(parsed.items[0].cfop).toBe('5102');
   });
 });
-

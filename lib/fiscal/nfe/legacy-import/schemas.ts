@@ -29,6 +29,33 @@ export const ParsedNfeXmlItemSchema = z.object({
     vUnCom: z.number().nonnegative(),
     vProd: z.number().nonnegative(),
     isProduced: z.boolean(),
+    imposto: z.object({
+        icms: z.object({
+            orig: z.enum(["0", "1", "2", "3", "4", "5", "6", "7", "8"]),
+            cst: z.string().optional(),
+            csosn: z.string().optional(),
+            modBC: z.enum(["0", "1", "2", "3"]).optional(),
+            vBC: z.number().optional(),
+            pICMS: z.number().optional(),
+            vICMS: z.number().optional(),
+            pRedBC: z.number().optional(),
+            pCredSN: z.number().optional(),
+            vCredICMSSN: z.number().optional(),
+        }).optional(),
+        pis: z.object({
+            cst: z.string(),
+            vBC: z.number().optional(),
+            pPIS: z.number().optional(),
+            vPIS: z.number().optional(),
+        }).optional(),
+        cofins: z.object({
+            cst: z.string(),
+            vBC: z.number().optional(),
+            pCOFINS: z.number().optional(),
+            vCOFINS: z.number().optional(),
+        }).optional(),
+        vTotTrib: z.number().optional(),
+    }).optional(),
 });
 
 export type ParsedNfeXmlItem = z.infer<typeof ParsedNfeXmlItemSchema>;
@@ -43,9 +70,35 @@ export const ParsedNfeXmlProtocolSchema = z.object({
 
 export type ParsedNfeXmlProtocol = z.infer<typeof ParsedNfeXmlProtocolSchema>;
 
+export const ParsedNfeXmlDestinationAddressSchema = z.object({
+    xLgr: z.string().nullable().optional(),
+    nro: z.string().nullable().optional(),
+    xBairro: z.string().nullable().optional(),
+    cMun: z.string().regex(/^\d{7}$/).nullable().optional(),
+    xMun: z.string().nullable().optional(),
+    uf: z.string().length(2).nullable().optional(),
+    cep: z.string().regex(/^\d{8}$/).nullable().optional(),
+    cPais: z.string().nullable().optional(),
+    xPais: z.string().nullable().optional(),
+});
+
+export type ParsedNfeXmlDestinationAddress = z.infer<typeof ParsedNfeXmlDestinationAddressSchema>;
+
+export const ParsedNfeXmlDestinationSchema = z.object({
+    cpfOuCnpj: z.string().regex(/^\d{11}$|^\d{14}$/),
+    xNome: z.string().min(1),
+    indIEDest: z.enum(["1", "2", "9"]).optional(),
+    ie: z.string().nullable().optional(),
+    email: z.string().nullable().optional(),
+    enderDest: ParsedNfeXmlDestinationAddressSchema.optional(),
+});
+
+export type ParsedNfeXmlDestination = z.infer<typeof ParsedNfeXmlDestinationSchema>;
+
 export const ParsedNfeXmlDocumentSchema = z.object({
     header: ParsedNfeXmlHeaderSchema,
     protocol: ParsedNfeXmlProtocolSchema,
+    destination: ParsedNfeXmlDestinationSchema,
     items: z.array(ParsedNfeXmlItemSchema).min(1),
 });
 
