@@ -561,6 +561,11 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
     });
 
     // keep key params aligned to generated access key
+    // IMPORTANT: `buildNfeXml()` uses `ide.serie` and `ide.nNF` to render the XML,
+    // while the access key is calculated from `settings.nfe_series` + `settings.nfe_next_number`.
+    // If we don't align these values, SEFAZ rejects with "Erro na Chave de Acesso - Campo Id ...".
+    inboundDraft.ide.serie = String(serie);
+    inboundDraft.ide.nNF = String(nNF);
     inboundDraft.ide.cDV = cDV;
     inboundDraft.ide.chNFe = chNFe;
     inboundDraft.ide.cNF = cNF;
