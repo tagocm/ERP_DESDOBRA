@@ -96,6 +96,7 @@ const OutboundEmissionSchema = z.object({
     id: z.string().uuid(),
     status: z.string(),
     access_key: z.string().nullable().optional(),
+    tp_amb: z.string().nullable().optional(),
     sales_document_id: z.string().uuid().nullable().optional(),
     source_system: z.string().nullable().optional(),
     emit_uf: z.string().nullable().optional(),
@@ -306,7 +307,7 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
 
     const { data: outbound, error: outboundError } = await admin
         .from("nfe_emissions")
-        .select("id, company_id, sales_document_id, access_key, status, source_system, emit_uf, dest_document, dest_uf")
+        .select("id, company_id, sales_document_id, access_key, status, tp_amb, source_system, emit_uf, dest_document, dest_uf")
         .eq("id", reversalRow.outbound_emission_id)
         .eq("company_id", args.companyId)
         .maybeSingle();
@@ -378,6 +379,11 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
     const mod = "55";
     const tpEmis = "1";
     const tpAmb = toTpAmbFromEnvironment(settings?.nfe_environment);
+    if (outboundRow.tp_amb && outboundRow.tp_amb !== tpAmb) {
+        throw new Error(
+            `Ambiente divergente entre NF-e de saída e empresa. NF-e origem em ${outboundRow.tp_amb === "1" ? "PRODUÇÃO" : "HOMOLOGAÇÃO"}, empresa em ${tpAmb === "1" ? "PRODUÇÃO" : "HOMOLOGAÇÃO"}.`,
+        );
+    }
     const cNF = generateRandomCNF();
 
     const preKey = `${cUF}${AAMM}${cnpj}${mod}${pad(serie, 3)}${pad(nNF, 9)}${tpEmis}${cNF}`;

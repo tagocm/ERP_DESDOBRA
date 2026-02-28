@@ -128,21 +128,31 @@ export function buildInboundReversalNfe(args: {
                         vICMS: scaleMaybeNumber(item.imposto.icms.vICMS, ratio),
                         vCredICMSSN: scaleMaybeNumber(item.imposto.icms.vCredICMSSN, ratio),
                     }
-                    : undefined,
+                    : {
+                        // Legacy source docs may come without ICMS block.
+                        // SEFAZ rejects NF-e with no ICMS/ISSQN in det/imposto,
+                        // so we emit a minimal ICMS40 representation.
+                        orig: "0",
+                        cst: "41",
+                    },
                 pis: item.imposto.pis
                     ? {
                         ...item.imposto.pis,
                         vBC: scaleMaybeNumber(item.imposto.pis.vBC, ratio),
                         vPIS: scaleMaybeNumber(item.imposto.pis.vPIS, ratio),
                     }
-                    : undefined,
+                    : {
+                        cst: "07",
+                    },
                 cofins: item.imposto.cofins
                     ? {
                         ...item.imposto.cofins,
                         vBC: scaleMaybeNumber(item.imposto.cofins.vBC, ratio),
                         vCOFINS: scaleMaybeNumber(item.imposto.cofins.vCOFINS, ratio),
                     }
-                    : undefined,
+                    : {
+                        cst: "07",
+                    },
                 vTotTrib: scaleMaybeNumber(item.imposto.vTotTrib, ratio),
             },
             vDesc: scaleMaybeNumber(item.vDesc, ratio),

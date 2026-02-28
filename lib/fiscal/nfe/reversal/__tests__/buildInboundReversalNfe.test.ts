@@ -204,4 +204,45 @@ describe("buildInboundReversalNfe", () => {
         expect(out.itens[1].prod.cfop).toBe("1202");
         expect(out.infAdic?.infCpl).toContain("Estorno parcial");
     });
+
+    it("injects minimal ICMS when outbound item has no ICMS block", () => {
+        const draft = sampleOutboundDraft();
+        draft.itens[0].imposto = {
+            vTotTrib: 0,
+            pis: { cst: "07", vBC: 0, vPIS: 0 },
+            cofins: { cst: "07", vBC: 0, vCOFINS: 0 },
+        };
+
+        const out = buildInboundReversalNfe({
+            outboundDraft: draft,
+            outboundAccessKey: "1".repeat(44),
+            mode: "TOTAL",
+            selectionByNItem: new Map(),
+            reasonCode: "MERCADORIA_NAO_ENTREGUE",
+            nowIso: "2026-02-23T12:00:00.000-03:00",
+        });
+
+        expect(out.itens[0].imposto.icms?.orig).toBe("0");
+        expect(out.itens[0].imposto.icms?.cst).toBe("41");
+    });
+
+    it("injects minimal PIS/COFINS when outbound item has no PIS/COFINS block", () => {
+        const draft = sampleOutboundDraft();
+        draft.itens[0].imposto = {
+            vTotTrib: 0,
+            icms: { orig: "0", cst: "41" },
+        };
+
+        const out = buildInboundReversalNfe({
+            outboundDraft: draft,
+            outboundAccessKey: "1".repeat(44),
+            mode: "TOTAL",
+            selectionByNItem: new Map(),
+            reasonCode: "MERCADORIA_NAO_ENTREGUE",
+            nowIso: "2026-02-23T12:00:00.000-03:00",
+        });
+
+        expect(out.itens[0].imposto.pis?.cst).toBe("07");
+        expect(out.itens[0].imposto.cofins?.cst).toBe("07");
+    });
 });
