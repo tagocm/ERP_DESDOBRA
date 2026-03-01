@@ -231,6 +231,59 @@ export async function fetchIssuedInvoices(
         return serializeCfops(matches.size > 0 ? matches : undefined);
     };
 
+    const decodeXmlEntities = (value: string): string =>
+        value
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&apos;/g, "'");
+
+    const extractXmlTagValue = (xmlFragment: string, tag: string): string | null => {
+        const pattern = new RegExp(`<(?:\\w+:)?${tag}[^>]*>([\\s\\S]*?)<\\/(?:\\w+:)?${tag}>`, 'i');
+        const match = pattern.exec(xmlFragment);
+        if (!match || typeof match[1] !== 'string') return null;
+        const compact = decodeXmlEntities(match[1].replace(/\s+/g, ' ').trim());
+        return compact.length > 0 ? compact : null;
+    };
+
+    const parseDecimalValue = (value: string | null): number | null => {
+        if (!value) return null;
+        const normalized = value.replace(',', '.').trim();
+        const parsed = Number(normalized);
+        return Number.isFinite(parsed) ? parsed : null;
+    };
+
+    const extractRecipientSummaryFromXml = (xml: string | null | undefined): {
+        recipientName: string | null;
+        recipientDocument: string | null;
+        totalAmount: number | null;
+    } => {
+        if (!xml) {
+            return {
+                recipientName: null,
+                recipientDocument: null,
+                totalAmount: null,
+            };
+        }
+
+        const destBlockMatch = /<(?:\w+:)?dest\b[^>]*>([\s\S]*?)<\/(?:\w+:)?dest>/i.exec(xml);
+        const destBlock = destBlockMatch?.[1] || null;
+        const icmsTotMatch = /<(?:\w+:)?ICMSTot\b[^>]*>([\s\S]*?)<\/(?:\w+:)?ICMSTot>/i.exec(xml);
+        const icmsTotBlock = icmsTotMatch?.[1] || null;
+
+        const recipientName = destBlock ? extractXmlTagValue(destBlock, 'xNome') : null;
+        const recipientCnpj = destBlock ? extractXmlTagValue(destBlock, 'CNPJ') : null;
+        const recipientCpf = destBlock ? extractXmlTagValue(destBlock, 'CPF') : null;
+        const totalAmountRaw = icmsTotBlock ? extractXmlTagValue(icmsTotBlock, 'vNF') : null;
+
+        return {
+            recipientName,
+            recipientDocument: recipientCnpj || recipientCpf || null,
+            totalAmount: parseDecimalValue(totalAmountRaw),
+        };
+    };
+
     const hasUsefulDocument = (
         document:
             | {
@@ -423,19 +476,23 @@ export async function fetchIssuedInvoices(
 
     const transformedEmissions = (emissionsData || []).map((emission: any) => ({
         ...(() => {
+            const xmlSource = emission.xml_nfe_proc || emission.xml_signed || null;
+            const xmlSummary = extractRecipientSummaryFromXml(xmlSource);
             const fallbackDocument = {
                 id: null,
                 document_number: null,
-                total_amount: emission.total_vnf || null,
+                total_amount: emission.total_vnf ?? xmlSummary.totalAmount,
                 client: {
-                    trade_name: emission.dest_document
-                        ? `Destinatário ${formatDocument(emission.dest_document) || ''}`.trim()
-                        : (
-                            emission.source_system === 'LEGACY_IMPORT' || Boolean(emission.is_read_only)
-                                ? 'NF-e legada'
-                                : 'NF-e sem pedido'
-                        ),
-                    document_number: emission.dest_document || null,
+                    trade_name: xmlSummary.recipientName || (
+                        emission.dest_document
+                            ? `Destinatário ${formatDocument(emission.dest_document) || ''}`.trim()
+                            : (
+                                emission.source_system === 'LEGACY_IMPORT' || Boolean(emission.is_read_only)
+                                    ? 'NF-e legada'
+                                    : 'NF-e sem pedido'
+                            )
+                    ),
+                    document_number: emission.dest_document || xmlSummary.recipientDocument || null,
                 },
             };
 
@@ -445,7 +502,7 @@ export async function fetchIssuedInvoices(
                     : fallbackDocument,
                 cfop: emission.sales_document_id
                     ? serializeCfops(cfopByDocumentId.get(emission.sales_document_id))
-                    : serializeCfops(cfopByEmissionId.get(emission.id)) || extractCfopsFromXml(emission.xml_nfe_proc || emission.xml_signed || null),
+                    : serializeCfops(cfopByEmissionId.get(emission.id)) || extractCfopsFromXml(xmlSource),
             };
         })(),
         id: emission.id,
