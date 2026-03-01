@@ -5,6 +5,7 @@ import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/lib/supabaseServer";
 import { resolveEmissionForFiscalAction } from "@/lib/fiscal/nfe/resolve-emission";
 import { OutboundReversalDetailsRequestSchema, OutboundReversalDetailsResponseSchema } from "@/lib/fiscal/nfe/reversal/schemas";
+import { parseLegacyNfeXml } from "@/lib/fiscal/nfe/legacy-import/parser";
 import { z } from "zod";
 
 const SalesDocItemRowSchema = z.object({
@@ -40,6 +41,11 @@ const NfeEmissionRowSchema = z.object({
     numero: z.union([z.number(), z.string()]).nullable().optional(),
     serie: z.union([z.number(), z.string()]).nullable().optional(),
     dest_document: z.string().nullable().optional(),
+    total_vnf: z.number().nullable().optional(),
+    xml_nfe_proc: z.string().nullable().optional(),
+    xml_signed: z.string().nullable().optional(),
+    xml_sent: z.string().nullable().optional(),
+    xml_unsigned: z.string().nullable().optional(),
     authorized_at: z.string().nullable().optional(),
     updated_at: z.string().nullable().optional(),
     created_at: z.string().nullable().optional(),
@@ -64,6 +70,24 @@ function toNumberOrNull(value: unknown): number | null {
     if (value === null || value === undefined) return null;
     const n = typeof value === "number" ? value : Number(value);
     return Number.isFinite(n) ? n : null;
+}
+
+function resolveOutboundXmlContent(emission: z.infer<typeof NfeEmissionRowSchema>): string | null {
+    const candidates = [
+        emission.xml_nfe_proc,
+        emission.xml_signed,
+        emission.xml_sent,
+        emission.xml_unsigned,
+    ];
+
+    for (const candidate of candidates) {
+        if (typeof candidate !== "string") continue;
+        const trimmed = candidate.trim();
+        if (trimmed.length === 0) continue;
+        return trimmed;
+    }
+
+    return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -98,7 +122,7 @@ export async function POST(req: NextRequest) {
 
         const { data: emissionRow, error: emissionError } = await admin
             .from("nfe_emissions")
-            .select("id,company_id,sales_document_id,access_key,status,source_system,numero,serie,dest_document,authorized_at,updated_at,created_at")
+            .select("id,company_id,sales_document_id,access_key,status,source_system,numero,serie,dest_document,total_vnf,xml_nfe_proc,xml_signed,xml_sent,xml_unsigned,authorized_at,updated_at,created_at")
             .eq("id", emission.id)
             .eq("company_id", emission.company_id)
             .maybeSingle();
@@ -125,10 +149,43 @@ export async function POST(req: NextRequest) {
 
             const importedItems = (importedItemsRaw || []).map((row) => LegacyImportedItemSchema.parse(row));
             if (importedItems.length === 0) {
-                return NextResponse.json(
-                    { error: "NF-e sem pedido vinculado e sem itens importados. Não é possível gerar estorno." },
-                    { status: 400 },
-                );
+                const outboundXml = resolveOutboundXmlContent(emissionParsed);
+                if (!outboundXml) {
+                    return NextResponse.json(
+                        { error: "NF-e sem pedido vinculado, sem itens importados e sem XML armazenado. Não é possível gerar estorno." },
+                        { status: 400 },
+                    );
+                }
+
+                const parsedLegacy = parseLegacyNfeXml(outboundXml);
+                const response = {
+                    emission: {
+                        id: emissionParsed.id,
+                        status: emissionParsed.status,
+                        accessKey: emissionParsed.access_key,
+                        numero: toNumberOrNull(emissionParsed.numero) ?? toNumberOrNull(parsedLegacy.header.number),
+                        serie: toNumberOrNull(emissionParsed.serie) ?? toNumberOrNull(parsedLegacy.header.series),
+                        authorizedAt: emissionParsed.authorized_at ?? null,
+                        issuedAt: emissionParsed.authorized_at ?? emissionParsed.updated_at ?? emissionParsed.created_at ?? parsedLegacy.header.issuedAt,
+                        documentNumber: null,
+                        clientName: parsedLegacy.destination.xNome ?? emissionParsed.dest_document ?? "NF-e legada importada",
+                        totalAmount: parsedLegacy.header.totalVnf ?? emissionParsed.total_vnf ?? null,
+                    },
+                    items: parsedLegacy.items.map((row) => ({
+                        nItem: row.itemNumber,
+                        salesDocumentItemId: null,
+                        itemId: null,
+                        name: row.xProd || "Item importado",
+                        sku: row.cProd ?? null,
+                        quantity: row.qCom,
+                        unitPrice: row.vUnCom,
+                        total: row.vProd,
+                        isProduced: Boolean(row.isProduced),
+                    })),
+                };
+
+                const validated = OutboundReversalDetailsResponseSchema.parse(response);
+                return NextResponse.json(validated);
             }
 
             const response = {
