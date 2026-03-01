@@ -23,8 +23,35 @@ export interface PendingInvoice {
     status_fiscal: string;
 }
 
+export interface IssuedInvoiceListItem {
+    id: string;
+    nfe_number: number | null;
+    nfe_series: number | null;
+    nfe_key: string | null;
+    status: string;
+    issued_at: string;
+    cfop: string | null;
+    has_correction_letter?: boolean;
+    _source?: 'emission' | 'legacy';
+    _xml_inline?: string | null;
+    source_system?: string;
+    is_read_only?: boolean;
+    legacy_protocol_status?: string | null;
+    legacy_destination_document?: string | null;
+    legacy_destination_uf?: string | null;
+    document?: {
+        id: string | null;
+        document_number: number | null;
+        total_amount: number | null;
+        client?: {
+            trade_name: string | null;
+            document_number: string | null;
+        } | null;
+    } | null;
+}
+
 export interface FetchIssuedInvoicesResult {
-    data: any[];
+    data: IssuedInvoiceListItem[];
     total: number;
     page: number;
     pageSize: number;
@@ -157,6 +184,7 @@ export async function fetchIssuedInvoices(
     options?: { page?: number; pageSize?: number }
 ): Promise<FetchIssuedInvoicesResult> {
     const supabase = await createClient();
+
     const formatDocument = (value: string | null | undefined): string | null => {
         const digits = String(value || "").replace(/\D/g, "");
         if (digits.length === 11) {
@@ -167,6 +195,29 @@ export async function fetchIssuedInvoices(
         }
         return digits.length > 0 ? digits : null;
     };
+
+    const normalizeCfop = (value: unknown): string | null => {
+        const digits = String(value || '').replace(/\D/g, '');
+        return /^\d{4}$/.test(digits) ? digits : null;
+    };
+
+    const pushCfop = (map: Map<string, Set<string>>, key: string | null | undefined, value: unknown): void => {
+        if (!key) return;
+        const normalized = normalizeCfop(value);
+        if (!normalized) return;
+        const current = map.get(key);
+        if (current) {
+            current.add(normalized);
+            return;
+        }
+        map.set(key, new Set([normalized]));
+    };
+
+    const serializeCfops = (values: Set<string> | undefined): string | null => {
+        if (!values || values.size === 0) return null;
+        return Array.from(values.values()).sort((a, b) => a.localeCompare(b)).join(', ');
+    };
+
     const issuedStatusesInput = filters?.status;
     const issuedStatuses = (
         Array.isArray(issuedStatusesInput)
@@ -265,6 +316,55 @@ export async function fetchIssuedInvoices(
     }
 
     const emissionDocIds = Array.from(new Set((emissionsData || []).map(e => e.sales_document_id).filter(Boolean)));
+    const emissionIdsForCfop = Array.from(new Set((emissionsData || []).map((emission) => emission.id).filter(Boolean)));
+    const legacyDocumentIds = transformedLegacy
+        .map((row: { document?: { id?: string | null } | null }) => row?.document?.id || null)
+        .filter((value: string | null): value is string => Boolean(value));
+    const documentIdsForCfop = Array.from(new Set([...emissionDocIds, ...legacyDocumentIds]));
+
+    const cfopByDocumentId = new Map<string, Set<string>>();
+    const cfopByEmissionId = new Map<string, Set<string>>();
+
+    if (documentIdsForCfop.length > 0) {
+        const { data: salesItemCfops, error: salesItemCfopsError } = await supabase
+            .from('sales_document_items')
+            .select('document_id, cfop_code')
+            .eq('company_id', companyId)
+            .in('document_id', documentIdsForCfop);
+
+        if (salesItemCfopsError) {
+            console.warn('Warning fetching CFOP from sales_document_items:', salesItemCfopsError);
+        } else {
+            (salesItemCfops || []).forEach((item) => {
+                pushCfop(cfopByDocumentId, item.document_id, item.cfop_code);
+            });
+        }
+    }
+
+    if (emissionIdsForCfop.length > 0) {
+        const { data: legacyItemCfops, error: legacyItemCfopsError } = await supabase
+            .from('nfe_legacy_import_items')
+            .select('nfe_emission_id, cfop')
+            .eq('company_id', companyId)
+            .in('nfe_emission_id', emissionIdsForCfop);
+
+        if (legacyItemCfopsError && legacyItemCfopsError.code !== '42P01' && !legacyItemCfopsError.message.includes('nfe_legacy_import_items')) {
+            console.warn('Warning fetching CFOP from nfe_legacy_import_items:', legacyItemCfopsError);
+        } else {
+            (legacyItemCfops || []).forEach((item) => {
+                pushCfop(cfopByEmissionId, item.nfe_emission_id, item.cfop);
+            });
+        }
+    }
+
+    transformedLegacy = transformedLegacy.map((row: { document?: { id?: string | null } | null }) => {
+        const documentId = row?.document?.id || null;
+        return {
+            ...row,
+            cfop: documentId ? serializeCfops(cfopByDocumentId.get(documentId)) : null,
+        };
+    });
+
     let docsMap = new Map<string, any>();
     if (emissionDocIds.length > 0) {
         const { data: docs } = await supabase
@@ -313,6 +413,9 @@ export async function fetchIssuedInvoices(
         legacy_protocol_status: emission.legacy_protocol_status || null,
         legacy_destination_document: emission.dest_document || null,
         legacy_destination_uf: emission.dest_uf || null,
+        cfop: emission.sales_document_id
+            ? serializeCfops(cfopByDocumentId.get(emission.sales_document_id))
+            : serializeCfops(cfopByEmissionId.get(emission.id)),
     }));
 
     // Merge by access key (canonical first), keep legacy rows not present in canonical

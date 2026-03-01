@@ -20,6 +20,7 @@ type IssuedInvoiceRow = {
     nfe_key: string | null;
     status: string;
     issued_at: string;
+    cfop?: string | null;
     has_correction_letter?: boolean;
     _source?: string;
     source_system?: string;
@@ -812,6 +813,9 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Pedido
                             </th>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                CFOP
+                            </th>
                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Total
                             </th>
@@ -879,6 +883,11 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     <span className="text-sm text-gray-500">
                                         {nfe.document?.document_number ? `#${nfe.document.document_number}` : '-'}
+                                    </span>
+                                </td>
+                                <td className="px-4 py-4 whitespace-nowrap text-center">
+                                    <span className="text-sm text-gray-700">
+                                        {nfe.cfop || '-'}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right">
