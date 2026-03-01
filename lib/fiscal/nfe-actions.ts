@@ -30,7 +30,7 @@ export interface FetchIssuedInvoicesResult {
     pageSize: number;
 }
 
-export type IssuedInvoiceStatusFilter = 'authorized' | 'cancelled' | 'processing';
+export type IssuedInvoiceStatusFilter = 'authorized' | 'cancelled' | 'processing' | 'rejected' | 'error';
 export type NfeEventType = 'cancellation' | 'correction_letter';
 
 export interface NfeEventListItem {

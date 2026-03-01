@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { fetchPendingInvoices, fetchIssuedInvoices, fetchNfeEvents, PendingInvoice } from '@/lib/fiscal/nfe-actions';
+import { fetchPendingInvoices, fetchIssuedInvoices, fetchNfeEvents, PendingInvoice, IssuedInvoiceStatusFilter } from '@/lib/fiscal/nfe-actions';
 import { InvoiceFilters } from '@/components/fiscal/InvoiceFilters';
 import { PendingInvoicesTable } from '@/components/fiscal/PendingInvoicesTable';
 import { IssuedInvoicesTable } from '@/components/fiscal/IssuedInvoicesTable';
@@ -66,12 +66,13 @@ export function InvoiceListClient({
                 setEventsData(result.data);
                 setEventsTotal(result.total);
             } else {
+                const processingAndErrorStatuses: IssuedInvoiceStatusFilter[] = ['processing', 'rejected', 'error'];
                 const status =
                     view === 'issued'
                         ? 'authorized'
                         : view === 'cancelled'
                             ? 'cancelled'
-                            : 'processing';
+                            : processingAndErrorStatuses;
 
                 const result = await fetchIssuedInvoices(companyId, {
                     startDate: filters.dateFrom ? new Date(filters.dateFrom) : undefined,
@@ -118,8 +119,8 @@ export function InvoiceListClient({
         }
         : view === 'processing'
             ? {
-                title: 'Nenhuma NF-e em processamento',
-                description: 'Ainda não há notas fiscais em processamento no período.',
+                title: 'Nenhuma NF-e em processamento/com falha',
+                description: 'Ainda não há notas fiscais em processamento ou com falha no período.',
             }
             : {
                 title: 'Nenhuma NF-e emitida',

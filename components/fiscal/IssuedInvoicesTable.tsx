@@ -897,7 +897,11 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                                 ? 'bg-red-100 text-red-800'
                                                 : nfe.status === 'processing'
                                                     ? 'bg-blue-100 text-blue-800'
-                                                    : 'bg-yellow-100 text-yellow-800'
+                                                    : nfe.status === 'rejected'
+                                                        ? 'bg-rose-100 text-rose-800'
+                                                        : nfe.status === 'error'
+                                                            ? 'bg-orange-100 text-orange-800'
+                                                            : 'bg-yellow-100 text-yellow-800'
                                             }`}
                                     >
                                         {nfe.status === 'authorized'
@@ -906,7 +910,11 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
                                                 ? 'Cancelada'
                                                 : nfe.status === 'processing'
                                                     ? 'Processando'
-                                                    : nfe.status}
+                                                    : nfe.status === 'rejected'
+                                                        ? 'Falha (Rejeitada)'
+                                                        : nfe.status === 'error'
+                                                            ? 'Erro'
+                                                            : nfe.status}
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
