@@ -218,6 +218,41 @@ export async function fetchIssuedInvoices(
         return Array.from(values.values()).sort((a, b) => a.localeCompare(b)).join(', ');
     };
 
+    const extractCfopsFromXml = (xml: string | null | undefined): string | null => {
+        if (!xml) return null;
+        const regex = /<CFOP>\s*(\d{4})\s*<\/CFOP>/g;
+        const matches = new Set<string>();
+        let current = regex.exec(xml);
+        while (current) {
+            const value = normalizeCfop(current[1]);
+            if (value) matches.add(value);
+            current = regex.exec(xml);
+        }
+        return serializeCfops(matches.size > 0 ? matches : undefined);
+    };
+
+    const hasUsefulDocument = (
+        document:
+            | {
+                id: string | null;
+                document_number: number | null;
+                total_amount: number | null;
+                client?: {
+                    trade_name: string | null;
+                    document_number: string | null;
+                } | null;
+            }
+            | null
+            | undefined
+    ): boolean => {
+        if (!document) return false;
+        if (document.document_number !== null) return true;
+        if (document.total_amount !== null) return true;
+        if (document.client?.trade_name) return true;
+        if (document.client?.document_number) return true;
+        return false;
+    };
+
     const issuedStatusesInput = filters?.status;
     const issuedStatuses = (
         Array.isArray(issuedStatusesInput)
@@ -387,25 +422,38 @@ export async function fetchIssuedInvoices(
     }
 
     const transformedEmissions = (emissionsData || []).map((emission: any) => ({
+        ...(() => {
+            const fallbackDocument = {
+                id: null,
+                document_number: null,
+                total_amount: emission.total_vnf || null,
+                client: {
+                    trade_name: emission.dest_document
+                        ? `Destinatário ${formatDocument(emission.dest_document) || ''}`.trim()
+                        : (
+                            emission.source_system === 'LEGACY_IMPORT' || Boolean(emission.is_read_only)
+                                ? 'NF-e legada'
+                                : 'NF-e sem pedido'
+                        ),
+                    document_number: emission.dest_document || null,
+                },
+            };
+
+            return {
+                document: emission.sales_document_id
+                    ? docsMap.get(emission.sales_document_id) || null
+                    : fallbackDocument,
+                cfop: emission.sales_document_id
+                    ? serializeCfops(cfopByDocumentId.get(emission.sales_document_id))
+                    : serializeCfops(cfopByEmissionId.get(emission.id)) || extractCfopsFromXml(emission.xml_nfe_proc || emission.xml_signed || null),
+            };
+        })(),
         id: emission.id,
         nfe_number: Number(emission.numero) || null,
         nfe_series: Number(emission.serie) || null,
         nfe_key: emission.access_key,
         status: emission.status,
         issued_at: emission.authorized_at || emission.updated_at || emission.created_at,
-        document: emission.sales_document_id
-            ? docsMap.get(emission.sales_document_id) || null
-            : emission.source_system === 'LEGACY_IMPORT'
-                ? {
-                    id: null,
-                    document_number: null,
-                    total_amount: emission.total_vnf || null,
-                    client: {
-                        trade_name: emission.dest_document ? `Destinatário ${formatDocument(emission.dest_document) || ''}`.trim() : 'NF-e legada',
-                        document_number: emission.dest_document || null,
-                    },
-                }
-                : null,
         _source: 'emission',
         _xml_inline: emission.xml_nfe_proc || emission.xml_signed || null,
         source_system: emission.source_system || 'LIVE_EMISSION',
@@ -413,9 +461,6 @@ export async function fetchIssuedInvoices(
         legacy_protocol_status: emission.legacy_protocol_status || null,
         legacy_destination_document: emission.dest_document || null,
         legacy_destination_uf: emission.dest_uf || null,
-        cfop: emission.sales_document_id
-            ? serializeCfops(cfopByDocumentId.get(emission.sales_document_id))
-            : serializeCfops(cfopByEmissionId.get(emission.id)),
     }));
 
     // Merge by access key (canonical first), keep legacy rows not present in canonical
@@ -426,9 +471,18 @@ export async function fetchIssuedInvoices(
     });
     (transformedLegacy || []).forEach((row: any) => {
         const key = row.nfe_key || `legacy:${row.id}`;
-        if (!byKey.has(key)) {
+        const existing = byKey.get(key);
+        if (!existing) {
             byKey.set(key, { ...row, _source: 'legacy' });
+            return;
         }
+
+        byKey.set(key, {
+            ...existing,
+            issued_at: existing.issued_at || row.issued_at,
+            cfop: existing.cfop || row.cfop || null,
+            document: hasUsefulDocument(existing.document) ? existing.document : (row.document || existing.document),
+        });
     });
 
     let merged = Array.from(byKey.values()).sort((a: any, b: any) =>
