@@ -49,3 +49,9 @@ export function formatDateTimeInBrasilia(date: Date): string {
     return `${year}-${month}-${day}T${hour}:${minute}:${second}${offset}`;
 }
 
+export function formatYearMonthInBrasilia(date: Date): string {
+    const parts = datePartsFormatter.formatToParts(date);
+    const year = getPart(parts, "year");
+    const month = getPart(parts, "month");
+    return `${year.slice(-2)}${month}`;
+}

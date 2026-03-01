@@ -3,6 +3,7 @@ import { buildNfeXml } from "@/lib/nfe/xml/buildNfeXml";
 import { uploadNfeArtifact } from "@/lib/fiscal/nfe/offline/storage";
 import { emitirNfeHomolog } from "@/lib/nfe/sefaz/services/emitir";
 import { loadCompanyCertificate } from "@/lib/nfe/sefaz/services/certificateLoader";
+import { formatYearMonthInBrasilia } from "@/lib/nfe/sefaz/services/brasilia-time";
 import { buildNfeProc, upsertNfeEmission } from "@/lib/nfe/sefaz/services/persistence";
 import { buildDraftFromDb } from "@/lib/fiscal/nfe/offline/mappers";
 import { buildInboundReversalNfe } from "./buildInboundReversalNfe";
@@ -436,7 +437,7 @@ export async function emitInboundReversalFromOutbound(args: { companyId: string;
 
     const ufState = String(selectedAddress?.state || "SP").toUpperCase();
     const cUF = getIbgeUf(ufState);
-    const AAMM = new Date().toISOString().slice(2, 4) + new Date().toISOString().slice(5, 7);
+    const AAMM = formatYearMonthInBrasilia(new Date());
     const rawCnpj = settings.cnpj || companyRow.document_number;
     const cnpj = String(rawCnpj || "").replace(/\D/g, "");
     const mod = "55";
