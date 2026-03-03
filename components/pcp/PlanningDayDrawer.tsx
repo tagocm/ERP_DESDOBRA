@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/Badge"
 import { Input } from "@/components/ui/Input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ItemPlan, PlanningAlert, DailyPlan } from "@/lib/pcp/planning-service"
-import { generateWorkOrdersAction } from "@/app/actions/pcp-planning"
+import { createWorkOrderWithDependenciesAction } from "@/app/actions/pcp-work-orders"
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2, CheckCircle2, AlertTriangle, FileWarning, ExternalLink, Plus } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
@@ -76,17 +76,63 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
 
         try {
             setIsSubmitting(true)
-            const payload = itemsToProduce.map(item => ({
-                item_id: item.item_id,
-                qty: item.day!.shortage, // Default to shortage
-                bom_id: item.day!.bom_id
-            }))
+            const payload = itemsToProduce.flatMap((item) => {
+                if (!item.day?.bom_id) {
+                    return []
+                }
 
-            await generateWorkOrdersAction({ date, items: payload })
+                return [{
+                    item_id: item.item_id,
+                    qty: item.day.shortage,
+                    bom_id: item.day.bom_id,
+                }]
+            })
+
+            if (payload.length === 0) {
+                toast({
+                    title: "Sem ficha técnica",
+                    description: "Nenhum item com falta possui FT ativa para gerar OP.",
+                    variant: "destructive"
+                })
+                return
+            }
+
+            const settledResults = await Promise.allSettled(
+                payload.map((entry) =>
+                    createWorkOrderWithDependenciesAction({
+                        itemId: entry.item_id,
+                        bomId: entry.bom_id!,
+                        plannedQty: entry.qty,
+                        scheduledDate: date,
+                        notes: `Origem: Planejamento do dia ${new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR')}`,
+                    })
+                )
+            )
+
+            const successResults = settledResults.filter(
+                (result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof createWorkOrderWithDependenciesAction>>> =>
+                    result.status === 'fulfilled'
+            )
+            const failedResults = settledResults.filter((result) => result.status === 'rejected')
+            const createdChildrenCount = successResults.reduce((acc, result) => acc + result.value.createdChildrenCount, 0)
+
+            if (failedResults.length > 0) {
+                toast({
+                    title: "Geração parcial",
+                    description:
+                        `Mãe: ${successResults.length} • Filhas: ${createdChildrenCount}. ` +
+                        `${failedResults.length} item(ns) falharam.`,
+                    variant: "destructive"
+                })
+                if (successResults.length > 0) {
+                    onSuccess()
+                }
+                return
+            }
 
             toast({
                 title: "Sucesso",
-                description: "Ordens de produção geradas/atualizadas com sucesso!",
+                description: `OPs geradas! Mãe: ${successResults.length} • Filhas: ${createdChildrenCount}.`,
                 variant: "default"
             })
             onSuccess()
@@ -95,7 +141,7 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
             console.error(error)
             toast({
                 title: "Erro",
-                description: "Erro ao gerar ordens.",
+                description: "Erro ao gerar ordens com dependências.",
                 variant: "destructive"
             })
         } finally {
@@ -401,23 +447,33 @@ function SmartActionCell({ item, shortage, date, onSuccess }: { item: ItemPlan &
             toast({ title: "Valor inválido", description: "Informe uma quantidade maior que zero.", variant: "destructive" })
             return
         }
+        if (!item.day?.bom_id || !item.has_bom) {
+            toast({
+                title: "Sem ficha técnica",
+                description: "Este item não possui FT ativa para geração de OP.",
+                variant: "destructive"
+            })
+            return
+        }
 
         try {
             setLoading(true)
-            await generateWorkOrdersAction({
-                date,
-                items: [{
-                    item_id: item.item_id,
-                    qty: val,
-                    bom_id: item.day?.bom_id
-                }]
+            const result = await createWorkOrderWithDependenciesAction({
+                itemId: item.item_id,
+                bomId: item.day.bom_id,
+                plannedQty: val,
+                scheduledDate: date,
+                notes: `Origem: Planejamento do dia ${new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR')}`,
             })
-            toast({ title: "Sucesso", description: "Ordem de produção gerada/atualizada." })
+            toast({
+                title: "Sucesso",
+                description: `OP mãe criada com ${result.createdChildrenCount} OP(s) filha(s).`
+            })
             setOpen(false)
             onSuccess()
         } catch (error) {
             console.error(error)
-            toast({ title: "Erro", description: "Falha ao gerar ordem.", variant: "destructive" })
+            toast({ title: "Erro", description: "Falha ao gerar ordem com dependências.", variant: "destructive" })
         } finally {
             setLoading(false)
         }
@@ -437,6 +493,7 @@ function SmartActionCell({ item, shortage, date, onSuccess }: { item: ItemPlan &
                     <Button
                         size="sm"
                         variant="ghost"
+                        disabled={!item.has_bom || !item.day?.bom_id}
                         className="h-8 text-xs border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium transition-all"
                     >
                         <Plus className="w-3 h-3 mr-1" /> Gerar OP
