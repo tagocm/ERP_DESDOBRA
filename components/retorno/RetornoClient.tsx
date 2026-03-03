@@ -269,6 +269,9 @@ export function RetornoClient({ initialRoutes }: RetornoClientProps) {
             weekFromNow.setDate(weekFromNow.getDate() + 7);
             return routeDate >= today && routeDate <= weekFromNow;
         }
+        if (quickFilter === 'all') {
+            return true;
+        }
         return true;
     });
 
@@ -313,7 +316,7 @@ export function RetornoClient({ initialRoutes }: RetornoClientProps) {
                                     <SelectContent>
                                         <SelectItem value="today">Hoje</SelectItem>
                                         <SelectItem value="week">Esta semana</SelectItem>
-                                        <SelectItem value="all">Todas</SelectItem>
+                                        <SelectItem value="all">TODOS</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>

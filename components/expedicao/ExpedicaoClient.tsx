@@ -224,6 +224,9 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
             const target = format(routeDate, 'ww-yyyy');
             return start === target && (normalizeRouteStatus(route.status) || route.status) !== 'cancelled';
         }
+        if (quickFilter === 'all') {
+            return (normalizeRouteStatus(route.status) || route.status) !== 'cancelled';
+        }
         return (normalizeRouteStatus(route.status) || route.status) !== 'cancelled';
     });
 
@@ -337,6 +340,7 @@ export function ExpedicaoClient({ initialRoutes = [] }: ExpedicaoClientProps) {
                                         <SelectItem value="today">Hoje</SelectItem>
                                         <SelectItem value="tomorrow">Amanhã</SelectItem>
                                         <SelectItem value="this_week">Esta semana</SelectItem>
+                                        <SelectItem value="all">TODOS</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
