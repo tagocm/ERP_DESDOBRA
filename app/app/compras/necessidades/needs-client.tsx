@@ -22,10 +22,27 @@ import { formatCurrency } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/components/ui/use-toast';
 import { createPurchaseOrderAction } from '@/app/actions/purchases';
+import { createClient } from '@/lib/supabaseBrowser';
+
+interface PurchaseProfileRow {
+    item_id: string;
+    default_purchase_packaging_id: string | null;
+    conversion_factor: number | null;
+    purchase_uom: string | null;
+}
+
+interface PackagingRow {
+    id: string;
+    item_id: string;
+    label: string | null;
+    name: string;
+    qty_in_base: number;
+}
 
 export default function PurchaseNeedsClient({ companyId }: { companyId: string }) {
     const router = useRouter();
     const { toast } = useToast();
+    const supabase = createClient();
 
     // Filters
     const [dateRange, setDateRange] = useState<DateRange | undefined>({
@@ -108,16 +125,86 @@ export default function PurchaseNeedsClient({ companyId }: { companyId: string }
         setIsCreatingPO(true);
         try {
             const itemsToAdd = filteredData.filter(i => selectedIds.includes(i.item_id));
+            const itemIds = itemsToAdd.map((item) => item.item_id);
+
+            const { data: profilesData, error: profilesError } = await supabase
+                .from('item_purchase_profiles')
+                .select('item_id, default_purchase_packaging_id, conversion_factor, purchase_uom')
+                .eq('company_id', companyId)
+                .in('item_id', itemIds);
+
+            if (profilesError) {
+                throw new Error(`Falha ao carregar perfis de compra: ${profilesError.message}`);
+            }
+
+            const profileByItemId = new Map<string, PurchaseProfileRow>();
+            (profilesData || []).forEach((profile) => {
+                profileByItemId.set(profile.item_id, profile as PurchaseProfileRow);
+            });
+
+            const defaultPackagingIds = Array.from(
+                new Set(
+                    (profilesData || [])
+                        .map((profile) => profile.default_purchase_packaging_id)
+                        .filter((id): id is string => Boolean(id))
+                )
+            );
+
+            const packagingById = new Map<string, PackagingRow>();
+            if (defaultPackagingIds.length > 0) {
+                const { data: packagingsData, error: packagingsError } = await supabase
+                    .from('item_packaging')
+                    .select('id, item_id, label, name, qty_in_base')
+                    .eq('company_id', companyId)
+                    .eq('is_active', true)
+                    .is('deleted_at', null)
+                    .in('id', defaultPackagingIds);
+
+                if (packagingsError) {
+                    throw new Error(`Falha ao carregar embalagens logísticas: ${packagingsError.message}`);
+                }
+
+                (packagingsData || []).forEach((packaging) => {
+                    packagingById.set(packaging.id, packaging as PackagingRow);
+                });
+            }
 
             // Map to PO Item structure
-            const poItems = itemsToAdd.map(item => ({
-                item_id: item.item_id,
-                qty_display: item.purchase_suggestion || 0,
-                uom_label: item.uom,
-                conversion_factor: 1, // Default, will refine in PO if needed
-                unit_cost: 0, // Unknown at this stage
-                notes: `Origem: PCP (Projeção)`
-            }));
+            const poItems = itemsToAdd.map((item) => {
+                const profile = profileByItemId.get(item.item_id) || null;
+                const packaging = profile?.default_purchase_packaging_id
+                    ? (packagingById.get(profile.default_purchase_packaging_id) || null)
+                    : null;
+
+                const baseSuggestion = Number(item.purchase_suggestion || 0);
+                const packagingFactor = packaging ? Number(packaging.qty_in_base || 0) : 0;
+                const profileFactor = Number(profile?.conversion_factor || 0);
+
+                const conversionFactor =
+                    packagingFactor > 0 ? packagingFactor : (profileFactor > 0 ? profileFactor : 1);
+                const uomLabel =
+                    (packaging?.label || packaging?.name || profile?.purchase_uom || item.uom || 'UN').trim();
+
+                const qtyDisplay =
+                    conversionFactor > 1
+                        ? Math.ceil(baseSuggestion / conversionFactor)
+                        : baseSuggestion;
+
+                const baseFormatted = baseSuggestion.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
+                const notes =
+                    conversionFactor > 1
+                        ? `Origem: PCP (Projeção). Necessário base: ${baseFormatted} ${item.uom}.`
+                        : 'Origem: PCP (Projeção)';
+
+                return {
+                    item_id: item.item_id,
+                    qty_display: qtyDisplay,
+                    uom_label: uomLabel,
+                    conversion_factor: conversionFactor,
+                    unit_cost: 0,
+                    notes,
+                };
+            });
 
             const result = await createPurchaseOrderAction({
                 items: poItems,
