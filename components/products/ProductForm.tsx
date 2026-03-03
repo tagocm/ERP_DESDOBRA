@@ -116,6 +116,11 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
         ? (uoms.find(u => u.id === formData.uom_id)?.abbrev || formData.uom)
         : formData.uom;
 
+    const resolveCanonicalUom = (item: any): string => {
+        const abbrev = item?.uoms?.abbrev || item?.uom;
+        return (abbrev || "UN").toString().trim();
+    };
+
     // --- Handlers ---
     const handleTypeChange = (newType: string) => {
         const updates: any = { type: newType };
@@ -303,7 +308,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                 // If item changed, update UOM
                 if (field === 'component_item_id') {
                     const item = availableIngredients.find(i => i.id === value);
-                    if (item) updates.uom = item.uom;
+                    if (item) updates.uom = resolveCanonicalUom(item);
                 }
                 return { ...l, ...updates };
             }
@@ -442,20 +447,39 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
 
             // Fetch Ingredients (Raw Materials, Packaging, WIP)
             supabase.from('items')
-                .select('id, name, sku, uom, type, avg_cost')
+                .select('id, name, sku, uom, uom_id, uoms(abbrev), type, avg_cost')
                 .eq('company_id', selectedCompany.id)
                 .in('type', ['raw_material', 'packaging', 'wip'])
                 .eq('is_active', true)
                 .order('name')
                 .then(({ data }) => {
-                    if (data) setAvailableIngredients(data);
+                    if (data) {
+                        setAvailableIngredients(
+                            data.map((item: any) => ({
+                                ...item,
+                                uom: resolveCanonicalUom(item)
+                            }))
+                        );
+                    }
                 });
 
             // Fetch Existing Data if Edit
             if (isEdit && itemId) {
                 // Fetch BOM Header
                 supabase.from('bom_headers')
-                    .select('id, yield_qty, yield_uom, lines:bom_lines(*)')
+                    .select(`
+                        id,
+                        yield_qty,
+                        yield_uom,
+                        lines:bom_lines(
+                            *,
+                            component:items!bom_lines_component_item_id_fkey(
+                                id,
+                                uom,
+                                uoms(abbrev)
+                            )
+                        )
+                    `)
                     .eq('item_id', itemId)
                     .eq('is_active', true)
                     .maybeSingle()
@@ -467,7 +491,8 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                 setRecipeLines(data.lines.map((l: any) => ({
                                     ...l,
                                     // ensure numeric
-                                    qty: l.qty
+                                    qty: l.qty,
+                                    uom: resolveCanonicalUom(l.component || l)
                                 })));
                             }
 
@@ -475,7 +500,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                             supabase.from('bom_byproduct_outputs')
                                 .select(`
                                     *,
-                                    item:items!bom_byproduct_outputs_item_id_fkey(name, uom, sku)
+                                    item:items!bom_byproduct_outputs_item_id_fkey(name, uom, uoms(abbrev), sku)
                                 `)
                                 .eq('bom_id', data.id)
                                 .then(({ data: bpData }) => {
@@ -483,7 +508,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                         setByproducts(bpData.map((bp: any) => ({
                                             ...bp,
                                             item_name: bp.item?.name,
-                                            item_uom: bp.item?.uom,
+                                            item_uom: resolveCanonicalUom(bp.item),
                                             item_sku: bp.item?.sku
                                         })));
                                         if (bpData.length > 0) setShowByproducts(true);
@@ -809,11 +834,13 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                         });
 
                         const linesToInsert = Array.from(aggregatedLines.values()).map((l, idx) => ({
+                            // Canonical: always persist line UOM using selected component item's current UOM.
+                            // Legacy column remains mirrored for compatibility.
+                            uom: resolveCanonicalUom(availableIngredients.find(i => i.id === l.component_item_id) || l),
                             company_id: selectedCompany.id,
                             bom_id: currentBomId,
                             component_item_id: l.component_item_id,
                             qty: l.qty,
-                            uom: l.uom,
                             notes: l.notes || null,
                             sort_order: l.sort_order // or just idx
                         }));

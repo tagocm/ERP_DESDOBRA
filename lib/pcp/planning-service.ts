@@ -6,7 +6,7 @@ import { normalizeLogisticsStatus, normalizeRouteStatus } from '@/lib/constants/
 import { Database } from '@/types/supabase'
 
 type BomLineWithItem = Database['public']['Tables']['bom_lines']['Row'] & {
-    items: { name: string; uom: string } | null
+    items: { name: string; uom: string; uoms?: { abbrev: string } | null } | null
 }
 
 type SalesDocumentWithItems = Database['public']['Tables']['sales_documents']['Row'] & {
@@ -731,7 +731,7 @@ export const planningService = {
         // Get BOM lines (ingredients)
         const { data: bomLines } = await supabaseServer
             .from('bom_lines')
-            .select('component_item_id, qty, items:items(name, uom)')
+            .select('component_item_id, qty, items:items(name, uom, uoms(abbrev))')
             .eq('bom_id', wo.bom_id)
 
         if (!bomLines || bomLines.length === 0) {
@@ -759,7 +759,7 @@ export const planningService = {
                 // Cast to custom type to access joined fields
                 const lineWithItem = line as unknown as BomLineWithItem
                 const itemName = lineWithItem.items?.name || 'Item Desconhecido'
-                const uom = lineWithItem.items?.uom || 'UN'
+                const uom = lineWithItem.items?.uoms?.abbrev || lineWithItem.items?.uom || 'UN'
                 negativeItems.push({
                     item_id: line.component_item_id,
                     item_name: itemName,

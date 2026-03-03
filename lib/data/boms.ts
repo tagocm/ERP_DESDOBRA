@@ -93,7 +93,7 @@ export const bomsRepo = {
             .from('bom_lines')
             .select(`
                 *,
-                component:items!bom_lines_component_item_id_fkey(id, name, sku, uom)
+                component:items!bom_lines_component_item_id_fkey(id, name, sku, uom, uoms(abbrev))
             `)
             .eq('bom_id', id)
             .order('sort_order', { ascending: true })
@@ -105,7 +105,7 @@ export const bomsRepo = {
             .from('bom_byproduct_outputs')
             .select(`
                 *,
-                item:items!bom_byproduct_outputs_item_id_fkey(name, uom, sku)
+                item:items!bom_byproduct_outputs_item_id_fkey(name, uom, uoms(abbrev), sku)
             `)
             .eq('bom_id', id)
 
