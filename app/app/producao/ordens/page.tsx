@@ -2,7 +2,7 @@
 
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
 import { ListFilter, Search, ArrowUpDown, Eye, Edit2, Play, CheckCircle2, AlertOctagon, Calendar, Trash2, XCircle } from "lucide-react";
@@ -16,6 +16,7 @@ import { deleteWorkOrderAction, changeWorkOrderStatusAction } from "@/app/action
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
+import { calculateRecipeCount, formatRecipeCountLabel } from "@/lib/pcp/work-order-metrics";
 
 import { NewWorkOrderModal } from "@/components/pcp/NewWorkOrderModal";
 import { ListPagination } from "@/components/ui/ListPagination";
@@ -28,6 +29,12 @@ interface WorkOrder {
     status: 'planned' | 'in_progress' | 'done' | 'cancelled';
     created_at: string;
     scheduled_date: string;
+    parent_work_order_id: string | null;
+    sector: {
+        id: string;
+        code: string;
+        name: string;
+    } | null;
     item: {
         id: string;
         name: string;
@@ -35,7 +42,21 @@ interface WorkOrder {
     };
     bom: {
         version: number;
+        yield_qty: number;
+        yield_uom: string;
     } | null;
+}
+
+interface WorkOrderQueryRow extends Omit<WorkOrder, "item" | "bom" | "sector"> {
+    item: WorkOrder["item"] | WorkOrder["item"][];
+    bom: WorkOrder["bom"] | WorkOrder["bom"][];
+    sector: WorkOrder["sector"] | WorkOrder["sector"][];
+}
+
+interface SectorOption {
+    id: string;
+    code: string;
+    name: string;
 }
 
 export default function WorkOrdersPage() {
@@ -47,6 +68,8 @@ export default function WorkOrdersPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
+    const [sectorFilter, setSectorFilter] = useState("all");
+    const [sectors, setSectors] = useState<SectorOption[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const PAGE_SIZE = 100;
 
@@ -94,8 +117,10 @@ export default function WorkOrdersPage() {
                     status,
                     created_at,
                     scheduled_date,
+                    parent_work_order_id,
+                    sector:production_sectors(id, code, name),
                     item:items!inner (id, name, uom),
-                    bom:bom_headers (version)
+                    bom:bom_headers (version, yield_qty, yield_uom)
                 `)
                 .eq('company_id', selectedCompany!.id)
                 .is('deleted_at', null)
@@ -105,18 +130,30 @@ export default function WorkOrdersPage() {
                 query = query.eq('status', statusFilter);
             }
 
-            const { data, error } = await query;
+            const [{ data, error }, { data: sectorsData, error: sectorsError }] = await Promise.all([
+                query,
+                supabase
+                    .from('production_sectors')
+                    .select('id, code, name')
+                    .eq('company_id', selectedCompany!.id)
+                    .is('deleted_at', null)
+                    .eq('is_active', true)
+                    .order('name')
+            ]);
 
             if (error) throw error;
+            if (sectorsError) throw sectorsError;
 
             // Map data to ensure types match (Supabase returns arrays for relations sometimes)
-            const mappedOrders: WorkOrder[] = (data || []).map((o: any) => ({
+            const mappedOrders: WorkOrder[] = ((data || []) as WorkOrderQueryRow[]).map((o) => ({
                 ...o,
                 item: Array.isArray(o.item) ? o.item[0] : o.item,
-                bom: Array.isArray(o.bom) ? o.bom[0] : o.bom
+                bom: Array.isArray(o.bom) ? o.bom[0] : o.bom,
+                sector: Array.isArray(o.sector) ? o.sector[0] : o.sector
             }));
 
             setOrders(mappedOrders);
+            setSectors((sectorsData || []) as SectorOption[]);
 
         } catch (error) {
             console.error("Error fetching work orders:", error);
@@ -237,16 +274,27 @@ export default function WorkOrdersPage() {
         }
     };
 
+    const childCountByParent = useMemo(() => {
+        const map = new Map<string, number>();
+        for (const order of orders) {
+            if (!order.parent_work_order_id) continue;
+            const current = map.get(order.parent_work_order_id) || 0;
+            map.set(order.parent_work_order_id, current + 1);
+        }
+        return map;
+    }, [orders]);
+
     const filteredOrders = orders.filter(order => {
         const matchesSearch = searchTerm === "" ||
             order.item?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             order.id.toLowerCase().includes(searchTerm.toLowerCase());
-        return matchesSearch;
+        const matchesSector = sectorFilter === "all" || order.sector?.id === sectorFilter;
+        return matchesSearch && matchesSector;
     });
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, statusFilter, orders.length]);
+    }, [searchTerm, statusFilter, sectorFilter, orders.length]);
 
     const totalFilteredOrders = filteredOrders.length;
     const startIndex = (currentPage - 1) * PAGE_SIZE;
@@ -299,6 +347,21 @@ export default function WorkOrdersPage() {
                                 </SelectContent>
                             </Select>
                         </div>
+                        <div className="w-56">
+                            <Select value={sectorFilter} onValueChange={setSectorFilter}>
+                                <SelectTrigger className="h-9">
+                                    <SelectValue placeholder="Setor" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todos os Setores</SelectItem>
+                                    {sectors.map((sector) => (
+                                        <SelectItem key={sector.id} value={sector.id}>
+                                            {sector.code} - {sector.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                 </CardHeaderStandard>
 
@@ -313,7 +376,10 @@ export default function WorkOrdersPage() {
                                     <th className="px-6 py-3 text-center">Status</th>
                                     <th className="px-6 py-3 text-left">Criado em</th>
                                     <th className="px-6 py-3 text-left">Data Programada</th>
+                                    <th className="px-6 py-3 text-left">Setor</th>
+                                    <th className="px-6 py-3 text-left">Vínculo</th>
                                     <th className="px-6 py-3 text-right">Planejado</th>
+                                    <th className="px-6 py-3 text-right">Receitas</th>
                                     <th className="px-6 py-3 text-right">Produzido</th>
                                     <th className="px-6 py-3 text-right">Ações</th>
                                 </tr>
@@ -321,13 +387,13 @@ export default function WorkOrdersPage() {
                             <tbody className="divide-y divide-gray-100">
                                 {isLoading ? (
                                     <tr>
-                                        <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                                        <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
                                             Carregando...
                                         </td>
                                     </tr>
                                 ) : filteredOrders.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} className="px-6 py-8 text-center text-gray-500">
+                                        <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
                                             Nenhuma ordem de produção encontrada.
                                         </td>
                                     </tr>
@@ -350,8 +416,21 @@ export default function WorkOrdersPage() {
                                             <td className="px-6 py-3 text-gray-700 text-xs font-medium">
                                                 {order.scheduled_date ? new Date(order.scheduled_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}
                                             </td>
+                                            <td className="px-6 py-3 text-xs text-gray-700">
+                                                {order.sector ? `${order.sector.code} - ${order.sector.name}` : "-"}
+                                            </td>
+                                            <td className="px-6 py-3 text-xs text-gray-700">
+                                                {order.parent_work_order_id
+                                                    ? `Filha de #${order.parent_work_order_id.slice(0, 8)}`
+                                                    : (childCountByParent.get(order.id)
+                                                        ? `Mãe (${childCountByParent.get(order.id)})`
+                                                        : "-")}
+                                            </td>
                                             <td className="px-6 py-3 text-right font-medium text-gray-700">
                                                 {order.planned_qty} <span className="text-xs font-normal text-gray-400">{order.item?.uom}</span>
+                                            </td>
+                                            <td className="px-6 py-3 text-right font-medium text-gray-700">
+                                                {formatRecipeCountLabel(calculateRecipeCount(order.planned_qty, order.bom?.yield_qty))}
                                             </td>
                                             <td className="px-6 py-3 text-right font-medium text-brand-700">
                                                 {order.produced_qty} <span className="text-xs font-normal text-brand-400">{order.item?.uom}</span>

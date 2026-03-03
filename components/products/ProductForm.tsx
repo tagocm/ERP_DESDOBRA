@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -1012,6 +1012,15 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
             (i.sku && i.sku.toLowerCase().includes(byproductSearchTerm.toLowerCase())))
     );
 
+    const hasFinishedGoodRawMaterialInBom = useMemo(() => {
+        if (formData.type !== 'finished_good') return false;
+
+        return recipeLines.some(line => {
+            const ingredient = availableIngredients.find(i => i.id === line.component_item_id);
+            return ingredient?.type === 'raw_material';
+        });
+    }, [formData.type, recipeLines, availableIngredients]);
+
     return (
         <div>
 
@@ -1619,6 +1628,11 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                 }
                             />
                             <CardContent className="p-0">
+                                {hasFinishedGoodRawMaterialInBom && (
+                                    <div className="mx-4 mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                                        Produto acabado com matéria-prima direta na receita. Recomenda-se separar em WIP (produção) e manter no acabado apenas WIP + embalagem/envase.
+                                    </div>
+                                )}
                                 {/* Grid de Insumos */}
                                 <div className="border-t border-gray-100">
                                     <table className="w-full text-sm">

@@ -9,6 +9,8 @@ export interface WorkOrder {
     company_id: string
     item_id: string
     bom_id: string | null
+    sector_id: string | null
+    parent_work_order_id: string | null
     planned_qty: number
     produced_qty: number
     status: 'planned' | 'in_progress' | 'done' | 'cancelled'
@@ -21,6 +23,22 @@ export interface WorkOrder {
 }
 
 export interface WorkOrderWithDetails extends WorkOrder {
+    sector?: {
+        id: string
+        code: string
+        name: string
+    } | {
+        id: string
+        code: string
+        name: string
+    }[] | null
+    parent_work_order?: {
+        id: string
+        document_number: number | null
+    } | {
+        id: string
+        document_number: number | null
+    }[] | null
     item?: {
         id: string
         name: string
@@ -45,7 +63,9 @@ export const workOrdersRepo = {
             .select(`
                 *,
                 item:items!work_orders_item_id_fkey(id, name, sku, uom),
-                bom:bom_headers(id, version, yield_qty, yield_uom)
+                bom:bom_headers(id, version, yield_qty, yield_uom),
+                sector:production_sectors(id, code, name),
+                parent_work_order:work_orders!work_orders_parent_work_order_id_fkey(id, document_number)
             `)
             .eq('company_id', companyId)
             .is('deleted_at', null)
@@ -70,7 +90,9 @@ export const workOrdersRepo = {
             .select(`
                 *,
                 item:items!work_orders_item_id_fkey(id, name, sku, uom),
-                bom:bom_headers(id, version, yield_qty, yield_uom)
+                bom:bom_headers(id, version, yield_qty, yield_uom),
+                sector:production_sectors(id, code, name),
+                parent_work_order:work_orders!work_orders_parent_work_order_id_fkey(id, document_number)
             `)
             .eq('company_id', companyId)
             .eq('id', id)

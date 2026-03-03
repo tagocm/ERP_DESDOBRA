@@ -738,15 +738,23 @@ export const planningService = {
             return { hasNegative: false, negativeItems: [] }
         }
 
-        // Get current stock for all ingredients
-        const itemIds = bomLines.map(l => l.component_item_id)
-        const { data: balances } = await supabaseServer
-            .from('inventory_balances')
-            .select('item_id, on_hand')
+        // Get current stock for all ingredients from inventory_movements (ledger source of truth)
+        const itemIds = Array.from(new Set(bomLines.map(l => l.component_item_id)))
+        const { data: stockMovements, error: stockMovementsError } = await supabaseServer
+            .from('inventory_movements')
+            .select('item_id, qty_in, qty_out')
             .eq('company_id', companyId)
             .in('item_id', itemIds)
 
-        const stockMap = new Map((balances || []).map(b => [b.item_id, b.on_hand || 0]))
+        if (stockMovementsError) throw stockMovementsError
+
+        const stockMap = new Map<string, number>()
+        for (const movement of (stockMovements || [])) {
+            const current = stockMap.get(movement.item_id) || 0
+            const qtyIn = Number(movement.qty_in || 0)
+            const qtyOut = Number(movement.qty_out || 0)
+            stockMap.set(movement.item_id, current + qtyIn - qtyOut)
+        }
 
         const negativeItems: Array<{ item_id: string, item_name: string, balance_after: number, uom: string }> = []
 

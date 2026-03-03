@@ -3839,6 +3839,47 @@ export type Database = {
           },
         ]
       }
+      production_sectors: {
+        Row: {
+          code: string
+          company_id: string
+          created_at: string
+          deleted_at: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          company_id: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          company_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "production_sectors_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       purchase_order_items: {
         Row: {
           company_id: string
@@ -5239,10 +5280,12 @@ export type Database = {
           id: string
           item_id: string
           notes: string | null
+          parent_work_order_id: string | null
           planned_qty: number
           produced_qty: number
           route_id: string | null
           scheduled_date: string | null
+          sector_id: string | null
           started_at: string | null
           status: string
           updated_at: string
@@ -5257,10 +5300,12 @@ export type Database = {
           id?: string
           item_id: string
           notes?: string | null
+          parent_work_order_id?: string | null
           planned_qty: number
           produced_qty?: number
           route_id?: string | null
           scheduled_date?: string | null
+          sector_id?: string | null
           started_at?: string | null
           status?: string
           updated_at?: string
@@ -5275,10 +5320,12 @@ export type Database = {
           id?: string
           item_id?: string
           notes?: string | null
+          parent_work_order_id?: string | null
           planned_qty?: number
           produced_qty?: number
           route_id?: string | null
           scheduled_date?: string | null
+          sector_id?: string | null
           started_at?: string | null
           status?: string
           updated_at?: string
@@ -5306,10 +5353,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "work_orders_parent_work_order_id_fkey"
+            columns: ["parent_work_order_id"]
+            isOneToOne: false
+            referencedRelation: "work_orders"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "work_orders_route_id_fkey"
             columns: ["route_id"]
             isOneToOne: false
             referencedRelation: "delivery_routes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "work_orders_sector_id_fkey"
+            columns: ["sector_id"]
+            isOneToOne: false
+            referencedRelation: "production_sectors"
             referencedColumns: ["id"]
           },
         ]
@@ -6686,6 +6747,19 @@ export type Database = {
       cleanup_user_drafts: {
         Args: { p_company_id: string; p_exclude_id?: string; p_user_id: string }
         Returns: undefined
+      }
+      create_work_orders_with_dependencies: {
+        Args: {
+          p_children?: Json
+          p_company_id: string
+          p_parent_bom_id: string
+          p_parent_item_id: string
+          p_parent_notes?: string
+          p_parent_planned_qty: number
+          p_parent_scheduled_date: string
+          p_parent_sector_id?: string
+        }
+        Returns: Json
       }
       deduct_stock_from_route: {
         Args: { p_route_id: string; p_user_id: string }

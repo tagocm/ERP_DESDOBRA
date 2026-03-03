@@ -41,7 +41,12 @@ export function PlanningCalendar({ startDate, onDateChange, data, alerts = [], o
                 // This ensures "Pendências" covers "Things happening today"
                 if (day.shortage > 0 || day.production > 0) {
                     const list = map.get(day.date)
-                    if (list) list.push({ item, day })
+                    if (list) {
+                        const hasItem = list.some((entry) => entry.item.item_id === item.item_id)
+                        if (!hasItem) {
+                            list.push({ item, day })
+                        }
+                    }
                 }
             })
         })
@@ -131,7 +136,7 @@ export function PlanningCalendar({ startDate, onDateChange, data, alerts = [], o
                                         {/* Show Pending Items */}
                                         {items.map((entry, idx) => (
                                             <PendingSkuCard
-                                                key={`${dateKey}-${entry.item.item_id}`}
+                                                key={`${dateKey}-${entry.item.item_id}-${idx}`}
                                                 name={entry.item.item_name}
                                                 shortage={entry.day.shortage}
                                                 recipes={entry.day.recipes_needed}

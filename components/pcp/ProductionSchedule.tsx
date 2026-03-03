@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/Badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog"
 import { Input } from "@/components/ui/Input"
 import { Textarea } from "@/components/ui/Textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { Calendar as CalendarIcon, Plus, GripVertical, Play, CheckCircle2, XCircle, AlertTriangle, Pencil } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -26,6 +27,7 @@ import {
 import { NewWorkOrderModal } from "@/components/pcp/NewWorkOrderModal"
 import { NegativeStockConfirmationModal } from "@/components/pcp/NegativeStockConfirmationModal"
 import { updateWorkOrderAction, changeWorkOrderStatusAction, deleteWorkOrderAction } from "@/app/actions/pcp-planning"
+import { calculateRecipeCount, formatRecipeCountLabel } from "@/lib/pcp/work-order-metrics"
 
 interface WorkOrder {
     id: string
@@ -35,11 +37,41 @@ interface WorkOrder {
     status: 'planned' | 'in_progress' | 'done' | 'cancelled'
     scheduled_date: string
     notes?: string
+    parent_work_order_id: string | null
+    bom: {
+        yield_qty: number
+        yield_uom: string
+        version: number
+    } | null
+    sector: {
+        id: string
+        name: string
+        code: string
+    } | null
     item: {
         id: string
         name: string
         uom: string
     }
+}
+
+interface WorkOrderQueryRow extends Omit<WorkOrder, 'item' | 'sector' | 'bom'> {
+    item: WorkOrder['item'] | WorkOrder['item'][]
+    sector: WorkOrder['sector'] | WorkOrder['sector'][]
+    bom: WorkOrder['bom'] | WorkOrder['bom'][]
+}
+
+interface SectorFilterOption {
+    id: string
+    name: string
+    code: string
+}
+
+interface WorkOrderLink {
+    id: string
+    document_number: number | null
+    item_name: string
+    status: WorkOrder['status']
 }
 
 interface ProductionScheduleProps {
@@ -56,6 +88,8 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
     const [loading, setLoading] = useState(false)
     const [showDone, setShowDone] = useState(false)
     const [inconsistentOrders, setInconsistentOrders] = useState<Set<string>>(new Set())
+    const [sectors, setSectors] = useState<SectorFilterOption[]>([])
+    const [sectorFilter, setSectorFilter] = useState<string>('all')
 
     // Drag State
     const [activeId, setActiveId] = useState<string | null>(null)
@@ -69,6 +103,8 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
     const [isEditOpen, setIsEditOpen] = useState(false)
     const [editPlannedQty, setEditPlannedQty] = useState<number | string>("")
     const [editNotes, setEditNotes] = useState("")
+    const [dependencyLinks, setDependencyLinks] = useState<{ parent: WorkOrderLink | null, children: WorkOrderLink[] }>({ parent: null, children: [] })
+    const [isDependencyLinksLoading, setIsDependencyLinksLoading] = useState(false)
 
     // Negative Stock Modal State
     const [negativeStockModal, setNegativeStockModal] = useState<{ isOpen: boolean, items: any[], pendingStatus: string } | null>(null)
@@ -99,29 +135,45 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                     status,
                     scheduled_date,
                     notes,
-                    item:items!inner (id, name, uom, type)
+                    parent_work_order_id,
+                    bom:bom_headers(yield_qty, yield_uom, version),
+                    item:items!inner (id, name, uom),
+                    sector:production_sectors(id, name, code)
                 `)
                 .eq('company_id', selectedCompany.id)
                 .gte('scheduled_date', startStr)
                 .lte('scheduled_date', endStr)
                 .is('deleted_at', null)
-                .eq('item.type', 'finished_good')
 
             if (!showDone) {
                 query = query.neq('status', 'done').neq('status', 'cancelled')
             }
 
-            const { data, error } = await query
+            const [{ data, error }, { data: sectorsData, error: sectorsError }] = await Promise.all([
+                query,
+                supabase
+                    .from('production_sectors')
+                    .select('id, name, code')
+                    .eq('company_id', selectedCompany.id)
+                    .is('deleted_at', null)
+                    .eq('is_active', true)
+                    .order('name'),
+            ])
 
             if (error) throw error
+            if (sectorsError) throw sectorsError
 
             // Normalize item array/object return from Supabase
-            const mapped: WorkOrder[] = (data || []).map((o: any) => ({
+            const mapped: WorkOrder[] = ((data || []) as WorkOrderQueryRow[]).map((o) => ({
                 ...o,
                 item: Array.isArray(o.item) ? o.item[0] : o.item
+                ,
+                sector: Array.isArray(o.sector) ? o.sector[0] : o.sector,
+                bom: Array.isArray(o.bom) ? o.bom[0] : o.bom
             }))
 
             setOrders(mapped)
+            setSectors((sectorsData || []) as SectorFilterOption[])
 
             // Fetch audit logs to identify inconsistent orders (closed with negative stock)
             const { data: auditData } = await supabase
@@ -227,7 +279,99 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
         setSelectedOrder(order)
         setEditPlannedQty(order.planned_qty)
         setEditNotes(order.notes || "")
+        void loadDependencyLinks(order.id)
         setIsEditOpen(true)
+    }
+
+    const loadDependencyLinks = async (workOrderId: string) => {
+        if (!selectedCompany) return
+
+        setIsDependencyLinksLoading(true)
+        try {
+            const [{ data: currentOrder, error: currentOrderError }, { data: childrenData, error: childrenError }] = await Promise.all([
+                supabase
+                    .from('work_orders')
+                    .select(`
+                        id,
+                        document_number,
+                        status,
+                        parent_work_order_id,
+                        item:items!work_orders_item_id_fkey(name)
+                    `)
+                    .eq('company_id', selectedCompany.id)
+                    .eq('id', workOrderId)
+                    .maybeSingle(),
+                supabase
+                    .from('work_orders')
+                    .select(`
+                        id,
+                        document_number,
+                        status,
+                        item:items!work_orders_item_id_fkey(name)
+                    `)
+                    .eq('company_id', selectedCompany.id)
+                    .eq('parent_work_order_id', workOrderId)
+                    .is('deleted_at', null)
+                    .order('created_at', { ascending: true }),
+            ])
+
+            if (currentOrderError) throw currentOrderError
+            if (childrenError) throw childrenError
+            if (!currentOrder) {
+                setDependencyLinks({ parent: null, children: [] })
+                return
+            }
+
+            const currentOrderParentId = currentOrder?.parent_work_order_id ?? null
+
+            const parentLink = currentOrderParentId
+                ? await supabase
+                    .from('work_orders')
+                    .select(`
+                        id,
+                        document_number,
+                        status,
+                        item:items!work_orders_item_id_fkey(name)
+                    `)
+                    .eq('company_id', selectedCompany.id)
+                    .eq('id', currentOrderParentId)
+                    .is('deleted_at', null)
+                    .maybeSingle()
+                : null
+
+            if (parentLink?.error) throw parentLink.error
+
+            const mapLink = (
+                row: {
+                    id: string
+                    document_number: number | null
+                    status: WorkOrder['status']
+                    item: { name: string } | { name: string }[] | null
+                }
+            ): WorkOrderLink => ({
+                id: row.id,
+                document_number: row.document_number,
+                status: row.status,
+                item_name: Array.isArray(row.item) ? (row.item[0]?.name ?? '-') : (row.item?.name ?? '-'),
+            })
+
+            setDependencyLinks({
+                parent: parentLink?.data ? mapLink(parentLink.data) : null,
+                children: (childrenData || []).map((row) =>
+                    mapLink(row as {
+                        id: string
+                        document_number: number | null
+                        status: WorkOrder['status']
+                        item: { name: string } | { name: string }[] | null
+                    })
+                ),
+            })
+        } catch (error) {
+            console.error(error)
+            setDependencyLinks({ parent: null, children: [] })
+        } finally {
+            setIsDependencyLinksLoading(false)
+        }
     }
 
     const handleUpdateOrder = async () => {
@@ -320,6 +464,11 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
         }
     }
 
+    const visibleOrders = orders.filter((order) => {
+        if (sectorFilter === 'all') return true
+        return order.sector?.id === sectorFilter
+    })
+
     return (
         <>
             <div className="bg-white border-b border-gray-200 mt-6">
@@ -327,6 +476,27 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                     <h3 className="text-sm font-semibold flex items-center gap-2 text-slate-700">
                         <CalendarIcon className="w-4 h-4 text-slate-500" /> Agenda de Produção
                     </h3>
+                    <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                            <Label htmlFor="show-done" className="text-xs text-slate-600">Exibir concluídas</Label>
+                            <Switch id="show-done" checked={showDone} onCheckedChange={setShowDone} />
+                        </div>
+                        <div className="w-52">
+                            <Select value={sectorFilter} onValueChange={setSectorFilter}>
+                                <SelectTrigger className="h-8 bg-white">
+                                    <SelectValue placeholder="Filtrar por setor" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Todos os setores</SelectItem>
+                                    {sectors.map((sector) => (
+                                        <SelectItem key={sector.id} value={sector.id}>
+                                            {sector.code} - {sector.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
                 </div>
 
                 <DndContext
@@ -342,7 +512,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                                     key={dateStr}
                                     dateObj={date}
                                     dateStr={dateStr}
-                                    orders={orders.filter(o => o.scheduled_date === dateStr)}
+                                    orders={visibleOrders.filter(o => o.scheduled_date === dateStr)}
                                     onCreate={() => handleCreateClick(dateStr)}
                                     onOrderClick={handleOrderClick}
                                     onDeleteClick={handleDeleteClick}
@@ -370,7 +540,12 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                 }}
             />
 
-            <Dialog open={isEditOpen} onOpenChange={(open) => !open && setIsEditOpen(false)}>
+            <Dialog open={isEditOpen} onOpenChange={(open) => {
+                if (!open) {
+                    setIsEditOpen(false)
+                    setDependencyLinks({ parent: null, children: [] })
+                }
+            }}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle>Detalhes da Ordem</DialogTitle>
@@ -395,6 +570,15 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                                     />
                                 </div>
                                 <div className="space-y-1">
+                                    <Label>Nº de Receitas</Label>
+                                    <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium">
+                                        {formatRecipeCountLabel(calculateRecipeCount(Number(editPlannedQty || 0), selectedOrder.bom?.yield_qty))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
                                     <Label>Status</Label>
                                     <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium">
                                         {selectedOrder.status === 'planned' && "Planejada"}
@@ -403,6 +587,43 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                                         {selectedOrder.status === 'cancelled' && "Cancelada"}
                                     </div>
                                 </div>
+                                <div className="space-y-1">
+                                    <Label>Rendimento da Receita</Label>
+                                    <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium text-gray-700">
+                                        {selectedOrder.bom
+                                            ? `${selectedOrder.bom.yield_qty} ${selectedOrder.bom.yield_uom}`
+                                            : "Sem receita"}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="space-y-1">
+                                <Label>Setor</Label>
+                                <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium text-gray-700">
+                                    {selectedOrder.sector ? `${selectedOrder.sector.code} - ${selectedOrder.sector.name}` : "Sem setor"}
+                                </div>
+                            </div>
+
+                            <div className="space-y-1 rounded-2xl border border-gray-200 bg-gray-50 p-3">
+                                <Label>Dependências de OP</Label>
+                                {isDependencyLinksLoading ? (
+                                    <div className="text-xs text-gray-500">Carregando vínculos...</div>
+                                ) : (
+                                    <div className="space-y-1 text-xs text-gray-700">
+                                        <div>
+                                            OP mãe: {dependencyLinks.parent
+                                                ? `#${dependencyLinks.parent.document_number ?? dependencyLinks.parent.id.slice(0, 8)} • ${dependencyLinks.parent.item_name}`
+                                                : "Não possui"}
+                                        </div>
+                                        <div>
+                                            OPs dependentes: {dependencyLinks.children.length > 0
+                                                ? dependencyLinks.children
+                                                    .map((child) => `#${child.document_number ?? child.id.slice(0, 8)} • ${child.item_name}`)
+                                                    .join(' | ')
+                                                : "Nenhuma"}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="space-y-1">
@@ -564,6 +785,7 @@ function DraggableOrder({ order, onClick, onDelete, isInconsistent }: { order: W
 }
 
 function OrderCard({ order, isOverlay, onClick, onDelete, isInconsistent }: { order: WorkOrder, isOverlay?: boolean, onClick?: () => void, onDelete?: () => void, isInconsistent?: boolean }) {
+    const recipeCount = calculateRecipeCount(order.planned_qty, order.bom?.yield_qty)
     const statusColor = {
         planned: "bg-white border-l-4 border-l-blue-400 shadow-card",
         in_progress: "bg-blue-50 border-l-4 border-l-blue-600 shadow-card",
@@ -581,8 +803,13 @@ function OrderCard({ order, isOverlay, onClick, onDelete, isInconsistent }: { or
             )}
         >
             <div className="font-semibold truncate pr-4">{order.item.name}</div>
+            <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
+                {order.sector && <span className="inline-flex rounded-full bg-slate-100 px-1.5 py-0.5">{order.sector.code}</span>}
+                {order.parent_work_order_id && <span className="inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-700">Filha</span>}
+            </div>
             <div className="flex justify-between items-center text-[10px] text-slate-500 mt-1">
                 <span>{order.planned_qty} {order.item.uom}</span>
+                <span className="font-medium text-slate-600">{formatRecipeCountLabel(recipeCount)}</span>
                 <div className="flex gap-1 items-center">
                     {isInconsistent && (
                         <Badge variant="outline" className="text-[8px] h-4 px-1 border-red-500 text-red-700 bg-red-50 font-bold">

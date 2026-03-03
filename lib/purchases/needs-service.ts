@@ -43,9 +43,12 @@ export async function getPurchaseNeeds(
         includePackaging,
     });
 
+    const startDateIso = startDate.toISOString().slice(0, 10);
+    const endDateIso = endDate.toISOString().slice(0, 10);
+
     // 1. Fetch relevant Work Orders
-    // We include ALL 'planned' or 'in_progress' OPs up to the end date. 
-    // This ensures we capture overdue/ongoing generic needs.
+    // Include planned/in_progress orders for produced items (finished_good + wip).
+    // This ensures purchase needs are computed both for parent OPs and dependent WIP OPs.
     const { data: workOrders, error: woError } = await supabase
         .from('work_orders')
         .select(`
@@ -64,10 +67,10 @@ export async function getPurchaseNeeds(
         `)
         .eq('company_id', companyId)
         .in('status', ['planned', 'in_progress'])
-        .eq('items.type', 'finished_good')
+        .in('items.type', ['finished_good', 'wip'])
         .not('scheduled_date', 'is', null) // Exclude orders without scheduled date
-        .gte('scheduled_date', startDate.toISOString()) // Include only orders within period
-        .lte('scheduled_date', endDate.toISOString())
+        .gte('scheduled_date', startDateIso) // Include only orders within period
+        .lte('scheduled_date', endDateIso)
         .is('deleted_at', null); // Exclude deleted orders
 
     if (woError) {

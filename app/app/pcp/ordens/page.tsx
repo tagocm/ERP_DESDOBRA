@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Loader2, CheckCircle, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { calculateRecipeCount, formatRecipeCountLabel } from "@/lib/pcp/work-order-metrics";
 
 interface WorkOrder {
     id: string;
@@ -19,11 +20,33 @@ interface WorkOrder {
     produced_qty: number;
     status: string;
     created_at: string;
+    parent_work_order_id: string | null;
+    sector: {
+        id: string;
+        code: string;
+        name: string;
+    } | null;
+    bom: {
+        yield_qty: number;
+        yield_uom: string;
+    } | null;
     item?: {
         name: string;
         sku: string | null;
         uom: string;
     };
+}
+
+interface SectorOption {
+    id: string;
+    code: string;
+    name: string;
+}
+
+interface WorkOrderQueryRow extends Omit<WorkOrder, "item" | "sector" | "bom"> {
+    item?: WorkOrder["item"] | WorkOrder["item"][];
+    sector: WorkOrder["sector"] | WorkOrder["sector"][];
+    bom: WorkOrder["bom"] | WorkOrder["bom"][];
 }
 
 const STATUS_OPTIONS = [
@@ -42,6 +65,8 @@ export default function OrdensPage() {
     const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState('all');
+    const [sectorFilter, setSectorFilter] = useState('all');
+    const [sectors, setSectors] = useState<SectorOption[]>([]);
     const [showFinishModal, setShowFinishModal] = useState(false);
     const [selectedWO, setSelectedWO] = useState<WorkOrder | null>(null);
     const [producedQty, setProducedQty] = useState("");
@@ -51,7 +76,7 @@ export default function OrdensPage() {
         if (selectedCompany) {
             fetchWorkOrders();
         }
-    }, [selectedCompany, statusFilter]);
+    }, [selectedCompany, statusFilter, sectorFilter]);
 
     const fetchWorkOrders = async () => {
         if (!selectedCompany) return;
@@ -62,7 +87,10 @@ export default function OrdensPage() {
                 .from('work_orders')
                 .select(`
                     *,
-                    item:items!work_orders_item_id_fkey(name, sku, uom)
+                    parent_work_order_id,
+                    sector:production_sectors(id, code, name),
+                    item:items!work_orders_item_id_fkey(name, sku, uom),
+                    bom:bom_headers(yield_qty, yield_uom)
                 `)
                 .eq('company_id', selectedCompany.id)
                 .is('deleted_at', null)
@@ -72,9 +100,32 @@ export default function OrdensPage() {
                 query = query.eq('status', statusFilter);
             }
 
-            const { data, error } = await query;
+            if (sectorFilter !== 'all') {
+                query = query.eq('sector_id', sectorFilter);
+            }
+
+            const [{ data, error }, { data: sectorsData, error: sectorsError }] = await Promise.all([
+                query,
+                supabase
+                    .from('production_sectors')
+                    .select('id, code, name')
+                    .eq('company_id', selectedCompany.id)
+                    .is('deleted_at', null)
+                    .eq('is_active', true)
+                    .order('name')
+            ]);
             if (error) throw error;
-            setWorkOrders(data || []);
+            if (sectorsError) throw sectorsError;
+
+            const mappedOrders = ((data || []) as WorkOrderQueryRow[]).map((row) => ({
+                ...row,
+                item: Array.isArray(row.item) ? row.item[0] : row.item,
+                sector: Array.isArray(row.sector) ? row.sector[0] : row.sector,
+                bom: Array.isArray(row.bom) ? row.bom[0] : row.bom,
+            }));
+
+            setWorkOrders(mappedOrders);
+            setSectors((sectorsData || []) as SectorOption[]);
         } catch (error) {
             console.error('Error fetching work orders:', error);
         } finally {
@@ -154,7 +205,7 @@ export default function OrdensPage() {
                 }
             />
 
-            <div className="mb-6">
+            <div className="mb-6 flex gap-3">
                 <Select
                     value={statusFilter}
                     onValueChange={setStatusFilter}
@@ -165,6 +216,19 @@ export default function OrdensPage() {
                     <SelectContent>
                         {STATUS_OPTIONS.map(opt => (
                             <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <Select value={sectorFilter} onValueChange={setSectorFilter}>
+                    <SelectTrigger className="w-72">
+                        <SelectValue placeholder="Filtrar por setor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Todos os setores</SelectItem>
+                        {sectors.map((sector) => (
+                            <SelectItem key={sector.id} value={sector.id}>
+                                {sector.code} - {sector.name}
+                            </SelectItem>
                         ))}
                     </SelectContent>
                 </Select>
@@ -184,10 +248,19 @@ export default function OrdensPage() {
                                 Qtd Planejada
                             </th>
                             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Nº Receitas
+                            </th>
+                            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Qtd Produzida
                             </th>
                             <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Status
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Setor
+                            </th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Vínculo
                             </th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Data
@@ -200,13 +273,13 @@ export default function OrdensPage() {
                     <tbody className="bg-white divide-y divide-gray-200">
                         {isLoading ? (
                             <tr>
-                                <td colSpan={7} className="px-6 py-12 text-center">
+                                <td colSpan={10} className="px-6 py-12 text-center">
                                     <Loader2 className="w-8 h-8 animate-spin text-brand-600 mx-auto" />
                                 </td>
                             </tr>
                         ) : workOrders.length === 0 ? (
                             <tr>
-                                <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
+                                <td colSpan={10} className="px-6 py-12 text-center text-gray-500">
                                     <div className="flex flex-col items-center gap-3">
                                         <div className="text-4xl">🏭</div>
                                         <p className="text-lg font-medium">Nenhuma ordem de produção</p>
@@ -237,11 +310,20 @@ export default function OrdensPage() {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
                                             {wo.planned_qty} {wo.item?.uom}
                                         </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900">
+                                            {formatRecipeCountLabel(calculateRecipeCount(wo.planned_qty, wo.bom?.yield_qty))}
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium text-gray-900">
                                             {wo.produced_qty} {wo.item?.uom}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-center">
                                             {getStatusBadge(wo.status)}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                            {wo.sector ? `${wo.sector.code} - ${wo.sector.name}` : '-'}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                            {wo.parent_work_order_id ? `Filha de #${wo.parent_work_order_id.slice(0, 8)}` : '-'}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                             {new Date(wo.created_at).toLocaleDateString('pt-BR')}
@@ -285,6 +367,9 @@ export default function OrdensPage() {
                             <p className="font-medium">{selectedWO.item?.name}</p>
                             <p className="text-xs text-gray-500 mt-1">
                                 Planejado: {selectedWO.planned_qty} {selectedWO.item?.uom}
+                            </p>
+                            <p className="text-xs text-gray-500 mt-1">
+                                Receitas: {formatRecipeCountLabel(calculateRecipeCount(selectedWO.planned_qty, selectedWO.bom?.yield_qty))}
                             </p>
                         </div>
 

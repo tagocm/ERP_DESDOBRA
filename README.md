@@ -119,6 +119,10 @@ E2E tests run automatically in CI (GitHub Actions) on every push/PR. Test report
 
 ## 🏗 Quick Architecture
 
+### PCP / WIP
+
+- Modelo WIP + OP filha (1 nível) + setores mínimos: [`docs/pcp-wip-op-filha-setores.md`](./docs/pcp-wip-op-filha-setores.md)
+
 ### Core Concepts
 
 -   **Multi-tenancy:** All data is scoped by `company_id`. Row Level Security (RLS) policies enforce this at the database level. Always include `company_id` in your queries.
