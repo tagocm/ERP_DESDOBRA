@@ -107,7 +107,7 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
 
     return (
         <Dialog open={isOpen} onOpenChange={onOpenChange}>
-            <DialogContent className="w-full max-w-screen-2xl h-dvh p-0 gap-0 overflow-hidden rounded-2xl border-none shadow-float bg-white/95 backdrop-blur-xl ring-1 ring-black/5 flex flex-col">
+            <DialogContent className="w-[min(96vw,1800px)] max-w-screen-2xl h-[90vh] max-h-[90vh] p-0 gap-0 overflow-hidden rounded-2xl border-none shadow-float bg-white/95 backdrop-blur-xl ring-1 ring-black/5 !flex !flex-col">
                 {/* Header */}
                 <div className="flex flex-col space-y-1.5 p-6 border-b bg-gradient-to-b from-white to-gray-50/50 flex-none">
                     <DialogHeader>
@@ -124,8 +124,8 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                 </div>
 
                 {/* Content with Tabs */}
-                <div className="flex-1 overflow-hidden bg-white/50 flex flex-col">
-                    <Tabs defaultValue="production" className="flex-1 flex flex-col">
+                <div className="flex-1 min-h-0 overflow-hidden bg-white/50 flex flex-col">
+                    <Tabs defaultValue="production" className="flex-1 min-h-0 flex flex-col">
                         <div className="px-6 pt-4 flex-none border-b bg-gray-50/30">
                             <TabsList className="bg-gray-100/50 p-1">
                                 <TabsTrigger value="production" className="data-[state=active]:bg-white data-[state=active]:ring-1 data-[state=active]:ring-black/5 px-4">
@@ -139,8 +139,8 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                             </TabsList>
                         </div>
 
-                        <TabsContent value="production" className="flex-1 overflow-hidden p-0 m-0 data-[state=inactive]:hidden flex flex-col">
-                            <ScrollArea className="flex-1 h-full">
+                        <TabsContent value="production" className="flex-1 min-h-0 overflow-hidden p-0 m-0 data-[state=inactive]:hidden flex flex-col">
+                            <ScrollArea className="flex-1 min-h-0">
                                 <Table>
                                     <TableHeader className="bg-gray-50/80 sticky top-0 z-10 backdrop-blur-sm ring-1 ring-gray-100">
                                         <TableRow className="hover:bg-transparent border-gray-100 divide-x divide-gray-100">
@@ -320,8 +320,8 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                             </div>
                         </TabsContent>
 
-                        <TabsContent value="alerts" className="flex-1 overflow-hidden p-0 m-0 data-[state=inactive]:hidden">
-                            <ScrollArea className="h-full">
+                        <TabsContent value="alerts" className="flex-1 min-h-0 overflow-hidden p-0 m-0 data-[state=inactive]:hidden">
+                            <ScrollArea className="flex-1 min-h-0">
                                 <Table>
                                     <TableHeader className="bg-red-50/80 sticky top-0 z-10 backdrop-blur-sm ring-1 ring-red-100">
                                         <TableRow className="hover:bg-transparent border-red-100">

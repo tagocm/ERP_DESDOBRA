@@ -2,6 +2,7 @@ import { supabaseServer } from '@/lib/supabase/server'
 import { itemsRepo } from '@/lib/data/items'
 import { bomsRepo } from '@/lib/data/boms'
 import { inventoryRepo } from '@/lib/data/inventory'
+import { normalizeLogisticsStatus, normalizeRouteStatus } from '@/lib/constants/status'
 import { Database } from '@/types/supabase'
 
 type BomLineWithItem = Database['public']['Tables']['bom_lines']['Row'] & {
@@ -191,10 +192,11 @@ export const planningService = {
                 .from('delivery_route_orders')
                 .select(`
                     partial_payload,
-                    route:delivery_routes!inner(id, route_date, scheduled_date),
+                    route:delivery_routes!inner(id, route_date, scheduled_date, status),
                     order:sales_documents(
                         id,
                         document_number,
+                        status_logistic,
                         items:sales_document_items(
                             id, 
                             item_id, 
@@ -224,6 +226,13 @@ export const planningService = {
             anyDemands.forEach(d => {
                 const date = d.route?.scheduled_date?.split('T')[0]
                 if (!date) return
+
+                const routeStatus = normalizeRouteStatus(d.route?.status) || d.route?.status
+                const orderLogisticsStatus = normalizeLogisticsStatus(d.order?.status_logistic) || d.order?.status_logistic
+                const isAlreadyInRoute = routeStatus === 'in_route' || routeStatus === 'in_progress' || orderLogisticsStatus === 'in_route'
+
+                // Do not plan demand for orders that already left stock (in route).
+                if (isAlreadyInRoute) return
 
                 if (!dayroutes.has(date)) dayroutes.set(date, new Set())
                 if (!dayorders.has(date)) dayorders.set(date, new Set())
