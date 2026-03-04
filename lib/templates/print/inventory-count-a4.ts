@@ -102,18 +102,16 @@ export function renderInventoryCountA4Html(input: RenderInventoryCountA4Input): 
       <div class="header-box">
         <div class="header-left">
           ${company.logoUrl ? `<img src="${escapeHtml(company.logoUrl)}" class="company-logo" alt="Logo" />` : ""}
-          <div class="company-name">${escapeHtml(company.tradeName ?? company.legalName)}</div>
-          <p class="company-line"><strong>${escapeHtml(company.legalName)}</strong></p>
-          <p class="company-line">${escapeHtml(company.streetLine)}</p>
-          <p class="company-line">${escapeHtml(company.cityStateLine)}</p>
+          <div class="value value-bold value-lg company-title">${escapeHtml(company.legalName)}</div>
+          <p class="value">${escapeHtml(company.streetLine)}</p>
+          <p class="value">${escapeHtml(company.cityStateLine)}</p>
         </div>
         <div class="header-right">
           <p class="header-title">Folha de Contagem de Inventário</p>
-          <p class="header-subtitle">Inventário #${inventoryNumber}</p>
-          <p class="header-meta">Data da contagem: ${printableDate}</p>
-          <p class="header-meta">Total de itens: ${inventory.totalItems}</p>
-          <p class="header-meta">CNPJ: ${escapeHtml(company.document)}</p>
-          <p class="header-meta">Folha ${pageIndex + 1}/${totalPages}</p>
+          <p class="value value-bold inventory-number">Nº ${inventoryNumber}</p>
+          <p class="value">Data da contagem: <strong>${printableDate}</strong></p>
+          <p class="value">Total de itens: <strong>${inventory.totalItems}</strong></p>
+          <p class="value">Folha: <strong>${pageIndex + 1}/${totalPages}</strong></p>
         </div>
       </div>
 
@@ -165,7 +163,7 @@ export function renderInventoryCountA4Html(input: RenderInventoryCountA4Input): 
       margin: 0;
       padding: 0;
       font-family: Arial, "Liberation Sans", sans-serif;
-      color: #1f2937;
+      color: #333;
       font-size: 10px;
       line-height: 1.2;
       background: #fff;
@@ -183,57 +181,53 @@ export function renderInventoryCountA4Html(input: RenderInventoryCountA4Input): 
       page-break-after: auto;
     }
     .header-box {
-      border: 1px solid #d1d5db;
+      border: 1px solid #ccc;
       border-radius: 4px;
-      padding: 8px 10px;
+      padding: 7px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+      gap: 12px;
       margin-bottom: 8px;
     }
     .header-left {
-      width: 48%;
+      flex: 1;
       text-align: center;
-      border-right: 1px solid #e5e7eb;
-      padding-right: 10px;
     }
     .header-right {
-      width: 52%;
+      flex: 1;
       text-align: center;
+      border-left: 1px solid #eee;
       padding-left: 10px;
     }
     .company-logo {
-      max-height: 40px;
-      margin-bottom: 2px;
-    }
-    .company-name {
-      font-size: 16px;
-      font-weight: 700;
-      margin-bottom: 3px;
-    }
-    .company-line {
-      margin: 0;
-      line-height: 1.2;
-      font-size: 10px;
+      max-height: 46px;
+      margin-bottom: 4px;
     }
     .header-title {
-      margin: 0;
-      font-size: 13px;
-      font-weight: 700;
+      margin: 0 0 2px 0;
+      font-size: 16px;
+      font-weight: bold;
       text-transform: uppercase;
+      color: #111;
     }
-    .header-subtitle {
-      margin: 2px 0 4px 0;
-      font-size: 12px;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-    .header-meta {
-      margin: 0;
-      line-height: 1.2;
+    .value {
       font-size: 10px;
-      text-transform: uppercase;
+      font-weight: normal;
+      color: #000;
+      margin: 0;
+    }
+    .value-bold {
+      font-weight: bold;
+    }
+    .value-lg {
+      font-size: 12px;
+    }
+    .company-title {
+      margin-top: 1px;
+    }
+    .inventory-number {
+      font-size: 20px;
+      color: #444;
     }
     .category-box {
       border: 1px solid #d9d9d9;

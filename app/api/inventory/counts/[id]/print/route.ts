@@ -3,7 +3,7 @@ import { resolveCompanyContext } from "@/lib/auth/resolve-company";
 import { generatePdfFromHtml } from "@/lib/print/pdf-generator";
 import { renderInventoryCountA4Html } from "@/lib/templates/print/inventory-count-a4";
 import { getInventoryCountPrintData } from "@/lib/inventory/inventory-counts";
-import { resolveCompanyLogoDataUri } from "@/lib/fiscal/nfe/logo-resolver";
+import { resolveCompanyLogoDataUri, resolveCompanyLogoUrl } from "@/lib/fiscal/nfe/logo-resolver";
 import { logger } from "@/lib/logger";
 
 interface CompanySettingsRow {
@@ -73,7 +73,10 @@ export async function GET(
     }
 
     const settings = mapCompanySettingsRow(settingsData);
-    const logoDataUri = await resolveCompanyLogoDataUri(supabase, companyId);
+    const logoDataUri =
+      await resolveCompanyLogoDataUri(supabase, companyId) ||
+      await resolveCompanyLogoUrl(supabase, companyId) ||
+      null;
     const addressLines = resolveCompanyAddressLines(settings);
 
     const html = renderInventoryCountA4Html({
@@ -83,7 +86,7 @@ export async function GET(
         document: settings?.cnpj || null,
         streetLine: addressLines.streetLine,
         cityStateLine: addressLines.cityStateLine,
-        logoUrl: logoDataUri ?? null,
+        logoUrl: logoDataUri,
       },
       inventory: printData,
     });
