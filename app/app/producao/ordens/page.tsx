@@ -4,13 +4,14 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/Card";
-import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
-import { ListFilter, Search, ArrowUpDown, Eye, Edit2, Play, CheckCircle2, AlertOctagon, Calendar, Trash2, XCircle } from "lucide-react";
+import { Search, Eye, Play, CheckCircle2, Trash2, XCircle, AlertOctagon } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/use-toast";
 import { deleteWorkOrderAction, changeWorkOrderStatusAction } from "@/app/actions/pcp-planning";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { PcpModuleTabs } from "@/components/pcp/PcpModuleTabs";
 
 // Internal Component: New Work Order Modal
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog";
@@ -24,6 +25,7 @@ import { ListPagination } from "@/components/ui/ListPagination";
 // Types
 interface WorkOrder {
     id: string;
+    document_number: number | null;
     planned_qty: number;
     produced_qty: number;
     status: 'planned' | 'in_progress' | 'done' | 'cancelled';
@@ -112,6 +114,7 @@ export default function WorkOrdersPage() {
                 .from('work_orders')
                 .select(`
                     id,
+                    document_number,
                     planned_qty,
                     produced_qty,
                     status,
@@ -287,6 +290,7 @@ export default function WorkOrdersPage() {
     const filteredOrders = orders.filter(order => {
         const matchesSearch = searchTerm === "" ||
             order.item?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (order.document_number ? String(order.document_number).includes(searchTerm.trim()) : false) ||
             order.id.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesSector = sectorFilter === "all" || order.sector?.id === sectorFilter;
         return matchesSearch && matchesSector;
@@ -309,22 +313,21 @@ export default function WorkOrdersPage() {
                 onSuccess={fetchOrders}
             />
 
+            <PageHeader
+                title="Ordens de Produção"
+                subtitle="Gerencie e acompanhe ordens planejadas, em produção e concluídas."
+                children={<PcpModuleTabs />}
+                actions={
+                    <Button onClick={() => setIsNewOrderOpen(true)}>
+                        Nova Ordem
+                    </Button>
+                }
+            />
+
             <Card>
-                {/* ... (CardHeader) */}
-                <CardHeaderStandard
-                    icon={<ListFilter className="w-5 h-5 text-brand-600" />}
-                    title="Ordens de Produção"
-                    actions={
-                        <div className="flex gap-2">
-                            <Button onClick={() => setIsNewOrderOpen(true)}>
-                                Nova Ordem
-                            </Button>
-                        </div>
-                    }
-                >
-                    {/* ... (Search/Filter inputs) */}
-                    <div className="flex gap-4 mt-4 pb-2 border-b border-gray-100/50">
-                        <div className="w-64 relative">
+                <CardContent className="p-0">
+                    <div className="flex flex-wrap gap-3 p-4 border-b border-gray-100/70">
+                        <div className="w-full md:w-72 relative">
                             <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
                             <Input
                                 placeholder="Buscar produto ou ID..."
@@ -333,7 +336,7 @@ export default function WorkOrdersPage() {
                                 onChange={e => setSearchTerm(e.target.value)}
                             />
                         </div>
-                        <div className="w-48">
+                        <div className="w-full md:w-48">
                             <Select value={statusFilter} onValueChange={setStatusFilter}>
                                 <SelectTrigger className="h-9">
                                     <SelectValue placeholder="Status" />
@@ -347,7 +350,7 @@ export default function WorkOrdersPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="w-56">
+                        <div className="w-full md:w-64">
                             <Select value={sectorFilter} onValueChange={setSectorFilter}>
                                 <SelectTrigger className="h-9">
                                     <SelectValue placeholder="Setor" />
@@ -363,15 +366,12 @@ export default function WorkOrdersPage() {
                             </Select>
                         </div>
                     </div>
-                </CardHeaderStandard>
-
-                <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                             {/* ... (thead) */}
                             <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
                                 <tr>
-                                    <th className="px-6 py-3 text-left">Nº ID</th>
+                                    <th className="px-6 py-3 text-left">OP</th>
                                     <th className="px-6 py-3 text-left">Produto</th>
                                     <th className="px-6 py-3 text-center">Status</th>
                                     <th className="px-6 py-3 text-left">Criado em</th>
@@ -400,8 +400,15 @@ export default function WorkOrdersPage() {
                                 ) : (
                                     pagedFilteredOrders.map((order) => (
                                         <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-3 font-mono text-xs text-gray-500">
-                                                #{order.id.slice(0, 8)}
+                                            <td className="px-6 py-3">
+                                                <div className="flex flex-col leading-tight">
+                                                    <span className="font-semibold text-gray-800">
+                                                        {order.document_number ? `#${order.document_number}` : '#---'}
+                                                    </span>
+                                                    <span className="font-mono text-[11px] text-gray-400">
+                                                        ID {order.id.slice(0, 8)}
+                                                    </span>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-3 font-medium text-gray-900">
                                                 {order.item?.name}
@@ -522,7 +529,13 @@ export default function WorkOrdersPage() {
                     <DialogHeader>
                         <DialogTitle>Excluir Ordem de Produção</DialogTitle>
                         <DialogDescription>
-                            Tem certeza que deseja excluir a ordem <b>#{deleteModal.order?.id.slice(0, 8)}</b>?
+                            Tem certeza que deseja excluir a ordem{' '}
+                            <b>
+                                {deleteModal.order?.document_number
+                                    ? `#${deleteModal.order.document_number}`
+                                    : `#${deleteModal.order?.id.slice(0, 8)}`}
+                            </b>
+                            ?
                             <br />
                             Esta ação não pode ser desfeita.
                         </DialogDescription>

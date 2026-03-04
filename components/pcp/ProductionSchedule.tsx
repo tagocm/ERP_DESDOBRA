@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from "@/components/ui/Input"
 import { Textarea } from "@/components/ui/Textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
-import { Calendar as CalendarIcon, Plus, GripVertical, Play, CheckCircle2, XCircle, AlertTriangle, Pencil } from "lucide-react"
+import { Calendar as CalendarIcon, Plus, GripVertical, Play, CheckCircle2, XCircle, AlertTriangle, Pencil, Copy } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
     DndContext,
@@ -268,6 +268,16 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
 
     const handleDeleteClick = (orderId: string) => {
         setOrderToDelete(orderId)
+    }
+
+    const handleCopyTechnicalId = async (id: string) => {
+        try {
+            await navigator.clipboard.writeText(id)
+            toast({ title: "Copiado", description: "ID técnico copiado para a área de transferência." })
+        } catch (error) {
+            console.error(error)
+            toast({ title: "Erro", description: "Não foi possível copiar o ID técnico.", variant: "destructive" })
+        }
     }
 
     const handleCreateClick = (date: string) => {
@@ -548,16 +558,35 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
             }}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
-                        <DialogTitle>Detalhes da Ordem</DialogTitle>
-                        <DialogDescription>
+                        <DialogTitle>
                             {selectedOrder?.document_number
-                                ? `#${selectedOrder.document_number.toString().padStart(4, '0')}`
-                                : `#${selectedOrder?.id.slice(0, 8)}`} • {selectedOrder?.item.name}
+                                ? `OP #${selectedOrder.document_number}`
+                                : `OP #${selectedOrder?.id.slice(0, 8)}`}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {selectedOrder?.item.name}
                         </DialogDescription>
                     </DialogHeader>
 
                     {selectedOrder && (
                         <div className="space-y-4 py-2">
+                            <div className="space-y-1">
+                                <Label>ID técnico (UUID)</Label>
+                                <div className="h-10 flex items-center justify-between px-3 border rounded-2xl bg-gray-50 text-xs font-mono text-gray-700">
+                                    <span className="truncate pr-2">{selectedOrder.id}</span>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 w-7 p-0"
+                                        onClick={() => handleCopyTechnicalId(selectedOrder.id)}
+                                        title="Copiar ID técnico"
+                                    >
+                                        <Copy className="w-3.5 h-3.5" />
+                                    </Button>
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <Label>Qtd. Planejada</Label>

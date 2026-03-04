@@ -32,6 +32,11 @@ interface RpcCreateWorkOrdersResult {
   child_work_order_ids?: unknown
 }
 
+interface CreatedWorkOrderNumberRow {
+  id: string
+  document_number: number | null
+}
+
 export interface WorkOrderDependencyWarning {
   code: 'FINISHED_GOOD_WITH_RAW_MATERIAL'
   message: string
@@ -103,7 +108,9 @@ export interface CreateWorkOrderWithDependenciesInput {
 
 export interface CreateWorkOrderWithDependenciesResult {
   parentWorkOrderId: string
+  parentWorkOrderNumber: number | null
   childWorkOrderIds: string[]
+  childWorkOrderNumbers: Array<{ id: string; documentNumber: number | null }>
   createdChildrenCount: number
   warnings: WorkOrderDependencyWarning[]
 }
@@ -576,9 +583,30 @@ export const workOrderDependenciesService = {
       ? parsed.child_work_order_ids.filter((id): id is string => typeof id === 'string')
       : []
 
+    const allCreatedIds = [parentWorkOrderId, ...childWorkOrderIds]
+    const { data: createdRows, error: createdRowsError } = await supabase
+      .from('work_orders')
+      .select('id, document_number')
+      .eq('company_id', input.companyId)
+      .in('id', allCreatedIds)
+
+    if (createdRowsError) {
+      throw new Error(`Falha ao carregar numeracao das OPs criadas: ${createdRowsError.message}`)
+    }
+
+    const numberById = new Map<string, number | null>()
+    for (const row of (createdRows ?? []) as CreatedWorkOrderNumberRow[]) {
+      numberById.set(row.id, row.document_number)
+    }
+
     return {
       parentWorkOrderId,
+      parentWorkOrderNumber: numberById.get(parentWorkOrderId) ?? null,
       childWorkOrderIds,
+      childWorkOrderNumbers: childWorkOrderIds.map((id) => ({
+        id,
+        documentNumber: numberById.get(id) ?? null,
+      })),
       createdChildrenCount: childWorkOrderIds.length,
       warnings: preview.warnings,
     }
