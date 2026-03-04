@@ -3,6 +3,7 @@ import type { InventoryCountPrintData } from "@/lib/inventory/inventory-counts";
 
 interface InventoryPrintCompanyData {
   legalName: string;
+  tradeName: string | null;
   document: string | null;
   streetLine: string | null;
   cityStateLine: string | null;
@@ -38,9 +39,93 @@ function resolveInventoryNumber(number: number | null): string {
   return String(number).padStart(6, "0");
 }
 
-export function renderInventoryCountA4Html(input: RenderInventoryCountA4Input): string {
+export function renderInventoryCountPdfHeaderTemplate(input: RenderInventoryCountA4Input): string {
   const { company, inventory } = input;
   const printableDate = formatInventoryDate(inventory.countedAt);
+  const inventoryNumber = resolveInventoryNumber(inventory.number);
+
+  return `
+<style>
+  .inventory-print-header {
+    font-family: Arial, "Liberation Sans", sans-serif;
+    color: #0f172a;
+    width: 100%;
+    padding: 0 14px;
+    box-sizing: border-box;
+  }
+  .inventory-print-header-box {
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    padding: 8px 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 10px;
+  }
+  .inventory-print-header-left {
+    width: 48%;
+    text-align: center;
+    border-right: 1px solid #e5e7eb;
+    padding-right: 10px;
+  }
+  .inventory-print-header-right {
+    width: 52%;
+    text-align: center;
+    padding-left: 10px;
+  }
+  .inventory-print-company-name {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 3px;
+  }
+  .inventory-print-company-line {
+    margin: 0;
+    line-height: 1.2;
+    font-size: 10px;
+  }
+  .inventory-print-title {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .inventory-print-subtitle {
+    margin: 2px 0 4px 0;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .inventory-print-meta {
+    margin: 0;
+    line-height: 1.2;
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+</style>
+<div class="inventory-print-header">
+  <div class="inventory-print-header-box">
+    <div class="inventory-print-header-left">
+      <div class="inventory-print-company-name">${escapeHtml(company.tradeName ?? company.legalName)}</div>
+      <p class="inventory-print-company-line"><strong>${escapeHtml(company.legalName)}</strong></p>
+      <p class="inventory-print-company-line">${escapeHtml(company.streetLine)}</p>
+      <p class="inventory-print-company-line">${escapeHtml(company.cityStateLine)}</p>
+    </div>
+    <div class="inventory-print-header-right">
+      <p class="inventory-print-title">Folha de Contagem de Inventário</p>
+      <p class="inventory-print-subtitle">Inventário #${inventoryNumber}</p>
+      <p class="inventory-print-meta">Data da contagem: ${printableDate}</p>
+      <p class="inventory-print-meta">Total de itens: ${inventory.totalItems}</p>
+      <p class="inventory-print-meta">CNPJ: ${escapeHtml(company.document)}</p>
+      <p class="inventory-print-meta">Folha <span class="pageNumber"></span>/<span class="totalPages"></span></p>
+    </div>
+  </div>
+</div>
+`;
+}
+
+export function renderInventoryCountA4Html(input: RenderInventoryCountA4Input): string {
+  const { inventory } = input;
   const inventoryNumber = resolveInventoryNumber(inventory.number);
 
   return `
@@ -164,24 +249,6 @@ export function renderInventoryCountA4Html(input: RenderInventoryCountA4Input): 
   </style>
 </head>
 <body>
-  <div class="box">
-    <div class="row">
-      <div class="col text-center">
-        ${company.logoUrl ? `<img src="${escapeHtml(company.logoUrl)}" style="max-height: 42px; margin-bottom: 4px;" alt="Logo" />` : ""}
-        <p class="value value-strong">${escapeHtml(company.legalName)}</p>
-        <p class="value">${escapeHtml(company.streetLine)}</p>
-        <p class="value">${escapeHtml(company.cityStateLine)}</p>
-      </div>
-      <div class="col text-center" style="border-left: 1px solid #e5e7eb; padding-left: 10px;">
-        <p class="header-title">FOLHA DE CONTAGEM DE INVENTÁRIO</p>
-        <p class="value value-strong">INVENTÁRIO #${inventoryNumber}</p>
-        <p class="value">DATA DA CONTAGEM: <strong>${printableDate}</strong></p>
-        <p class="value">TOTAL DE ITENS: <strong>${inventory.totalItems}</strong></p>
-        <p class="value">CNPJ: <strong>${escapeHtml(company.document)}</strong></p>
-      </div>
-    </div>
-  </div>
-
   ${inventory.categories.map((category) => `
     <div class="box page-break">
       <div class="section-title">${escapeHtml(category.label)} (${category.lines.length} itens)</div>
