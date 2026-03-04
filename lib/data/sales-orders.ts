@@ -12,6 +12,35 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 const isUuid = (value: unknown): value is string =>
     typeof value === 'string' && UUID_REGEX.test(value);
 
+function todayInBrasiliaDateOnly(): string {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Sao_Paulo',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+    }).formatToParts(new Date());
+
+    const year = parts.find((part) => part.type === 'year')?.value;
+    const month = parts.find((part) => part.type === 'month')?.value;
+    const day = parts.find((part) => part.type === 'day')?.value;
+
+    if (!year || !month || !day) {
+        return new Date().toISOString().slice(0, 10);
+    }
+
+    return `${year}-${month}-${day}`;
+}
+
+function normalizeDateOnlyInput(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+
+    const dateOnly = trimmed.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return null;
+    return dateOnly;
+}
+
 
 export async function getSalesDocuments(supabase: SupabaseClient, filters: SalesFilters) {
     const page = filters.page || 1;
@@ -210,6 +239,13 @@ export async function upsertSalesDocument(supabase: SupabaseClient, doc: Partial
 
     // Ensure Defaults (Backend Safety)
     if (!cleanDoc.financial_status) cleanDoc.financial_status = 'pending';
+    cleanDoc.date_issued = normalizeDateOnlyInput(cleanDoc.date_issued);
+
+    // Hardening: in create flows, never rely on DB CURRENT_DATE (server may run in UTC).
+    // If date_issued is missing/invalid, force local business date (Brasilia).
+    if (!cleanDoc.id && !cleanDoc.date_issued) {
+        cleanDoc.date_issued = todayInBrasiliaDateOnly();
+    }
 
 
     // VALIDATION: Block Edit if locked statuses are met (Fiscal Authorized or Logistic In Route/Finalized)

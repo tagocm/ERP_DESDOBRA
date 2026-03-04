@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Edit2, Calendar, Trash2, FileText, CheckCircle2, AlertTriangle, Clock } from "lucide-react";
 import { VehicleDocumentRow } from "@/app/actions/vehicle-documents-actions";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { deleteVehicleDocumentAction } from "@/app/actions/vehicle-documents-actions";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -115,7 +115,7 @@ export function VehicleDocumentsTable({ records, onEdit, onDelete }: VehicleDocu
                                     <div className="flex items-center gap-1.5">
                                         <Calendar className="w-3 h-3 text-gray-400" />
                                         <span className="text-sm text-gray-700">
-                                            {new Date(record.first_due_date).toLocaleDateString('pt-BR')}
+                                            {formatDate(record.first_due_date)}
                                         </span>
                                     </div>
                                 </TableCell>

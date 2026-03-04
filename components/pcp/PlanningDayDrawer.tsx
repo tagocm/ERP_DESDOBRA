@@ -20,7 +20,7 @@ import { createWorkOrderWithDependenciesAction } from "@/app/actions/pcp-work-or
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2, CheckCircle2, AlertTriangle, FileWarning, ExternalLink, Plus } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
-import { cn } from "@/lib/utils"
+import { cn, formatDate } from "@/lib/utils"
 
 interface PlanningDayDrawerProps {
     isOpen: boolean
@@ -104,7 +104,7 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                         bomId: entry.bom_id!,
                         plannedQty: entry.qty,
                         scheduledDate: date,
-                        notes: `Origem: Planejamento do dia ${new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR')}`,
+                        notes: `Origem: Planejamento do dia ${formatDate(date)}`,
                     })
                 )
             )
@@ -161,7 +161,7 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                             <span className="bg-amber-100/50 p-2 rounded-full text-amber-700">
                                 🗓️
                             </span>
-                            Planejamento do Dia: <span className="text-amber-600 ml-1">{new Date(date).toLocaleDateString('pt-BR')}</span>
+                            Planejamento do Dia: <span className="text-amber-600 ml-1">{formatDate(date)}</span>
                         </DialogTitle>
                         <DialogDescription className="text-base text-gray-500 ml-12">
                             Gerencie faltas, visualize estoque real e planeje a produção.
@@ -463,7 +463,7 @@ function SmartActionCell({ item, shortage, date, onSuccess }: { item: ItemPlan &
                 bomId: item.day.bom_id,
                 plannedQty: val,
                 scheduledDate: date,
-                notes: `Origem: Planejamento do dia ${new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR')}`,
+                notes: `Origem: Planejamento do dia ${formatDate(date)}`,
             })
             toast({
                 title: "Sucesso",

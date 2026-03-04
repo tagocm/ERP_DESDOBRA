@@ -23,6 +23,7 @@ import { TabHistory } from "./order/TabHistory";
 import { Loader2, Save, Ban } from "lucide-react";
 import { getFinancialBadgeStyle } from "@/lib/constants/statusColors";
 import { normalizeFinancialStatus, normalizeLogisticsStatus, translateLogisticsStatusPt } from "@/lib/constants/status";
+import { todayInBrasilia } from "@/lib/utils";
 
 interface SalesOrderDTOFormProps {
     id: string; // 'novo' or uuid
@@ -33,7 +34,7 @@ const emptyDoc: Partial<SalesOrderDTO> = {
     status_commercial: 'draft',
     status_logistic: 'pending',
     status_fiscal: 'none',
-    date_issued: new Date().toISOString().split('T')[0],
+    date_issued: todayInBrasilia(),
     items: [],
     subtotal_amount: 0,
     discount_amount: 0,

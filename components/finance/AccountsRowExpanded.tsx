@@ -4,7 +4,7 @@ import { ArTitleDTO, ArInstallmentDTO } from "@/lib/types/financial-dto";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { InstallmentPaymentManager } from "./InstallmentPaymentManager";
 import { CircleDollarSign, AlertTriangle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/Tooltip";
@@ -83,7 +83,7 @@ export function AccountsRowExpanded({ title, installments, onRefresh }: Accounts
                             <tr key={inst.id} className="hover:bg-gray-50/50 transition-colors group">
                                 <td className="px-4 py-3 font-medium text-gray-500">{inst.installment_number}</td>
                                 <td className="px-4 py-3 font-medium text-gray-900">
-                                    {new Date(inst.due_date).toLocaleDateString('pt-BR')}
+                                    {formatDate(inst.due_date)}
                                 </td>
                                 <td className="px-4 py-3 text-right tabular-nums text-gray-600">{formatCurrency(inst.amount_original)}</td>
                                 <td className="px-4 py-3 text-right tabular-nums text-xs text-gray-400">

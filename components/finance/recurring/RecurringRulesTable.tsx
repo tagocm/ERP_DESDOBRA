@@ -21,7 +21,7 @@ import {
     MoreHorizontal,
     User,
 } from "lucide-react";
-import { cn, toTitleCase } from "@/lib/utils";
+import { cn, toTitleCase, formatDate } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -213,7 +213,7 @@ export function RecurringRulesTable({ rules, loading }: RecurringRulesTableProps
                                     </span>
                                     {rule.first_due_date && (
                                         <span className="text-[10px] text-gray-400">
-                                            1º Venc: {new Date(rule.first_due_date).toLocaleDateString('pt-BR')}
+                                            1º Venc: {formatDate(rule.first_due_date)}
                                         </span>
                                     )}
                                 </div>

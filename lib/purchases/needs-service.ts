@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/supabase';
+import { toDateInputValue } from '@/lib/utils';
 
 export type PurchaseNeedItem = {
     item_id: string;
@@ -124,8 +125,8 @@ export async function getPurchaseNeeds(
         includePackaging,
     });
 
-    const startDateIso = startDate.toISOString().slice(0, 10);
-    const endDateIso = endDate.toISOString().slice(0, 10);
+    const startDateIso = toDateInputValue(startDate);
+    const endDateIso = toDateInputValue(endDate);
 
     // 1. Fetch relevant Work Orders
     const { data: workOrders, error: woError } = await supabase

@@ -14,6 +14,7 @@ import { FuelRecordRow } from "@/lib/types/fuel-records";
 import { fuelTypeLabels, FleetVehicleRow } from "@/lib/types/fleet";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Save } from "lucide-react";
+import { todayInBrasilia } from "@/lib/utils";
 
 interface FuelRecordModalProps {
     isOpen: boolean;
@@ -40,7 +41,7 @@ export function FuelRecordModal({ isOpen, onClose, vehicleId, vehicleData, initi
     const [loading, setLoading] = useState(false);
     const { register, handleSubmit, setValue, watch, reset } = useForm<FormData>({
         defaultValues: {
-            fuel_date: initialData?.fuel_date || new Date().toISOString().split('T')[0],
+            fuel_date: initialData?.fuel_date || todayInBrasilia(),
             odometer_km: initialData?.odometer_km || '',
             fuel_type: initialData?.fuel_type || vehicleData.fuel_type || 'gasoline',
             quantity_liters: initialData?.quantity_liters || '',

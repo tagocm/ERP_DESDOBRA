@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { format } from 'date-fns'
 import { FileText, ArrowUpRight, ArrowDownLeft, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card } from '@/components/ui/Card'
@@ -9,6 +8,7 @@ import { Badge } from '@/components/ui/Badge'
 import { PreApprovalActions } from './PreApprovalActions'
 import { FinancialEvent } from '@/lib/finance/events-db'
 import { normalizeFinancialEventStatus } from '@/lib/constants/status'
+import { formatDate } from '@/lib/utils'
 
 interface Title {
     id: string
@@ -116,7 +116,7 @@ export function PreApprovalList({ data, isLoading, onRefresh }: PreApprovalListP
                                     )}
                                 </td>
                                 <td className="px-6 py-4 text-gray-500">
-                                    {format(new Date(title.date_issued), 'dd/MM/yyyy')}
+                                    {formatDate(title.date_issued)}
                                 </td>
                                 <td className="px-6 py-4 text-gray-500 text-xs">
                                     {title.payment_terms_snapshot || 'N/A'}

@@ -6,6 +6,7 @@
  * - Split amounts with cent adjustment on last installment
  * - All calculations use cents internally for precision
  */
+import { toDateInputValue } from "../utils";
 
 /**
  * Computes due dates based on a base date and array of days offset
@@ -115,7 +116,7 @@ export function recalculateInstallments(
     // Build installments
     return amountsCents.map((amountCents, idx) => ({
         installment_number: idx + 1,
-        due_date: dueDates[idx].toISOString().split('T')[0],
+        due_date: toDateInputValue(dueDates[idx]),
         amount: amountCents / 100, // Convert back to reais
         payment_method: paymentMethod,
         payment_condition: paymentConditionName

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/Button"
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Package, AlertTriangle, Utensils } from "lucide-react"
 import { DailyPlan, ItemPlan, PlanningAlert } from "@/lib/pcp/planning-service"
-import { cn } from "@/lib/utils"
+import { cn, toDateInputValue } from "@/lib/utils"
 import { format, isToday, parseISO } from "date-fns"
 import { ptBR } from "date-fns/locale"
 import { PendingSkuCard } from "./PendingSkuCard"
@@ -27,7 +27,7 @@ export function PlanningCalendar({ startDate, onDateChange, data, alerts = [], o
         const daysKeys: string[] = []
         const curr = new Date(startDate)
         for (let i = 0; i < 7; i++) {
-            const d = curr.toISOString().split('T')[0]
+            const d = toDateInputValue(curr)
             daysKeys.push(d)
             map.set(d, [])
             alertMap.set(d, [])

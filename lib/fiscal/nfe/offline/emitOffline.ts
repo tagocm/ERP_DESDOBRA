@@ -12,6 +12,7 @@ import { syncSalesDocumentFiscalStatus } from '@/lib/fiscal/nfe/sync-sales-docum
 import { upsertNfeEmission } from '@/lib/nfe/sefaz/services/persistence';
 import { emitirNfeHomolog } from '@/lib/nfe/sefaz/services/emitir';
 import { loadCompanyCertificate } from '@/lib/nfe/sefaz/services/certificateLoader';
+import { todayInBrasilia } from '@/lib/utils';
 
 interface EmitOfflineResult {
     success: boolean;
@@ -162,7 +163,7 @@ export async function emitOffline(orderId: string, companyId: string, transmit: 
         }
 
         const resolvedPayments = normalizeInstallmentsToPayments((order as any).payments);
-        const today = new Date().toISOString().slice(0, 10);
+        const today = todayInBrasilia();
         const isPrazo = resolvedPayments.some((p: any) => String(p.due_date) > today || Number(p.installment_number) > 1) || resolvedPayments.length > 1;
         (order as any).billing = {
             ...(order as any).billing,

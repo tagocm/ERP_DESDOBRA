@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/Badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { type EventInstallment } from '@/lib/finance/events-db';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, todayInBrasilia } from '@/lib/utils';
 
 export interface BankAccountOption {
     id: string;
@@ -55,7 +55,7 @@ export function InstallmentsEditor({
             id: `temp-${Date.now()}`,
             event_id: installments[0]?.event_id || '',
             installment_number: installments.length + 1,
-            due_date: new Date().toISOString().split('T')[0],
+            due_date: todayInBrasilia(),
             amount: 0,
             payment_condition: null,
             payment_method: null,

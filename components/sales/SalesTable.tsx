@@ -23,6 +23,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/DropdownMenu";
+import { formatDate } from "@/lib/utils";
 
 interface SalesTableProps {
     data: SalesOrderDTO[];
@@ -526,7 +527,7 @@ export function SalesTable({ data, isLoading, onSelectionChange }: SalesTablePro
                                         <div className="font-semibold text-gray-900">{order.client?.trade_name || 'Desconhecido'}</div>
                                     </td>
                                     <td className="px-6 py-4 text-gray-500 text-sm">
-                                        {order.date_issued ? format(new Date(order.date_issued), 'dd/MM/yyyy') : '-'}
+                                        {formatDate(order.date_issued)}
                                     </td>
                                     <td className="px-6 py-4 text-right font-bold text-gray-900">
                                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total_amount || 0)}

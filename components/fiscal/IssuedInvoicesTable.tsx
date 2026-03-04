@@ -12,6 +12,7 @@ import { Checkbox } from '@/components/ui/Checkbox';
 import { ListPagination } from '@/components/ui/ListPagination';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/DropdownMenu';
 import { InboundReversalModal } from '@/components/fiscal/InboundReversalModal';
+import { todayInBrasilia } from '@/lib/utils';
 
 type IssuedInvoiceRow = {
     id: string;
@@ -475,7 +476,7 @@ export function IssuedInvoicesTable({ data, companyId, isLoading, onInvoiceCance
             const blobUrl = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = blobUrl;
-            link.download = `${bundle === 'xml' ? 'xml' : 'danfe'}_lote_${new Date().toISOString().slice(0, 10)}.zip`;
+            link.download = `${bundle === 'xml' ? 'xml' : 'danfe'}_lote_${todayInBrasilia()}.zip`;
             link.style.display = 'none';
             document.body.appendChild(link);
             link.click();

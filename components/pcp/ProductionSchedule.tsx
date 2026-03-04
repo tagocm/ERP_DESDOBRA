@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/Input"
 import { Textarea } from "@/components/ui/Textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { Calendar as CalendarIcon, Plus, GripVertical, Play, CheckCircle2, XCircle, AlertTriangle, Pencil, Copy } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, todayInBrasilia, toDateInputValue } from "@/lib/utils"
 import {
     DndContext,
     DragOverlay,
@@ -122,8 +122,8 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
         setLoading(true)
         try {
             // Use ISO string for query to match PlanningCalendar logic
-            const startStr = days[0].toISOString().split('T')[0]
-            const endStr = days[6].toISOString().split('T')[0]
+            const startStr = toDateInputValue(days[0])
+            const endStr = toDateInputValue(days[6])
 
             let query = supabase
                 .from('work_orders')
@@ -516,7 +516,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                 >
                     <div className="grid grid-cols-7 gap-px bg-gray-200 border-t">
                         {days.map(date => {
-                            const dateStr = date.toISOString().split('T')[0]
+                            const dateStr = toDateInputValue(date)
                             return (
                                 <DroppableDay
                                     key={dateStr}
@@ -745,9 +745,9 @@ function DroppableDay({ dateObj, dateStr, orders, onCreate, onOrderClick, onDele
     const { isOver, setNodeRef } = useDroppable({ id: dateStr })
 
     // Formatting from PlanningCalendar: 
-    // const isToday = new Date().toISOString().split('T')[0] === dateStr
+    // const isToday = todayInBrasilia() === dateStr
 
-    const isToday = new Date().toISOString().split('T')[0] === dateStr
+    const isToday = todayInBrasilia() === dateStr
 
     return (
         <div

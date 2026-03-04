@@ -7,6 +7,58 @@ export function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs))
 }
 
+const BRAZIL_TIME_ZONE = "America/Sao_Paulo";
+
+function datePartsFromTimeZone(date: Date, timeZone: string) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).formatToParts(date);
+
+    const year = parts.find((part) => part.type === "year")?.value;
+    const month = parts.find((part) => part.type === "month")?.value;
+    const day = parts.find((part) => part.type === "day")?.value;
+
+    if (!year || !month || !day) {
+        return null;
+    }
+
+    return { year, month, day };
+}
+
+function isIsoDateOnly(value: string): boolean {
+    return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+export function todayInBrasilia(): string {
+    const parts = datePartsFromTimeZone(new Date(), BRAZIL_TIME_ZONE);
+    if (!parts) return format(new Date(), "yyyy-MM-dd");
+    return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+export function toDateInputValue(value: string | Date | null | undefined): string {
+    if (!value) return "";
+
+    if (value instanceof Date) {
+        if (isNaN(value.getTime())) return "";
+        return value.toISOString().slice(0, 10);
+    }
+
+    if (typeof value === "string" && isIsoDateOnly(value)) {
+        return value;
+    }
+
+    try {
+        const parsed = parseISO(value);
+        if (isNaN(parsed.getTime())) return "";
+        return format(parsed, "yyyy-MM-dd");
+    } catch {
+        return "";
+    }
+}
+
 /**
  * Converts a string to Title Case with Portuguese language support
  * - First letter of each word capitalized

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { PendingInvoice } from '@/lib/fiscal/nfe-actions';
 import { Button } from '@/components/ui/Button';
 import { FileText, Loader2 } from 'lucide-react';
+import { formatDate } from '@/lib/utils';
 
 interface Props {
     data: PendingInvoice[];
@@ -62,7 +63,7 @@ export function PendingInvoicesTable({
                                 <span className="text-sm font-medium text-gray-900">#{order.document_number}</span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-center">
-                                <span className="text-sm text-gray-900">{new Date(order.date_issued).toLocaleDateString('pt-BR')}</span>
+                                <span className="text-sm text-gray-900">{formatDate(order.date_issued)}</span>
                             </td>
                             <td className="px-6 py-4">
                                 <span className="text-sm text-gray-900">{order.client?.trade_name || '-'}</span>

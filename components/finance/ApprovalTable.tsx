@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ChevronDown, CheckCircle, Loader2, Search, Filter, LayoutGrid, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { formatCurrency, toTitleCase, cn } from "@/lib/utils";
+import { formatCurrency, toTitleCase, cn, formatDate } from "@/lib/utils";
 import { ApprovalRowExpanded } from "./ApprovalRowExpanded";
 import { getFinancialBadgeStyle } from "@/lib/constants/statusColors";
 import { normalizeFinancialStatus } from "@/lib/constants/status";
@@ -112,9 +112,9 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
 
     // Helper to get raw first due date for sorting
     const getFirstDueDate = (p: ArTitleDTO) => {
-        if (!p.ar_installments || p.ar_installments.length === 0) return 0;
-        const dates = p.ar_installments.map(i => new Date(i.due_date).getTime());
-        return Math.min(...dates);
+        if (!p.ar_installments || p.ar_installments.length === 0) return "";
+        const dates = p.ar_installments.map(i => i.due_date).filter(Boolean).sort();
+        return dates[0] || "";
     };
 
     const sortedTitles = useMemo(() => {
@@ -134,8 +134,8 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                     bVal = (b.organization?.trade_name || b.organization?.legal_name || '').toLowerCase();
                     break;
                 case 'date_issued':
-                    aVal = new Date(a.date_issued || 0).getTime();
-                    bVal = new Date(b.date_issued || 0).getTime();
+                    aVal = a.date_issued || '';
+                    bVal = b.date_issued || '';
                     break;
                 case 'total':
                     aVal = Number(a.amount_total || 0);
@@ -277,8 +277,8 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
     const getInstallmentInfo = (posting: ArTitleDTO) => {
         const insts = posting.ar_installments || [];
         if (insts.length === 0) return { count: 0, first: '-' };
-        const sorted = [...insts].sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
-        const first = new Date(sorted[0].due_date).toLocaleDateString('pt-BR');
+        const sorted = [...insts].sort((a, b) => a.due_date.localeCompare(b.due_date));
+        const first = formatDate(sorted[0].due_date);
         return { count: insts.length, first };
     };
 
@@ -464,7 +464,7 @@ export function ApprovalTable({ companyId }: { companyId: string }) {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="text-gray-500 font-medium text-xs py-3">
-                                                    {posting.date_issued ? new Date(posting.date_issued).toLocaleDateString('pt-BR') : '-'}
+                                                    {formatDate(posting.date_issued)}
                                                 </TableCell>
                                                 <TableCell className="py-3">
                                                     <span className="text-sm font-bold text-gray-900 tabular-nums">

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { Edit2, MapPin, Calendar, Clock, Trash2, AlertTriangle } from "lucide-react";
 import { TollRecordRow } from "@/lib/types/toll-records";
 import { paymentMethodLabels } from "@/lib/types/toll-records";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { deleteTollRecordAction } from "@/app/actions/toll-records-actions";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -87,7 +87,7 @@ export function TollRecordsTable({ records, onEdit, onDelete }: TollRecordsTable
                                         <div className="flex items-center gap-1.5 mb-1">
                                             <Calendar className="w-3 h-3 text-gray-400" />
                                             <span className="font-bold text-gray-900 leading-none">
-                                                {new Date(record.toll_date).toLocaleDateString('pt-BR')}
+                                                {formatDate(record.toll_date)}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-1.5">

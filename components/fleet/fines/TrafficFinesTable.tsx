@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Edit2, Calendar, Trash2, AlertTriangle, MapPin, User, CheckCircle2, XCircle } from "lucide-react";
 import { TrafficFineRow } from "@/lib/types/traffic-fines";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import { deleteTrafficFineAction } from "@/app/actions/traffic-fines-actions";
 import { useToast } from "@/components/ui/use-toast";
 import {
@@ -85,7 +85,7 @@ export function TrafficFinesTable({ records, onEdit, onDelete }: TrafficFinesTab
                                     <div className="flex items-center gap-1.5">
                                         <Calendar className="w-3 h-3 text-gray-400" />
                                         <span className="font-bold text-gray-900 leading-none">
-                                            {new Date(record.fine_date).toLocaleDateString('pt-BR')}
+                                            {formatDate(record.fine_date)}
                                         </span>
                                     </div>
                                 </TableCell>

@@ -4,6 +4,7 @@ import { bomsRepo } from '@/lib/data/boms'
 import { inventoryRepo } from '@/lib/data/inventory'
 import { normalizeLogisticsStatus, normalizeRouteStatus } from '@/lib/constants/status'
 import { Database } from '@/types/supabase'
+import { todayInBrasilia, toDateInputValue } from '@/lib/utils'
 
 type BomLineWithItem = Database['public']['Tables']['bom_lines']['Row'] & {
     items: { name: string; uom: string; uoms?: { abbrev: string } | null } | null
@@ -79,7 +80,7 @@ export const planningService = {
         // Get Today in YYYY-MM-DD (Brasilia Time ideally, but server UTC usually implies rolling UTC to UTC)
         // Let's rely on standard ISO string (UTC) or adjust for timezone if needed. 
         // Assuming simple string comparison is sufficient for date-only fields.
-        const today = new Date().toISOString().split('T')[0]
+        const today = todayInBrasilia()
 
         const { error } = await supabaseServer
             .from('work_orders')
@@ -370,7 +371,7 @@ export const planningService = {
         const curr = new Date(startDate)
         const end = new Date(endDate)
         while (curr <= end) {
-            dates.push(curr.toISOString().split('T')[0])
+            dates.push(toDateInputValue(curr))
             curr.setDate(curr.getDate() + 1)
         }
 

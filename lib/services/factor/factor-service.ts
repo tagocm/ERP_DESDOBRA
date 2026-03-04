@@ -32,6 +32,7 @@ import {
     updateFactorOperationSchema,
 } from "./schemas";
 import { z } from "zod";
+import { todayInBrasilia } from "@/lib/utils";
 
 type CreateFactorInput = z.infer<typeof createFactorSchema>;
 type CreateFactorOperationInput = z.infer<typeof createFactorOperationSchema>;
@@ -89,7 +90,7 @@ export class FactorServiceError extends Error {
 
 function ensureDateOnly(dateValue: string | undefined | null): string {
     if (!dateValue) {
-        return new Date().toISOString().slice(0, 10);
+        return todayInBrasilia();
     }
     return dateValue;
 }

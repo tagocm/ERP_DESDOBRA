@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Label } from "@/components/ui/Label";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, todayInBrasilia } from "@/lib/utils";
 import { ArInstallmentDTO } from "@/lib/types/financial-dto";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
@@ -23,7 +23,7 @@ interface BulkSettleModalProps {
 
 export function BulkSettleModal({ open, onOpenChange, selectedIds, installments, onConfirm, isProcessing }: BulkSettleModalProps) {
     const { toast } = useToast();
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+    const [date, setDate] = useState(todayInBrasilia());
     const [accountId, setAccountId] = useState("");
     const [financialAccounts, setFinancialAccounts] = useState<{ id: string, name: string }[]>([]);
 

@@ -12,6 +12,7 @@ import { Search, X, Filter } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { paymentMethodLabels } from "@/lib/types/toll-records";
+import { formatDate } from "@/lib/utils";
 
 interface TollRecordsToolbarProps {
     search: string;
@@ -109,7 +110,7 @@ export function TollRecordsToolbar({
                         )}
                         {startDate && (
                             <Badge variant="secondary" className="bg-brand-50 text-brand-700 hover:bg-brand-100 border-none pl-2 pr-1 h-6 rounded-2xl font-medium text-[11px]">
-                                De: {new Date(startDate).toLocaleDateString('pt-BR')}
+                                De: {formatDate(startDate)}
                                 <button onClick={() => onStartDateChange('')} className="ml-1 p-0.5 hover:bg-brand-200 rounded-full transition-colors">
                                     <X className="w-3 h-3" />
                                 </button>
@@ -117,7 +118,7 @@ export function TollRecordsToolbar({
                         )}
                         {endDate && (
                             <Badge variant="secondary" className="bg-brand-50 text-brand-700 hover:bg-brand-100 border-none pl-2 pr-1 h-6 rounded-2xl font-medium text-[11px]">
-                                Até: {new Date(endDate).toLocaleDateString('pt-BR')}
+                                Até: {formatDate(endDate)}
                                 <button onClick={() => onEndDateChange('')} className="ml-1 p-0.5 hover:bg-brand-200 rounded-full transition-colors">
                                     <X className="w-3 h-3" />
                                 </button>

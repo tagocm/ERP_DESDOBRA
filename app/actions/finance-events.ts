@@ -28,6 +28,7 @@ import { generateTitleFromEvent } from '@/lib/finance/title-generator';
 import { recalculateInstallments } from '@/lib/utils/finance-calculations';
 import { buildRevenueBucketsFromSalesDocument } from '@/lib/finance/ar-sales-allocation';
 import { z } from 'zod';
+import { toDateInputValue } from '@/lib/utils';
 
 export interface ActionResult<T = unknown> {
     success: boolean;
@@ -693,7 +694,7 @@ export async function recalculateInstallmentsAction(
             // Single payment
             installments = [{
                 installment_number: 1,
-                due_date: issueDate.toISOString().split('T')[0],
+                due_date: toDateInputValue(issueDate),
                 amount: event.total_amount,
                 payment_condition: paymentCondition,
                 payment_method: null,
@@ -767,7 +768,7 @@ export async function recalculateInstallmentsAction(
                 // Default: 30 days
                 installments = [{
                     installment_number: 1,
-                    due_date: new Date(issueDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                    due_date: toDateInputValue(new Date(issueDate.getTime() + 30 * 24 * 60 * 60 * 1000)),
                     amount: event.total_amount,
                     payment_condition: paymentCondition,
                     payment_method: null,

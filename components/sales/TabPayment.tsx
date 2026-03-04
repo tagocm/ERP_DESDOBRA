@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
 import { Trash2, Plus } from "lucide-react";
 import { useRef } from "react";
+import { todayInBrasilia } from "@/lib/utils";
 
 interface TabProps {
     data: Partial<SalesOrderDTO>;
@@ -26,7 +27,7 @@ export function TabPayment({ data, onChange, disabled }: TabProps) {
             id: `temp-${tempIdCounter.current++}`,
             document_id: data.id || '',
             installment_number: payments.length + 1,
-            due_date: new Date().toISOString().split('T')[0],
+            due_date: todayInBrasilia(),
             amount: remaining > 0 ? remaining : 0,
             status: 'pending'
         };

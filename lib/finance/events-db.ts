@@ -6,6 +6,7 @@
 import 'server-only';
 import { createClient } from '@/utils/supabase/server';
 import { type FinancialEventStatus } from '@/lib/constants/status';
+import { toDateInputValue } from '@/lib/utils';
 
 export interface FinancialEvent {
     id: string;
@@ -377,7 +378,7 @@ export function autoFixInstallmentsSum(event: FinancialEvent): EventInstallment[
             id: '',
             event_id: event.id,
             installment_number: 1,
-            due_date: new Date(new Date(event.issue_date).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+            due_date: toDateInputValue(new Date(new Date(event.issue_date).getTime() + 30 * 24 * 60 * 60 * 1000)),
             amount: event.total_amount,
             payment_condition: '30 dias',
             payment_method: null,

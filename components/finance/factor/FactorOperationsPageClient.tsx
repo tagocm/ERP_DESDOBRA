@@ -38,7 +38,7 @@ import type {
     FactorOperationStatus,
     FactorOption,
 } from "@/lib/data/finance/factor/types";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency, formatDate, todayInBrasilia } from "@/lib/utils";
 import { FactorOperationStatusBadge } from "./FactorBadges";
 
 type StatusFilter = "all" | FactorOperationStatus;
@@ -51,7 +51,7 @@ function toOptionalNumber(value: string): number | undefined {
 }
 
 function getTodayDateValue(): string {
-    return new Date().toISOString().slice(0, 10);
+    return todayInBrasilia();
 }
 
 export function FactorOperationsPageClient() {

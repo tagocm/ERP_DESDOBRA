@@ -5,7 +5,7 @@ import { type FinancialEvent, type EventInstallment } from "@/lib/finance/events
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { formatCurrency, formatDate, cn } from "@/lib/utils";
+import { formatCurrency, formatDate, cn, toDateInputValue } from "@/lib/utils";
 import { Edit2, RefreshCw, Save, ChevronDown, Copy, ListTree } from "lucide-react";
 import { InstallmentDetailPanel } from "./InstallmentDetailPanel";
 import {
@@ -520,7 +520,7 @@ export function EventInstallmentsTable({ event, onUpdate, preloadedOptions }: Ev
                                     {isEditing ? (
                                         <Input
                                             type="date"
-                                            value={installment.due_date ? new Date(installment.due_date).toISOString().split('T')[0] : ''}
+                                            value={toDateInputValue(installment.due_date)}
                                             onChange={(eventChange) => handleInstallmentChange({ ...installment, due_date: eventChange.target.value })}
                                             className="h-7 text-xs px-2 bg-white"
                                             onClick={(eventClick) => eventClick.stopPropagation()}

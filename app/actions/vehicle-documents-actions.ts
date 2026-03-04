@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabaseServer";
 import { revalidatePath } from "next/cache";
+import { todayInBrasilia } from "@/lib/utils";
 
 /* ==========================================================================================
  * TYPES
@@ -113,7 +114,7 @@ export async function createVehicleDocumentAction(input: CreateVehicleDocumentIn
     }
 
     // Calculate status (simple logic for now)
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayInBrasilia();
     let status: VehicleDocumentStatus = 'EM_ABERTO';
     if (input.first_due_date < today) {
         status = 'VENCIDO';
@@ -162,7 +163,7 @@ export async function updateVehicleDocumentAction(id: string, input: UpdateVehic
     // Simple status recalc logic
     const statusUpdate: { status?: VehicleDocumentStatus } = {};
     if (input.first_due_date) {
-        const today = new Date().toISOString().split('T')[0];
+        const today = todayInBrasilia();
         statusUpdate.status = input.first_due_date < today ? 'VENCIDO' : 'EM_ABERTO';
     }
 

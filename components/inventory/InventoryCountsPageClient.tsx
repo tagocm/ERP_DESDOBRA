@@ -21,6 +21,7 @@ import {
   listInventoryCountsAction,
 } from "@/app/actions/inventory-counts";
 import type { InventoryCountItem, InventoryCountSummary, InventoryCountStatus } from "@/lib/inventory/inventory-counts";
+import { todayInBrasilia } from "@/lib/utils";
 
 const STATUS_OPTIONS: Array<{ value: "all" | InventoryCountStatus; label: string }> = [
   { value: "all", label: "Todos os status" },
@@ -42,7 +43,7 @@ function statusBadgeClass(status: InventoryCountStatus): string {
 }
 
 function todayDateInputValue(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayInBrasilia();
 }
 
 export function InventoryCountsPageClient() {

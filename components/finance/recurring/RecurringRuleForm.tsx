@@ -42,6 +42,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { FinancialCategorySelector } from "./FinancialCategorySelector";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/Button";
+import { todayInBrasilia, toDateInputValue } from "@/lib/utils";
 
 // Validation Schema
 const formSchema = z.object({
@@ -185,7 +186,7 @@ export function RecurringRuleForm() {
         defaultValues: {
             generation_mode: 'AUTOMATICO',
             billing_plan_type: 'RECORRENTE',
-            valid_from: new Date().toISOString().split('T')[0],
+            valid_from: todayInBrasilia(),
             amount_type: 'FIXO',
             status: 'ATIVO',
             frequency: 'MENSAL',
@@ -492,7 +493,7 @@ export function RecurringRuleForm() {
 
             rows.push({
                 installmentLabel: isParcelado ? `${idx}/${targetCount}` : `${idx}`,
-                dueDateLabel: formatDatePtBr(dueDate.toISOString().slice(0, 10)),
+                dueDateLabel: formatDatePtBr(toDateInputValue(dueDate)),
                 amountLabel,
             });
 

@@ -27,6 +27,7 @@ import type {
   WorkOrderDependencyWarning,
 } from '@/lib/pcp/work-order-dependencies-service'
 import { calculateRecipeCount, formatRecipeCountLabel } from '@/lib/pcp/work-order-metrics'
+import { todayInBrasilia } from '@/lib/utils'
 
 interface NewWorkOrderModalProps {
   isOpen: boolean
@@ -99,7 +100,7 @@ export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate }: N
   const [selectedSectorId, setSelectedSectorId] = useState<string>('')
   const [plannedQty, setPlannedQty] = useState<number | string>('')
   const [notes, setNotes] = useState('')
-  const [scheduledDate, setScheduledDate] = useState(initialDate || new Date().toISOString().split('T')[0])
+  const [scheduledDate, setScheduledDate] = useState(initialDate || todayInBrasilia())
 
   const [preview, setPreview] = useState<WorkOrderDependencyPreviewResult | null>(null)
   const [dependencySelections, setDependencySelections] = useState<Record<string, DependencySelectionState>>({})
@@ -127,7 +128,7 @@ export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate }: N
     }
 
     if (isOpen && !initialDate) {
-      setScheduledDate(new Date().toISOString().split('T')[0])
+      setScheduledDate(todayInBrasilia())
     }
   }, [isOpen, initialDate])
 
@@ -236,7 +237,7 @@ export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate }: N
     setSelectedSectorId('')
     setPlannedQty('')
     setNotes('')
-    setScheduledDate(new Date().toISOString().split('T')[0])
+    setScheduledDate(todayInBrasilia())
     setPreview(null)
     setDependencySelections({})
     setIsDependenciesModalOpen(false)

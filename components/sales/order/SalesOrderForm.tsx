@@ -95,7 +95,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/Dialog";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, todayInBrasilia } from "@/lib/utils";
 import { OrganizationSelector } from "@/components/app/OrganizationSelector";
 import { ProductSelector } from "@/components/app/ProductSelector";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -229,7 +229,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
         status_logistic: normalizeLogisticsStatus(initialData?.status_logistic) || "pending",
         status_commercial: initialData?.status_commercial || 'draft',
         status_fiscal: initialData?.status_fiscal || 'none',
-        date_issued: new Date().toISOString().split('T')[0],
+        date_issued: todayInBrasilia(),
         subtotal_amount: 0,
         discount_amount: 0,
         freight_amount: 0,

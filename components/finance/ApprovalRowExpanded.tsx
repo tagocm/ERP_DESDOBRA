@@ -6,7 +6,7 @@ import { ArTitleDTO, ArInstallmentDTO } from "@/lib/types/financial-dto";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useToast } from "@/components/ui/use-toast";
-import { formatCurrency, cn } from "@/lib/utils";
+import { formatCurrency, cn, formatDate, todayInBrasilia, toDateInputValue } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
 import {
@@ -125,11 +125,12 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onDeleteTitle
 
     const handleAddInstallment = () => {
         const lastInst = installments[installments.length - 1];
-        let nextDate = new Date().toISOString().split('T')[0];
+        let nextDate = todayInBrasilia();
         if (lastInst) {
-            const date = new Date(lastInst.due_date);
+            const baseDate = toDateInputValue(lastInst.due_date) || todayInBrasilia();
+            const date = new Date(`${baseDate}T12:00:00`);
             date.setDate(date.getDate() + 30);
-            nextDate = date.toISOString().split('T')[0];
+            nextDate = toDateInputValue(date);
         }
 
         const newInst: any = {
@@ -295,7 +296,7 @@ export function ApprovalRowExpanded({ title, onRefresh, onApprove, onDeleteTitle
                                                     onChange={(e) => handleInstallmentChange(index, 'due_date', e.target.value)}
                                                 />
                                             ) : (
-                                                <span className="text-xs text-gray-700 font-medium">{new Date(inst.due_date).toLocaleDateString('pt-BR')}</span>
+                                                <span className="text-xs text-gray-700 font-medium">{formatDate(inst.due_date)}</span>
                                             )}
                                         </td>
                                         <td className="px-6 py-3">

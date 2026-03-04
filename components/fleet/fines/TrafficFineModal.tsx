@@ -20,6 +20,7 @@ import { TrafficFineRow } from "@/lib/types/traffic-fines";
 import { trafficFineSchema, TrafficFineSchema } from "@/lib/validations/traffic-fines";
 import { Loader2, Save } from "lucide-react";
 import { CurrencyInput } from "@/components/ui/CurrencyInput";
+import { todayInBrasilia } from "@/lib/utils";
 
 interface TrafficFineModalProps {
     isOpen: boolean;
@@ -48,7 +49,7 @@ export function TrafficFineModal({ isOpen, onClose, vehicleId, initialData, onSu
             deducted_from_driver: initialData.deducted_from_driver,
         } : {
             vehicle_id: vehicleId,
-            fine_date: new Date().toISOString().split('T')[0],
+            fine_date: todayInBrasilia(),
             city: '',
             reason: '',
             amount: 0,

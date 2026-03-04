@@ -2,6 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { toDateInputValue } from '@/lib/utils';
 
 export interface InvoiceFilters {
     startDate?: Date;
@@ -122,11 +123,11 @@ export async function fetchPendingInvoices(
         .order('date_issued', { ascending: false });
 
     if (filters?.startDate) {
-        query = query.gte('date_issued', filters.startDate.toISOString().split('T')[0]);
+        query = query.gte('date_issued', toDateInputValue(filters.startDate));
     }
 
     if (filters?.endDate) {
-        query = query.lte('date_issued', filters.endDate.toISOString().split('T')[0]);
+        query = query.lte('date_issued', toDateInputValue(filters.endDate));
     }
 
     if (filters?.clientId) {

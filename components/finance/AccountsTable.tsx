@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/Badge";
 import { Search, ChevronDown, Layers, ArrowUpCircle, ArrowDownCircle, ExternalLink, List, Package, X, Loader2, Download, CheckCircle } from "lucide-react";
-import { formatCurrency, toTitleCase, cn } from "@/lib/utils";
+import { formatCurrency, toTitleCase, cn, formatDate } from "@/lib/utils";
 import { AccountsInstallmentRowExpanded } from "./AccountsInstallmentRowExpanded";
 import { AccountsGroupRow, GroupedOrder } from "./AccountsGroupRow";
 import { BulkSettleModal } from "./BulkSettleModal";
@@ -627,7 +627,7 @@ export function AccountsTable({ companyId }: { companyId: string }) {
                                                                 </div>
                                                             </TableCell>
                                                             <TableCell className="text-gray-900 font-medium">
-                                                                {new Date(inst.due_date).toLocaleDateString('pt-BR')}
+                                                                {formatDate(inst.due_date)}
                                                             </TableCell>
                                                             <TableCell className="font-bold">{formatCurrency(inst.amount_original)}</TableCell>
                                                             <TableCell className="text-green-600">{formatCurrency(inst.amount_paid)}</TableCell>

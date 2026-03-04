@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select";
 import { Split, Trash2 } from "lucide-react";
+import { toDateInputValue } from "@/lib/utils";
 
 interface InstallmentDetailPanelProps {
     installment: EventInstallment;
@@ -35,7 +36,7 @@ export function InstallmentDetailPanel({ installment, isEditing, onChange, glAcc
                     <Label className="text-[10px] text-gray-500 mb-1 block uppercase tracking-wide">Vencimento</Label>
                     <Input
                         type="date"
-                        value={installment.due_date ? new Date(installment.due_date).toISOString().split('T')[0] : ''}
+                        value={toDateInputValue(installment.due_date)}
                         onChange={(e) => handleChange('due_date', e.target.value)}
                         disabled={!isEditing}
                         className="bg-white h-8 text-xs"

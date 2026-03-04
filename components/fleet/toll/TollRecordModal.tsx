@@ -26,6 +26,7 @@ import { TollRecordRow, PaymentMethod, paymentMethodLabels } from "@/lib/types/t
 import { tollRecordSchema, TollRecordSchema } from "@/lib/validations/toll-records";
 import { Loader2, Save } from "lucide-react";
 import { CurrencyInput } from "@/components/ui/CurrencyInput";
+import { todayInBrasilia } from "@/lib/utils";
 
 interface TollRecordModalProps {
     isOpen: boolean;
@@ -52,7 +53,7 @@ export function TollRecordModal({ isOpen, onClose, vehicleId, initialData, onSuc
             notes: initialData.notes || '',
         } : {
             vehicle_id: vehicleId,
-            toll_date: new Date().toISOString().split('T')[0],
+            toll_date: todayInBrasilia(),
             toll_time: new Date().toTimeString().slice(0, 5),
             location: '',
             amount: 0,

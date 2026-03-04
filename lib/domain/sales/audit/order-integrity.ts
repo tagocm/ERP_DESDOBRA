@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { logger } from '@/lib/logger';
 import { getSalesDocumentById, recalculateFiscalForOrder } from '@/lib/data/sales-orders';
 import { buildDraftFromDb } from '@/lib/fiscal/nfe/offline/mappers';
+import { todayInBrasilia } from '@/lib/utils';
 
 /**
  * Validates the structural integrity of a sales order.
@@ -95,7 +96,7 @@ export async function validateOrderIntegrity(supabase: SupabaseClient, orderId: 
             await supabase.from('sales_document_payments').insert({
                 document_id: orderId,
                 installment_number: 1,
-                due_date: new Date().toISOString().split('T')[0],
+                due_date: todayInBrasilia(),
                 amount: order.total_amount,
                 status: 'pending'
             });
@@ -112,7 +113,7 @@ export async function validateOrderIntegrity(supabase: SupabaseClient, orderId: 
                 await supabase.from('sales_document_payments').insert({
                     document_id: orderId,
                     installment_number: 1,
-                    due_date: lastPayment.due_date || new Date().toISOString().split('T')[0],
+                    due_date: lastPayment.due_date || todayInBrasilia(),
                     amount: order.total_amount,
                     status: 'pending'
                 });
@@ -179,7 +180,7 @@ export async function validateOrderIntegrity(supabase: SupabaseClient, orderId: 
             }))
             : [{
                 installment_number: 1,
-                due_date: order.date_issued || new Date().toISOString().split('T')[0],
+                due_date: order.date_issued || todayInBrasilia(),
                 amount: Number(order.total_amount || 0)
             }];
 

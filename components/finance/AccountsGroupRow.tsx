@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ArInstallmentDTO } from "@/lib/types/financial-dto";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Badge } from "@/components/ui/Badge";
-import { formatCurrency, cn, toTitleCase } from "@/lib/utils";
+import { formatCurrency, cn, toTitleCase, formatDate, todayInBrasilia } from "@/lib/utils";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
@@ -71,6 +71,8 @@ export function AccountsGroupRow({ group, selectedIds, onToggleGroup, onToggleIn
         }
     };
 
+    const isNextDueOverdue = !!group.next_due_date && group.next_due_date < todayInBrasilia();
+
     return (
         <>
             {/* Group Header Row */}
@@ -100,15 +102,15 @@ export function AccountsGroupRow({ group, selectedIds, onToggleGroup, onToggleIn
                     </span>
                 </TableCell>
                 <TableCell className="text-gray-500">
-                    {group.issue_date ? new Date(group.issue_date).toLocaleDateString('pt-BR') : '-'}
+                    {formatDate(group.issue_date)}
                 </TableCell>
                 <TableCell className="font-bold text-gray-900">{formatCurrency(group.amount_total)}</TableCell>
                 <TableCell className="text-green-600 font-medium">{formatCurrency(group.amount_paid)}</TableCell>
                 <TableCell className="text-blue-600 font-medium">{formatCurrency(group.amount_open)}</TableCell>
                 <TableCell className="text-gray-500">
                     {group.status !== 'PAID' && group.next_due_date
-                        ? <span className={cn(new Date(group.next_due_date) < new Date() ? "text-red-600 font-bold" : "")}>
-                            {new Date(group.next_due_date).toLocaleDateString('pt-BR')}
+                        ? <span className={cn(isNextDueOverdue ? "text-red-600 font-bold" : "")}>
+                            {formatDate(group.next_due_date)}
                         </span>
                         : '-'
                     }
@@ -165,7 +167,7 @@ export function AccountsGroupRow({ group, selectedIds, onToggleGroup, onToggleIn
                                                             {inst.installment_number}
                                                         </td>
                                                         <td className="px-4 py-3 text-gray-600">
-                                                            {new Date(inst.due_date).toLocaleDateString('pt-BR')}
+                                                            {formatDate(inst.due_date)}
                                                         </td>
                                                         <td className="px-4 py-3 font-bold">{formatCurrency(inst.amount_original)}</td>
                                                         <td className="px-4 py-3 text-green-600">{formatCurrency(inst.amount_paid)}</td>

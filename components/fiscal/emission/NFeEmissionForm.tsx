@@ -16,6 +16,7 @@ import { NFeBillingCard } from './NFeBillingCard';
 import { NFeTransportCard } from './NFeTransportCard';
 import { NFeAdditionalInfo } from './NFeAdditionalInfo';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { todayInBrasilia } from '@/lib/utils';
 
 interface Props {
     data: EmissionData;
@@ -39,7 +40,7 @@ export function NFeEmissionForm({ data, orderId }: Props) {
     };
     const resolvePaymentMode = (installments: Array<{ number: number; dueDate: string }> = []): string => {
         if (!installments.length) return 'avista';
-        const today = new Date().toISOString().split('T')[0];
+        const today = todayInBrasilia();
         const hasPrazo =
             installments.length > 1 ||
             installments.some((inst) => Number(inst.number || 0) > 1 || String(inst.dueDate || '').slice(0, 10) > today);
@@ -53,7 +54,7 @@ export function NFeEmissionForm({ data, orderId }: Props) {
                 number: Number(inst.installment_number || 0),
                 dueDate: inst.due_date,
                 amount: Number(inst.amount || 0),
-                type: (inst.due_date <= new Date().toISOString().split('T')[0] ? 'HOJE' : 'FUTURO') as 'HOJE' | 'FUTURO',
+                type: (inst.due_date <= todayInBrasilia() ? 'HOJE' : 'FUTURO') as 'HOJE' | 'FUTURO',
                 method: normalizeBillingMethod(inst.payment_method || inst.payment_condition)
             }))
             .filter((inst: any) => inst.number > 0 && !!inst.dueDate);
@@ -62,7 +63,7 @@ export function NFeEmissionForm({ data, orderId }: Props) {
             number: Number(p.installment_number || 0),
             dueDate: p.due_date,
             amount: Number(p.amount),
-            type: (p.due_date <= new Date().toISOString().split('T')[0] ? 'HOJE' : 'FUTURO') as 'HOJE' | 'FUTURO',
+            type: (p.due_date <= todayInBrasilia() ? 'HOJE' : 'FUTURO') as 'HOJE' | 'FUTURO',
             method: normalizeBillingMethod(p.payment_method)
         })).filter((inst: any) => inst.number > 0 && !!inst.dueDate);
 

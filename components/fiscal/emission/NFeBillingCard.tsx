@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { DecimalInput } from '@/components/ui/DecimalInput';
 import { PaymentTerm, NFeBilling } from '@/lib/fiscal/nfe-emission-actions';
 import { useState, useEffect } from 'react';
+import { todayInBrasilia, toDateInputValue } from '@/lib/utils';
 
 interface Props {
     billing: NFeBilling;
@@ -38,7 +39,7 @@ export function NFeBillingCard({ billing, totalAmount, paymentTerm: initialTerm,
                 newInstallments[idx] = {
                     ...current,
                     type: 'HOJE',
-                    dueDate: new Date().toISOString().split('T')[0],
+                    dueDate: todayInBrasilia(),
                     method: current.method || 'PIX'
                 };
             } else {
@@ -59,7 +60,7 @@ export function NFeBillingCard({ billing, totalAmount, paymentTerm: initialTerm,
             number: billing.installments.length + 1,
             type: 'FUTURO',
             method: 'BOLETO',
-            dueDate: new Date().toISOString().split('T')[0],
+            dueDate: todayInBrasilia(),
             amount: 0
         }];
         onChange({ ...billing, installments: newInstallments as any });
@@ -88,7 +89,7 @@ export function NFeBillingCard({ billing, totalAmount, paymentTerm: initialTerm,
                 const daysToAdd = firstDays + (i * interval);
                 const date = new Date(today);
                 date.setDate(date.getDate() + daysToAdd);
-                const dateStr = date.toISOString().split('T')[0];
+                const dateStr = toDateInputValue(date);
                 const type = daysToAdd === 0 ? 'HOJE' : 'FUTURO';
                 const method = daysToAdd === 0 ? 'PIX' : 'BOLETO';
 
@@ -120,7 +121,7 @@ export function NFeBillingCard({ billing, totalAmount, paymentTerm: initialTerm,
                 number: 1,
                 type: 'FUTURO',
                 method: 'BOLETO',
-                dueDate: date.toISOString().split('T')[0],
+                dueDate: toDateInputValue(date),
                 amount: totalAmount
             }];
             onChange({ ...billing, installments: newInsts });
@@ -207,7 +208,7 @@ export function NFeBillingCard({ billing, totalAmount, paymentTerm: initialTerm,
                                     value={inst.dueDate}
                                     onChange={(e) => {
                                         const newDate = e.target.value;
-                                        const today = new Date().toISOString().split('T')[0];
+                                        const today = todayInBrasilia();
                                         // Infer type: if date <= today -> HOJE, else FUTURO
                                         const newType = newDate <= today ? 'HOJE' : 'FUTURO';
 
