@@ -8,6 +8,7 @@ import { getActiveCompanyId } from "@/lib/auth/get-active-company"
 type WorkOrderUpdatePayload = {
     planned_qty?: number
     scheduled_date?: string
+    sector_id?: string | null
     notes?: string
 }
 

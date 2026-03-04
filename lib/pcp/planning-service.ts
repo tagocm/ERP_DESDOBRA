@@ -649,6 +649,7 @@ export const planningService = {
     async updateWorkOrder(companyId: string, userId: string, workOrderId: string, payload: {
         planned_qty?: number,
         scheduled_date?: string,
+        sector_id?: string | null,
         notes?: string,
     }, reason?: string) {
         const { data: wo, error } = await supabaseServer
@@ -681,9 +682,10 @@ export const planningService = {
             }
         }
 
-        const updates: any = {}
+        const updates: Pick<Database['public']['Tables']['work_orders']['Update'], 'planned_qty' | 'scheduled_date' | 'sector_id' | 'notes'> = {}
         if (payload.planned_qty !== undefined) updates.planned_qty = payload.planned_qty
         if (payload.scheduled_date !== undefined) updates.scheduled_date = payload.scheduled_date
+        if (payload.sector_id !== undefined) updates.sector_id = payload.sector_id
         if (payload.notes !== undefined) updates.notes = payload.notes
 
         if (Object.keys(updates).length === 0) return { success: true }

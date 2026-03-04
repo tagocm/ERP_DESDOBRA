@@ -1,9 +1,8 @@
 'use client'
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { createClient } from "@/lib/supabaseBrowser"
 import { useCompany } from "@/contexts/CompanyContext"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card"
 import { Button } from "@/components/ui/Button"
 import { Switch } from "@/components/ui/Switch"
 import { Label } from "@/components/ui/Label"
@@ -12,7 +11,6 @@ import { Badge } from "@/components/ui/Badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog"
 import { Input } from "@/components/ui/Input"
 import { Textarea } from "@/components/ui/Textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { Calendar as CalendarIcon, Plus, GripVertical, Play, CheckCircle2, XCircle, AlertTriangle, Pencil, Copy } from "lucide-react"
 import { cn, todayInBrasilia, toDateInputValue } from "@/lib/utils"
 import {
@@ -27,16 +25,28 @@ import {
 import { NewWorkOrderModal } from "@/components/pcp/NewWorkOrderModal"
 import { NegativeStockConfirmationModal } from "@/components/pcp/NegativeStockConfirmationModal"
 import { updateWorkOrderAction, changeWorkOrderStatusAction, deleteWorkOrderAction } from "@/app/actions/pcp-planning"
-import { calculateRecipeCount, formatRecipeCountLabel } from "@/lib/pcp/work-order-metrics"
+import {
+    calculateRecipeCount,
+    computeCapacityState,
+    computeRecipeCountWithFallback,
+    formatRecipeCountLabel,
+    RecipeCountWithFallbackResult,
+} from "@/lib/pcp/work-order-metrics"
+import {
+    buildProductionDropId,
+    computeWorkOrderMovePatch,
+    parseProductionDropId,
+} from "@/lib/pcp/production-schedule-dnd"
 
 interface WorkOrder {
     id: string
-    document_number: number
+    document_number: number | null
     planned_qty: number
     produced_qty: number
     status: 'planned' | 'in_progress' | 'done' | 'cancelled'
     scheduled_date: string
     notes?: string
+    sector_id: string | null
     parent_work_order_id: string | null
     bom: {
         yield_qty: number
@@ -65,6 +75,38 @@ interface SectorFilterOption {
     id: string
     name: string
     code: string
+    capacity_recipes: number | null
+}
+
+interface ItemProductionProfileBatchRow {
+    item_id: string
+    batch_size: number | null
+}
+
+interface NegativeStockItem {
+    item_id: string
+    item_name: string
+    balance_after: number
+    uom: string
+}
+
+interface ProductionLane {
+    key: string
+    sectorId: string | null
+    name: string
+    code: string
+    capacityRecipes: number | null
+    isUnassigned: boolean
+    isInactive: boolean
+    dropDisabled: boolean
+}
+
+interface LaneDayStats {
+    plannedRecipesKnown: number
+    indeterminateCount: number
+    capacityRecipes: number | null
+    percent: number | null
+    state: 'OK' | 'NEAR_LIMIT' | 'EXCEEDED' | 'PARTIAL'
 }
 
 interface WorkOrderLink {
@@ -89,7 +131,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
     const [showDone, setShowDone] = useState(false)
     const [inconsistentOrders, setInconsistentOrders] = useState<Set<string>>(new Set())
     const [sectors, setSectors] = useState<SectorFilterOption[]>([])
-    const [sectorFilter, setSectorFilter] = useState<string>('all')
+    const [profileBatchByItemId, setProfileBatchByItemId] = useState<Record<string, number | null>>({})
 
     // Drag State
     const [activeId, setActiveId] = useState<string | null>(null)
@@ -107,15 +149,18 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
     const [isDependencyLinksLoading, setIsDependencyLinksLoading] = useState(false)
 
     // Negative Stock Modal State
-    const [negativeStockModal, setNegativeStockModal] = useState<{ isOpen: boolean, items: any[], pendingStatus: string } | null>(null)
+    const [negativeStockModal, setNegativeStockModal] = useState<{ isOpen: boolean, items: NegativeStockItem[], pendingStatus: string } | null>(null)
 
     // Generate dates EXACTLY like PlanningCalendar (store Date objects)
-    const days: Date[] = []
-    const curr = new Date(startDate)
-    for (let i = 0; i < 7; i++) {
-        days.push(new Date(curr))
-        curr.setDate(curr.getDate() + 1)
-    }
+    const days = useMemo(() => {
+        const weekDays: Date[] = []
+        const curr = new Date(startDate)
+        for (let i = 0; i < 7; i++) {
+            weekDays.push(new Date(curr))
+            curr.setDate(curr.getDate() + 1)
+        }
+        return weekDays
+    }, [startDate])
 
     const fetchOrders = async () => {
         if (!selectedCompany) return
@@ -135,10 +180,11 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                     status,
                     scheduled_date,
                     notes,
+                    sector_id,
                     parent_work_order_id,
                     bom:bom_headers(yield_qty, yield_uom, version),
                     item:items!inner (id, name, uom),
-                    sector:production_sectors(id, name, code)
+                    sector:production_sectors(id, name, code, capacity_recipes)
                 `)
                 .eq('company_id', selectedCompany.id)
                 .gte('scheduled_date', startStr)
@@ -153,7 +199,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                 query,
                 supabase
                     .from('production_sectors')
-                    .select('id, name, code')
+                    .select('id, name, code, capacity_recipes')
                     .eq('company_id', selectedCompany.id)
                     .is('deleted_at', null)
                     .eq('is_active', true)
@@ -174,6 +220,27 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
 
             setOrders(mapped)
             setSectors((sectorsData || []) as SectorFilterOption[])
+
+            const itemIds = Array.from(new Set(mapped.map((order) => order.item.id)))
+            if (itemIds.length > 0) {
+                const { data: profilesData, error: profilesError } = await supabase
+                    .from('item_production_profiles')
+                    .select('item_id, batch_size')
+                    .eq('company_id', selectedCompany.id)
+                    .in('item_id', itemIds)
+
+                if (profilesError) {
+                    throw profilesError
+                }
+
+                const profileMap: Record<string, number | null> = {}
+                for (const profile of (profilesData ?? []) as ItemProductionProfileBatchRow[]) {
+                    profileMap[profile.item_id] = profile.batch_size
+                }
+                setProfileBatchByItemId(profileMap)
+            } else {
+                setProfileBatchByItemId({})
+            }
 
             // Fetch audit logs to identify inconsistent orders (closed with negative stock)
             const { data: auditData } = await supabase
@@ -198,6 +265,131 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
         fetchOrders()
     }, [startDate, selectedCompany, showDone])
 
+    const lanes = useMemo<ProductionLane[]>(() => {
+        const activeLanes: ProductionLane[] = sectors.map((sector) => ({
+            key: sector.id,
+            sectorId: sector.id,
+            name: sector.name,
+            code: sector.code,
+            capacityRecipes: sector.capacity_recipes,
+            isUnassigned: false,
+            isInactive: false,
+            dropDisabled: false,
+        }))
+
+        const activeSectorIds = new Set(activeLanes.map((lane) => lane.sectorId))
+        const inactiveLanesMap = new Map<string, ProductionLane>()
+
+        for (const order of orders) {
+            if (!order.sector_id || activeSectorIds.has(order.sector_id)) {
+                continue
+            }
+            if (!inactiveLanesMap.has(order.sector_id)) {
+                inactiveLanesMap.set(order.sector_id, {
+                    key: order.sector_id,
+                    sectorId: order.sector_id,
+                    name: order.sector?.name ?? 'Setor inativo',
+                    code: order.sector?.code ?? 'INATIVO',
+                    capacityRecipes: null,
+                    isUnassigned: false,
+                    isInactive: true,
+                    dropDisabled: true,
+                })
+            }
+        }
+
+        const hasUnassigned = orders.some((order) => order.sector_id === null)
+        const unassignedLane: ProductionLane[] = hasUnassigned
+            ? [{
+                key: 'unassigned',
+                sectorId: null,
+                name: 'Sem Setor',
+                code: 'LEGADO',
+                capacityRecipes: null,
+                isUnassigned: true,
+                isInactive: false,
+                dropDisabled: false,
+            }]
+            : []
+
+        return [...activeLanes, ...inactiveLanesMap.values(), ...unassignedLane]
+    }, [orders, sectors])
+
+    const recipeByOrderId = useMemo(() => {
+        const map = new Map<string, RecipeCountWithFallbackResult>()
+        for (const order of orders) {
+            const metrics = computeRecipeCountWithFallback({
+                plannedQty: order.planned_qty,
+                bomYieldQty: order.bom?.yield_qty,
+                profileBatchSize: profileBatchByItemId[order.item.id] ?? null,
+            })
+            map.set(order.id, metrics)
+        }
+        return map
+    }, [orders, profileBatchByItemId])
+
+    const ordersByLaneDay = useMemo(() => {
+        const map = new Map<string, WorkOrder[]>()
+        for (const order of orders) {
+            const key = buildProductionDropId({
+                sectorId: order.sector_id,
+                scheduledDate: order.scheduled_date,
+            })
+            const bucket = map.get(key)
+            if (bucket) {
+                bucket.push(order)
+            } else {
+                map.set(key, [order])
+            }
+        }
+        return map
+    }, [orders])
+
+    const laneDayStats = useMemo(() => {
+        const map = new Map<string, LaneDayStats>()
+
+        for (const lane of lanes) {
+            for (const dateObj of days) {
+                const scheduledDate = toDateInputValue(dateObj)
+                const key = buildProductionDropId({ sectorId: lane.sectorId, scheduledDate })
+                const laneOrders = ordersByLaneDay.get(key) ?? []
+
+                let plannedRecipesKnown = 0
+                let indeterminateCount = 0
+
+                for (const order of laneOrders) {
+                    if (!['planned', 'in_progress'].includes(order.status)) {
+                        continue
+                    }
+
+                    const recipeMetrics = recipeByOrderId.get(order.id)
+                    if (!recipeMetrics || recipeMetrics.kind === 'unknown') {
+                        indeterminateCount += 1
+                        continue
+                    }
+
+                    plannedRecipesKnown += recipeMetrics.recipes
+                }
+
+                const state = computeCapacityState({
+                    plannedRecipesKnown,
+                    capacityRecipes: lane.capacityRecipes,
+                    indeterminateCount,
+                })
+
+                map.set(key, {
+                    plannedRecipesKnown,
+                    indeterminateCount,
+                    capacityRecipes: lane.capacityRecipes,
+                    percent: state.percent,
+                    state: state.state,
+                })
+            }
+        }
+
+        return map
+    }, [days, lanes, ordersByLaneDay, recipeByOrderId])
+
 
     // --- Actions ---
 
@@ -214,29 +406,67 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
         if (!over) return
 
         const orderId = active.id as string
-        const newDate = over.id as string // Droppable ID is the date string
+        const target = parseProductionDropId(String(over.id))
+        if (!target) {
+            return
+        }
 
         const order = orders.find(o => o.id === orderId)
         if (!order) return
 
-        if (order.scheduled_date === newDate) return
-        if (order.status !== 'planned') {
-            toast({ title: "Bloqueado", description: "Apenas OPs planejadas podem ser reagendadas.", variant: "destructive" })
+        let patch: { scheduledDate: string; sectorId: string | null } | null = null
+        try {
+            patch = computeWorkOrderMovePatch(
+                {
+                    id: order.id,
+                    status: order.status,
+                    scheduledDate: order.scheduled_date,
+                    sectorId: order.sector_id,
+                },
+                target
+            )
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Falha ao mover OP.'
+            toast({ title: "Bloqueado", description: message, variant: "destructive" })
             return
         }
 
+        if (!patch) return
+
+        const sectorById = new Map(
+            sectors.map((sector) => [sector.id, { id: sector.id, name: sector.name, code: sector.code }] as const)
+        )
+
         // Optimistic Update
-        const originalDate = order.scheduled_date
-        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, scheduled_date: newDate } : o))
+        const originalOrder = order
+        setOrders(prev => prev.map((currentOrder) => {
+            if (currentOrder.id !== orderId) {
+                return currentOrder
+            }
+
+            return {
+                ...currentOrder,
+                scheduled_date: patch.scheduledDate,
+                sector_id: patch.sectorId,
+                sector: patch.sectorId ? (sectorById.get(patch.sectorId) ?? currentOrder.sector) : null,
+            }
+        }))
 
         try {
-            await updateWorkOrderAction(orderId, { scheduled_date: newDate })
-            toast({ title: "Reagendado", description: `Ordem movida para ${new Date(newDate + 'T00:00:00').toLocaleDateString()}.` })
+            await updateWorkOrderAction(orderId, {
+                scheduled_date: patch.scheduledDate,
+                sector_id: patch.sectorId,
+            })
+            const sectorMessage = patch.sectorId ? ' e setor atualizado' : ''
+            toast({
+                title: "Reagendado",
+                description: `Ordem movida para ${new Date(patch.scheduledDate + 'T00:00:00').toLocaleDateString()}${sectorMessage}.`,
+            })
             if (onRefreshRequest) onRefreshRequest()
         } catch (error) {
             console.error(error)
             // Revert
-            setOrders(prev => prev.map(o => o.id === orderId ? { ...o, scheduled_date: originalDate } : o))
+            setOrders(prev => prev.map(o => o.id === orderId ? originalOrder : o))
             toast({ title: "Erro", description: "Falha ao reagendar.", variant: "destructive" })
         }
     }
@@ -422,20 +652,24 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
             setIsEditOpen(false)
             fetchOrders()
             if (onRefreshRequest) onRefreshRequest()
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error)
 
             // Check if it's negative stock detection
-            if (error.message === 'NEGATIVE_STOCK_DETECTED' && error.negativeItems) {
-                setNegativeStockModal({
-                    isOpen: true,
-                    items: error.negativeItems,
-                    pendingStatus: newStatus
-                })
-                return
+            if (error instanceof Error && error.message === 'NEGATIVE_STOCK_DETECTED') {
+                const maybeNegativeItems = (error as Error & { negativeItems?: NegativeStockItem[] }).negativeItems
+                if (maybeNegativeItems) {
+                    setNegativeStockModal({
+                        isOpen: true,
+                        items: maybeNegativeItems,
+                        pendingStatus: newStatus
+                    })
+                    return
+                }
             }
 
-            toast({ title: "Erro", description: error.message || "Falha na transição.", variant: "destructive" })
+            const message = error instanceof Error ? error.message : "Falha na transição."
+            toast({ title: "Erro", description: message, variant: "destructive" })
         }
     }
 
@@ -456,28 +690,16 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
             setIsEditOpen(false)
             fetchOrders()
             if (onRefreshRequest) onRefreshRequest()
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(error)
-            toast({ title: "Erro", description: error.message || "Falha ao encerrar.", variant: "destructive" })
+            const message = error instanceof Error ? error.message : "Falha ao encerrar."
+            toast({ title: "Erro", description: message, variant: "destructive" })
         }
     }
 
     // --- Render Helpers ---
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'planned': return 'bg-white border-slate-200 text-slate-700 hover:border-blue-300'
-            case 'in_progress': return 'bg-blue-50 border-blue-200 text-blue-700'
-            case 'done': return 'bg-green-50 border-green-200 text-green-700 opacity-75'
-            case 'cancelled': return 'bg-red-50 border-red-200 text-red-700 opacity-60'
-            default: return 'bg-gray-100'
-        }
-    }
-
-    const visibleOrders = orders.filter((order) => {
-        if (sectorFilter === 'all') return true
-        return order.sector?.id === sectorFilter
-    })
+    const activeOrder = activeId ? orders.find((order) => order.id === activeId) ?? null : null
 
     return (
         <>
@@ -491,21 +713,6 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                             <Label htmlFor="show-done" className="text-xs text-slate-600">Exibir concluídas</Label>
                             <Switch id="show-done" checked={showDone} onCheckedChange={setShowDone} />
                         </div>
-                        <div className="w-52">
-                            <Select value={sectorFilter} onValueChange={setSectorFilter}>
-                                <SelectTrigger className="h-8 bg-white">
-                                    <SelectValue placeholder="Filtrar por setor" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todos os setores</SelectItem>
-                                    {sectors.map((sector) => (
-                                        <SelectItem key={sector.id} value={sector.id}>
-                                            {sector.code} - {sector.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
                     </div>
                 </div>
 
@@ -514,27 +721,81 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
                 >
-                    <div className="grid grid-cols-7 gap-px bg-gray-200 border-t">
-                        {days.map(date => {
-                            const dateStr = toDateInputValue(date)
-                            return (
-                                <DroppableDay
-                                    key={dateStr}
-                                    dateObj={date}
-                                    dateStr={dateStr}
-                                    orders={visibleOrders.filter(o => o.scheduled_date === dateStr)}
-                                    onCreate={() => handleCreateClick(dateStr)}
-                                    onOrderClick={handleOrderClick}
-                                    onDeleteClick={handleDeleteClick}
-                                    inconsistentOrders={inconsistentOrders}
-                                />
-                            )
-                        })}
+                    <div className="flex flex-col border-t border-gray-200">
+                        {lanes.length === 0 && !loading && (
+                            <div className="px-4 py-8 text-sm text-gray-500">Nenhum setor ativo encontrado para exibir a agenda.</div>
+                        )}
+
+                        {lanes.map((lane) => (
+                            <div key={lane.key} className="border-b border-gray-200 last:border-b-0">
+                                <div className={cn(
+                                    "px-3 py-2 flex items-center justify-between",
+                                    lane.isUnassigned ? "bg-amber-50/50" : "bg-slate-50/50"
+                                )}>
+                                    <div className="flex items-center gap-2">
+                                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                                            {lane.code}
+                                        </span>
+                                        <span className="text-sm font-semibold text-slate-800">{lane.name}</span>
+                                        {lane.isUnassigned && (
+                                            <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-100/70">
+                                                Legado sem setor
+                                            </Badge>
+                                        )}
+                                        {lane.isInactive && (
+                                            <Badge variant="outline" className="text-[10px] border-red-300 text-red-700 bg-red-100/70">
+                                                Setor inativo
+                                            </Badge>
+                                        )}
+                                    </div>
+                                    {lane.isUnassigned ? (
+                                        <p className="text-xs text-amber-700">Corrija atribuindo setor nas OPs legadas.</p>
+                                    ) : (
+                                        <p className="text-xs text-slate-500">Capacidade diária em receitas.</p>
+                                    )}
+                                </div>
+
+                                <div className="grid grid-cols-7 gap-px bg-gray-200">
+                                    {days.map((dateObj) => {
+                                        const scheduledDate = toDateInputValue(dateObj)
+                                        const dropId = buildProductionDropId({
+                                            sectorId: lane.sectorId,
+                                            scheduledDate,
+                                        })
+                                        const dayOrders = ordersByLaneDay.get(dropId) ?? []
+                                        const stats = laneDayStats.get(dropId) ?? {
+                                            plannedRecipesKnown: 0,
+                                            indeterminateCount: 0,
+                                            capacityRecipes: lane.capacityRecipes,
+                                            percent: null,
+                                            state: 'PARTIAL',
+                                        }
+
+                                        return (
+                                            <DroppableDay
+                                                key={`${lane.key}-${scheduledDate}`}
+                                                dropId={dropId}
+                                                dateObj={dateObj}
+                                                dateStr={scheduledDate}
+                                                orders={dayOrders}
+                                                stats={stats}
+                                                lane={lane}
+                                                recipeByOrderId={recipeByOrderId}
+                                                onCreate={() => handleCreateClick(scheduledDate)}
+                                                onOrderClick={handleOrderClick}
+                                                onDeleteClick={handleDeleteClick}
+                                                inconsistentOrders={inconsistentOrders}
+                                            />
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        ))}
                     </div>
 
                     <DragOverlay>
-                        {activeId ? (
-                            <OrderCard order={orders.find(o => o.id === activeId)!} isOverlay />
+                        {activeOrder ? (
+                            <OrderCard order={activeOrder} recipeMetrics={recipeByOrderId.get(activeOrder.id)} isOverlay />
                         ) : null}
                     </DragOverlay>
                 </DndContext>
@@ -733,35 +994,61 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
 
 // --- Sub Components ---
 
-function DroppableDay({ dateObj, dateStr, orders, onCreate, onOrderClick, onDeleteClick, inconsistentOrders }: {
-    dateObj: Date,
-    dateStr: string,
-    orders: WorkOrder[],
-    onCreate: () => void,
-    onOrderClick: (o: WorkOrder) => void,
-    onDeleteClick: (id: string) => void,
+function formatPercent(value: number | null): string {
+    if (value === null) {
+        return '-'
+    }
+    return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(value * 100)}%`
+}
+
+function DroppableDay({
+    dropId,
+    dateObj,
+    dateStr,
+    lane,
+    orders,
+    stats,
+    recipeByOrderId,
+    onCreate,
+    onOrderClick,
+    onDeleteClick,
+    inconsistentOrders,
+}: {
+    dropId: string
+    dateObj: Date
+    dateStr: string
+    lane: ProductionLane
+    orders: WorkOrder[]
+    stats: LaneDayStats
+    recipeByOrderId: Map<string, RecipeCountWithFallbackResult>
+    onCreate: () => void
+    onOrderClick: (o: WorkOrder) => void
+    onDeleteClick: (id: string) => void
     inconsistentOrders: Set<string>
 }) {
-    const { isOver, setNodeRef } = useDroppable({ id: dateStr })
-
-    // Formatting from PlanningCalendar: 
-    // const isToday = todayInBrasilia() === dateStr
-
+    const { isOver, setNodeRef } = useDroppable({ id: dropId, disabled: lane.dropDisabled })
     const isToday = todayInBrasilia() === dateStr
+
+    const stateBadgeClass = {
+        OK: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+        NEAR_LIMIT: 'border-amber-200 bg-amber-50 text-amber-700',
+        EXCEEDED: 'border-red-200 bg-red-50 text-red-700',
+        PARTIAL: 'border-slate-200 bg-slate-100 text-slate-700',
+    }[stats.state]
 
     return (
         <div
             ref={setNodeRef}
             className={cn(
-                "bg-white p-2 min-h-40 cursor-pointer transition-all flex flex-col justify-between group",
-                isOver ? "bg-blue-50 ring-inset ring-2 ring-blue-300" : "",
+                "bg-white p-2 min-h-44 cursor-pointer transition-all flex flex-col justify-between group",
+                isOver && !lane.dropDisabled ? "bg-blue-50 ring-inset ring-2 ring-blue-300" : "",
+                lane.dropDisabled ? "bg-slate-50/50" : "",
                 isToday ? "bg-slate-50/50" : ""
             )}
         >
-            {/* Header matching PlanningCalendar */}
             <div className="flex items-start justify-between mb-2">
-                <span className="text-xs text-gray-400">
-                    {dateObj.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
+                <span className="text-xs text-gray-500 font-medium">
+                    {dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                 </span>
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button size="sm" variant="ghost" onClick={onCreate} className="h-6 w-6 p-0">
@@ -770,11 +1057,35 @@ function DroppableDay({ dateObj, dateStr, orders, onCreate, onOrderClick, onDele
                 </div>
             </div>
 
+            <div className="mb-2 rounded-xl border border-slate-200 bg-slate-50/70 px-2 py-1.5">
+                <div className="text-[10px] text-slate-600">
+                    Planejado <span className="font-semibold">{stats.plannedRecipesKnown}</span> / Capacidade{' '}
+                    <span className="font-semibold">
+                        {stats.capacityRecipes ?? '-'}
+                    </span>
+                </div>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                    <Badge variant="outline" className={cn("h-4 px-1 text-[9px] font-semibold", stateBadgeClass)}>
+                        {stats.state === 'OK' && 'OK'}
+                        {stats.state === 'NEAR_LIMIT' && 'No limite'}
+                        {stats.state === 'EXCEEDED' && 'Excedido'}
+                        {stats.state === 'PARTIAL' && 'Parcial'}
+                    </Badge>
+                    <span className="text-[10px] font-semibold text-slate-600">{formatPercent(stats.percent)}</span>
+                </div>
+                {stats.indeterminateCount > 0 && (
+                    <div className="mt-1 text-[9px] text-slate-500">
+                        Indeterminadas: {stats.indeterminateCount}
+                    </div>
+                )}
+            </div>
+
             <div className="flex flex-col gap-1.5 flex-1 relative">
-                {orders.map(order => (
+                {orders.map((order) => (
                     <DraggableOrder
                         key={order.id}
                         order={order}
+                        recipeMetrics={recipeByOrderId.get(order.id)}
                         onClick={() => onOrderClick(order)}
                         onDelete={() => onDeleteClick(order.id)}
                         isInconsistent={inconsistentOrders.has(order.id)}
@@ -791,7 +1102,19 @@ function DroppableDay({ dateObj, dateStr, orders, onCreate, onOrderClick, onDele
     )
 }
 
-function DraggableOrder({ order, onClick, onDelete, isInconsistent }: { order: WorkOrder, onClick?: () => void, onDelete?: () => void, isInconsistent?: boolean }) {
+function DraggableOrder({
+    order,
+    recipeMetrics,
+    onClick,
+    onDelete,
+    isInconsistent,
+}: {
+    order: WorkOrder
+    recipeMetrics?: RecipeCountWithFallbackResult
+    onClick?: () => void
+    onDelete?: () => void
+    isInconsistent?: boolean
+}) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: order.id,
         disabled: order.status !== 'planned' // Only planned can be dragged
@@ -803,18 +1126,45 @@ function DraggableOrder({ order, onClick, onDelete, isInconsistent }: { order: W
     } : undefined
 
     if (isDragging) {
-        return <div ref={setNodeRef} style={style} className="opacity-50"><OrderCard order={order} isInconsistent={isInconsistent} /></div>
+        return (
+            <div ref={setNodeRef} style={style} className="opacity-50">
+                <OrderCard order={order} recipeMetrics={recipeMetrics} isInconsistent={isInconsistent} />
+            </div>
+        )
     }
 
     return (
         <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-            <OrderCard order={order} onClick={onClick} onDelete={onDelete} isInconsistent={isInconsistent} />
+            <OrderCard
+                order={order}
+                recipeMetrics={recipeMetrics}
+                onClick={onClick}
+                onDelete={onDelete}
+                isInconsistent={isInconsistent}
+            />
         </div>
     )
 }
 
-function OrderCard({ order, isOverlay, onClick, onDelete, isInconsistent }: { order: WorkOrder, isOverlay?: boolean, onClick?: () => void, onDelete?: () => void, isInconsistent?: boolean }) {
-    const recipeCount = calculateRecipeCount(order.planned_qty, order.bom?.yield_qty)
+function OrderCard({
+    order,
+    recipeMetrics,
+    isOverlay,
+    onClick,
+    onDelete,
+    isInconsistent,
+}: {
+    order: WorkOrder
+    recipeMetrics?: RecipeCountWithFallbackResult
+    isOverlay?: boolean
+    onClick?: () => void
+    onDelete?: () => void
+    isInconsistent?: boolean
+}) {
+    const recipeLabel = recipeMetrics && recipeMetrics.kind !== 'unknown'
+        ? formatRecipeCountLabel(recipeMetrics.recipes)
+        : formatRecipeCountLabel(calculateRecipeCount(order.planned_qty, order.bom?.yield_qty))
+
     const statusColor = {
         planned: "bg-white border-l-4 border-l-blue-400 shadow-card",
         in_progress: "bg-blue-50 border-l-4 border-l-blue-600 shadow-card",
@@ -835,10 +1185,13 @@ function OrderCard({ order, isOverlay, onClick, onDelete, isInconsistent }: { or
             <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
                 {order.sector && <span className="inline-flex rounded-full bg-slate-100 px-1.5 py-0.5">{order.sector.code}</span>}
                 {order.parent_work_order_id && <span className="inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-700">Filha</span>}
+                {recipeMetrics?.kind === 'unknown' && (
+                    <span className="inline-flex rounded-full bg-slate-100 px-1.5 py-0.5 text-slate-600">Receita indeterminada</span>
+                )}
             </div>
             <div className="flex justify-between items-center text-[10px] text-slate-500 mt-1">
                 <span>{order.planned_qty} {order.item.uom}</span>
-                <span className="font-medium text-slate-600">{formatRecipeCountLabel(recipeCount)}</span>
+                <span className="font-medium text-slate-600">{recipeLabel}</span>
                 <div className="flex gap-1 items-center">
                     {isInconsistent && (
                         <Badge variant="outline" className="text-[8px] h-4 px-1 border-red-500 text-red-700 bg-red-50 font-bold">
