@@ -71,6 +71,15 @@ export interface PlanningAlert {
     type: 'no_bom' | 'not_finished_good'
 }
 
+export const SUPPLY_STATUSES = ['planned', 'in_progress'] as const
+export type SupplyStatus = (typeof SUPPLY_STATUSES)[number]
+
+const SUPPLY_STATUS_SET = new Set<string>(SUPPLY_STATUSES)
+
+export function isSupplyStatus(status: string): status is SupplyStatus {
+    return SUPPLY_STATUS_SET.has(status)
+}
+
 export const planningService = {
     async rolloverOverdueOrders(companyId: string) {
         // Rule: "toda a OP que vencer o dia da iniciação da operação altere o planejamento dessa OP para o dia seguinte"
@@ -335,7 +344,7 @@ export const planningService = {
                 .gte('scheduled_date', startDate)
                 .lte('scheduled_date', endDate)
                 .is('deleted_at', null)
-                .in('status', ['planned', 'in_progress', 'confirmed'])
+                .in('status', [...SUPPLY_STATUSES])
 
             if (supplyError) throw supplyError
 

@@ -3841,6 +3841,7 @@ export type Database = {
       }
       production_sectors: {
         Row: {
+          capacity_recipes: number
           code: string
           company_id: string
           created_at: string
@@ -3851,6 +3852,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          capacity_recipes?: number
           code: string
           company_id: string
           created_at?: string
@@ -3861,6 +3863,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          capacity_recipes?: number
           code?: string
           company_id?: string
           created_at?: string
