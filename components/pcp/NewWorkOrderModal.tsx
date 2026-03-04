@@ -469,7 +469,7 @@ export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate }: N
                 </SelectContent>
               </Select>
               {sectors.length === 0 && (
-                <p className="text-xs text-amber-600">Nenhum setor ativo. Cadastre em "Setores de Produção".</p>
+                <p className="text-xs text-amber-600">Nenhum setor ativo. Cadastre em "Preferências do Sistema &gt; Produção".</p>
               )}
             </div>
 

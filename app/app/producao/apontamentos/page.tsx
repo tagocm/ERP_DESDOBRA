@@ -4,13 +4,13 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/Card";
-import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
-import { Search, Plus, FileText, ClipboardList, Package, Archive, RefreshCw, X, Calendar } from "lucide-react";
+import { Search, Plus, Calendar } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { NewProductionEntryModal } from "@/components/production/NewProductionEntryModal";
-import { Badge } from "@/components/ui/Badge";
 import { format } from "date-fns";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { PcpModuleTabs } from "@/components/pcp/PcpModuleTabs";
 
 export default function NotesPage() {
     const { selectedCompany } = useCompany();
@@ -74,35 +74,34 @@ export default function NotesPage() {
                 onSuccess={fetchRecords}
             />
 
+            <PageHeader
+                title="Apontamentos de Produção"
+                subtitle="Histórico de produção e entradas de estoque."
+                children={<PcpModuleTabs />}
+                actions={
+                    <Button onClick={() => setIsModalOpen(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Novo Apontamento
+                    </Button>
+                }
+            />
+
             <Card>
-                <CardHeaderStandard
-                    icon={<FileText className="w-5 h-5 text-brand-600" />}
-                    title="Apontamentos de Produção"
-                    description="Histórico de produção e entradas de estoque."
-                    actions={
-                        <Button onClick={() => setIsModalOpen(true)}>
-                            <Plus className="w-4 h-4 mr-2" />
-                            Novo Apontamento
-                        </Button>
-                    }
-                >
-                    <div className="mt-4 pb-2 border-b border-gray-100/50">
-                        <div className="w-64 relative">
+                <CardContent className="p-0">
+                    <div className="flex flex-wrap gap-3 p-4 border-b border-gray-100/70">
+                        <div className="w-full md:w-80 relative">
                             <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
                             <Input
                                 placeholder="Buscar produto ou OP..."
                                 className="pl-9 h-9"
                                 value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
+                                onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
                     </div>
-                </CardHeaderStandard>
-
-                <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                            <thead className="bg-gray-50/50 text-gray-500 font-medium border-b border-gray-100">
+                            <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
                                 <tr>
                                     <th className="px-6 py-3 text-left">Data</th>
                                     <th className="px-6 py-3 text-left">Ordem (OP)</th>

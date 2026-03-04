@@ -2,17 +2,17 @@
 
 import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
-import { Database } from "@/types/supabase";
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/Card";
-import { CardHeaderStandard } from "@/components/ui/CardHeaderStandard";
-import { Search, Eye, FileText, CheckCircle2, Package, Calculator, Database as DatabaseIcon } from "lucide-react";
+import { Search, Eye, CheckCircle2, Package, Calculator } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/use-toast";
 import { Sheet } from "@/components/ui/Sheet";
 import { Badge } from "@/components/ui/Badge";
 import { Separator } from "@/components/ui/separator";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { PcpModuleTabs } from "@/components/pcp/PcpModuleTabs";
 
 // Types
 interface BomHeader {
@@ -172,30 +172,27 @@ export default function BomListPage() {
 
     return (
         <div className="space-y-6">
-
+            <PageHeader
+                title="Estrutura de Materiais (BOM)"
+                subtitle="Defina os componentes e subprodutos para este item."
+                children={<PcpModuleTabs />}
+            />
             <Card>
-                <CardHeaderStandard
-                    icon={<DatabaseIcon className="w-5 h-5 text-brand-600" />}
-                    title="Estrutura de Materiais (BOM)"
-                    description="Defina os componentes e subprodutos para este item."
-                >
-                    <div className="mt-4 pb-2 border-b border-gray-100/50">
-                        <div className="w-64 relative">
+                <CardContent className="p-0">
+                    <div className="flex flex-wrap gap-3 p-4 border-b border-gray-100/70">
+                        <div className="w-full md:w-80 relative">
                             <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
                             <Input
                                 placeholder="Buscar produto ou SKU..."
                                 className="pl-9 h-9"
                                 value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
+                                onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
                     </div>
-                </CardHeaderStandard>
-
-                <CardContent className="p-0">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                            <thead className="bg-gray-50/50 text-gray-500 font-medium border-b border-gray-100">
+                            <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
                                 <tr>
                                     <th className="px-6 py-3 text-left">Produto</th>
                                     <th className="px-6 py-3 text-left">SKU</th>

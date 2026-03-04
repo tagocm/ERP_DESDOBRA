@@ -2,22 +2,27 @@
 
 
 import { ReactNode } from "react";
-import { ModuleTabs } from "@/components/app/ModuleTabs";
-
-const tabs = [
-    { name: "Planejamento", href: "/app/producao/planejamento" },
-    { name: "Ordens", href: "/app/producao/ordens" },
-    { name: "Fichas Técnicas", href: "/app/producao/fichas-tecnicas" },
-    { name: "Apontamentos", href: "/app/producao/apontamentos" },
-    { name: "Setores de Produção", href: "/app/producao/setores" },
-];
+import { usePathname } from "next/navigation";
+import { PcpModuleTabs } from "@/components/pcp/PcpModuleTabs";
 
 export default function PcpLayout({ children }: { children: ReactNode }) {
+    const pathname = usePathname();
+    const pagesWithInlineTabs = [
+        "/app/producao/ordens",
+        "/app/producao/fichas-tecnicas",
+        "/app/producao/apontamentos",
+    ];
+    const hideGlobalTabs = pagesWithInlineTabs.some(
+        (basePath) => pathname === basePath || pathname.startsWith(`${basePath}/`)
+    );
+
     return (
         <div className="h-full w-full flex flex-col">
-            <div className="px-6 pt-4 border-b border-gray-200 bg-white">
-                <ModuleTabs items={tabs} />
-            </div>
+            {!hideGlobalTabs && (
+                <div className="px-6 pt-4 border-b border-gray-200 bg-white">
+                    <PcpModuleTabs />
+                </div>
+            )}
             <div className="flex-1 min-h-0">
                 {children}
             </div>
