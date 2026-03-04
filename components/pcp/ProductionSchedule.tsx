@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/Badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog"
 import { Input } from "@/components/ui/Input"
 import { Textarea } from "@/components/ui/Textarea"
-import { Calendar as CalendarIcon, Plus, GripVertical, Play, CheckCircle2, XCircle, AlertTriangle, Pencil, Copy } from "lucide-react"
+import { Calendar as CalendarIcon, Plus, GripVertical, Play, CheckCircle2, XCircle, AlertTriangle, Pencil, Copy, ArrowUp } from "lucide-react"
 import { cn, todayInBrasilia, toDateInputValue } from "@/lib/utils"
 import {
     DndContext,
@@ -37,14 +37,20 @@ import {
     computeWorkOrderMovePatch,
     parseProductionDropId,
 } from "@/lib/pcp/production-schedule-dnd"
+import {
+    allocateOrdersWithCapacity,
+    moveQueueCardBefore,
+    sortUnscheduledQueueByEmission,
+} from "@/lib/pcp/production-overflow"
 
 interface WorkOrder {
     id: string
     document_number: number | null
+    created_at: string
     planned_qty: number
     produced_qty: number
     status: 'planned' | 'in_progress' | 'done' | 'cancelled'
-    scheduled_date: string
+    scheduled_date: string | null
     notes?: string
     sector_id: string | null
     parent_work_order_id: string | null
@@ -109,6 +115,20 @@ interface LaneDayStats {
     state: 'OK' | 'NEAR_LIMIT' | 'EXCEEDED' | 'PARTIAL'
 }
 
+interface DisplayOrderCard {
+    cardId: string
+    sourceOrderId: string
+    order: WorkOrder
+    scheduledDate: string
+    plannedQty: number
+    recipeMetrics: RecipeCountWithFallbackResult
+    allocatedRecipes: number | null
+    totalRecipes: number | null
+    isSplit: boolean
+    startsFromPreviousDay: boolean
+    continuesToNextDay: boolean
+}
+
 interface WorkOrderLink {
     id: string
     document_number: number | null
@@ -132,6 +152,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
     const [inconsistentOrders, setInconsistentOrders] = useState<Set<string>>(new Set())
     const [sectors, setSectors] = useState<SectorFilterOption[]>([])
     const [profileBatchByItemId, setProfileBatchByItemId] = useState<Record<string, number | null>>({})
+    const [unscheduledOrderIds, setUnscheduledOrderIds] = useState<string[]>([])
 
     // Drag State
     const [activeId, setActiveId] = useState<string | null>(null)
@@ -162,6 +183,9 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
         return weekDays
     }, [startDate])
 
+    const dayRange = useMemo(() => days.map((dateObj) => toDateInputValue(dateObj)), [days])
+    const unscheduledQueueStorageKey = selectedCompany ? `pcp-unscheduled-queue:${selectedCompany.id}` : null
+
     const fetchOrders = async () => {
         if (!selectedCompany) return
         setLoading(true)
@@ -175,6 +199,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                 .select(`
                     id,
                     document_number,
+                    created_at,
                     planned_qty,
                     produced_qty,
                     status,
@@ -187,13 +212,13 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                     sector:production_sectors(id, name, code, capacity_recipes)
                 `)
                 .eq('company_id', selectedCompany.id)
-                .gte('scheduled_date', startStr)
-                .lte('scheduled_date', endStr)
                 .is('deleted_at', null)
 
             if (!showDone) {
                 query = query.neq('status', 'done').neq('status', 'cancelled')
             }
+
+            query = query.or(`and(scheduled_date.gte.${startStr},scheduled_date.lte.${endStr}),scheduled_date.is.null`)
 
             const [{ data, error }, { data: sectorsData, error: sectorsError }] = await Promise.all([
                 query,
@@ -265,6 +290,40 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
         fetchOrders()
     }, [startDate, selectedCompany, showDone])
 
+    useEffect(() => {
+        if (!unscheduledQueueStorageKey || typeof window === 'undefined') {
+            return
+        }
+
+        try {
+            const raw = window.localStorage.getItem(unscheduledQueueStorageKey)
+            if (!raw) {
+                setUnscheduledOrderIds([])
+                return
+            }
+
+            const parsed = JSON.parse(raw) as unknown
+            if (!Array.isArray(parsed)) {
+                setUnscheduledOrderIds([])
+                return
+            }
+
+            const ids = parsed.filter((value): value is string => typeof value === 'string')
+            setUnscheduledOrderIds(ids)
+        } catch (error) {
+            console.error('Falha ao carregar fila sem agendamento:', error)
+            setUnscheduledOrderIds([])
+        }
+    }, [unscheduledQueueStorageKey])
+
+    useEffect(() => {
+        if (!unscheduledQueueStorageKey || typeof window === 'undefined') {
+            return
+        }
+
+        window.localStorage.setItem(unscheduledQueueStorageKey, JSON.stringify(unscheduledOrderIds))
+    }, [unscheduledOrderIds, unscheduledQueueStorageKey])
+
     const lanes = useMemo<ProductionLane[]>(() => {
         const activeLanes: ProductionLane[] = sectors.map((sector) => ({
             key: sector.id,
@@ -298,7 +357,8 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
             }
         }
 
-        const hasUnassigned = orders.some((order) => order.sector_id === null)
+        const dayRangeSet = new Set(dayRange)
+        const hasUnassigned = orders.some((order) => order.sector_id === null && order.scheduled_date !== null && dayRangeSet.has(order.scheduled_date))
         const unassignedLane: ProductionLane[] = hasUnassigned
             ? [{
                 key: 'unassigned',
@@ -313,7 +373,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
             : []
 
         return [...activeLanes, ...inactiveLanesMap.values(), ...unassignedLane]
-    }, [orders, sectors])
+    }, [dayRange, orders, sectors])
 
     const recipeByOrderId = useMemo(() => {
         const map = new Map<string, RecipeCountWithFallbackResult>()
@@ -328,47 +388,79 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
         return map
     }, [orders, profileBatchByItemId])
 
-    const ordersByLaneDay = useMemo(() => {
-        const map = new Map<string, WorkOrder[]>()
-        for (const order of orders) {
-            const key = buildProductionDropId({
-                sectorId: order.sector_id,
-                scheduledDate: order.scheduled_date,
+    const displayCardsByLaneDay = useMemo(() => {
+        const map = new Map<string, DisplayOrderCard[]>()
+        const orderById = new Map(orders.map((order) => [order.id, order]))
+
+        for (const lane of lanes) {
+            const laneOrders = orders.filter((order) => order.sector_id === lane.sectorId && order.scheduled_date !== null)
+            const overflowCards = allocateOrdersWithCapacity({
+                dayRange,
+                capacityRecipes: lane.capacityRecipes,
+                orders: laneOrders.map((order) => ({
+                    id: order.id,
+                    scheduledDate: order.scheduled_date,
+                    documentNumber: order.document_number,
+                    createdAt: order.created_at,
+                    plannedQty: order.planned_qty,
+                    recipeMetrics: recipeByOrderId.get(order.id) ?? { kind: 'unknown' },
+                })),
             })
-            const bucket = map.get(key)
-            if (bucket) {
-                bucket.push(order)
-            } else {
-                map.set(key, [order])
+
+            for (const card of overflowCards) {
+                const sourceOrder = orderById.get(card.orderId)
+                if (!sourceOrder) {
+                    continue
+                }
+
+                const key = buildProductionDropId({
+                    sectorId: lane.sectorId,
+                    scheduledDate: card.scheduledDate,
+                })
+                const bucket = map.get(key) ?? []
+                bucket.push({
+                    cardId: card.cardId,
+                    sourceOrderId: sourceOrder.id,
+                    order: sourceOrder,
+                    scheduledDate: card.scheduledDate,
+                    plannedQty: card.allocatedPlannedQty,
+                    recipeMetrics: recipeByOrderId.get(sourceOrder.id) ?? { kind: 'unknown' },
+                    allocatedRecipes: card.allocatedRecipes,
+                    totalRecipes: card.totalRecipes,
+                    isSplit: card.isSplit,
+                    startsFromPreviousDay: card.startsFromPreviousDay,
+                    continuesToNextDay: card.continuesToNextDay,
+                })
+                map.set(key, bucket)
             }
         }
+
         return map
-    }, [orders])
+    }, [dayRange, lanes, orders, recipeByOrderId])
 
     const laneDayStats = useMemo(() => {
         const map = new Map<string, LaneDayStats>()
 
         for (const lane of lanes) {
-            for (const dateObj of days) {
-                const scheduledDate = toDateInputValue(dateObj)
+            for (const scheduledDate of dayRange) {
                 const key = buildProductionDropId({ sectorId: lane.sectorId, scheduledDate })
-                const laneOrders = ordersByLaneDay.get(key) ?? []
+                const displayCards = displayCardsByLaneDay.get(key) ?? []
 
                 let plannedRecipesKnown = 0
                 let indeterminateCount = 0
 
-                for (const order of laneOrders) {
-                    if (!['planned', 'in_progress'].includes(order.status)) {
+                for (const card of displayCards) {
+                    if (!['planned', 'in_progress'].includes(card.order.status)) {
                         continue
                     }
 
-                    const recipeMetrics = recipeByOrderId.get(order.id)
+                    const recipeMetrics = card.recipeMetrics
                     if (!recipeMetrics || recipeMetrics.kind === 'unknown') {
                         indeterminateCount += 1
                         continue
                     }
 
-                    plannedRecipesKnown += recipeMetrics.recipes
+                    plannedRecipesKnown += card.allocatedRecipes ?? recipeMetrics.recipes
                 }
 
                 const state = computeCapacityState({
@@ -388,7 +480,31 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
         }
 
         return map
-    }, [days, lanes, ordersByLaneDay, recipeByOrderId])
+    }, [dayRange, displayCardsByLaneDay, lanes])
+
+    const unscheduledQueue = useMemo(() => {
+        const unscheduledOrders = orders.filter((order) => order.scheduled_date === null)
+        return sortUnscheduledQueueByEmission(
+            unscheduledOrders.map((order) => ({
+                id: order.id,
+                documentNumber: order.document_number,
+                createdAt: order.created_at,
+                order,
+            })),
+            unscheduledOrderIds
+        ).map((entry) => entry.order)
+    }, [orders, unscheduledOrderIds])
+
+    useEffect(() => {
+        const currentIds = unscheduledQueue.map((order) => order.id)
+        const hasDifference =
+            currentIds.length !== unscheduledOrderIds.length ||
+            currentIds.some((id, index) => unscheduledOrderIds[index] !== id)
+
+        if (hasDifference) {
+            setUnscheduledOrderIds(currentIds)
+        }
+    }, [unscheduledQueue, unscheduledOrderIds])
 
 
     // --- Actions ---
@@ -406,13 +522,70 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
         if (!over) return
 
         const orderId = active.id as string
-        const target = parseProductionDropId(String(over.id))
+        const order = orders.find(o => o.id === orderId)
+        if (!order) return
+
+        const overId = String(over.id)
+        if (overId.startsWith('queue-before::') || overId === 'queue-list') {
+            if (order.scheduled_date !== null) {
+                toast({ title: "Bloqueado", description: "Somente OPs sem agendamento podem ser reordenadas na fila.", variant: "destructive" })
+                return
+            }
+
+            const targetOrderId = overId === 'queue-list' ? unscheduledQueue[unscheduledQueue.length - 1]?.id ?? orderId : overId.replace('queue-before::', '')
+            const nextQueueIds = moveQueueCardBefore({
+                currentOrderIds: unscheduledQueue.map((item) => item.id),
+                movingOrderId: orderId,
+                targetOrderId,
+            })
+            setUnscheduledOrderIds(nextQueueIds)
+            toast({ title: "Fila atualizada", description: "Ordem da fila sem agendamento atualizada." })
+            return
+        }
+
+        const target = parseProductionDropId(overId)
         if (!target) {
             return
         }
 
-        const order = orders.find(o => o.id === orderId)
-        if (!order) return
+        const currentScheduledDate = order.scheduled_date
+        if (!currentScheduledDate) {
+            if (order.status !== 'planned') {
+                toast({ title: "Bloqueado", description: "Apenas OPs planejadas podem ser agendadas.", variant: "destructive" })
+                return
+            }
+
+            const sectorById = new Map(
+                sectors.map((sector) => [sector.id, { id: sector.id, name: sector.name, code: sector.code }] as const)
+            )
+
+            const originalOrder = order
+            setOrders((previous) => previous.map((currentOrder) => {
+                if (currentOrder.id !== order.id) {
+                    return currentOrder
+                }
+                return {
+                    ...currentOrder,
+                    scheduled_date: target.scheduledDate,
+                    sector_id: target.sectorId,
+                    sector: target.sectorId ? (sectorById.get(target.sectorId) ?? currentOrder.sector) : null,
+                }
+            }))
+
+            try {
+                await updateWorkOrderAction(order.id, {
+                    scheduled_date: target.scheduledDate,
+                    sector_id: target.sectorId,
+                })
+                toast({ title: "Agendado", description: "OP adicionada na agenda semanal." })
+                if (onRefreshRequest) onRefreshRequest()
+            } catch (error) {
+                console.error(error)
+                setOrders((previous) => previous.map((currentOrder) => currentOrder.id === order.id ? originalOrder : currentOrder))
+                toast({ title: "Erro", description: "Falha ao agendar OP.", variant: "destructive" })
+            }
+            return
+        }
 
         let patch: { scheduledDate: string; sectorId: string | null } | null = null
         try {
@@ -420,7 +593,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                 {
                     id: order.id,
                     status: order.status,
-                    scheduledDate: order.scheduled_date,
+                    scheduledDate: currentScheduledDate,
                     sectorId: order.sector_id,
                 },
                 target
@@ -722,6 +895,27 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                     onDragEnd={handleDragEnd}
                 >
                     <div className="flex flex-col border-t border-gray-200">
+                        {unscheduledQueue.length > 0 && (
+                            <div className="border-b border-gray-200">
+                                <div className="px-3 py-2 bg-indigo-50/50 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="inline-flex items-center rounded-full border border-indigo-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+                                            FILA
+                                        </span>
+                                        <span className="text-sm font-semibold text-indigo-900">Sem agendamento</span>
+                                    </div>
+                                    <p className="text-xs text-indigo-700">Ordem por emissão. Arraste para mudar a prioridade.</p>
+                                </div>
+                                <UnscheduledQueue
+                                    orders={unscheduledQueue}
+                                    recipeByOrderId={recipeByOrderId}
+                                    inconsistentOrders={inconsistentOrders}
+                                    onOrderClick={handleOrderClick}
+                                    onDeleteClick={handleDeleteClick}
+                                />
+                            </div>
+                        )}
+
                         {lanes.length === 0 && !loading && (
                             <div className="px-4 py-8 text-sm text-gray-500">Nenhum setor ativo encontrado para exibir a agenda.</div>
                         )}
@@ -762,7 +956,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                                             sectorId: lane.sectorId,
                                             scheduledDate,
                                         })
-                                        const dayOrders = ordersByLaneDay.get(dropId) ?? []
+                                        const dayCards = displayCardsByLaneDay.get(dropId) ?? []
                                         const stats = laneDayStats.get(dropId) ?? {
                                             plannedRecipesKnown: 0,
                                             indeterminateCount: 0,
@@ -777,10 +971,9 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                                                 dropId={dropId}
                                                 dateObj={dateObj}
                                                 dateStr={scheduledDate}
-                                                orders={dayOrders}
+                                                cards={dayCards}
                                                 stats={stats}
                                                 lane={lane}
-                                                recipeByOrderId={recipeByOrderId}
                                                 onCreate={() => handleCreateClick(scheduledDate)}
                                                 onOrderClick={handleOrderClick}
                                                 onDeleteClick={handleDeleteClick}
@@ -1006,9 +1199,8 @@ function DroppableDay({
     dateObj,
     dateStr,
     lane,
-    orders,
+    cards,
     stats,
-    recipeByOrderId,
     onCreate,
     onOrderClick,
     onDeleteClick,
@@ -1018,9 +1210,8 @@ function DroppableDay({
     dateObj: Date
     dateStr: string
     lane: ProductionLane
-    orders: WorkOrder[]
+    cards: DisplayOrderCard[]
     stats: LaneDayStats
-    recipeByOrderId: Map<string, RecipeCountWithFallbackResult>
     onCreate: () => void
     onOrderClick: (o: WorkOrder) => void
     onDeleteClick: (id: string) => void
@@ -1081,18 +1272,24 @@ function DroppableDay({
             </div>
 
             <div className="flex flex-col gap-1.5 flex-1 relative">
-                {orders.map((order) => (
+                {cards.map((card) => (
                     <DraggableOrder
-                        key={order.id}
-                        order={order}
-                        recipeMetrics={recipeByOrderId.get(order.id)}
-                        onClick={() => onOrderClick(order)}
-                        onDelete={() => onDeleteClick(order.id)}
-                        isInconsistent={inconsistentOrders.has(order.id)}
+                        key={card.cardId}
+                        order={card.order}
+                        recipeMetrics={card.recipeMetrics}
+                        displayPlannedQty={card.plannedQty}
+                        displayRecipeCount={card.allocatedRecipes}
+                        isSplit={card.isSplit}
+                        startsFromPreviousDay={card.startsFromPreviousDay}
+                        continuesToNextDay={card.continuesToNextDay}
+                        disableDrag={card.isSplit}
+                        onClick={() => onOrderClick(card.order)}
+                        onDelete={() => onDeleteClick(card.order.id)}
+                        isInconsistent={inconsistentOrders.has(card.order.id)}
                     />
                 ))}
 
-                {orders.length === 0 && !isOver && (
+                {cards.length === 0 && !isOver && (
                     <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 text-[10px] text-slate-300 text-center italic pointer-events-none">
                         Sem OPs
                     </div>
@@ -1102,22 +1299,97 @@ function DroppableDay({
     )
 }
 
+function UnscheduledQueue({
+    orders,
+    recipeByOrderId,
+    inconsistentOrders,
+    onOrderClick,
+    onDeleteClick,
+}: {
+    orders: WorkOrder[]
+    recipeByOrderId: Map<string, RecipeCountWithFallbackResult>
+    inconsistentOrders: Set<string>
+    onOrderClick: (order: WorkOrder) => void
+    onDeleteClick: (orderId: string) => void
+}) {
+    const { setNodeRef } = useDroppable({ id: 'queue-list' })
+
+    return (
+        <div ref={setNodeRef} className="px-3 py-2 bg-white space-y-2">
+            {orders.map((order) => (
+                <QueueOrderRow
+                    key={order.id}
+                    order={order}
+                    recipeMetrics={recipeByOrderId.get(order.id)}
+                    isInconsistent={inconsistentOrders.has(order.id)}
+                    onClick={() => onOrderClick(order)}
+                    onDelete={() => onDeleteClick(order.id)}
+                />
+            ))}
+        </div>
+    )
+}
+
+function QueueOrderRow({
+    order,
+    recipeMetrics,
+    isInconsistent,
+    onClick,
+    onDelete,
+}: {
+    order: WorkOrder
+    recipeMetrics?: RecipeCountWithFallbackResult
+    isInconsistent?: boolean
+    onClick?: () => void
+    onDelete?: () => void
+}) {
+    const dropId = `queue-before::${order.id}`
+    const { isOver, setNodeRef } = useDroppable({ id: dropId })
+
+    return (
+        <div ref={setNodeRef} className={cn(isOver ? 'ring-2 ring-indigo-300 rounded-2xl' : '')}>
+            <DraggableOrder
+                order={order}
+                recipeMetrics={recipeMetrics}
+                isInconsistent={isInconsistent}
+                onClick={onClick}
+                onDelete={onDelete}
+                showQueueHint
+            />
+        </div>
+    )
+}
+
 function DraggableOrder({
     order,
     recipeMetrics,
+    displayPlannedQty,
+    displayRecipeCount,
+    isSplit,
+    startsFromPreviousDay,
+    continuesToNextDay,
+    disableDrag,
+    showQueueHint,
     onClick,
     onDelete,
     isInconsistent,
 }: {
     order: WorkOrder
     recipeMetrics?: RecipeCountWithFallbackResult
+    displayPlannedQty?: number
+    displayRecipeCount?: number | null
+    isSplit?: boolean
+    startsFromPreviousDay?: boolean
+    continuesToNextDay?: boolean
+    disableDrag?: boolean
+    showQueueHint?: boolean
     onClick?: () => void
     onDelete?: () => void
     isInconsistent?: boolean
 }) {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-        id: order.id,
-        disabled: order.status !== 'planned' // Only planned can be dragged
+        id: disableDrag ? `${order.id}::locked` : order.id,
+        disabled: order.status !== 'planned' || Boolean(disableDrag)
     })
 
     const style = transform ? {
@@ -1128,7 +1400,17 @@ function DraggableOrder({
     if (isDragging) {
         return (
             <div ref={setNodeRef} style={style} className="opacity-50">
-                <OrderCard order={order} recipeMetrics={recipeMetrics} isInconsistent={isInconsistent} />
+                <OrderCard
+                    order={order}
+                    recipeMetrics={recipeMetrics}
+                    displayPlannedQty={displayPlannedQty}
+                    displayRecipeCount={displayRecipeCount}
+                    isSplit={isSplit}
+                    startsFromPreviousDay={startsFromPreviousDay}
+                    continuesToNextDay={continuesToNextDay}
+                    showQueueHint={showQueueHint}
+                    isInconsistent={isInconsistent}
+                />
             </div>
         )
     }
@@ -1138,6 +1420,12 @@ function DraggableOrder({
             <OrderCard
                 order={order}
                 recipeMetrics={recipeMetrics}
+                displayPlannedQty={displayPlannedQty}
+                displayRecipeCount={displayRecipeCount}
+                isSplit={isSplit}
+                startsFromPreviousDay={startsFromPreviousDay}
+                continuesToNextDay={continuesToNextDay}
+                showQueueHint={showQueueHint}
                 onClick={onClick}
                 onDelete={onDelete}
                 isInconsistent={isInconsistent}
@@ -1149,6 +1437,12 @@ function DraggableOrder({
 function OrderCard({
     order,
     recipeMetrics,
+    displayPlannedQty,
+    displayRecipeCount,
+    isSplit,
+    startsFromPreviousDay,
+    continuesToNextDay,
+    showQueueHint,
     isOverlay,
     onClick,
     onDelete,
@@ -1156,6 +1450,12 @@ function OrderCard({
 }: {
     order: WorkOrder
     recipeMetrics?: RecipeCountWithFallbackResult
+    displayPlannedQty?: number
+    displayRecipeCount?: number | null
+    isSplit?: boolean
+    startsFromPreviousDay?: boolean
+    continuesToNextDay?: boolean
+    showQueueHint?: boolean
     isOverlay?: boolean
     onClick?: () => void
     onDelete?: () => void
@@ -1185,13 +1485,28 @@ function OrderCard({
             <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
                 {order.sector && <span className="inline-flex rounded-full bg-slate-100 px-1.5 py-0.5">{order.sector.code}</span>}
                 {order.parent_work_order_id && <span className="inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-700">Filha</span>}
+                {showQueueHint && (
+                    <span className="inline-flex rounded-full bg-indigo-50 px-1.5 py-0.5 text-indigo-700">
+                        Fila
+                    </span>
+                )}
                 {recipeMetrics?.kind === 'unknown' && (
                     <span className="inline-flex rounded-full bg-slate-100 px-1.5 py-0.5 text-slate-600">Receita indeterminada</span>
                 )}
+                {isSplit && (
+                    <span className="inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-700">
+                        {startsFromPreviousDay ? 'Continuação' : 'Dividida'}
+                    </span>
+                )}
             </div>
             <div className="flex justify-between items-center text-[10px] text-slate-500 mt-1">
-                <span>{order.planned_qty} {order.item.uom}</span>
-                <span className="font-medium text-slate-600">{recipeLabel}</span>
+                <span>{displayPlannedQty ?? order.planned_qty} {order.item.uom}</span>
+                <span className="font-medium text-slate-600">
+                    {displayRecipeCount !== undefined && displayRecipeCount !== null
+                        ? formatRecipeCountLabel(displayRecipeCount)
+                        : recipeLabel}
+                    {continuesToNextDay ? ' +' : ''}
+                </span>
                 <div className="flex gap-1 items-center">
                     {isInconsistent && (
                         <Badge variant="outline" className="text-[8px] h-4 px-1 border-red-500 text-red-700 bg-red-50 font-bold">
@@ -1220,7 +1535,8 @@ function OrderCard({
                             <XCircle className="w-3.5 h-3.5" />
                         </button>
                     )}
-                    {order.status === 'planned' && <GripVertical className="w-3 h-3 text-slate-300" />}
+                    {order.status === 'planned' && !isSplit && <GripVertical className="w-3 h-3 text-slate-300" />}
+                    {showQueueHint && order.status === 'planned' && <ArrowUp className="w-3 h-3 text-indigo-400" />}
                 </div>
             </div>
         </div>
