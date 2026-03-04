@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveCompanyContext } from "@/lib/auth/resolve-company";
 import { generatePdfFromHtml } from "@/lib/print/pdf-generator";
-import { renderInventoryCountA4Html, renderInventoryCountPdfHeaderTemplate } from "@/lib/templates/print/inventory-count-a4";
+import { renderInventoryCountA4Html } from "@/lib/templates/print/inventory-count-a4";
 import { getInventoryCountPrintData } from "@/lib/inventory/inventory-counts";
 import { resolveCompanyLogoDataUri } from "@/lib/fiscal/nfe/logo-resolver";
 import { logger } from "@/lib/logger";
@@ -88,27 +88,13 @@ export async function GET(
       inventory: printData,
     });
 
-    const headerTemplate = renderInventoryCountPdfHeaderTemplate({
-      company: {
-        legalName: settings?.legal_name || settings?.trade_name || "EMPRESA",
-        tradeName: settings?.trade_name || null,
-        document: settings?.cnpj || null,
-        streetLine: addressLines.streetLine,
-        cityStateLine: addressLines.cityStateLine,
-        logoUrl: logoDataUri ?? null,
-      },
-      inventory: printData,
-    });
-
     const pdfBuffer = await generatePdfFromHtml(html, {
-      displayHeaderFooter: true,
-      headerTemplate,
-      footerTemplate: "<div></div>",
+      displayHeaderFooter: false,
       margin: {
-        top: "145px",
-        bottom: "20px",
-        left: "20px",
-        right: "20px",
+        top: "0",
+        bottom: "0",
+        left: "0",
+        right: "0",
       },
     });
     const number = printData.number ?? 0;
@@ -118,6 +104,7 @@ export async function GET(
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `inline; filename="${fileName}"`,
+        "Cache-Control": "no-store, max-age=0",
       },
     });
   } catch (error) {
