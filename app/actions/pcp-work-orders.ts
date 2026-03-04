@@ -21,7 +21,7 @@ export interface CreateWorkOrderWithDependenciesActionInput {
   plannedQty: number
   scheduledDate: string
   notes?: string | null
-  parentSectorId?: string | null
+  parentSectorId: string
   dependencySelections?: WorkOrderDependencySelectionInput[]
 }
 
@@ -46,6 +46,11 @@ export async function previewWorkOrderDependenciesAction(
 export async function createWorkOrderWithDependenciesAction(
   input: CreateWorkOrderWithDependenciesActionInput
 ): Promise<CreateWorkOrderWithDependenciesResult> {
+  const parentSectorId = input.parentSectorId?.trim()
+  if (!parentSectorId) {
+    throw new Error('Selecione um setor de produção ativo para criar a OP.')
+  }
+
   const companyId = await getActiveCompanyId()
   const supabase = await createClient()
 
@@ -61,7 +66,7 @@ export async function createWorkOrderWithDependenciesAction(
     plannedQty: input.plannedQty,
     scheduledDate: input.scheduledDate,
     notes: input.notes,
-    parentSectorId: input.parentSectorId,
+    parentSectorId,
     dependencySelections: input.dependencySelections,
   })
 }

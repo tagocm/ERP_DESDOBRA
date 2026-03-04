@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
     Dialog,
@@ -15,12 +15,15 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { Badge } from "@/components/ui/Badge"
 import { Input } from "@/components/ui/Input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/Select"
 import { ItemPlan, PlanningAlert, DailyPlan } from "@/lib/pcp/planning-service"
 import { createWorkOrderWithDependenciesAction } from "@/app/actions/pcp-work-orders"
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2, CheckCircle2, AlertTriangle, FileWarning, ExternalLink, Plus } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/Tabs"
 import { cn, formatDate } from "@/lib/utils"
+import { useCompany } from "@/contexts/CompanyContext"
+import { createClient } from "@/lib/supabaseBrowser"
 
 interface PlanningDayDrawerProps {
     isOpen: boolean
@@ -31,9 +34,84 @@ interface PlanningDayDrawerProps {
     onSuccess: () => void
 }
 
+interface SectorOption {
+    id: string
+    code: string
+    name: string
+}
+
+function normalizeText(value: string): string {
+    return value
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .trim()
+        .toUpperCase()
+}
+
+function resolveDefaultParentSectorId(sectors: SectorOption[]): string | null {
+    const envase = sectors.find((sector) => {
+        const code = normalizeText(sector.code)
+        const name = normalizeText(sector.name)
+        return code === 'ENVASE' || name.includes('ENVASE')
+    })
+
+    return envase?.id ?? sectors[0]?.id ?? null
+}
+
 export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [], onSuccess }: PlanningDayDrawerProps) {
+    const { selectedCompany } = useCompany()
+    const supabase = createClient()
     const { toast } = useToast()
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [sectors, setSectors] = useState<SectorOption[]>([])
+    const [isSectorsLoading, setIsSectorsLoading] = useState(false)
+    const [selectedParentSectorId, setSelectedParentSectorId] = useState<string>("")
+
+    useEffect(() => {
+        const loadSectors = async () => {
+            if (!isOpen || !selectedCompany) {
+                return
+            }
+
+            setIsSectorsLoading(true)
+            try {
+                const { data: sectorsData, error } = await supabase
+                    .from('production_sectors')
+                    .select('id, code, name')
+                    .eq('company_id', selectedCompany.id)
+                    .is('deleted_at', null)
+                    .eq('is_active', true)
+                    .order('name')
+
+                if (error) {
+                    throw error
+                }
+
+                const loadedSectors = (sectorsData ?? []) as SectorOption[]
+                setSectors(loadedSectors)
+
+                setSelectedParentSectorId((current) => {
+                    if (current && loadedSectors.some((sector) => sector.id === current)) {
+                        return current
+                    }
+
+                    const defaultSectorId = resolveDefaultParentSectorId(loadedSectors)
+                    return defaultSectorId ?? ""
+                })
+            } catch (error) {
+                console.error(error)
+                toast({
+                    title: "Erro",
+                    description: "Falha ao carregar setores de produção.",
+                    variant: "destructive",
+                })
+            } finally {
+                setIsSectorsLoading(false)
+            }
+        }
+
+        void loadSectors()
+    }, [isOpen, selectedCompany, supabase, toast])
 
     // Filter items that have shortage OR demand OR production on this day
     const dayItems = useMemo(() => {
@@ -66,6 +144,14 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
 
     const handleGenerateAll = async () => {
         if (!date) return
+        if (!selectedParentSectorId) {
+            toast({
+                title: "Setor obrigatório",
+                description: "Selecione um setor de produção ativo para criar a OP.",
+                variant: "destructive",
+            })
+            return
+        }
         if (itemsToProduce.length === 0) {
             toast({
                 title: "Nenhuma falta",
@@ -104,6 +190,7 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                         bomId: entry.bom_id!,
                         plannedQty: entry.qty,
                         scheduledDate: date,
+                        parentSectorId: selectedParentSectorId,
                         notes: `Origem: Planejamento do dia ${formatDate(date)}`,
                     })
                 )
@@ -186,6 +273,34 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                         </div>
 
                         <TabsContent value="production" className="flex-1 min-h-0 overflow-hidden p-0 m-0 data-[state=inactive]:hidden flex flex-col">
+                            <div className="flex-none px-6 py-4 border-b bg-white/90 backdrop-blur-sm">
+                                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,320px)_1fr] gap-4 items-end">
+                                    <div className="space-y-1">
+                                        <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                            Setor da OP (mãe)
+                                        </label>
+                                        <Select value={selectedParentSectorId} onValueChange={setSelectedParentSectorId}>
+                                            <SelectTrigger className="h-9 bg-white">
+                                                <SelectValue
+                                                    placeholder={isSectorsLoading ? "Carregando setores..." : "Selecione o setor..."}
+                                                />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {sectors.map((sector) => (
+                                                    <SelectItem key={sector.id} value={sector.id}>
+                                                        {sector.code} • {sector.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                        {selectedParentSectorId
+                                            ? "As OPs geradas neste dia usarão o setor selecionado na OP mãe."
+                                            : "Selecione um setor ativo para habilitar a geração de OPs."}
+                                    </div>
+                                </div>
+                            </div>
                             <ScrollArea className="flex-1 min-h-0">
                                 <Table>
                                     <TableHeader className="bg-gray-50/80 sticky top-0 z-10 backdrop-blur-sm ring-1 ring-gray-100">
@@ -312,6 +427,7 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                                                                 item={item}
                                                                 shortage={shortage}
                                                                 date={date}
+                                                                parentSectorId={selectedParentSectorId || null}
                                                                 onSuccess={onSuccess}
                                                             />
                                                         </TableCell>
@@ -350,7 +466,7 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                                     </Button>
                                     <Button
                                         onClick={handleGenerateAll}
-                                        disabled={isSubmitting || itemsToProduce.length === 0}
+                                        disabled={isSubmitting || itemsToProduce.length === 0 || !selectedParentSectorId}
                                         className="bg-amber-600 hover:bg-amber-700 text-white px-6 font-semibold"
                                     >
                                         {isSubmitting ? (
@@ -435,7 +551,19 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
     )
 }
 
-function SmartActionCell({ item, shortage, date, onSuccess }: { item: ItemPlan & { day?: DailyPlan }, shortage: number, date: string, onSuccess: () => void }) {
+function SmartActionCell({
+    item,
+    shortage,
+    date,
+    parentSectorId,
+    onSuccess,
+}: {
+    item: ItemPlan & { day?: DailyPlan }
+    shortage: number
+    date: string
+    parentSectorId: string | null
+    onSuccess: () => void
+}) {
     const [open, setOpen] = useState(false)
     const [qty, setQty] = useState(shortage > 0 ? shortage.toString() : "0")
     const [loading, setLoading] = useState(false)
@@ -445,6 +573,14 @@ function SmartActionCell({ item, shortage, date, onSuccess }: { item: ItemPlan &
         const val = parseFloat(qty)
         if (isNaN(val) || val <= 0) {
             toast({ title: "Valor inválido", description: "Informe uma quantidade maior que zero.", variant: "destructive" })
+            return
+        }
+        if (!parentSectorId) {
+            toast({
+                title: "Setor obrigatório",
+                description: "Selecione um setor de produção ativo para criar a OP.",
+                variant: "destructive",
+            })
             return
         }
         if (!item.day?.bom_id || !item.has_bom) {
@@ -463,6 +599,7 @@ function SmartActionCell({ item, shortage, date, onSuccess }: { item: ItemPlan &
                 bomId: item.day.bom_id,
                 plannedQty: val,
                 scheduledDate: date,
+                parentSectorId,
                 notes: `Origem: Planejamento do dia ${formatDate(date)}`,
             })
             toast({
@@ -493,7 +630,7 @@ function SmartActionCell({ item, shortage, date, onSuccess }: { item: ItemPlan &
                     <Button
                         size="sm"
                         variant="ghost"
-                        disabled={!item.has_bom || !item.day?.bom_id}
+                        disabled={!item.has_bom || !item.day?.bom_id || !parentSectorId}
                         className="h-8 text-xs border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium transition-all"
                     >
                         <Plus className="w-3 h-3 mr-1" /> Gerar OP

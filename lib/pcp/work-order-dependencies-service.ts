@@ -125,6 +125,14 @@ interface ChildWorkOrderRpcPayload {
   sector_id: string | null
 }
 
+interface ActiveSectorValidationInput {
+  activeSectors: Array<Pick<ProductionSectorRow, 'id' | 'code' | 'name'>>
+  parentSectorId: string | null | undefined
+  childSectorIds: string[]
+}
+
+type ActiveSectorValidationResult = { valid: true } | { valid: false; message: string }
+
 export function computeDependencyPreviewRow(
   input: DependencyPreviewComputationInput
 ): WorkOrderDependencyPreviewRow | null {
@@ -181,6 +189,10 @@ function resolveUom(item: Pick<ItemRow, 'uom'> & { uoms?: { abbrev: string } | n
   return item.uoms?.abbrev ?? item.uom ?? 'UN'
 }
 
+function isNonEmptyString(value: string | null | undefined): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
 function resolveParentSector(sectors: ProductionSectorRow[]): ProductionSectorRow | null {
   const withNormalized = sectors.map((sector) => ({
     sector,
@@ -224,6 +236,37 @@ async function getActiveSectors(supabase: SupabaseDB, companyId: string): Promis
   }
 
   return data ?? []
+}
+
+export function validateActiveSectorIds(input: ActiveSectorValidationInput): ActiveSectorValidationResult {
+  const parentSectorId = input.parentSectorId?.trim() ?? ''
+  if (!parentSectorId) {
+    return {
+      valid: false,
+      message: 'Selecione um setor de produção ativo para criar a OP.',
+    }
+  }
+
+  const activeSectorIds = new Set(input.activeSectors.map((sector) => sector.id))
+  if (!activeSectorIds.has(parentSectorId)) {
+    return {
+      valid: false,
+      message: 'Selecione um setor de produção ativo para criar a OP.',
+    }
+  }
+
+  const invalidChildSectorIds = Array.from(new Set(input.childSectorIds)).filter(
+    (sectorId) => !activeSectorIds.has(sectorId)
+  )
+
+  if (invalidChildSectorIds.length > 0) {
+    return {
+      valid: false,
+      message: 'Uma ou mais OPs filhas possuem setor inválido ou inativo.',
+    }
+  }
+
+  return { valid: true }
 }
 
 async function getCurrentStockByItemIds(
@@ -530,6 +573,26 @@ export const workOrderDependenciesService = {
       throw new Error('Quantidade planejada deve ser maior que zero.')
     }
 
+    const activeSectors = await getActiveSectors(supabase, input.companyId)
+    const explicitChildSectorIds = (input.dependencySelections ?? []).flatMap((selection) => {
+      if (selection.generateChild && isNonEmptyString(selection.sectorId)) {
+        return [selection.sectorId]
+      }
+      return []
+    })
+
+    const validation = validateActiveSectorIds({
+      activeSectors,
+      parentSectorId: input.parentSectorId,
+      childSectorIds: explicitChildSectorIds,
+    })
+    if (!validation.valid) {
+      throw new Error(validation.message)
+    }
+
+    const activeSectorIds = new Set(activeSectors.map((sector) => sector.id))
+    const normalizedParentSectorId = input.parentSectorId?.trim() ?? ''
+
     const preview = await this.preview(supabase, input.companyId, {
       itemId: input.itemId,
       bomId: input.bomId,
@@ -547,13 +610,21 @@ export const workOrderDependenciesService = {
       })
       .map((dependency) => {
         const selection = selectionMap.get(dependency.componentItemId)
+        const resolvedChildSectorId = selection?.sectorId ?? dependency.suggestedSectorId
+        if (!resolvedChildSectorId) {
+          throw new Error(`Selecione um setor de produção ativo para a OP filha de ${dependency.componentName}.`)
+        }
+        if (!activeSectorIds.has(resolvedChildSectorId)) {
+          throw new Error(`Setor inválido ou inativo para a OP filha de ${dependency.componentName}.`)
+        }
+
         return {
           item_id: dependency.componentItemId,
           bom_id: dependency.childBomId,
           planned_qty: dependency.suggestedPlannedQty,
           scheduled_date: input.scheduledDate,
           notes: selection?.notes ?? null,
-          sector_id: selection?.sectorId ?? dependency.suggestedSectorId,
+          sector_id: resolvedChildSectorId,
         }
       })
 
@@ -564,7 +635,7 @@ export const workOrderDependenciesService = {
       p_parent_planned_qty: input.plannedQty,
       p_parent_scheduled_date: input.scheduledDate,
       p_parent_notes: input.notes ?? undefined,
-      p_parent_sector_id: input.parentSectorId ?? preview.suggestedParentSectorId ?? undefined,
+      p_parent_sector_id: normalizedParentSectorId,
       p_children: childrenPayload,
     })
 

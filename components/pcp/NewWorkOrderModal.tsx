@@ -252,6 +252,15 @@ export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate }: N
   const ensureFormValid = (): number | null => {
     const parsedQty = Number(plannedQty)
 
+    if (!selectedSectorId) {
+      toast({
+        title: 'Setor obrigatório',
+        description: 'Selecione um setor de produção ativo para criar a OP.',
+        variant: 'destructive',
+      })
+      return null
+    }
+
     if (!selectedProduct || !selectedBom || !scheduledDate || !Number.isFinite(parsedQty) || parsedQty <= 0) {
       toast({
         title: 'Inválido',
@@ -278,7 +287,7 @@ export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate }: N
         plannedQty: parsedQty,
         scheduledDate,
         notes: notes || null,
-        parentSectorId: selectedSectorId || null,
+        parentSectorId: selectedSectorId,
         dependencySelections: selectionList,
       })
 
@@ -522,7 +531,7 @@ export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate }: N
             <Button variant="outline" onClick={handleClose}>
               Cancelar
             </Button>
-            <Button onClick={handleContinue} disabled={isSubmitting || isPreviewing || !selectedBom}>
+            <Button onClick={handleContinue} disabled={isSubmitting || isPreviewing || !selectedBom || sectors.length === 0}>
               {(isSubmitting || isPreviewing) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Continuar
             </Button>
