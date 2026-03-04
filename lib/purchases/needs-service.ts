@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/supabase';
 
 export type PurchaseNeedItem = {
     item_id: string;
@@ -22,12 +23,92 @@ export type GetPurchaseNeedsParams = {
     includePackaging: boolean;
 };
 
+type DbClient = SupabaseClient<Database>;
+
+type ItemSummary = {
+    id: string;
+    name: string;
+    sku: string | null;
+    type: string;
+    uom: string | null;
+};
+
+type WorkOrderRow = {
+    id: string;
+    item_id: string;
+    bom_id: string | null;
+    parent_work_order_id: string | null;
+    planned_qty: number | null;
+    produced_qty: number | null;
+    scheduled_date: string | null;
+    item: {
+        id: string;
+        type: string;
+        name: string;
+    } | {
+        id: string;
+        type: string;
+        name: string;
+    }[] | null;
+};
+
+type ProductionProfile = {
+    item_id: string;
+    is_produced: boolean | null;
+    default_bom_id: string | null;
+};
+
+type ActiveBomRow = {
+    id: string;
+    item_id: string;
+    version: number;
+    yield_qty: number | null;
+};
+
+type BomLineRow = {
+    component_item_id: string;
+    qty: number | null;
+};
+
+type BomStructure = {
+    id: string;
+    item_id: string;
+    yield_qty: number | null;
+    bom_lines: BomLineRow[] | null;
+};
+
+type InventoryProfile = {
+    item_id: string;
+    min_stock: number | null;
+    reorder_point: number | null;
+};
+
+type StockMovement = {
+    item_id: string;
+    qty_in: number | null;
+    qty_out: number | null;
+};
+
+function singleRelation<T>(value: T | T[] | null): T | null {
+    if (!value) return null;
+    return Array.isArray(value) ? (value[0] ?? null) : value;
+}
+
+function groupBomLines(lines: BomLineRow[] | null | undefined): Map<string, number> {
+    const grouped = new Map<string, number>();
+    for (const line of lines ?? []) {
+        const current = grouped.get(line.component_item_id) || 0;
+        grouped.set(line.component_item_id, current + Number(line.qty || 0));
+    }
+    return grouped;
+}
+
 /**
  * Calculates purchasing needs based on production plan (Work Orders) and BOMs.
  * Only reads data, calculation on the fly.
  */
 export async function getPurchaseNeeds(
-    supabase: SupabaseClient,
+    supabase: DbClient,
     {
         companyId,
         startDate,
@@ -47,19 +128,18 @@ export async function getPurchaseNeeds(
     const endDateIso = endDate.toISOString().slice(0, 10);
 
     // 1. Fetch relevant Work Orders
-    // Include planned/in_progress orders for produced items (finished_good + wip).
-    // This ensures purchase needs are computed both for parent OPs and dependent WIP OPs.
     const { data: workOrders, error: woError } = await supabase
         .from('work_orders')
         .select(`
             id,
             item_id,
             bom_id,
+            parent_work_order_id,
             planned_qty,
             produced_qty,
             status,
             scheduled_date,
-            items!inner (
+            item:items!inner (
                 id,
                 type,
                 name
@@ -86,117 +166,191 @@ export async function getPurchaseNeeds(
     console.log(`[NeedsService] Found ${workOrders.length} work orders.`);
 
     // 2. Resolve BOMs
-    const distinctItemIds = Array.from(new Set(workOrders.map((wo) => wo.item_id)));
-
-    const { data: prodProfiles } = await supabase
-        .from('item_production_profiles')
-        .select('item_id, default_bom_id')
-        .eq('company_id', companyId)
-        .in('item_id', distinctItemIds);
-
-    const profileMap = new Map<string, string>();
-    prodProfiles?.forEach((p) => {
-        if (p.default_bom_id) profileMap.set(p.item_id, p.default_bom_id);
-    });
-
-    const { data: bomHeadersRaw } = await supabase
-        .from('bom_headers')
-        .select('id, item_id, version, yield_qty, is_active')
-        .eq('company_id', companyId)
-        .eq('is_active', true)
-        .in('item_id', distinctItemIds)
-        .order('version', { ascending: false });
-
-    const latestBomMap = new Map<string, any>();
-    bomHeadersRaw?.forEach((bom) => {
-        if (!latestBomMap.has(bom.item_id)) {
-            latestBomMap.set(bom.item_id, bom);
-        }
-    });
-
-    const bomIdsToFetchLines = new Set<string>();
-    const woBOMMap = new Map<string, string>();
-
-    for (const wo of workOrders) {
-        let bomId = wo.bom_id;
-        if (!bomId) {
-            bomId = profileMap.get(wo.item_id) || null;
-        }
-        if (!bomId) {
-            const latest = latestBomMap.get(wo.item_id);
-            if (latest) bomId = latest.id;
-        }
-
-        if (bomId) {
-            bomIdsToFetchLines.add(bomId);
-            woBOMMap.set(wo.id, bomId);
-        }
-    }
-
-    if (bomIdsToFetchLines.size === 0) {
-        return [];
-    }
-
-    // 3. Fetch BOM Details
-    const { data: resolvedBomHeaders, error: bomError } = await supabase
-        .from('bom_headers')
-        .select(`
-            id, 
-            yield_qty,
-            bom_lines (
-                component_item_id,
-                qty
-            )
-        `)
-        .in('id', Array.from(bomIdsToFetchLines));
-
-    if (bomError) throw bomError;
-
-    const bomLookup = new Map<string, any>();
-    resolvedBomHeaders?.forEach((b) => bomLookup.set(b.id, b));
-
-    // 4. Calculate Forecast Consumption
     const forecastMap = new Map<string, number>();
+    const itemCache = new Map<string, ItemSummary>();
+    const profileCache = new Map<string, ProductionProfile | null>();
+    const activeBomByItemId = new Map<string, ActiveBomRow>();
+    const bomCache = new Map<string, BomStructure>();
 
-    for (const wo of workOrders) {
-        const bomId = woBOMMap.get(wo.id);
-        if (!bomId) continue;
+    const typedWorkOrders = (workOrders || []) as WorkOrderRow[];
+    const workOrderIdSet = new Set(typedWorkOrders.map((wo) => wo.id));
+    const rootWorkOrders = typedWorkOrders.filter(
+        (wo) => !(wo.parent_work_order_id && workOrderIdSet.has(wo.parent_work_order_id))
+    );
 
-        const bomStruct = bomLookup.get(bomId);
-        if (!bomStruct) continue;
+    const fetchItems = async (itemIds: string[]) => {
+        const idsToLoad = Array.from(new Set(itemIds)).filter((id) => !itemCache.has(id));
+        if (idsToLoad.length === 0) return;
 
-        const yieldQty = bomStruct.yield_qty || 1;
-        if (yieldQty <= 0) continue;
+        const { data, error } = await supabase
+            .from('items')
+            .select('id, name, sku, type, uom')
+            .eq('company_id', companyId)
+            .is('deleted_at', null)
+            .in('id', idsToLoad);
 
-        // Calculate remaining quantity to produce
-        // If status is in_progress, we assume produced_qty has consumed materials.
-        // We only forecast for the remainder.
-        const planned = wo.planned_qty || 0;
-        const produced = wo.produced_qty || 0;
+        if (error) throw error;
+
+        for (const item of (data || []) as ItemSummary[]) {
+            itemCache.set(item.id, item);
+        }
+    };
+
+    const fetchProfiles = async (itemIds: string[]) => {
+        const idsToLoad = Array.from(new Set(itemIds)).filter((id) => !profileCache.has(id));
+        if (idsToLoad.length === 0) return;
+
+        const { data, error } = await supabase
+            .from('item_production_profiles')
+            .select('item_id, is_produced, default_bom_id')
+            .eq('company_id', companyId)
+            .in('item_id', idsToLoad);
+
+        if (error) throw error;
+
+        const rows = (data || []) as ProductionProfile[];
+        const profileByItem = new Map(rows.map((row) => [row.item_id, row]));
+
+        for (const itemId of idsToLoad) {
+            profileCache.set(itemId, profileByItem.get(itemId) ?? null);
+        }
+    };
+
+    const fetchActiveBoms = async (itemIds: string[]) => {
+        const idsToLoad = Array.from(new Set(itemIds)).filter((id) => !activeBomByItemId.has(id));
+        if (idsToLoad.length === 0) return;
+
+        const { data, error } = await supabase
+            .from('bom_headers')
+            .select('id, item_id, version, yield_qty')
+            .eq('company_id', companyId)
+            .is('deleted_at', null)
+            .eq('is_active', true)
+            .in('item_id', idsToLoad)
+            .order('item_id', { ascending: true })
+            .order('version', { ascending: false });
+
+        if (error) throw error;
+
+        for (const bom of (data || []) as ActiveBomRow[]) {
+            if (!activeBomByItemId.has(bom.item_id)) {
+                activeBomByItemId.set(bom.item_id, bom);
+            }
+        }
+    };
+
+    const fetchBomStructures = async (bomIds: string[]) => {
+        const idsToLoad = Array.from(new Set(bomIds)).filter((id) => !bomCache.has(id));
+        if (idsToLoad.length === 0) return;
+
+        const { data, error } = await supabase
+            .from('bom_headers')
+            .select(`
+                id,
+                item_id,
+                yield_qty,
+                bom_lines(
+                    component_item_id,
+                    qty
+                )
+            `)
+            .eq('company_id', companyId)
+            .is('deleted_at', null)
+            .in('id', idsToLoad);
+
+        if (error) throw error;
+
+        for (const row of (data || []) as BomStructure[]) {
+            bomCache.set(row.id, row);
+        }
+    };
+
+    const resolveBomId = async (itemId: string, explicitBomId?: string | null) => {
+        if (explicitBomId) {
+            await fetchBomStructures([explicitBomId]);
+            if (bomCache.has(explicitBomId)) return explicitBomId;
+        }
+
+        await fetchProfiles([itemId]);
+        const profile = profileCache.get(itemId);
+
+        if (profile?.default_bom_id) {
+            await fetchBomStructures([profile.default_bom_id]);
+            if (bomCache.has(profile.default_bom_id)) return profile.default_bom_id;
+        }
+
+        await fetchActiveBoms([itemId]);
+        const active = activeBomByItemId.get(itemId);
+        if (!active) return null;
+
+        await fetchBomStructures([active.id]);
+        return bomCache.has(active.id) ? active.id : null;
+    };
+
+    const accumulateLeafNeed = (itemId: string, qty: number) => {
+        if (qty <= 0) return;
+        const current = forecastMap.get(itemId) || 0;
+        forecastMap.set(itemId, current + qty);
+    };
+
+    const explodeItemDemand = async (
+        itemId: string,
+        requiredQty: number,
+        trail: Set<string>,
+        explicitBomId?: string | null
+    ): Promise<void> => {
+        if (requiredQty <= 0) return;
+
+        if (trail.has(itemId)) {
+            console.warn('[NeedsService] BOM cycle detected, skipping branch.', { itemId, trail: Array.from(trail) });
+            return;
+        }
+
+        const bomId = await resolveBomId(itemId, explicitBomId);
+        if (!bomId) return;
+
+        const bom = bomCache.get(bomId);
+        if (!bom) return;
+
+        const yieldQty = Number(bom.yield_qty || 0);
+        if (yieldQty <= 0) return;
+
+        const grouped = groupBomLines(bom.bom_lines);
+        if (grouped.size === 0) return;
+
+        const nextTrail = new Set(trail);
+        nextTrail.add(itemId);
+
+        for (const [componentId, qtyPerBom] of grouped.entries()) {
+            const componentQty = (requiredQty / yieldQty) * qtyPerBom;
+            if (componentQty <= 0) continue;
+
+            await fetchItems([componentId]);
+            const component = itemCache.get(componentId);
+            if (!component) continue;
+
+            if (component.type === 'raw_material' || component.type === 'packaging') {
+                accumulateLeafNeed(componentId, componentQty);
+                continue;
+            }
+
+            await fetchProfiles([componentId]);
+            const profile = profileCache.get(componentId);
+
+            if (profile?.is_produced) {
+                await explodeItemDemand(componentId, componentQty, nextTrail, null);
+            }
+        }
+    };
+
+    // Calculate forecast by exploding BOM from each root work order.
+    for (const wo of rootWorkOrders) {
+        const planned = Number(wo.planned_qty || 0);
+        const produced = Number(wo.produced_qty || 0);
         const remaining = Math.max(0, planned - produced);
-
         if (remaining <= 0) continue;
 
-        const multiplier = remaining / yieldQty;
-
-        if (bomStruct.bom_lines) {
-            // Group BOM lines by component_item_id to handle duplicates
-            // This prevents overcounting when a BOM has multiple lines for the same component
-            const groupedComponents = new Map<string, number>();
-
-            for (const line of bomStruct.bom_lines) {
-                const componentId = line.component_item_id;
-                const currentQty = groupedComponents.get(componentId) || 0;
-                groupedComponents.set(componentId, currentQty + (line.qty || 0));
-            }
-
-            // Calculate consumption using grouped components
-            for (const [componentId, totalQty] of groupedComponents.entries()) {
-                const totalNeeded = totalQty * multiplier;
-                const current = forecastMap.get(componentId) || 0;
-                forecastMap.set(componentId, current + totalNeeded);
-            }
-        }
+        await explodeItemDemand(wo.item_id, remaining, new Set<string>(), wo.bom_id);
     }
 
     if (forecastMap.size === 0) {
@@ -233,8 +387,8 @@ export async function getPurchaseNeeds(
         .eq('company_id', companyId)
         .in('item_id', validComponentIds);
 
-    const profileLookup = new Map<string, any>();
-    invProfiles?.forEach((p) => profileLookup.set(p.item_id, p));
+    const profileLookup = new Map<string, InventoryProfile>();
+    (invProfiles || []).forEach((p) => profileLookup.set(p.item_id, p as InventoryProfile));
 
     // Calculate Stock Balance Manually: SUM(qty_in) - SUM(qty_out)
     const { data: movements, error: movError } = await supabase
@@ -246,10 +400,11 @@ export async function getPurchaseNeeds(
     if (movError) throw movError;
 
     const stockMap = new Map<string, number>();
-    movements?.forEach(m => {
+    (movements || []).forEach((m) => {
+        const movement = m as StockMovement;
         const current = stockMap.get(m.item_id) || 0;
-        const balance = (m.qty_in || 0) - (m.qty_out || 0);
-        stockMap.set(m.item_id, current + balance);
+        const balance = (movement.qty_in || 0) - (movement.qty_out || 0);
+        stockMap.set(movement.item_id, current + balance);
     });
 
     // 7. Assemble Results
