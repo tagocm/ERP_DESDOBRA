@@ -1,34 +1,18 @@
-import { PageHeader } from "@/components/ui/PageHeader";
-import { ModuleTabs } from "@/components/app/ModuleTabs";
+"use client";
 
-const tabs = [
-    {
-        "name": "Movimentações",
-        "href": "/app/estoque/movimentacoes"
-    },
-    {
-        "name": "Inventários",
-        "href": "/app/estoque/inventarios"
-    },
-    {
-        "name": "Saldos",
-        "href": "/app/estoque/saldos"
-    }
-];
+import { InventoryModuleTabs } from "@/components/inventory/InventoryModuleTabs";
+import { ItemsListView } from "@/components/products/ItemsListView";
 
-export default function Page() {
-    return (
-        <div className="max-w-7xl mx-auto pb-10">
-            <PageHeader
-                title="Estoque"
-                subtitle="Gerencie suas operações."
-            >
-                <ModuleTabs items={tabs} />
-            </PageHeader>
-            <div className="p-10 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 min-h-96">
-                <h3 className="text-lg font-medium text-gray-900">Em construção</h3>
-                <p>O módulo <strong>Saldos</strong> estará disponível em breve.</p>
-            </div>
-        </div>
-    );
+export default function StockBalancesPage() {
+  return (
+    <ItemsListView
+      title="Saldos"
+      subtitle="Consulte saldos de produtos, materia-primas e insumos"
+      showCreateButton={false}
+      showActions={false}
+      paginationLabel="itens"
+      headerContent={<InventoryModuleTabs />}
+      showBalanceDateFilter
+    />
+  );
 }
