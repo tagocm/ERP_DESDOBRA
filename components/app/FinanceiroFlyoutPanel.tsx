@@ -13,7 +13,7 @@ interface FinanceiroFlyoutPanelProps {
 
 const menuItems = [
     {
-        name: "Aprovações (Em Rota)",
+        name: "Aprovação de Lançamentos",
         href: "/app/financeiro/aprovacoes",
         icon: CheckCircle
     },

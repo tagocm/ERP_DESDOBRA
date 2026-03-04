@@ -16,10 +16,16 @@ const menuItems = [
         name: "Ordens de Compra",
         href: "/app/compras/pedidos",
         icon: ShoppingBag,
-        newItem: {
-            name: "Nova Ordem de Compra",
-            href: "/app/compras/pedidos/novo"
-        }
+        subItems: [
+            {
+                name: "Nova Ordem de Compra",
+                href: "/app/compras/pedidos/novo"
+            },
+            {
+                name: "Necessidades de Compra",
+                href: "/app/compras/necessidades"
+            }
+        ]
     }
 ];
 
@@ -166,21 +172,23 @@ export function ComprasFlyoutPanel({ isOpen, onClose, anchorRef }: ComprasFlyout
                             </span>
                         </button>
 
-                        {/* Sub Item */}
-                        {item.newItem && (
+                        {/* Sub Items */}
+                        {item.subItems?.map((subItem, index) => (
                             <button
-                                onClick={() => handleNavigation(item.newItem!.href)}
+                                key={subItem.href}
+                                onClick={() => handleNavigation(subItem.href)}
                                 className={cn(
-                                    "flex w-full items-center rounded-2xl transition-colors mb-2 group/sub text-left px-2 py-1 hover:bg-gray-50",
+                                    "flex w-full items-center rounded-2xl transition-colors group/sub text-left px-2 py-1 hover:bg-gray-50",
+                                    index === item.subItems.length - 1 ? "mb-2" : "mb-0.5"
                                 )}
                             >
                                 <div className="w-5 shrink-0" />
                                 <CornerDownRight className="w-3.5 h-3.5 mr-2 text-gray-300 group-hover/sub:text-gray-500 transition-colors shrink-0" />
                                 <span className="text-[13px] text-gray-500 group-hover/sub:text-gray-800 font-normal truncate">
-                                    {item.newItem.name}
+                                    {subItem.name}
                                 </span>
                             </button>
-                        )}
+                        ))}
                     </div>
                 ))}
             </div>

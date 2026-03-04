@@ -25,12 +25,6 @@ const menuItems = [
         description: "Dados e configurações da organização"
     },
     {
-        name: "Minhas Preferências",
-        href: "?panel=preferences",
-        icon: Settings,
-        description: "Opções de exibição (Fuso, Moeda, etc.)"
-    },
-    {
         name: "Configurações do Sistema",
         href: "/app/configuracoes/preferencias",
         icon: Settings,
