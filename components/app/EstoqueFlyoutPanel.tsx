@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { ArrowLeftRight, PackageSearch } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { ArrowLeftRight, ClipboardCheck, PackageSearch } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface EstoqueFlyoutPanelProps {
@@ -18,11 +18,23 @@ const menuItems = [
         icon: ArrowLeftRight,
         description: "Entradas, Saídas e Ajustes"
     },
-    // Future items could be added here
+    {
+        name: "Inventários",
+        href: "/app/estoque/inventarios",
+        icon: ClipboardCheck,
+        description: "Contagem física e ajustes no ledger"
+    },
+    {
+        name: "Saldos",
+        href: "/app/estoque/saldos",
+        icon: PackageSearch,
+        description: "Consulta de estoque atual por item"
+    },
 ];
 
 export function EstoqueFlyoutPanel({ isOpen, onClose, anchorRef }: EstoqueFlyoutPanelProps) {
     const router = useRouter();
+    const pathname = usePathname();
     const panelRef = React.useRef<HTMLDivElement>(null);
     const [position, setPosition] = React.useState<{ top: number; left: number } | null>(null);
     const closeTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -136,7 +148,10 @@ export function EstoqueFlyoutPanel({ isOpen, onClose, anchorRef }: EstoqueFlyout
                     <button
                         key={item.href}
                         onClick={() => handleNavigation(item.href)}
-                        className="flex w-full items-center rounded-2xl transition-colors mb-0.5 group text-left px-2 py-2 hover:bg-gray-50"
+                        className={cn(
+                            "flex w-full items-center rounded-2xl transition-colors mb-0.5 group text-left px-2 py-2 hover:bg-gray-50",
+                            (pathname === item.href || pathname.startsWith(item.href + "/")) && "bg-gray-50"
+                        )}
                     >
                         <item.icon className="w-5 h-5 text-gray-500 group-hover:text-gray-900 transition-colors mr-3 shrink-0" />
                         <div className="flex flex-col flex-1 overflow-hidden">

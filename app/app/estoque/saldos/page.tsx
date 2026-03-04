@@ -7,8 +7,8 @@ const tabs = [
         "href": "/app/estoque/movimentacoes"
     },
     {
-        "name": "Inventário",
-        "href": "/app/estoque/inventario"
+        "name": "Inventários",
+        "href": "/app/estoque/inventarios"
     },
     {
         "name": "Saldos",
@@ -22,8 +22,9 @@ export default function Page() {
             <PageHeader
                 title="Estoque"
                 subtitle="Gerencie suas operações."
-                children={<ModuleTabs items={tabs} />}
-            />
+            >
+                <ModuleTabs items={tabs} />
+            </PageHeader>
             <div className="p-10 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center justify-center text-gray-400 min-h-96">
                 <h3 className="text-lg font-medium text-gray-900">Em construção</h3>
                 <p>O módulo <strong>Saldos</strong> estará disponível em breve.</p>

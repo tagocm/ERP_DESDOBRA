@@ -1,17 +1,23 @@
 "use client";
 
-import { useEffect, useState, Fragment } from "react";
+import { useCallback, useEffect, useState, Fragment } from "react";
+import { useSearchParams } from "next/navigation";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-    Search, Filter, Calendar as CalendarIcon,
-    ArrowUpCircle, ArrowDownCircle, AlertCircle, ChevronDown, ChevronRight,
-    Package, ArrowLeftRight, LayoutGrid
+    Search,
+    Calendar as CalendarIcon,
+    ArrowUpCircle,
+    ArrowDownCircle,
+    AlertCircle,
+    ChevronRight,
+    LayoutGrid,
 } from "lucide-react";
+import type { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/use-toast";
 
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -21,11 +27,13 @@ import { Badge } from "@/components/ui/Badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { InventoryMovementModal } from "@/components/inventory/InventoryMovementModal";
+import { InventoryModuleTabs } from "@/components/inventory/InventoryModuleTabs";
 import { inventoryService } from "@/lib/inventory-service";
 import { InventoryMovement } from "@/types/inventory";
 
 export default function InventoryMovementsPage() {
     const { toast } = useToast();
+    const searchParams = useSearchParams();
     // State
     const [movements, setMovements] = useState<InventoryMovement[]>([]);
     const [loading, setLoading] = useState(true);
@@ -34,25 +42,24 @@ export default function InventoryMovementsPage() {
     // Filters
     const [searchTerm, setSearchTerm] = useState("");
     const [typeFilter, setTypeFilter] = useState("ALL");
-    const [dateRange, setDateRange] = useState<{ from: Date, to: Date } | undefined>();
+    const [dateRange, setDateRange] = useState<DateRange | undefined>();
+    const referenceTypeFilter = searchParams.get("referenceType") ?? undefined;
+    const referenceIdFilter = searchParams.get("referenceId") ?? undefined;
 
     // Modal
     const [modalOpen, setModalOpen] = useState(false);
     const [modalType, setModalType] = useState<'ENTRADA' | 'SAIDA' | 'AJUSTE' | null>(null);
 
-    // Initial Load
-    useEffect(() => {
-        loadData();
-    }, [typeFilter, dateRange]);
-
-    const loadData = async () => {
+    const loadData = useCallback(async () => {
         setLoading(true);
         try {
             const data = await inventoryService.getMovements({
                 type: typeFilter,
                 startDate: dateRange?.from,
                 endDate: dateRange?.to,
-                search: searchTerm
+                search: searchTerm,
+                referenceType: referenceTypeFilter,
+                referenceId: referenceIdFilter,
             });
             setMovements(data);
         } catch (err) {
@@ -65,7 +72,12 @@ export default function InventoryMovementsPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [dateRange, referenceIdFilter, referenceTypeFilter, searchTerm, toast, typeFilter]);
+
+    // Initial Load
+    useEffect(() => {
+        void loadData();
+    }, [loadData]);
 
     const toggleRow = (id: string) => {
         const newSet = new Set(expandedRows);
@@ -92,21 +104,13 @@ export default function InventoryMovementsPage() {
         }
     };
 
-    const getIcon = (type: string) => {
-        switch (type) {
-            case 'ENTRADA': return <ArrowUpCircle className="w-4 h-4 text-green-600" />;
-            case 'SAIDA': return <ArrowDownCircle className="w-4 h-4 text-red-600" />;
-            case 'AJUSTE': return <AlertCircle className="w-4 h-4 text-sky-600" />;
-            default: return null;
-        }
-    };
-
     const getReferenceLabel = (type: string | null | undefined) => {
         if (!type) return '-';
         switch (type) {
             case 'AJUSTE_MANUAL': return 'Manual';
             case 'pedido': return 'Pedido';
             case 'delivery_item': return 'Entrega';
+            case 'inventory_count': return 'Inventário';
             default: return type;
         }
     };
@@ -150,7 +154,9 @@ export default function InventoryMovementsPage() {
                         </Button>
                     </div>
                 }
-            />
+            >
+                <InventoryModuleTabs />
+            </PageHeader>
 
             <div className="px-6 pb-8 space-y-6">
 
@@ -203,12 +209,18 @@ export default function InventoryMovementsPage() {
                                     initialFocus
                                     mode="range"
                                     defaultMonth={dateRange?.from}
-                                    selected={dateRange as any}
-                                    onSelect={setDateRange as any}
+                                    selected={dateRange}
+                                    onSelect={setDateRange}
                                     numberOfMonths={2}
                                 />
                             </PopoverContent>
                         </Popover>
+
+                        {referenceTypeFilter && referenceIdFilter && (
+                            <Badge className="bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-50">
+                                Filtro: {referenceTypeFilter} #{referenceIdFilter.slice(0, 8)}
+                            </Badge>
+                        )}
 
                         <div className="flex-1"></div>
                         {/* Right side filters can go here */}

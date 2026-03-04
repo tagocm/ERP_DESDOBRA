@@ -10,6 +10,8 @@ export const inventoryService = {
         type?: string;
         itemId?: string;
         search?: string;
+        referenceType?: string;
+        referenceId?: string;
     }) {
         let query = supabase
             .from('inventory_movements')
@@ -29,6 +31,14 @@ export const inventoryService = {
             query = query.eq('item_id', filters.itemId);
         }
 
+        if (filters?.referenceType) {
+            query = query.eq('reference_type', filters.referenceType);
+        }
+
+        if (filters?.referenceId) {
+            query = query.eq('reference_id', filters.referenceId);
+        }
+
         if (filters?.startDate) {
             query = query.gte('occurred_at', filters.startDate.toISOString());
         }
@@ -37,10 +47,12 @@ export const inventoryService = {
             query = query.lte('occurred_at', filters.endDate.toISOString());
         }
 
-        // Search logic (complex because it involves joins or multiple fields)
-        // For MVP, if search is present, we might need a different approach or just simple client side or specific logic.
-        // Supabase doesn't support complex OR across joined tables easily without Rpc or view.
-        // We will filter basic fields here or specific item match.
+        if (filters?.search) {
+            const term = filters.search.trim();
+            if (term) {
+                query = query.ilike('source_ref', `%${term}%`);
+            }
+        }
 
         const { data, error } = await query;
         if (error) throw error;
