@@ -4,9 +4,133 @@ import { renderOrderA4Html } from "@/lib/templates/print/order-a4";
 import { generatePdfFromHtml } from "@/lib/print/pdf-generator";
 import { logger } from '@/lib/logger';
 
-function resolveLoadedQuantity(routeOrder: any, item: any): number {
-    const baseQty = Number(item.quantity || 0);
-    const status = routeOrder.loading_status;
+interface DeliveryItemRow {
+    sales_document_item_id: string | null;
+    qty_delivered: number | null;
+}
+
+interface DeliveryRow {
+    status: string | null;
+    created_at: string | null;
+    updated_at: string | null;
+    items?: DeliveryItemRow[] | null;
+}
+
+interface SalesOrderItemRow {
+    id: string;
+    quantity: number | null;
+    unit_price: number | null;
+    total_amount: number | null;
+    notes?: string | null;
+    item_id?: string | null;
+    packaging?: { label?: string | null } | null;
+    product?: { uom?: string | null; un?: string | null } | null;
+    balance?: number;
+    delivered?: number;
+}
+
+interface RouteOrderPartialPayloadItem {
+    orderItemId?: string | null;
+    itemId?: string | null;
+    qtyLoaded?: number | null;
+}
+
+interface RouteOrderRow {
+    loading_status?: string | null;
+    partial_payload?: { items?: RouteOrderPartialPayloadItem[] | null } | null;
+}
+
+interface DeliveryEventPrint {
+    date: string | null;
+    seal: 'P' | 'T';
+    status: string;
+}
+
+function normalizeSealFromStatus(status: string | null): 'P' | 'T' | null {
+    const normalized = String(status || '').toLowerCase();
+    if (!normalized) return null;
+
+    if (['delivered_partial', 'returned_partial', 'partial', 'parcial'].includes(normalized)) {
+        return 'P';
+    }
+    if (['delivered', 'returned_total', 'entregue', 'total'].includes(normalized)) {
+        return 'T';
+    }
+
+    return null;
+}
+
+function calculateOrderItemBalances(items: SalesOrderItemRow[], deliveries: DeliveryRow[]): SalesOrderItemRow[] {
+    const deliveredMap = new Map<string, number>();
+
+    for (const delivery of deliveries) {
+        const status = String(delivery.status || '').toLowerCase();
+        if (!['delivered', 'delivered_partial', 'returned_partial', 'returned_total', 'entregue', 'parcial', 'total'].includes(status)) {
+            continue;
+        }
+
+        for (const deliveredItem of delivery.items ?? []) {
+            const itemId = deliveredItem.sales_document_item_id;
+            if (!itemId) continue;
+
+            const current = deliveredMap.get(itemId) ?? 0;
+            deliveredMap.set(itemId, current + Number(deliveredItem.qty_delivered || 0));
+        }
+    }
+
+    return items.map((item) => {
+        const itemQty = Number(item.quantity || 0);
+        const deliveredQty = deliveredMap.get(item.id) ?? 0;
+
+        return {
+            ...item,
+            delivered: deliveredQty,
+            balance: Math.max(0, itemQty - deliveredQty),
+        };
+    });
+}
+
+function buildDeliveryEventsForPrint(items: SalesOrderItemRow[], deliveries: DeliveryRow[]): DeliveryEventPrint[] {
+    const totalOrderedQty = items.reduce((acc, item) => acc + Number(item.quantity || 0), 0);
+    let cumulativeDeliveredQty = 0;
+
+    const sortedDeliveries = [...deliveries].sort((a, b) => {
+        const aTime = new Date(a.created_at || a.updated_at || 0).getTime();
+        const bTime = new Date(b.created_at || b.updated_at || 0).getTime();
+        return aTime - bTime;
+    });
+
+    const events: DeliveryEventPrint[] = [];
+
+    for (const delivery of sortedDeliveries) {
+        const status = String(delivery.status || '').toLowerCase();
+        if (!['delivered', 'delivered_partial', 'returned_partial', 'returned_total', 'entregue', 'parcial', 'total'].includes(status)) {
+            continue;
+        }
+
+        const deliveredQty = (delivery.items ?? []).reduce(
+            (acc, deliveredItem) => acc + Number(deliveredItem.qty_delivered || 0),
+            0
+        );
+        cumulativeDeliveredQty += deliveredQty;
+
+        const sealFromStatus = normalizeSealFromStatus(status);
+        const inferredSeal: 'P' | 'T' = totalOrderedQty > 0 && cumulativeDeliveredQty < totalOrderedQty ? 'P' : 'T';
+        const seal = sealFromStatus === 'T' && inferredSeal === 'P' ? 'P' : (sealFromStatus ?? inferredSeal);
+
+        events.push({
+            date: delivery.updated_at || delivery.created_at,
+            seal,
+            status,
+        });
+    }
+
+    return events;
+}
+
+function resolveLoadedQuantity(routeOrder: RouteOrderRow, item: SalesOrderItemRow): number {
+    const baseQty = Number(item.balance ?? item.quantity ?? 0);
+    const status = String(routeOrder.loading_status || '').toLowerCase();
     const partialItems = routeOrder.partial_payload?.items;
 
     if (status === 'loaded') return Math.max(0, baseQty);
@@ -82,7 +206,11 @@ export async function POST(request: Request) {
                         deliveries:deliveries(
                             status,
                             created_at,
-                            updated_at
+                            updated_at,
+                            items:delivery_items(
+                                sales_document_item_id,
+                                qty_delivered
+                            )
                         ),
                         client:organizations!client_id(
                             id, trade_name, legal_name, document_number,
@@ -245,8 +373,13 @@ export async function POST(request: Request) {
                 const order = routeOrder.sales_order;
                 if (!order) return null;
 
-                const loadedItems = (order.items || [])
-                    .map((item: any) => {
+                const originalItems = Array.isArray(order.items) ? (order.items as SalesOrderItemRow[]) : [];
+                const deliveries = Array.isArray(order.deliveries) ? (order.deliveries as DeliveryRow[]) : [];
+                const itemsWithBalance = calculateOrderItemBalances(originalItems, deliveries);
+                const deliveryEvents = buildDeliveryEventsForPrint(originalItems, deliveries);
+
+                const loadedItems = itemsWithBalance
+                    .map((item) => {
                         const loadedQty = resolveLoadedQuantity(routeOrder, item);
                         if (loadedQty <= 0) return null;
 
@@ -260,7 +393,7 @@ export async function POST(request: Request) {
                             }
                         };
                     })
-                    .filter(Boolean);
+                    .filter((item) => item !== null);
 
                 if (loadedItems.length === 0) return null;
 
@@ -287,6 +420,7 @@ export async function POST(request: Request) {
                         client_address_resolved: clientAddress,
                         loading_status: routeOrder.loading_status,
                         is_partial_order: routeOrder.loading_status === 'partial',
+                        delivery_events: deliveryEvents,
                         financial_entries:
                             (financialEntriesByOrder.get(order.id)?.length
                                 ? financialEntriesByOrder.get(order.id)
