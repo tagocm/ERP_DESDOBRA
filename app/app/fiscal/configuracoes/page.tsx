@@ -1,95 +1,79 @@
-import { createClient } from '@/utils/supabase/server';
-import { PageHeader } from '@/components/ui/PageHeader';
-import { ModuleTabs } from '@/components/app/ModuleTabs';
-import { InvoiceListClient } from '@/components/fiscal/InvoiceListClient';
-import { Button } from '@/components/ui/Button';
-import { Plus, FileText, UploadCloud } from 'lucide-react';
-import Link from 'next/link';
-
-type NfeListView = 'pending' | 'issued' | 'cancelled' | 'processing' | 'events';
+import { createClient } from "@/utils/supabase/server";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { ModuleTabs } from "@/components/app/ModuleTabs";
+import { Button } from "@/components/ui/Button";
+import { FileText, UploadCloud } from "lucide-react";
+import Link from "next/link";
+import { InboundDfePageClient } from "@/components/fiscal/inbound/InboundDfePageClient";
+import { InboundSyncNowButton } from "@/components/fiscal/inbound/InboundSyncNowButton";
+import { createAdminClient } from "@/lib/supabaseServer";
+import { resolveEnvironmentForCompany } from "@/lib/fiscal/inbound/service";
 
 const tabs = [
-    {
-        name: 'Notas de Saída',
-        href: '/app/fiscal/nfe'
-    },
-    {
-        name: 'Notas de Entrada',
-        href: '/app/fiscal/configuracoes'
-    },
-    {
-        name: 'Importar XML (Legado)',
-        href: '/app/fiscal/nfe/importar-legado'
-    }
+  {
+    name: "Notas de Saída",
+    href: "/app/fiscal/nfe",
+  },
+  {
+    name: "Notas de Entrada",
+    href: "/app/fiscal/configuracoes",
+  },
+  {
+    name: "Importar XML (Legado)",
+    href: "/app/fiscal/nfe/importar-legado",
+  },
 ];
 
-export default async function NFeEntradaPage({
-    searchParams,
-}: {
-    searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
-}) {
-    const params = await searchParams;
-    const supabase = await createClient();
+export default async function NFeEntradaPage() {
+  const supabase = await createClient();
 
-    const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    const { data: member } = await supabase
-        .from('company_members')
-        .select('company_id')
-        .eq('auth_user_id', user?.id)
-        .single();
+  const { data: member } = await supabase
+    .from("company_members")
+    .select("company_id")
+    .eq("auth_user_id", user?.id)
+    .single();
 
-    const companyId = member?.company_id;
-
-    const rawView = typeof params.view === 'string' ? params.view : 'pending';
-    const allowedViews: NfeListView[] = ['pending', 'issued', 'cancelled', 'processing', 'events'];
-    const view: NfeListView = allowedViews.includes(rawView as NfeListView)
-        ? (rawView as NfeListView)
-        : 'pending';
-    const dateFrom = (params.dateFrom as string) || undefined;
-    const dateTo = (params.dateTo as string) || undefined;
-    const clientSearch = (params.clientSearch as string) || undefined;
-
+  const companyId = member?.company_id;
+  if (!companyId) {
     return (
-        <div className="space-y-6">
-            <PageHeader
-                title="Notas Fiscais"
-                subtitle="Emita NF-e a partir de pedidos ou crie notas avulsas."
-                actions={
-                    <div className="flex gap-2">
-                        <Link href="/app/fiscal/nfe/avulsa">
-                            <Button variant="secondary" className="font-medium">
-                                <Plus className="w-4 h-4 mr-2" /> NF-e Avulsa
-                            </Button>
-                        </Link>
-                        <Link href="/app/fiscal/nfe/importar-legado">
-                            <Button variant="secondary" className="font-medium">
-                                <UploadCloud className="w-4 h-4 mr-2" /> Importar XML Legado
-                            </Button>
-                        </Link>
-                        <Button variant="secondary" className="font-medium">
-                            <FileText className="w-4 h-4 mr-2" /> Relatório
-                        </Button>
-                    </div>
-                }
-            >
-                <ModuleTabs items={tabs} />
-            </PageHeader>
-
-            <div className="px-6">
-                <InvoiceListClient
-                    companyId={companyId!}
-                    initialView={view}
-                    pendingTabLabel="Compras Pendentes"
-                    pendingEmptyTitle="Nenhuma compra pendente"
-                    pendingEmptyDescription="Não há compras confirmadas sem NF-e no momento."
-                    initialFilters={{
-                        dateFrom,
-                        dateTo,
-                        clientSearch,
-                    }}
-                />
-            </div>
-        </div>
+      <div className="p-6">
+        <p className="text-sm text-red-600">Usuário sem empresa vinculada.</p>
+      </div>
     );
+  }
+
+  const admin = createAdminClient();
+  const environment = await resolveEnvironmentForCompany(admin, companyId);
+
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Notas Fiscais"
+        subtitle="Acompanhe NF-e de entrada via Distribuição DF-e, com XML, DANFE e manifestação do destinatário."
+        actions={
+          <div className="flex gap-2">
+            <InboundSyncNowButton environment={environment} />
+            <Link href="/app/fiscal/nfe/importar-legado">
+              <Button variant="secondary" className="font-medium">
+                <UploadCloud className="w-4 h-4 mr-2" /> Importar XML manual
+              </Button>
+            </Link>
+            <Button variant="secondary" className="font-medium">
+              <FileText className="w-4 h-4 mr-2" /> Relatório
+            </Button>
+          </div>
+        }
+      >
+        <ModuleTabs items={tabs} />
+      </PageHeader>
+
+      <div className="px-6">
+        <InboundDfePageClient initialEnvironment={environment} />
+      </div>
+    </div>
+  );
 }

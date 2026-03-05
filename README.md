@@ -61,6 +61,54 @@ Last webhook test update: 2026-02-10.
 | `npm run test:e2e:debug` | Runs E2E tests in debug mode. |
 | `npx supabase db reset` | Resets the local database (seeds, schema). |
 
+## 📥 NF-e de Entrada (Distribuição DF-e)
+
+### Componentes entregues
+
+- Banco: tabelas `fiscal_dfe_sync_state`, `fiscal_inbound_dfe`, `fiscal_inbound_manifest_events` com RLS, índices e RPCs idempotentes.
+- Worker: novos jobs `NFE_DFE_DIST_SYNC` e `NFE_DFE_MANIFEST_SEND` no mesmo processo do fiscal.
+- Scheduler: enfileira sincronização DF-e a cada 10 minutos por empresa configurada.
+- UI: aba **Notas de Entrada** com filtros, tabs, download XML, geração/print DANFE e manifestação.
+- APIs:
+  - `POST /api/fiscal/inbound/sync`
+  - `GET /api/fiscal/inbound/list`
+  - `GET /api/fiscal/inbound/events`
+  - `GET /api/fiscal/inbound/:id/xml`
+  - `GET /api/fiscal/inbound/:id/danfe.pdf`
+  - `POST /api/fiscal/inbound/:id/manifest`
+
+### Configuração de provider/certificado
+
+1. Configure certificado A1 na empresa (`company_settings`) como já feito para emissão NF-e.
+2. Defina provider DF-e (por enquanto stub):
+   - `NFE_DFE_PROVIDER=stub` (default)
+3. Opcional para simulação local:
+   - `NFE_DFE_STUB_DOCS_JSON=[{\"nsu\":\"1\",\"schema\":\"resNFe\",\"xmlBase64\":\"...\"}]`
+
+### Execução
+
+1. Rode o worker:
+   ```bash
+   npm run worker:start
+   ```
+2. Use **Sincronizar agora** na aba de entrada ou chame:
+   ```bash
+   curl -X POST http://localhost:3000/api/fiscal/inbound/sync \
+     -H 'Content-Type: application/json' \
+     -d '{"environment":"homologation"}'
+   ```
+
+### Troubleshooting rápido
+
+- Nenhum documento aparece:
+  - Verifique se o worker está ativo e consumindo `NFE_DFE_DIST_SYNC`.
+  - Confira `company_settings.nfe_environment` e status em `fiscal_dfe_sync_state`.
+- XML/PDF indisponível:
+  - O documento ainda pode estar em resumo (`has_full_xml=false`).
+  - Rode sincronização novamente e valide `xml_base64` na `fiscal_inbound_dfe`.
+- Manifestação não sai de pendente:
+  - Verifique fila `NFE_DFE_MANIFEST_SEND` e coluna `last_error` em `fiscal_inbound_manifest_events`.
+
 ## 🧪 Testing
 
 ### Unit Tests
