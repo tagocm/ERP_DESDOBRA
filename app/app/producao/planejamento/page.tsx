@@ -29,6 +29,7 @@ export default function PlanningPage() {
     const [loading, setLoading] = useState(true)
     const [includePlannedOps, setIncludePlannedOps] = useState(true)
     const [demandSource, setDemandSource] = useState<'scheduled_routes' | 'confirmed_orders'>('scheduled_routes')
+    const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([1, 2, 3, 4, 5])
 
     // Drawer State
     const [drawerOpen, setDrawerOpen] = useState(false)
@@ -188,11 +189,14 @@ export default function PlanningPage() {
                     data={data}
                     alerts={alerts}
                     onDayClick={handleDayClick}
+                    selectedWeekdays={selectedWeekdays}
                 />
 
                 <ProductionSchedule
                     startDate={weekStart}
                     onRefreshRequest={fetchData}
+                    selectedWeekdays={selectedWeekdays}
+                    onSelectedWeekdaysChange={setSelectedWeekdays}
                 />
 
                 <PlanningDayDrawer

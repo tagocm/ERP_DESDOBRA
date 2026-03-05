@@ -11,7 +11,10 @@ import { Badge } from "@/components/ui/Badge"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/Dialog"
 import { Input } from "@/components/ui/Input"
 import { Textarea } from "@/components/ui/Textarea"
-import { Calendar as CalendarIcon, Plus, GripVertical, Play, CheckCircle2, XCircle, AlertTriangle, Pencil, Copy, ArrowUp } from "lucide-react"
+import { Checkbox } from "@/components/ui/Checkbox"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/Tooltip"
+import { Calendar as CalendarIcon, Plus, GripVertical, Play, CheckCircle2, XCircle, AlertTriangle, Pencil, Copy, ArrowUp, ChevronDown } from "lucide-react"
 import { cn, todayInBrasilia, toDateInputValue } from "@/lib/utils"
 import {
     DndContext,
@@ -136,12 +139,41 @@ interface WorkOrderLink {
     status: WorkOrder['status']
 }
 
+interface DeleteDialogState {
+    orderId: string
+    orderName: string
+    deletableChildrenCount: number
+    loadingChildrenCount: boolean
+}
+
 interface ProductionScheduleProps {
     startDate: Date
     onRefreshRequest?: () => void
+    selectedWeekdays?: number[]
+    onSelectedWeekdaysChange?: (weekdays: number[]) => void
 }
 
-export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionScheduleProps) {
+interface WeekdayOption {
+    value: number
+    label: string
+}
+
+const WEEKDAY_OPTIONS: WeekdayOption[] = [
+    { value: 1, label: 'Segunda-feira' },
+    { value: 2, label: 'Terça-feira' },
+    { value: 3, label: 'Quarta-feira' },
+    { value: 4, label: 'Quinta-feira' },
+    { value: 5, label: 'Sexta-feira' },
+    { value: 6, label: 'Sábado' },
+    { value: 0, label: 'Domingo' },
+]
+
+export function ProductionSchedule({
+    startDate,
+    onRefreshRequest,
+    selectedWeekdays = [1, 2, 3, 4, 5],
+    onSelectedWeekdaysChange,
+}: ProductionScheduleProps) {
     const { selectedCompany } = useCompany()
     const supabase = createClient()
     const { toast } = useToast()
@@ -151,6 +183,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
     const [showDone, setShowDone] = useState(false)
     const [inconsistentOrders, setInconsistentOrders] = useState<Set<string>>(new Set())
     const [sectors, setSectors] = useState<SectorFilterOption[]>([])
+    const [selectedSectorIds, setSelectedSectorIds] = useState<string[]>([])
     const [profileBatchByItemId, setProfileBatchByItemId] = useState<Record<string, number | null>>({})
     const [unscheduledOrderIds, setUnscheduledOrderIds] = useState<string[]>([])
 
@@ -160,6 +193,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
     // Create Modal State
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [createDate, setCreateDate] = useState<string>("")
+    const [createSectorId, setCreateSectorId] = useState<string | null>(null)
 
     // Edit/Action Modal State
     const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null)
@@ -184,6 +218,16 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
     }, [startDate])
 
     const dayRange = useMemo(() => days.map((dateObj) => toDateInputValue(dateObj)), [days])
+    const visibleDays = useMemo(
+        () => days.filter((day) => selectedWeekdays.includes(day.getDay())),
+        [days, selectedWeekdays]
+    )
+    const selectedDayLabels = useMemo(
+        () => WEEKDAY_OPTIONS
+            .filter((day) => selectedWeekdays.includes(day.value))
+            .map((day) => day.label),
+        [selectedWeekdays]
+    )
     const unscheduledQueueStorageKey = selectedCompany ? `pcp-unscheduled-queue:${selectedCompany.id}` : null
 
     const fetchOrders = async () => {
@@ -374,6 +418,31 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
 
         return [...activeLanes, ...inactiveLanesMap.values(), ...unassignedLane]
     }, [dayRange, orders, sectors])
+
+    useEffect(() => {
+        const availableSectorIds = lanes
+            .filter((lane) => lane.sectorId !== null)
+            .map((lane) => lane.sectorId as string)
+
+        setSelectedSectorIds((current) => {
+            if (availableSectorIds.length === 0) {
+                return []
+            }
+
+            const currentSet = new Set(current)
+            const next = availableSectorIds.filter((id) => currentSet.has(id))
+
+            if (next.length === 0) {
+                return availableSectorIds
+            }
+
+            const hasChanged =
+                next.length !== current.length ||
+                next.some((id, index) => current[index] !== id)
+
+            return hasChanged ? next : current
+        })
+    }, [lanes])
 
     const recipeByOrderId = useMemo(() => {
         const map = new Map<string, RecipeCountWithFallbackResult>()
@@ -645,22 +714,41 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
     }
 
     // Delete State
-    const [orderToDelete, setOrderToDelete] = useState<string | null>(null)
+    const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null)
+    const [deletePlannedChildren, setDeletePlannedChildren] = useState(true)
 
     // Delete Action
     const confirmDeleteOrder = async () => {
-        if (!orderToDelete) return
+        if (!deleteDialog) return
 
-        const orderId = orderToDelete
-        setOrderToDelete(null) // Close modal immediately
+        const orderId = deleteDialog.orderId
+        const shouldDeleteChildren = deletePlannedChildren && deleteDialog.deletableChildrenCount > 0
+        setDeleteDialog(null) // Close modal immediately
 
         // Optimistic remove
         const previous = orders
-        setOrders(prev => prev.filter(o => o.id !== orderId))
+        setOrders(prev => prev.filter((o) => {
+            if (o.id === orderId) return false
+            if (shouldDeleteChildren && o.parent_work_order_id === orderId && o.status === 'planned') return false
+            return true
+        }))
 
         try {
-            await deleteWorkOrderAction(orderId)
-            toast({ title: "Excluído", description: "Ordem de produção removida." })
+            const result = await deleteWorkOrderAction(orderId, {
+                deletePlannedChildren: shouldDeleteChildren,
+            })
+            const deletedChildrenCount =
+                typeof (result as { deleted_children_count?: unknown })?.deleted_children_count === 'number'
+                    ? (result as { deleted_children_count: number }).deleted_children_count
+                    : 0
+
+            toast({
+                title: "Excluído",
+                description: deletedChildrenCount > 0
+                    ? `Ordem removida com ${deletedChildrenCount} OP(s) filha(s) não iniciadas.`
+                    : "Ordem de produção removida.",
+            })
+            await fetchOrders()
             if (onRefreshRequest) onRefreshRequest()
         } catch (error) {
             console.error(error)
@@ -670,7 +758,39 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
     }
 
     const handleDeleteClick = (orderId: string) => {
-        setOrderToDelete(orderId)
+        if (!selectedCompany) return
+
+        const targetOrder = orders.find((order) => order.id === orderId)
+        setDeletePlannedChildren(true)
+        setDeleteDialog({
+            orderId,
+            orderName: targetOrder?.item.name ?? 'Ordem de produção',
+            deletableChildrenCount: 0,
+            loadingChildrenCount: true,
+        })
+
+        void (async () => {
+            const { count, error } = await supabase
+                .from('work_orders')
+                .select('id', { count: 'exact', head: true })
+                .eq('company_id', selectedCompany.id)
+                .eq('parent_work_order_id', orderId)
+                .eq('status', 'planned')
+                .is('deleted_at', null)
+
+            if (error) {
+                console.error(error)
+            }
+
+            setDeleteDialog((current) => {
+                if (!current || current.orderId !== orderId) return current
+                return {
+                    ...current,
+                    deletableChildrenCount: error ? 0 : (count ?? 0),
+                    loadingChildrenCount: false,
+                }
+            })
+        })()
     }
 
     const handleCopyTechnicalId = async (id: string) => {
@@ -683,8 +803,9 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
         }
     }
 
-    const handleCreateClick = (date: string) => {
+    const handleCreateClick = (date: string, sectorId?: string | null) => {
         setCreateDate(date)
+        setCreateSectorId(sectorId ?? null)
         setIsCreateOpen(true)
     }
 
@@ -797,11 +918,21 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
         }
 
         try {
-            await updateWorkOrderAction(selectedOrder.id, {
+            const result = await updateWorkOrderAction(selectedOrder.id, {
                 planned_qty: selectedOrder.status === 'planned' ? newQty : undefined,
                 notes: editNotes
             })
-            toast({ title: "Atualizado", description: "Dados salvos." })
+            const childUpdatesCount =
+                typeof (result as { child_updates_count?: unknown })?.child_updates_count === 'number'
+                    ? ((result as { child_updates_count: number }).child_updates_count)
+                    : 0
+
+            toast({
+                title: "Atualizado",
+                description: childUpdatesCount > 0
+                    ? `Dados salvos. ${childUpdatesCount} OP(s) filha(s) foram recalculadas.`
+                    : "Dados salvos.",
+            })
             setIsEditOpen(false)
             fetchOrders()
             if (onRefreshRequest) onRefreshRequest()
@@ -873,6 +1004,40 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
     // --- Render Helpers ---
 
     const activeOrder = activeId ? orders.find((order) => order.id === activeId) ?? null : null
+    const selectedDaysLabel = selectedDayLabels.length > 0 ? `${selectedDayLabels.length} dia(s)` : 'Nenhum dia'
+    const selectableLanes = lanes.filter((lane) => lane.sectorId !== null)
+    const selectedSectorsLabel = `${selectedSectorIds.length} setor(es)`
+    const visibleLanes = lanes.filter((lane) => lane.sectorId === null || selectedSectorIds.includes(lane.sectorId))
+
+    const handleToggleWeekday = (weekday: number) => {
+        const current = selectedWeekdays
+        const next = (() => {
+            if (current.includes(weekday)) {
+                if (current.length === 1) {
+                    return current
+                }
+                return current.filter((value) => value !== weekday)
+            }
+
+            return [...current, weekday].sort((a, b) => {
+                const order = [1, 2, 3, 4, 5, 6, 0]
+                return order.indexOf(a) - order.indexOf(b)
+            })
+        })()
+
+        if (onSelectedWeekdaysChange) {
+            onSelectedWeekdaysChange(next)
+        }
+    }
+
+    const handleToggleSector = (sectorId: string) => {
+        setSelectedSectorIds((current) => {
+            if (current.includes(sectorId)) {
+                return current.filter((id) => id !== sectorId)
+            }
+            return [...current, sectorId]
+        })
+    }
 
     return (
         <>
@@ -882,6 +1047,63 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                         <CalendarIcon className="w-4 h-4 text-slate-500" /> Agenda de Produção
                     </h3>
                     <div className="flex items-center gap-4">
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" size="sm" className="h-8 gap-1.5">
+                                    Dias da semana
+                                    <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                                        {selectedDaysLabel}
+                                    </Badge>
+                                    <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" className="w-64 p-3 space-y-2">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Colunas visíveis
+                                </p>
+                                <div className="space-y-2">
+                                    {WEEKDAY_OPTIONS.map((day) => (
+                                        <label key={day.value} className="flex items-center gap-2 text-sm text-slate-700">
+                                            <Checkbox
+                                                checked={selectedWeekdays.includes(day.value)}
+                                                onCheckedChange={() => handleToggleWeekday(day.value)}
+                                            />
+                                            <span>{day.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </PopoverContent>
+                        </Popover>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" size="sm" className="h-8 gap-1.5">
+                                    Setores
+                                    <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                                        {selectedSectorsLabel}
+                                    </Badge>
+                                    <ChevronDown className="h-3.5 w-3.5 text-slate-500" />
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align="end" className="w-72 p-3 space-y-2">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    Setores visíveis
+                                </p>
+                                <div className="space-y-2 max-h-64 overflow-auto pr-1">
+                                    {selectableLanes.map((lane) => (
+                                        <label key={lane.key} className="flex items-center gap-2 text-sm text-slate-700">
+                                            <Checkbox
+                                                checked={selectedSectorIds.includes(lane.sectorId as string)}
+                                                onCheckedChange={() => handleToggleSector(lane.sectorId as string)}
+                                            />
+                                            <span>{lane.code} - {lane.name}</span>
+                                        </label>
+                                    ))}
+                                    {selectableLanes.length === 0 && (
+                                        <p className="text-xs text-slate-500">Nenhum setor disponível.</p>
+                                    )}
+                                </div>
+                            </PopoverContent>
+                        </Popover>
                         <div className="flex items-center gap-2">
                             <Label htmlFor="show-done" className="text-xs text-slate-600">Exibir concluídas</Label>
                             <Switch id="show-done" checked={showDone} onCheckedChange={setShowDone} />
@@ -916,11 +1138,11 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                             </div>
                         )}
 
-                        {lanes.length === 0 && !loading && (
+                        {visibleLanes.length === 0 && !loading && (
                             <div className="px-4 py-8 text-sm text-gray-500">Nenhum setor ativo encontrado para exibir a agenda.</div>
                         )}
 
-                        {lanes.map((lane) => (
+                        {visibleLanes.map((lane) => (
                             <div key={lane.key} className="border-b border-gray-200 last:border-b-0">
                                 <div className={cn(
                                     "px-3 py-2 flex items-center justify-between",
@@ -930,7 +1152,14 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                                         <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-600">
                                             {lane.code}
                                         </span>
-                                        <span className="text-sm font-semibold text-slate-800">{lane.name}</span>
+                                        <span className="text-sm font-semibold text-slate-800">
+                                            {lane.name}
+                                            {!lane.isUnassigned && (
+                                                <span className="ml-2 text-xs font-medium text-slate-500">
+                                                    - Capacidade {lane.capacityRecipes ?? 0} receitas/dia
+                                                </span>
+                                            )}
+                                        </span>
                                         {lane.isUnassigned && (
                                             <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 bg-amber-100/70">
                                                 Legado sem setor
@@ -945,12 +1174,15 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                                     {lane.isUnassigned ? (
                                         <p className="text-xs text-amber-700">Corrija atribuindo setor nas OPs legadas.</p>
                                     ) : (
-                                        <p className="text-xs text-slate-500">Capacidade diária em receitas.</p>
+                                        <p className="text-xs text-slate-500">{selectedDaysLabel}</p>
                                     )}
                                 </div>
 
-                                <div className="grid grid-cols-7 gap-px bg-gray-200">
-                                    {days.map((dateObj) => {
+                                <div
+                                    className="grid gap-px bg-gray-200"
+                                    style={{ gridTemplateColumns: `repeat(${Math.max(visibleDays.length, 1)}, minmax(0, 1fr))` }}
+                                >
+                                    {visibleDays.map((dateObj) => {
                                         const scheduledDate = toDateInputValue(dateObj)
                                         const dropId = buildProductionDropId({
                                             sectorId: lane.sectorId,
@@ -974,13 +1206,18 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                                                 cards={dayCards}
                                                 stats={stats}
                                                 lane={lane}
-                                                onCreate={() => handleCreateClick(scheduledDate)}
+                                                onCreate={() => handleCreateClick(scheduledDate, lane.sectorId)}
                                                 onOrderClick={handleOrderClick}
                                                 onDeleteClick={handleDeleteClick}
                                                 inconsistentOrders={inconsistentOrders}
                                             />
                                         )
                                     })}
+                                    {visibleDays.length === 0 && (
+                                        <div className="bg-white px-4 py-10 text-sm text-gray-500">
+                                            Selecione ao menos um dia da semana para exibir a agenda.
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -997,7 +1234,11 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
             <NewWorkOrderModal
                 isOpen={isCreateOpen}
                 initialDate={createDate}
-                onClose={() => setIsCreateOpen(false)}
+                initialSectorId={createSectorId}
+                onClose={() => {
+                    setIsCreateOpen(false)
+                    setCreateSectorId(null)
+                }}
                 onSuccess={() => {
                     fetchOrders()
                     if (onRefreshRequest) onRefreshRequest()
@@ -1010,7 +1251,7 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                     setDependencyLinks({ parent: null, children: [] })
                 }
             }}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="w-[96vw] max-w-4xl max-h-[90vh] overflow-hidden">
                     <DialogHeader>
                         <DialogTitle>
                             {selectedOrder?.document_number
@@ -1023,124 +1264,129 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
                     </DialogHeader>
 
                     {selectedOrder && (
-                        <div className="space-y-4 py-2">
-                            <div className="space-y-1">
-                                <Label>ID técnico (UUID)</Label>
-                                <div className="h-10 flex items-center justify-between px-3 border rounded-2xl bg-gray-50 text-xs font-mono text-gray-700">
-                                    <span className="truncate pr-2">{selectedOrder.id}</span>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 w-7 p-0"
-                                        onClick={() => handleCopyTechnicalId(selectedOrder.id)}
-                                        title="Copiar ID técnico"
-                                    >
-                                        <Copy className="w-3.5 h-3.5" />
-                                    </Button>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label>Qtd. Planejada</Label>
-                                    <Input
-                                        type="number"
-                                        value={editPlannedQty}
-                                        onChange={e => setEditPlannedQty(e.target.value)}
-                                        disabled={selectedOrder.status !== 'planned'}
-                                        className="text-right"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label>Nº de Receitas</Label>
-                                    <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium">
-                                        {formatRecipeCountLabel(calculateRecipeCount(Number(editPlannedQty || 0), selectedOrder.bom?.yield_qty))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <Label>Status</Label>
-                                    <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium">
-                                        {selectedOrder.status === 'planned' && "Planejada"}
-                                        {selectedOrder.status === 'in_progress' && "Em Produção"}
-                                        {selectedOrder.status === 'done' && "Concluída"}
-                                        {selectedOrder.status === 'cancelled' && "Cancelada"}
-                                    </div>
-                                </div>
-                                <div className="space-y-1">
-                                    <Label>Rendimento da Receita</Label>
-                                    <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium text-gray-700">
-                                        {selectedOrder.bom
-                                            ? `${selectedOrder.bom.yield_qty} ${selectedOrder.bom.yield_uom}`
-                                            : "Sem receita"}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label>Setor</Label>
-                                <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium text-gray-700">
-                                    {selectedOrder.sector ? `${selectedOrder.sector.code} - ${selectedOrder.sector.name}` : "Sem setor"}
-                                </div>
-                            </div>
-
-                            <div className="space-y-1 rounded-2xl border border-gray-200 bg-gray-50 p-3">
-                                <Label>Dependências de OP</Label>
-                                {isDependencyLinksLoading ? (
-                                    <div className="text-xs text-gray-500">Carregando vínculos...</div>
-                                ) : (
-                                    <div className="space-y-1 text-xs text-gray-700">
-                                        <div>
-                                            OP mãe: {dependencyLinks.parent
-                                                ? `#${dependencyLinks.parent.document_number ?? dependencyLinks.parent.id.slice(0, 8)} • ${dependencyLinks.parent.item_name}`
-                                                : "Não possui"}
-                                        </div>
-                                        <div>
-                                            OPs dependentes: {dependencyLinks.children.length > 0
-                                                ? dependencyLinks.children
-                                                    .map((child) => `#${child.document_number ?? child.id.slice(0, 8)} • ${child.item_name}`)
-                                                    .join(' | ')
-                                                : "Nenhuma"}
+                        <div className="py-2 max-h-[70vh] overflow-y-auto pr-1">
+                            <div className="grid gap-4 md:grid-cols-12">
+                                <div className="space-y-4 md:col-span-7">
+                                    <div className="space-y-1">
+                                        <Label>ID técnico (UUID)</Label>
+                                        <div className="h-10 flex items-center justify-between px-3 border rounded-2xl bg-gray-50 text-xs font-mono text-gray-700">
+                                            <span className="truncate pr-2">{selectedOrder.id}</span>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-7 w-7 p-0"
+                                                onClick={() => handleCopyTechnicalId(selectedOrder.id)}
+                                                title="Copiar ID técnico"
+                                            >
+                                                <Copy className="w-3.5 h-3.5" />
+                                            </Button>
                                         </div>
                                     </div>
-                                )}
-                            </div>
 
-                            <div className="space-y-1">
-                                <Label>Observações</Label>
-                                <Textarea
-                                    value={editNotes}
-                                    onChange={e => setEditNotes(e.target.value)}
-                                    placeholder="Adicionar notas..."
-                                    className="h-20"
-                                />
-                            </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <Label>Qtd. Planejada</Label>
+                                            <Input
+                                                type="number"
+                                                value={editPlannedQty}
+                                                onChange={e => setEditPlannedQty(e.target.value)}
+                                                disabled={selectedOrder.status !== 'planned'}
+                                                className="text-right"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label>Nº de Receitas</Label>
+                                            <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium">
+                                                {formatRecipeCountLabel(calculateRecipeCount(Number(editPlannedQty || 0), selectedOrder.bom?.yield_qty))}
+                                            </div>
+                                        </div>
+                                    </div>
 
-                            <div className="flex justify-between items-center pt-2">
-                                {/* Action Buttons */}
-                                {selectedOrder.status === 'planned' && (
-                                    <div className="flex gap-2">
-                                        <Button variant="outline" size="sm" onClick={() => handleStatusParams('in_progress')} className="text-blue-600 border-blue-200 bg-blue-50/50 hover:bg-blue-100">
-                                            <Play className="w-4 h-4 mr-2" /> Iniciar
-                                        </Button>
-                                        <Button variant="ghost" size="sm" onClick={() => handleStatusParams('cancelled')} className="text-red-500 hover:text-red-700 hover:bg-red-50">
-                                            Cancelar
-                                        </Button>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <Label>Status</Label>
+                                            <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium">
+                                                {selectedOrder.status === 'planned' && "Planejada"}
+                                                {selectedOrder.status === 'in_progress' && "Em Produção"}
+                                                {selectedOrder.status === 'done' && "Concluída"}
+                                                {selectedOrder.status === 'cancelled' && "Cancelada"}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label>Rendimento da Receita</Label>
+                                            <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium text-gray-700">
+                                                {selectedOrder.bom
+                                                    ? `${selectedOrder.bom.yield_qty} ${selectedOrder.bom.yield_uom}`
+                                                    : "Sem receita"}
+                                            </div>
+                                        </div>
                                     </div>
-                                )}
-                                {selectedOrder.status === 'in_progress' && (
-                                    <div className="flex gap-2">
-                                        <Button variant="outline" size="sm" onClick={() => handleStatusParams('done')} className="text-green-600 border-green-200 bg-green-50/50 hover:bg-green-100">
-                                            <CheckCircle2 className="w-4 h-4 mr-2" /> Encerrar
-                                        </Button>
-                                        <Button variant="ghost" size="sm" onClick={() => handleStatusParams('cancelled')} className="text-red-500 hover:text-red-700 hover:bg-red-50">
-                                            Cancelar
-                                        </Button>
+
+                                    <div className="space-y-1">
+                                        <Label>Setor</Label>
+                                        <div className="h-10 flex items-center px-3 border rounded-2xl bg-gray-50 text-sm font-medium text-gray-700">
+                                            {selectedOrder.sector ? `${selectedOrder.sector.code} - ${selectedOrder.sector.name}` : "Sem setor"}
+                                        </div>
                                     </div>
-                                )}
+                                </div>
+
+                                <div className="space-y-4 md:col-span-5">
+                                    <div className="space-y-1 rounded-2xl border border-gray-200 bg-gray-50 p-3">
+                                        <Label>Dependências de OP</Label>
+                                        {isDependencyLinksLoading ? (
+                                            <div className="text-xs text-gray-500">Carregando vínculos...</div>
+                                        ) : (
+                                            <div className="space-y-1 text-xs text-gray-700">
+                                                <div>
+                                                    OP mãe: {dependencyLinks.parent
+                                                        ? `#${dependencyLinks.parent.document_number ?? dependencyLinks.parent.id.slice(0, 8)} • ${dependencyLinks.parent.item_name}`
+                                                        : "Não possui"}
+                                                </div>
+                                                <div>
+                                                    OPs dependentes: {dependencyLinks.children.length > 0
+                                                        ? dependencyLinks.children
+                                                            .map((child) => `#${child.document_number ?? child.id.slice(0, 8)} • ${child.item_name}`)
+                                                            .join(' | ')
+                                                        : "Nenhuma"}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <Label>Observações</Label>
+                                        <Textarea
+                                            value={editNotes}
+                                            onChange={e => setEditNotes(e.target.value)}
+                                            placeholder="Adicionar notas..."
+                                            className="h-28"
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2 pt-1">
+                                        {selectedOrder.status === 'planned' && (
+                                            <>
+                                                <Button variant="outline" size="sm" onClick={() => handleStatusParams('in_progress')} className="text-blue-600 border-blue-200 bg-blue-50/50 hover:bg-blue-100">
+                                                    <Play className="w-4 h-4 mr-2" /> Iniciar
+                                                </Button>
+                                                <Button variant="ghost" size="sm" onClick={() => handleStatusParams('cancelled')} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                                                    Cancelar
+                                                </Button>
+                                            </>
+                                        )}
+                                        {selectedOrder.status === 'in_progress' && (
+                                            <>
+                                                <Button variant="outline" size="sm" onClick={() => handleStatusParams('done')} className="text-green-600 border-green-200 bg-green-50/50 hover:bg-green-100">
+                                                    <CheckCircle2 className="w-4 h-4 mr-2" /> Encerrar
+                                                </Button>
+                                                <Button variant="ghost" size="sm" onClick={() => handleStatusParams('cancelled')} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                                                    Cancelar
+                                                </Button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -1153,18 +1399,37 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
             </Dialog>
 
             {/* Custom Delete Confirmation Modal */}
-            <Dialog open={!!orderToDelete} onOpenChange={(open) => !open && setOrderToDelete(null)}>
+            <Dialog open={!!deleteDialog} onOpenChange={(open) => !open && setDeleteDialog(null)}>
                 <DialogContent className="max-w-md">
                     <DialogHeader>
                         <DialogTitle className="text-red-600 flex items-center gap-2">
                             <AlertTriangle className="w-5 h-5" /> Confirmar Exclusão
                         </DialogTitle>
                         <DialogDescription>
-                            Tem certeza que deseja excluir esta ordem de produção? Esta ação não pode ser desfeita.
+                            Deseja excluir a OP <strong>{deleteDialog?.orderName ?? 'selecionada'}</strong>? Esta ação não pode ser desfeita.
                         </DialogDescription>
                     </DialogHeader>
+                    {deleteDialog && (
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                            {deleteDialog.loadingChildrenCount ? (
+                                <p className="text-sm text-slate-600">Verificando OPs filhas não iniciadas...</p>
+                            ) : deleteDialog.deletableChildrenCount > 0 ? (
+                                <label className="flex items-center gap-2 text-sm text-slate-700">
+                                    <Checkbox
+                                        checked={deletePlannedChildren}
+                                        onCheckedChange={(checked) => setDeletePlannedChildren(Boolean(checked))}
+                                    />
+                                    <span>
+                                        Excluir também {deleteDialog.deletableChildrenCount} OP(s) filha(s) não iniciadas
+                                    </span>
+                                </label>
+                            ) : (
+                                <p className="text-sm text-slate-600">Não há OPs filhas não iniciadas para excluir.</p>
+                            )}
+                        </div>
+                    )}
                     <DialogFooter className="gap-2 sm:gap-0">
-                        <Button variant="ghost" onClick={() => setOrderToDelete(null)}>Cancelar</Button>
+                        <Button variant="ghost" onClick={() => setDeleteDialog(null)}>Cancelar</Button>
                         <Button variant="danger" onClick={confirmDeleteOrder} className="bg-red-600 hover:bg-red-700">
                             Excluir Ordem
                         </Button>
@@ -1186,13 +1451,6 @@ export function ProductionSchedule({ startDate, onRefreshRequest }: ProductionSc
 }
 
 // --- Sub Components ---
-
-function formatPercent(value: number | null): string {
-    if (value === null) {
-        return '-'
-    }
-    return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 }).format(value * 100)}%`
-}
 
 function DroppableDay({
     dropId,
@@ -1220,12 +1478,9 @@ function DroppableDay({
     const { isOver, setNodeRef } = useDroppable({ id: dropId, disabled: lane.dropDisabled })
     const isToday = todayInBrasilia() === dateStr
 
-    const stateBadgeClass = {
-        OK: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-        NEAR_LIMIT: 'border-amber-200 bg-amber-50 text-amber-700',
-        EXCEEDED: 'border-red-200 bg-red-50 text-red-700',
-        PARTIAL: 'border-slate-200 bg-slate-100 text-slate-700',
-    }[stats.state]
+    const plannedLabel = stats.indeterminateCount > 0
+        ? `${stats.plannedRecipesKnown}+ receitas`
+        : `${stats.plannedRecipesKnown} receitas`
 
     return (
         <div
@@ -1237,38 +1492,23 @@ function DroppableDay({
                 isToday ? "bg-slate-50/50" : ""
             )}
         >
-            <div className="flex items-start justify-between mb-2">
+            <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-gray-500 font-medium">
                     {dateObj.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
                 </span>
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="ml-auto flex items-center gap-2">
+                    <span
+                        className={cn(
+                            "text-[10px] font-semibold",
+                            stats.state === 'EXCEEDED' ? "text-red-600" : stats.state === 'NEAR_LIMIT' ? "text-amber-600" : "text-slate-500"
+                        )}
+                    >
+                        Planejado {plannedLabel}
+                    </span>
                     <Button size="sm" variant="ghost" onClick={onCreate} className="h-6 w-6 p-0">
                         <Plus className="h-3 w-3 text-gray-400" />
                     </Button>
                 </div>
-            </div>
-
-            <div className="mb-2 rounded-xl border border-slate-200 bg-slate-50/70 px-2 py-1.5">
-                <div className="text-[10px] text-slate-600">
-                    Planejado <span className="font-semibold">{stats.plannedRecipesKnown}</span> / Capacidade{' '}
-                    <span className="font-semibold">
-                        {stats.capacityRecipes ?? '-'}
-                    </span>
-                </div>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                    <Badge variant="outline" className={cn("h-4 px-1 text-[9px] font-semibold", stateBadgeClass)}>
-                        {stats.state === 'OK' && 'OK'}
-                        {stats.state === 'NEAR_LIMIT' && 'No limite'}
-                        {stats.state === 'EXCEEDED' && 'Excedido'}
-                        {stats.state === 'PARTIAL' && 'Parcial'}
-                    </Badge>
-                    <span className="text-[10px] font-semibold text-slate-600">{formatPercent(stats.percent)}</span>
-                </div>
-                {stats.indeterminateCount > 0 && (
-                    <div className="mt-1 text-[9px] text-slate-500">
-                        Indeterminadas: {stats.indeterminateCount}
-                    </div>
-                )}
             </div>
 
             <div className="flex flex-col gap-1.5 flex-1 relative">
@@ -1461,9 +1701,14 @@ function OrderCard({
     onDelete?: () => void
     isInconsistent?: boolean
 }) {
-    const recipeLabel = recipeMetrics && recipeMetrics.kind !== 'unknown'
-        ? formatRecipeCountLabel(recipeMetrics.recipes)
-        : formatRecipeCountLabel(calculateRecipeCount(order.planned_qty, order.bom?.yield_qty))
+    const fallbackRecipes = calculateRecipeCount(order.planned_qty, order.bom?.yield_qty)
+    const resolvedRecipeCount = displayRecipeCount !== undefined && displayRecipeCount !== null
+        ? displayRecipeCount
+        : recipeMetrics && recipeMetrics.kind !== 'unknown'
+            ? recipeMetrics.recipes
+            : fallbackRecipes
+    const compactRecipeLabel = resolvedRecipeCount !== null ? `${resolvedRecipeCount}rec` : 'rec indet.'
+    const recipeLabel = resolvedRecipeCount !== null ? formatRecipeCountLabel(resolvedRecipeCount) : 'Receita indeterminada'
 
     const statusColor = {
         planned: "bg-white border-l-4 border-l-blue-400 shadow-card",
@@ -1472,73 +1717,118 @@ function OrderCard({
         cancelled: "bg-gray-50 border-1 border-gray-200 opacity-50 line-through"
     }[order.status]
 
+    const statusLabel: Record<WorkOrder['status'], string> = {
+        planned: 'Planejada',
+        in_progress: 'Em produção',
+        done: 'Concluída',
+        cancelled: 'Cancelada',
+    }
+    const scheduleLabel = order.scheduled_date
+        ? new Date(`${order.scheduled_date}T00:00:00`).toLocaleDateString('pt-BR')
+        : 'Sem agendamento'
+    const plannedQtyLabel = `${displayPlannedQty ?? order.planned_qty} ${order.item.uom}`
+    const splitLabel = isSplit
+        ? startsFromPreviousDay
+            ? 'Continuação do dia anterior'
+            : 'Dividida'
+        : 'Não'
+
     return (
-        <div
-            onClick={onClick}
-            className={cn(
-                "p-2 rounded-2xl text-xs border cursor-grab active:cursor-grabbing hover:shadow-card transition-shadow relative overflow-hidden",
-                statusColor,
-                isOverlay ? "shadow-float scale-105 rotate-2" : ""
-            )}
-        >
-            <div className="font-semibold truncate pr-4">{order.item.name}</div>
-            <div className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-500">
-                {order.sector && <span className="inline-flex rounded-full bg-slate-100 px-1.5 py-0.5">{order.sector.code}</span>}
-                {order.parent_work_order_id && <span className="inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-700">Filha</span>}
-                {showQueueHint && (
-                    <span className="inline-flex rounded-full bg-indigo-50 px-1.5 py-0.5 text-indigo-700">
-                        Fila
-                    </span>
-                )}
-                {recipeMetrics?.kind === 'unknown' && (
-                    <span className="inline-flex rounded-full bg-slate-100 px-1.5 py-0.5 text-slate-600">Receita indeterminada</span>
-                )}
-                {isSplit && (
-                    <span className="inline-flex rounded-full bg-amber-50 px-1.5 py-0.5 text-amber-700">
-                        {startsFromPreviousDay ? 'Continuação' : 'Dividida'}
-                    </span>
-                )}
-            </div>
-            <div className="flex justify-between items-center text-[10px] text-slate-500 mt-1">
-                <span>{displayPlannedQty ?? order.planned_qty} {order.item.uom}</span>
-                <span className="font-medium text-slate-600">
-                    {displayRecipeCount !== undefined && displayRecipeCount !== null
-                        ? formatRecipeCountLabel(displayRecipeCount)
-                        : recipeLabel}
-                    {continuesToNextDay ? ' +' : ''}
-                </span>
-                <div className="flex gap-1 items-center">
-                    {isInconsistent && (
-                        <Badge variant="outline" className="text-[8px] h-4 px-1 border-red-500 text-red-700 bg-red-50 font-bold">
-                            INCONSISTENTE
-                        </Badge>
-                    )}
-                    <button
-                        className="bg-transparent text-slate-400 hover:text-blue-500 rounded-2xl p-0.5 hover:bg-slate-100 transition-colors z-10"
-                        onPointerDown={e => e.stopPropagation()}
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            if (onClick) onClick()
-                        }}
+        <TooltipProvider delayDuration={150}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <div
+                        onClick={onClick}
+                        className={cn(
+                            "p-2 rounded-2xl text-xs border cursor-grab active:cursor-grabbing hover:shadow-card transition-shadow relative overflow-hidden",
+                            statusColor,
+                            isOverlay ? "shadow-float scale-105 rotate-2" : ""
+                        )}
                     >
-                        <Pencil className="w-3.5 h-3.5" />
-                    </button>
-                    {order.status === 'planned' && onDelete && (
-                        <button
-                            className="bg-transparent text-slate-400 hover:text-red-500 rounded-2xl p-0.5 hover:bg-slate-100 transition-colors z-10"
-                            onPointerDown={e => e.stopPropagation()}
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                onDelete()
-                            }}
-                        >
-                            <XCircle className="w-3.5 h-3.5" />
-                        </button>
-                    )}
-                    {order.status === 'planned' && !isSplit && <GripVertical className="w-3 h-3 text-slate-300" />}
-                    {showQueueHint && order.status === 'planned' && <ArrowUp className="w-3 h-3 text-indigo-400" />}
-                </div>
-            </div>
-        </div>
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                                <span className="font-semibold truncate">{order.item.name}</span>
+                                <span className="shrink-0 text-[11px] font-medium text-slate-500">
+                                    - {compactRecipeLabel}
+                                    {continuesToNextDay ? '+' : ''}
+                                </span>
+                            </div>
+                            <div className="flex shrink-0 gap-1 items-center">
+                                {isInconsistent && (
+                                    <AlertTriangle className="h-3.5 w-3.5 text-red-600" />
+                                )}
+                                <button
+                                    className="bg-transparent text-slate-400 hover:text-blue-500 rounded-2xl p-0.5 hover:bg-slate-100 transition-colors z-10"
+                                    onPointerDown={e => e.stopPropagation()}
+                                    onClick={(e) => {
+                                        e.stopPropagation()
+                                        if (onClick) onClick()
+                                    }}
+                                >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                {order.status === 'planned' && onDelete && (
+                                    <button
+                                        className="bg-transparent text-slate-400 hover:text-red-500 rounded-2xl p-0.5 hover:bg-slate-100 transition-colors z-10"
+                                        onPointerDown={e => e.stopPropagation()}
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            onDelete()
+                                        }}
+                                    >
+                                        <XCircle className="w-3.5 h-3.5" />
+                                    </button>
+                                )}
+                                {order.status === 'planned' && !isSplit && <GripVertical className="w-3 h-3 text-slate-300" />}
+                                {showQueueHint && order.status === 'planned' && <ArrowUp className="w-3 h-3 text-indigo-400" />}
+                            </div>
+                        </div>
+                    </div>
+                </TooltipTrigger>
+                <TooltipContent
+                    side="top"
+                    align="start"
+                    className="z-50 w-72 rounded-xl border border-slate-200 bg-white p-3 text-[11px] text-slate-700 shadow-xl"
+                >
+                    <div className="space-y-1">
+                        <div className="text-xs font-semibold text-slate-900">{order.item.name}</div>
+                        <div className="grid grid-cols-[110px_1fr] gap-x-2 gap-y-0.5">
+                            <span className="text-slate-500">OP</span>
+                            <span className="font-medium text-slate-800">
+                                #{order.document_number ?? order.id.slice(0, 8)}
+                            </span>
+                            <span className="text-slate-500">Status</span>
+                            <span className="font-medium text-slate-800">{statusLabel[order.status]}</span>
+                            <span className="text-slate-500">Setor</span>
+                            <span className="font-medium text-slate-800">{order.sector?.name ?? 'Sem setor'}</span>
+                            <span className="text-slate-500">Agendamento</span>
+                            <span className="font-medium text-slate-800">{scheduleLabel}</span>
+                            <span className="text-slate-500">Quantidade</span>
+                            <span className="font-medium text-slate-800">{plannedQtyLabel}</span>
+                            <span className="text-slate-500">Receitas</span>
+                            <span className="font-medium text-slate-800">{recipeLabel}</span>
+                            <span className="text-slate-500">Fila</span>
+                            <span className="font-medium text-slate-800">{showQueueHint ? 'Sim' : 'Não'}</span>
+                            <span className="text-slate-500">Dividida</span>
+                            <span className="font-medium text-slate-800">{splitLabel}</span>
+                            {order.parent_work_order_id && (
+                                <>
+                                    <span className="text-slate-500">Vínculo</span>
+                                    <span className="font-medium text-amber-700">OP filha</span>
+                                </>
+                            )}
+                            {recipeMetrics?.kind === 'unknown' && (
+                                <>
+                                    <span className="text-slate-500">Observação</span>
+                                    <span className="font-medium text-amber-700">
+                                        Receita indeterminada (sem yield/batch)
+                                    </span>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
     )
 }

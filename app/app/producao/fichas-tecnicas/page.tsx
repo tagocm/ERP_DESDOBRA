@@ -177,85 +177,87 @@ export default function BomListPage() {
                 subtitle="Defina os componentes e subprodutos para este item."
                 children={<PcpModuleTabs />}
             />
-            <Card>
-                <CardContent className="p-0">
-                    <div className="flex flex-wrap gap-3 p-4 border-b border-gray-100/70">
-                        <div className="w-full md:w-80 relative">
-                            <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
-                            <Input
-                                placeholder="Buscar produto ou SKU..."
-                                className="pl-9 h-9"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
+            <div className="px-6">
+                <Card>
+                    <CardContent className="p-0">
+                        <div className="flex flex-wrap gap-3 p-4 border-b border-gray-100/70">
+                            <div className="w-full md:w-80 relative">
+                                <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
+                                <Input
+                                    placeholder="Buscar produto ou SKU..."
+                                    className="pl-9 h-9"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
                         </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
-                                <tr>
-                                    <th className="px-6 py-3 text-left">Produto</th>
-                                    <th className="px-6 py-3 text-left">SKU</th>
-                                    <th className="px-6 py-3 text-center">Versão</th>
-                                    <th className="px-6 py-3 text-left">Rendimento</th>
-                                    <th className="px-6 py-3 text-center">Status</th>
-                                    <th className="px-6 py-3 text-right">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {isLoading ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
                                     <tr>
-                                        <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                                            Carregando...
-                                        </td>
+                                        <th className="px-6 py-3 text-left">Produto</th>
+                                        <th className="px-6 py-3 text-left">SKU</th>
+                                        <th className="px-6 py-3 text-center">Versão</th>
+                                        <th className="px-6 py-3 text-left">Rendimento</th>
+                                        <th className="px-6 py-3 text-center">Status</th>
+                                        <th className="px-6 py-3 text-right">Ações</th>
                                     </tr>
-                                ) : filteredBoms.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                                            Nenhuma ficha técnica encontrada.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    filteredBoms.map((bom) => (
-                                        <tr key={bom.id} className="hover:bg-gray-50/50 transition-colors">
-                                            <td className="px-6 py-3 font-medium text-gray-900">
-                                                {bom.item?.name}
-                                            </td>
-                                            <td className="px-6 py-3 text-gray-500">
-                                                {bom.item?.sku || '-'}
-                                            </td>
-                                            <td className="px-6 py-3 text-center">
-                                                <Badge variant="outline" className="font-mono">v{bom.version}</Badge>
-                                            </td>
-                                            <td className="px-6 py-3 text-gray-700">
-                                                {bom.yield_qty} {bom.yield_uom}
-                                            </td>
-                                            <td className="px-6 py-3 text-center">
-                                                {bom.is_active ? (
-                                                    <Badge className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200">Ativa</Badge>
-                                                ) : (
-                                                    <Badge variant="secondary">Inativa</Badge>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-3 text-right">
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-8 w-8 p-0"
-                                                    onClick={() => setSelectedBomId(bom.id)}
-                                                    title="Visualizar Detalhes"
-                                                >
-                                                    <Eye className="w-4 h-4 text-gray-400" />
-                                                </Button>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {isLoading ? (
+                                        <tr>
+                                            <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                                                Carregando...
                                             </td>
                                         </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+                                    ) : filteredBoms.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                                                Nenhuma ficha técnica encontrada.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredBoms.map((bom) => (
+                                            <tr key={bom.id} className="hover:bg-gray-50/50 transition-colors">
+                                                <td className="px-6 py-3 font-medium text-gray-900">
+                                                    {bom.item?.name}
+                                                </td>
+                                                <td className="px-6 py-3 text-gray-500">
+                                                    {bom.item?.sku || '-'}
+                                                </td>
+                                                <td className="px-6 py-3 text-center">
+                                                    <Badge variant="outline" className="font-mono">v{bom.version}</Badge>
+                                                </td>
+                                                <td className="px-6 py-3 text-gray-700">
+                                                    {bom.yield_qty} {bom.yield_uom}
+                                                </td>
+                                                <td className="px-6 py-3 text-center">
+                                                    {bom.is_active ? (
+                                                        <Badge className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200">Ativa</Badge>
+                                                    ) : (
+                                                        <Badge variant="secondary">Inativa</Badge>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-3 text-right">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 w-8 p-0"
+                                                        onClick={() => setSelectedBomId(bom.id)}
+                                                        title="Visualizar Detalhes"
+                                                    >
+                                                        <Eye className="w-4 h-4 text-gray-400" />
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
 
             {/* Bom Details Drawer - Custom Sheet w/o subcomponents */}
             <Sheet

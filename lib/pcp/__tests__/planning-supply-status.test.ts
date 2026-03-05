@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SUPPLY_STATUSES, isSupplyStatus } from '@/lib/pcp/planning-service'
+import { SUPPLY_STATUSES, isSupplyStatus, resolveSupplyAvailabilityDate } from '@/lib/pcp/planning-service'
 
 describe('planning supply statuses', () => {
   it('keeps only planned and in_progress as valid supply statuses', () => {
@@ -15,5 +15,10 @@ describe('planning supply statuses', () => {
     expect(isSupplyStatus('in_progress')).toBe(true)
     expect(isSupplyStatus('confirmed')).toBe(false)
     expect(isSupplyStatus('done')).toBe(false)
+  })
+
+  it('shifts planned and in-progress supply availability to next day', () => {
+    expect(resolveSupplyAvailabilityDate('2026-03-04', 'planned')).toBe('2026-03-05')
+    expect(resolveSupplyAvailabilityDate('2026-03-04', 'in_progress')).toBe('2026-03-05')
   })
 })

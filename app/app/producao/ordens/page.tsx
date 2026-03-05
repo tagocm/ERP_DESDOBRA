@@ -4,12 +4,12 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/Card";
-import { Search, Eye, Play, CheckCircle2, Trash2, XCircle, AlertOctagon } from "lucide-react";
+import { Search, Eye, Play, CheckCircle2, Trash2, XCircle, AlertOctagon, Pencil } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/use-toast";
-import { deleteWorkOrderAction, changeWorkOrderStatusAction } from "@/app/actions/pcp-planning";
+import { deleteWorkOrderAction, changeWorkOrderStatusAction, updateWorkOrderAction } from "@/app/actions/pcp-planning";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PcpModuleTabs } from "@/components/pcp/PcpModuleTabs";
 
@@ -93,6 +93,12 @@ export default function WorkOrdersPage() {
         isOpen: boolean;
         order: WorkOrder | null;
     }>({ isOpen: false, order: null });
+    const [editModal, setEditModal] = useState<{
+        isOpen: boolean;
+        order: WorkOrder | null;
+        plannedQty: number;
+        notes: string;
+    }>({ isOpen: false, order: null, plannedQty: 0, notes: "" });
 
     // Negative Stock Confirmation Modal
     const [negativeStockModal, setNegativeStockModal] = useState<{
@@ -188,6 +194,45 @@ export default function WorkOrdersPage() {
 
     const handleDeleteClick = (order: WorkOrder) => {
         setDeleteModal({ isOpen: true, order });
+    };
+
+    const handleEditClick = (order: WorkOrder) => {
+        setEditModal({
+            isOpen: true,
+            order,
+            plannedQty: Number(order.planned_qty ?? 0),
+            notes: "",
+        });
+    };
+
+    const confirmEdit = async () => {
+        if (!editModal.order) return;
+        if (!Number.isFinite(editModal.plannedQty) || editModal.plannedQty <= 0) {
+            toast({
+                title: "Quantidade inválida",
+                description: "Informe uma quantidade planejada maior que zero.",
+                variant: "destructive"
+            });
+            return;
+        }
+
+        try {
+            await updateWorkOrderAction(editModal.order.id, {
+                planned_qty: editModal.plannedQty,
+                notes: editModal.notes || undefined,
+            });
+            toast({ title: "Sucesso", description: "Ordem de produção atualizada.", variant: "default" });
+            await fetchOrders();
+            setEditModal({ isOpen: false, order: null, plannedQty: 0, notes: "" });
+        } catch (error: unknown) {
+            console.error(error);
+            const message = error instanceof Error ? error.message : "Erro ao atualizar ordem.";
+            toast({
+                title: "Erro",
+                description: message,
+                variant: "destructive"
+            });
+        }
     };
 
     const confirmDelete = async () => {
@@ -324,129 +369,137 @@ export default function WorkOrdersPage() {
                 }
             />
 
-            <Card>
-                <CardContent className="p-0">
-                    <div className="flex flex-wrap gap-3 p-4 border-b border-gray-100/70">
-                        <div className="w-full md:w-72 relative">
-                            <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
-                            <Input
-                                placeholder="Buscar produto ou ID..."
-                                className="pl-9 h-9"
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                            />
+            <div className="px-6">
+                <Card>
+                    <CardContent className="p-0">
+                        <div className="flex flex-wrap gap-3 p-4 border-b border-gray-100/70">
+                            <div className="w-full md:w-72 relative">
+                                <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
+                                <Input
+                                    placeholder="Buscar produto ou ID..."
+                                    className="pl-9 h-9"
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <div className="w-full md:w-48">
+                                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="Status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos os Status</SelectItem>
+                                        <SelectItem value="planned">Planejada</SelectItem>
+                                        <SelectItem value="in_progress">Em Produção</SelectItem>
+                                        <SelectItem value="done">Concluída</SelectItem>
+                                        <SelectItem value="cancelled">Cancelada</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="w-full md:w-64">
+                                <Select value={sectorFilter} onValueChange={setSectorFilter}>
+                                    <SelectTrigger className="h-9">
+                                        <SelectValue placeholder="Setor" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">Todos os Setores</SelectItem>
+                                        {sectors.map((sector) => (
+                                            <SelectItem key={sector.id} value={sector.id}>
+                                                {sector.code} - {sector.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
-                        <div className="w-full md:w-48">
-                            <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                <SelectTrigger className="h-9">
-                                    <SelectValue placeholder="Status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todos os Status</SelectItem>
-                                    <SelectItem value="planned">Planejada</SelectItem>
-                                    <SelectItem value="in_progress">Em Produção</SelectItem>
-                                    <SelectItem value="done">Concluída</SelectItem>
-                                    <SelectItem value="cancelled">Cancelada</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="w-full md:w-64">
-                            <Select value={sectorFilter} onValueChange={setSectorFilter}>
-                                <SelectTrigger className="h-9">
-                                    <SelectValue placeholder="Setor" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Todos os Setores</SelectItem>
-                                    {sectors.map((sector) => (
-                                        <SelectItem key={sector.id} value={sector.id}>
-                                            {sector.code} - {sector.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            {/* ... (thead) */}
-                            <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
-                                <tr>
-                                    <th className="px-6 py-3 text-left">OP</th>
-                                    <th className="px-6 py-3 text-left">Produto</th>
-                                    <th className="px-6 py-3 text-center">Status</th>
-                                    <th className="px-6 py-3 text-left">Criado em</th>
-                                    <th className="px-6 py-3 text-left">Data Programada</th>
-                                    <th className="px-6 py-3 text-left">Setor</th>
-                                    <th className="px-6 py-3 text-left">Vínculo</th>
-                                    <th className="px-6 py-3 text-right">Planejado</th>
-                                    <th className="px-6 py-3 text-right">Receitas</th>
-                                    <th className="px-6 py-3 text-right">Produzido</th>
-                                    <th className="px-6 py-3 text-right">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {isLoading ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                {/* ... (thead) */}
+                                <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
                                     <tr>
-                                        <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
-                                            Carregando...
-                                        </td>
+                                        <th className="px-6 py-3 text-left">OP</th>
+                                        <th className="px-6 py-3 text-left">Produto</th>
+                                        <th className="px-6 py-3 text-center">Status</th>
+                                        <th className="px-6 py-3 text-left">Criado em</th>
+                                        <th className="px-6 py-3 text-left">Data Programada</th>
+                                        <th className="px-6 py-3 text-left">Setor</th>
+                                        <th className="px-6 py-3 text-left">Vínculo</th>
+                                        <th className="px-6 py-3 text-right">Planejado</th>
+                                        <th className="px-6 py-3 text-right">Receitas</th>
+                                        <th className="px-6 py-3 text-right">Produzido</th>
+                                        <th className="px-6 py-3 text-right">Ações</th>
                                     </tr>
-                                ) : filteredOrders.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
-                                            Nenhuma ordem de produção encontrada.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    pagedFilteredOrders.map((order) => (
-                                        <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                                            <td className="px-6 py-3">
-                                                <div className="flex flex-col leading-tight">
-                                                    <span className="font-semibold text-gray-800">
-                                                        {order.document_number ? `#${order.document_number}` : '#---'}
-                                                    </span>
-                                                    <span className="font-mono text-[11px] text-gray-400">
-                                                        ID {order.id.slice(0, 8)}
-                                                    </span>
-                                                </div>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {isLoading ? (
+                                        <tr>
+                                            <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
+                                                Carregando...
                                             </td>
-                                            <td className="px-6 py-3 font-medium text-gray-900">
-                                                {order.item?.name}
-                                                {order.bom && <span className="ml-2 text-xs text-gray-400 font-normal">(v{order.bom.version})</span>}
+                                        </tr>
+                                    ) : filteredOrders.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
+                                                Nenhuma ordem de produção encontrada.
                                             </td>
-                                            <td className="px-6 py-3 text-center">
-                                                {statusBadge(order.status)}
-                                            </td>
-                                            <td className="px-6 py-3 text-gray-500 text-xs">
-                                                {new Date(order.created_at).toLocaleDateString()}
-                                            </td>
-                                            <td className="px-6 py-3 text-gray-700 text-xs font-medium">
-                                                {order.scheduled_date ? new Date(order.scheduled_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}
-                                            </td>
-                                            <td className="px-6 py-3 text-xs text-gray-700">
-                                                {order.sector ? `${order.sector.code} - ${order.sector.name}` : "-"}
-                                            </td>
-                                            <td className="px-6 py-3 text-xs text-gray-700">
-                                                {order.parent_work_order_id
-                                                    ? `Filha de #${order.parent_work_order_id.slice(0, 8)}`
-                                                    : (childCountByParent.get(order.id)
-                                                        ? `Mãe (${childCountByParent.get(order.id)})`
-                                                        : "-")}
-                                            </td>
-                                            <td className="px-6 py-3 text-right font-medium text-gray-700">
-                                                {order.planned_qty} <span className="text-xs font-normal text-gray-400">{order.item?.uom}</span>
-                                            </td>
-                                            <td className="px-6 py-3 text-right font-medium text-gray-700">
-                                                {formatRecipeCountLabel(calculateRecipeCount(order.planned_qty, order.bom?.yield_qty))}
-                                            </td>
-                                            <td className="px-6 py-3 text-right font-medium text-brand-700">
-                                                {order.produced_qty} <span className="text-xs font-normal text-brand-400">{order.item?.uom}</span>
-                                            </td>
-                                            <td className="px-6 py-3 text-right">
-                                                <div className="flex justify-end items-center gap-2">
+                                        </tr>
+                                    ) : (
+                                        pagedFilteredOrders.map((order) => (
+                                            <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                                                <td className="px-6 py-3">
+                                                    <div className="flex flex-col leading-tight">
+                                                        <span className="font-semibold text-gray-800">
+                                                            {order.document_number ? `#${order.document_number}` : '#---'}
+                                                        </span>
+                                                        <span className="font-mono text-[11px] text-gray-400">
+                                                            ID {order.id.slice(0, 8)}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-3 font-medium text-gray-900">
+                                                    {order.item?.name}
+                                                    {order.bom && <span className="ml-2 text-xs text-gray-400 font-normal">(v{order.bom.version})</span>}
+                                                </td>
+                                                <td className="px-6 py-3 text-center">
+                                                    {statusBadge(order.status)}
+                                                </td>
+                                                <td className="px-6 py-3 text-gray-500 text-xs">
+                                                    {new Date(order.created_at).toLocaleDateString()}
+                                                </td>
+                                                <td className="px-6 py-3 text-gray-700 text-xs font-medium">
+                                                    {order.scheduled_date ? new Date(order.scheduled_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : '-'}
+                                                </td>
+                                                <td className="px-6 py-3 text-xs text-gray-700">
+                                                    {order.sector ? `${order.sector.code} - ${order.sector.name}` : "-"}
+                                                </td>
+                                                <td className="px-6 py-3 text-xs text-gray-700">
+                                                    {order.parent_work_order_id
+                                                        ? `Filha de #${order.parent_work_order_id.slice(0, 8)}`
+                                                        : (childCountByParent.get(order.id)
+                                                            ? `Mãe (${childCountByParent.get(order.id)})`
+                                                            : "-")}
+                                                </td>
+                                                <td className="px-6 py-3 text-right font-medium text-gray-700">
+                                                    {order.planned_qty} <span className="text-xs font-normal text-gray-400">{order.item?.uom}</span>
+                                                </td>
+                                                <td className="px-6 py-3 text-right font-medium text-gray-700">
+                                                    {formatRecipeCountLabel(calculateRecipeCount(order.planned_qty, order.bom?.yield_qty))}
+                                                </td>
+                                                <td className="px-6 py-3 text-right font-medium text-brand-700">
+                                                    {order.produced_qty} <span className="text-xs font-normal text-brand-400">{order.item?.uom}</span>
+                                                </td>
+                                                <td className="px-6 py-3 text-right">
+                                                    <div className="flex justify-end items-center gap-2">
 
                                                     {order.status === 'planned' && (
                                                         <>
+                                                            <Button
+                                                                variant="ghost" size="sm" className="h-8 w-8 p-0 text-slate-500 hover:bg-slate-100"
+                                                                title="Editar OP"
+                                                                onClick={() => handleEditClick(order)}
+                                                            >
+                                                                <Pencil className="w-4 h-4 text-slate-500" />
+                                                            </Button>
                                                             <Button
                                                                 variant="ghost" size="sm" className="h-8 w-8 p-0 text-blue-600 hover:bg-blue-50"
                                                                 title="Iniciar Produção"
@@ -497,24 +550,25 @@ export default function WorkOrdersPage() {
                                                             <Eye className="w-4 h-4 text-gray-400" />
                                                         </Button>
                                                     )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
-            <ListPagination
-                page={currentPage}
-                pageSize={PAGE_SIZE}
-                total={totalFilteredOrders}
-                onPageChange={setCurrentPage}
-                label="ordens"
-                disabled={isLoading}
-            />
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+                <ListPagination
+                    page={currentPage}
+                    pageSize={PAGE_SIZE}
+                    total={totalFilteredOrders}
+                    onPageChange={setCurrentPage}
+                    label="ordens"
+                    disabled={isLoading}
+                />
+            </div>
 
             <StatusChangeModal
                 isOpen={statusModal.isOpen}
@@ -543,6 +597,56 @@ export default function WorkOrdersPage() {
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDeleteModal({ isOpen: false, order: null })}>Cancelar</Button>
                         <Button variant="danger" onClick={confirmDelete}>Excluir</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={editModal.isOpen} onOpenChange={(open) => !open && setEditModal({ isOpen: false, order: null, plannedQty: 0, notes: "" })}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Editar Ordem de Produção</DialogTitle>
+                        <DialogDescription>
+                            Ajuste a quantidade planejada da OP{' '}
+                            <b>
+                                {editModal.order?.document_number
+                                    ? `#${editModal.order.document_number}`
+                                    : `#${editModal.order?.id.slice(0, 8)}`}
+                            </b>.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 py-1">
+                        <div>
+                            <Label htmlFor="edit-planned-qty">Quantidade planejada</Label>
+                            <Input
+                                id="edit-planned-qty"
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={editModal.plannedQty}
+                                onChange={(event) => setEditModal((current) => ({
+                                    ...current,
+                                    plannedQty: Number(event.target.value)
+                                }))}
+                                className="mt-1"
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="edit-planned-notes">Observações</Label>
+                            <Textarea
+                                id="edit-planned-notes"
+                                value={editModal.notes}
+                                onChange={(event) => setEditModal((current) => ({
+                                    ...current,
+                                    notes: event.target.value
+                                }))}
+                                className="mt-1 h-20"
+                                placeholder="Opcional"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditModal({ isOpen: false, order: null, plannedQty: 0, notes: "" })}>Cancelar</Button>
+                        <Button onClick={confirmEdit}>Salvar</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

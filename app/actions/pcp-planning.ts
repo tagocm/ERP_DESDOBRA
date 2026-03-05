@@ -31,14 +31,18 @@ export async function generateWorkOrdersAction(payload: {
     return await planningService.generateWorkOrders(companyId, user.id, payload)
 }
 
-export async function deleteWorkOrderAction(workOrderId: string) {
+type DeleteWorkOrderOptions = {
+    deletePlannedChildren?: boolean
+}
+
+export async function deleteWorkOrderAction(workOrderId: string, options?: DeleteWorkOrderOptions) {
     const companyId = await getActiveCompanyId()
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) throw new Error("Unauthorized")
 
-    return await planningService.deleteWorkOrder(companyId, user.id, workOrderId)
+    return await planningService.deleteWorkOrder(companyId, user.id, workOrderId, options)
 }
 
 export async function updateWorkOrderAction(workOrderId: string, payload: WorkOrderUpdatePayload, reason?: string) {

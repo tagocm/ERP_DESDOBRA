@@ -14,9 +14,17 @@ interface PlanningCalendarProps {
     data: ItemPlan[]
     alerts?: PlanningAlert[]
     onDayClick: (date: string) => void
+    selectedWeekdays?: number[]
 }
 
-export function PlanningCalendar({ startDate, onDateChange, data, alerts = [], onDayClick }: PlanningCalendarProps) {
+export function PlanningCalendar({
+    startDate,
+    onDateChange,
+    data,
+    alerts = [],
+    onDayClick,
+    selectedWeekdays = [1, 2, 3, 4, 5],
+}: PlanningCalendarProps) {
 
     // Pivot data: Date -> List of Items with activity
     const calendarData = useMemo(() => {
@@ -61,11 +69,22 @@ export function PlanningCalendar({ startDate, onDateChange, data, alerts = [], o
         return { map, alertMap, daysKeys }
     }, [data, alerts, startDate])
 
+    const visibleDays = useMemo(
+        () => calendarData.daysKeys.filter((dateKey) => {
+            const dateObj = new Date(`${dateKey}T00:00:00`)
+            return selectedWeekdays.includes(dateObj.getDay())
+        }),
+        [calendarData.daysKeys, selectedWeekdays]
+    )
+
     return (
         <div className="bg-white border-b border-gray-200">
             {/* Week Days Grid */}
-            <div className="grid grid-cols-7 gap-px bg-gray-200 border-t">
-                {calendarData.daysKeys.map((dateKey) => {
+            <div
+                className="grid gap-px bg-gray-200 border-t"
+                style={{ gridTemplateColumns: `repeat(${Math.max(visibleDays.length, 1)}, minmax(0, 1fr))` }}
+            >
+                {visibleDays.map((dateKey) => {
                     const dateObj = new Date(dateKey + 'T00:00:00') // Fix timezone offset
                     const items = calendarData.map.get(dateKey) || []
                     const currentAlerts = calendarData.alertMap.get(dateKey) || []
@@ -160,6 +179,11 @@ export function PlanningCalendar({ startDate, onDateChange, data, alerts = [], o
                         </div>
                     )
                 })}
+                {visibleDays.length === 0 && (
+                    <div className="bg-white px-4 py-10 text-sm text-gray-500">
+                        Selecione ao menos um dia da semana para exibir o calendário de pendências.
+                    </div>
+                )}
             </div>
         </div>
     )

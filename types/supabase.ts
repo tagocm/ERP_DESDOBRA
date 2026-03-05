@@ -2470,6 +2470,7 @@ export type Database = {
           company_id: string
           created_at: string
           default_bom_id: string | null
+          default_sector_id: string | null
           id: string
           is_produced: boolean
           item_id: string
@@ -2484,6 +2485,7 @@ export type Database = {
           company_id: string
           created_at?: string
           default_bom_id?: string | null
+          default_sector_id?: string | null
           id?: string
           is_produced?: boolean
           item_id: string
@@ -2498,6 +2500,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           default_bom_id?: string | null
+          default_sector_id?: string | null
           id?: string
           is_produced?: boolean
           item_id?: string
@@ -2508,6 +2511,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "item_production_profiles_default_sector_id_fkey"
+            columns: ["default_sector_id"]
+            isOneToOne: false
+            referencedRelation: "production_sectors"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "item_production_profiles_production_uom_id_fkey"
             columns: ["production_uom_id"]

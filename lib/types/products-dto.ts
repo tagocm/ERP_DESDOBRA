@@ -129,6 +129,7 @@ export interface ProductDTO {
     // Production
     is_produced: boolean;
     default_bom_id?: string | null;
+    default_sector_id?: string | null;
     batch_size?: number | null;
     production_notes?: string | null;
 
@@ -208,6 +209,7 @@ export interface ProductFormDataDTO {
 
     is_produced: boolean;
     default_bom_id?: string;
+    default_sector_id?: string;
     batch_size?: number;
     production_uom?: string;
     production_uom_id?: string;

@@ -149,6 +149,7 @@ export function mapItemAndProfilesToProductFormData(
         packagings: [],
         is_produced: profiles.production?.is_produced ?? false,
         default_bom_id: profiles.production?.default_bom_id ?? undefined,
+        default_sector_id: profiles.production?.default_sector_id ?? undefined,
         batch_size: profiles.production?.batch_size ?? undefined,
         production_uom_id: profiles.production?.production_uom_id ?? undefined,
         production_uom: profiles.production?.production_uom ?? undefined,

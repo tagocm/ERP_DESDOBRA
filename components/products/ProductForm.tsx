@@ -36,6 +36,12 @@ interface ProductFormProps {
     itemId?: string;
 }
 
+interface ProductionSectorOption {
+    id: string;
+    code: string;
+    name: string;
+}
+
 const ITEM_TYPES = [
     { value: 'raw_material', label: 'Matéria-Prima' },
     { value: 'packaging', label: 'Embalagem' },
@@ -62,6 +68,7 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
     const [success, setSuccess] = useState<string | null>(null);
 
     const [uoms, setUoms] = useState<UomDTO[]>([]);
+    const [productionSectors, setProductionSectors] = useState<ProductionSectorOption[]>([]);
 
     // Recipe State
     const [availableIngredients, setAvailableIngredients] = useState<any[]>([]);
@@ -433,6 +440,20 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
             listUomsAction().then(result => {
                 if (result.success) setUoms(result.data);
             });
+            supabase
+                .from('production_sectors')
+                .select('id, code, name')
+                .eq('company_id', selectedCompany.id)
+                .is('deleted_at', null)
+                .eq('is_active', true)
+                .order('name')
+                .then(({ data, error }) => {
+                    if (error) {
+                        console.error("Error fetching production sectors:", error);
+                        return;
+                    }
+                    setProductionSectors((data || []) as ProductionSectorOption[]);
+                });
 
             // ... rest of use effect
 
@@ -776,17 +797,26 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
 
             // Production Profile
             const formProd = formData as any;
-            await supabase.from('item_production_profiles').upsert({
+            const productionProfilePayload = {
                 company_id: selectedCompany.id,
                 item_id: savedItemId,
                 is_produced: formData.is_produced,
                 default_bom_id: recipeHeaderId || null,
+                default_sector_id: formProd.default_sector_id || null,
                 batch_size: formProd.batch_size || 1,
                 production_uom: formProd.production_uom || "UN", // Legacy
                 production_uom_id: formData.uom_id || null,
                 loss_percent: formProd.loss_percent || 0,
                 notes: formProd.production_notes || null
-            }, { onConflict: 'item_id' });
+            };
+
+            const { error: productionProfileError } = await supabase
+                .from('item_production_profiles')
+                .upsert(productionProfilePayload, { onConflict: 'item_id' });
+
+            if (productionProfileError) {
+                throw productionProfileError;
+            }
 
             // 3. BOM / Recipe Logic
             if (formData.is_produced) {
@@ -1603,6 +1633,26 @@ export function ProductForm({ initialData, isEdit, itemId }: ProductFormProps) {
                                             </span>
                                         </div>
                                         <p className="text-xs text-gray-500 mt-1">Sempre a mesma da Unidade básica.</p>
+                                    </div>
+                                    <div className="col-span-12 md:col-span-4">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Setor Padrão</label>
+                                        <Select
+                                            value={formData.default_sector_id || "none"}
+                                            onValueChange={(value) => handleChange('default_sector_id', value === "none" ? undefined : value)}
+                                        >
+                                            <SelectTrigger className="mt-1">
+                                                <SelectValue placeholder="Selecione o setor padrão..." />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="none">Sem setor padrão</SelectItem>
+                                                {productionSectors.map((sector) => (
+                                                    <SelectItem key={sector.id} value={sector.id}>
+                                                        {sector.code} • {sector.name}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <p className="text-xs text-gray-500 mt-1">Pré-selecionado ao criar uma nova OP para este item.</p>
                                     </div>
                                 </div>
                             </CardContent>

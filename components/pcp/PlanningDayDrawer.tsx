@@ -40,22 +40,12 @@ interface SectorOption {
     name: string
 }
 
-function normalizeText(value: string): string {
-    return value
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .trim()
-        .toUpperCase()
-}
-
-function resolveDefaultParentSectorId(sectors: SectorOption[]): string | null {
-    const envase = sectors.find((sector) => {
-        const code = normalizeText(sector.code)
-        const name = normalizeText(sector.name)
-        return code === 'ENVASE' || name.includes('ENVASE')
-    })
-
-    return envase?.id ?? sectors[0]?.id ?? null
+interface GenerateWorkOrderEntry {
+    itemId: string
+    itemName: string
+    qty: number
+    bomId: string
+    defaultSectorId: string | null
 }
 
 export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [], onSuccess }: PlanningDayDrawerProps) {
@@ -64,8 +54,9 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
     const { toast } = useToast()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [sectors, setSectors] = useState<SectorOption[]>([])
-    const [isSectorsLoading, setIsSectorsLoading] = useState(false)
-    const [selectedParentSectorId, setSelectedParentSectorId] = useState<string>("")
+    const [isMissingSectorPromptOpen, setIsMissingSectorPromptOpen] = useState(false)
+    const [pendingGenerateEntries, setPendingGenerateEntries] = useState<GenerateWorkOrderEntry[]>([])
+    const [missingSectorSelections, setMissingSectorSelections] = useState<Record<string, string>>({})
 
     useEffect(() => {
         const loadSectors = async () => {
@@ -73,7 +64,6 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                 return
             }
 
-            setIsSectorsLoading(true)
             try {
                 const { data: sectorsData, error } = await supabase
                     .from('production_sectors')
@@ -89,15 +79,6 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
 
                 const loadedSectors = (sectorsData ?? []) as SectorOption[]
                 setSectors(loadedSectors)
-
-                setSelectedParentSectorId((current) => {
-                    if (current && loadedSectors.some((sector) => sector.id === current)) {
-                        return current
-                    }
-
-                    const defaultSectorId = resolveDefaultParentSectorId(loadedSectors)
-                    return defaultSectorId ?? ""
-                })
             } catch (error) {
                 console.error(error)
                 toast({
@@ -105,13 +86,21 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                     description: "Falha ao carregar setores de produção.",
                     variant: "destructive",
                 })
-            } finally {
-                setIsSectorsLoading(false)
             }
         }
 
         void loadSectors()
     }, [isOpen, selectedCompany, supabase, toast])
+
+    useEffect(() => {
+        if (isOpen) {
+            return
+        }
+
+        setIsMissingSectorPromptOpen(false)
+        setPendingGenerateEntries([])
+        setMissingSectorSelections({})
+    }, [isOpen])
 
     // Filter items that have shortage OR demand OR production on this day
     const dayItems = useMemo(() => {
@@ -142,55 +131,36 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
         return itemsToProduce.reduce((acc, item) => acc + (item.day?.shortage || 0), 0)
     }, [itemsToProduce])
 
-    const handleGenerateAll = async () => {
+    const buildGenerateEntries = (): GenerateWorkOrderEntry[] => {
+        return itemsToProduce.flatMap((item) => {
+            if (!item.day?.bom_id) {
+                return []
+            }
+
+            return [{
+                itemId: item.item_id,
+                itemName: item.item_name,
+                qty: item.day.shortage,
+                bomId: item.day.bom_id,
+                defaultSectorId: item.default_sector_id ?? null,
+            }]
+        })
+    }
+
+    const executeGenerateEntries = async (entries: Array<GenerateWorkOrderEntry & { sectorId: string }>) => {
         if (!date) return
-        if (!selectedParentSectorId) {
-            toast({
-                title: "Setor obrigatório",
-                description: "Selecione um setor de produção ativo para criar a OP.",
-                variant: "destructive",
-            })
-            return
-        }
-        if (itemsToProduce.length === 0) {
-            toast({
-                title: "Nenhuma falta",
-                description: "Nenhuma falta com ficha técnica para produzir."
-            })
-            return
-        }
 
         try {
             setIsSubmitting(true)
-            const payload = itemsToProduce.flatMap((item) => {
-                if (!item.day?.bom_id) {
-                    return []
-                }
-
-                return [{
-                    item_id: item.item_id,
-                    qty: item.day.shortage,
-                    bom_id: item.day.bom_id,
-                }]
-            })
-
-            if (payload.length === 0) {
-                toast({
-                    title: "Sem ficha técnica",
-                    description: "Nenhum item com falta possui FT ativa para gerar OP.",
-                    variant: "destructive"
-                })
-                return
-            }
 
             const settledResults = await Promise.allSettled(
-                payload.map((entry) =>
+                entries.map((entry) =>
                     createWorkOrderWithDependenciesAction({
-                        itemId: entry.item_id,
-                        bomId: entry.bom_id!,
+                        itemId: entry.itemId,
+                        bomId: entry.bomId,
                         plannedQty: entry.qty,
                         scheduledDate: date,
-                        parentSectorId: selectedParentSectorId,
+                        parentSectorId: entry.sectorId,
                         notes: `Origem: Planejamento do dia ${formatDate(date)}`,
                     })
                 )
@@ -233,8 +203,86 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
             })
         } finally {
             setIsSubmitting(false)
+            setIsMissingSectorPromptOpen(false)
+            setPendingGenerateEntries([])
+            setMissingSectorSelections({})
         }
     }
+
+    const handleGenerateAll = async () => {
+        if (!date) return
+        if (itemsToProduce.length === 0) {
+            toast({
+                title: "Nenhuma falta",
+                description: "Nenhuma falta com ficha técnica para produzir."
+            })
+            return
+        }
+        if (sectors.length === 0) {
+            toast({
+                title: "Sem setores ativos",
+                description: "Cadastre ao menos um setor ativo para gerar OPs.",
+                variant: "destructive",
+            })
+            return
+        }
+
+        const entries = buildGenerateEntries()
+        if (entries.length === 0) {
+            toast({
+                title: "Sem ficha técnica",
+                description: "Nenhum item com falta possui FT ativa para gerar OP.",
+                variant: "destructive"
+            })
+            return
+        }
+
+        const missingDefaultSectorEntries = entries.filter((entry) => !entry.defaultSectorId)
+        if (missingDefaultSectorEntries.length > 0) {
+            const nextSelections: Record<string, string> = {}
+            for (const entry of missingDefaultSectorEntries) {
+                nextSelections[entry.itemId] = missingSectorSelections[entry.itemId] ?? ""
+            }
+            setPendingGenerateEntries(entries)
+            setMissingSectorSelections(nextSelections)
+            setIsMissingSectorPromptOpen(true)
+            return
+        }
+
+        await executeGenerateEntries(
+            entries.map((entry) => ({
+                ...entry,
+                sectorId: entry.defaultSectorId as string,
+            }))
+        )
+    }
+
+    const handleConfirmMissingSectors = async () => {
+        const unresolved = pendingGenerateEntries.find(
+            (entry) => !entry.defaultSectorId && !missingSectorSelections[entry.itemId]
+        )
+
+        if (unresolved) {
+            toast({
+                title: "Setor obrigatório",
+                description: `Selecione o setor para ${unresolved.itemName}.`,
+                variant: "destructive",
+            })
+            return
+        }
+
+        const resolvedEntries = pendingGenerateEntries.map((entry) => ({
+            ...entry,
+            sectorId: entry.defaultSectorId ?? missingSectorSelections[entry.itemId],
+        }))
+
+        await executeGenerateEntries(resolvedEntries)
+    }
+
+    const missingDefaultSectorEntries = useMemo(
+        () => pendingGenerateEntries.filter((entry) => !entry.defaultSectorId),
+        [pendingGenerateEntries]
+    )
 
     if (!date) return null
 
@@ -273,33 +321,8 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                         </div>
 
                         <TabsContent value="production" className="flex-1 min-h-0 overflow-hidden p-0 m-0 data-[state=inactive]:hidden flex flex-col">
-                            <div className="flex-none px-6 py-4 border-b bg-white/90 backdrop-blur-sm">
-                                <div className="grid grid-cols-1 md:grid-cols-[minmax(0,320px)_1fr] gap-4 items-end">
-                                    <div className="space-y-1">
-                                        <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                                            Setor da OP (mãe)
-                                        </label>
-                                        <Select value={selectedParentSectorId} onValueChange={setSelectedParentSectorId}>
-                                            <SelectTrigger className="h-9 bg-white">
-                                                <SelectValue
-                                                    placeholder={isSectorsLoading ? "Carregando setores..." : "Selecione o setor..."}
-                                                />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {sectors.map((sector) => (
-                                                    <SelectItem key={sector.id} value={sector.id}>
-                                                        {sector.code} • {sector.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="text-xs text-gray-500">
-                                        {selectedParentSectorId
-                                            ? "As OPs geradas neste dia usarão o setor selecionado na OP mãe."
-                                            : "Selecione um setor ativo para habilitar a geração de OPs."}
-                                    </div>
-                                </div>
+                            <div className="flex-none px-6 py-3 border-b bg-white/90 backdrop-blur-sm text-xs text-gray-500">
+                                As OPs geradas usarão o setor padrão de cada item. Se houver item sem setor padrão, o sistema pedirá a seleção antes de gerar.
                             </div>
                             <ScrollArea className="flex-1 min-h-0">
                                 <Table>
@@ -427,7 +450,8 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                                                                 item={item}
                                                                 shortage={shortage}
                                                                 date={date}
-                                                                parentSectorId={selectedParentSectorId || null}
+                                                                sectors={sectors}
+                                                                defaultSectorId={item.default_sector_id}
                                                                 onSuccess={onSuccess}
                                                             />
                                                         </TableCell>
@@ -466,7 +490,7 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                                     </Button>
                                     <Button
                                         onClick={handleGenerateAll}
-                                        disabled={isSubmitting || itemsToProduce.length === 0 || !selectedParentSectorId}
+                                        disabled={isSubmitting || itemsToProduce.length === 0}
                                         className="bg-amber-600 hover:bg-amber-700 text-white px-6 font-semibold"
                                     >
                                         {isSubmitting ? (
@@ -547,6 +571,71 @@ export function PlanningDayDrawer({ isOpen, onOpenChange, date, data, alerts = [
                     </Tabs>
                 </div>
             </DialogContent>
+
+            <Dialog open={isMissingSectorPromptOpen} onOpenChange={setIsMissingSectorPromptOpen}>
+                <DialogContent className="max-w-2xl">
+                    <DialogHeader>
+                        <DialogTitle>Selecionar setor por item</DialogTitle>
+                        <DialogDescription>
+                            Alguns itens não possuem setor padrão cadastrado. Selecione o setor para cada um antes de gerar as OPs.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="max-h-[360px] overflow-y-auto rounded-xl border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead className="w-2/3">Item</TableHead>
+                                    <TableHead className="w-1/3">Setor</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {missingDefaultSectorEntries.map((entry) => (
+                                    <TableRow key={entry.itemId}>
+                                        <TableCell className="font-medium text-gray-900">{entry.itemName}</TableCell>
+                                        <TableCell>
+                                            <Select
+                                                value={missingSectorSelections[entry.itemId] || undefined}
+                                                onValueChange={(value) =>
+                                                    setMissingSectorSelections((current) => ({
+                                                        ...current,
+                                                        [entry.itemId]: value,
+                                                    }))
+                                                }
+                                            >
+                                                <SelectTrigger className="h-9">
+                                                    <SelectValue placeholder="Selecione..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {sectors.map((sector) => (
+                                                        <SelectItem key={sector.id} value={sector.id}>
+                                                            {sector.code} • {sector.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
+
+                    <div className="flex justify-end gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsMissingSectorPromptOpen(false)}
+                            disabled={isSubmitting}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleConfirmMissingSectors} disabled={isSubmitting}>
+                            {isSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                            Confirmar e Gerar
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </Dialog>
     )
 }
@@ -555,19 +644,36 @@ function SmartActionCell({
     item,
     shortage,
     date,
-    parentSectorId,
+    sectors,
+    defaultSectorId,
     onSuccess,
 }: {
     item: ItemPlan & { day?: DailyPlan }
     shortage: number
     date: string
-    parentSectorId: string | null
+    sectors: SectorOption[]
+    defaultSectorId: string | null
     onSuccess: () => void
 }) {
     const [open, setOpen] = useState(false)
     const [qty, setQty] = useState(shortage > 0 ? shortage.toString() : "0")
+    const [selectedSectorId, setSelectedSectorId] = useState(defaultSectorId ?? "")
     const [loading, setLoading] = useState(false)
     const { toast } = useToast()
+
+    useEffect(() => {
+        const hasCurrentSector = selectedSectorId && sectors.some((sector) => sector.id === selectedSectorId)
+        if (hasCurrentSector) {
+            return
+        }
+
+        if (defaultSectorId && sectors.some((sector) => sector.id === defaultSectorId)) {
+            setSelectedSectorId(defaultSectorId)
+            return
+        }
+
+        setSelectedSectorId("")
+    }, [defaultSectorId, item.item_id, sectors, selectedSectorId])
 
     const handleConfirm = async () => {
         const val = parseFloat(qty)
@@ -575,7 +681,7 @@ function SmartActionCell({
             toast({ title: "Valor inválido", description: "Informe uma quantidade maior que zero.", variant: "destructive" })
             return
         }
-        if (!parentSectorId) {
+        if (!selectedSectorId) {
             toast({
                 title: "Setor obrigatório",
                 description: "Selecione um setor de produção ativo para criar a OP.",
@@ -599,7 +705,7 @@ function SmartActionCell({
                 bomId: item.day.bom_id,
                 plannedQty: val,
                 scheduledDate: date,
-                parentSectorId,
+                parentSectorId: selectedSectorId,
                 notes: `Origem: Planejamento do dia ${formatDate(date)}`,
             })
             toast({
@@ -630,17 +736,32 @@ function SmartActionCell({
                     <Button
                         size="sm"
                         variant="ghost"
-                        disabled={!item.has_bom || !item.day?.bom_id || !parentSectorId}
+                        disabled={!item.has_bom || !item.day?.bom_id}
                         className="h-8 text-xs border border-amber-200 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium transition-all"
                     >
                         <Plus className="w-3 h-3 mr-1" /> Gerar OP
                     </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-64 p-3" align="end">
+            <PopoverContent className="w-72 p-3" align="end">
                 <div className="space-y-3">
                     <div className="space-y-1">
                         <h4 className="font-medium text-sm text-gray-900">Gerar/Completar OP</h4>
                         <p className="text-[10px] text-gray-500">Adicionar à produção do dia.</p>
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-[11px] text-gray-600">Setor da OP</p>
+                        <Select value={selectedSectorId || undefined} onValueChange={setSelectedSectorId}>
+                            <SelectTrigger className="h-8">
+                                <SelectValue placeholder="Selecione o setor..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {sectors.map((sector) => (
+                                    <SelectItem key={sector.id} value={sector.id}>
+                                        {sector.code} • {sector.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     </div>
                     <div className="flex gap-2">
                         <Input

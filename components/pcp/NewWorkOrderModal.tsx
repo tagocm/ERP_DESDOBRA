@@ -34,6 +34,7 @@ interface NewWorkOrderModalProps {
   onClose: () => void
   onSuccess: () => void
   initialDate?: string
+  initialSectorId?: string | null
 }
 
 interface ProductOption {
@@ -41,6 +42,7 @@ interface ProductOption {
   name: string
   uom: string
   type: string
+  default_sector_id: string | null
 }
 
 interface BomOption {
@@ -54,6 +56,11 @@ interface SectorOption {
   id: string
   code: string
   name: string
+}
+
+interface ProductionProfileOption {
+  item_id: string
+  default_sector_id: string | null
 }
 
 interface DependencySelectionState {
@@ -84,7 +91,7 @@ function formatQty(value: number): string {
   return new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 4 }).format(value)
 }
 
-export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate }: NewWorkOrderModalProps) {
+export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate, initialSectorId }: NewWorkOrderModalProps) {
   const { selectedCompany } = useCompany()
   const supabase = createClient()
   const { toast } = useToast()
@@ -111,6 +118,15 @@ export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate }: N
     () => products.find((product) => product.id === selectedProduct) ?? null,
     [products, selectedProduct]
   )
+  const filteredProducts = useMemo(() => {
+    if (!selectedSectorId) {
+      return products
+    }
+
+    return products.filter(
+      (product) => !product.default_sector_id || product.default_sector_id === selectedSectorId
+    )
+  }, [products, selectedSectorId])
   const selectedBomData = useMemo(
     () => boms.find((bom) => bom.id === selectedBom) ?? null,
     [boms, selectedBom]
@@ -132,30 +148,59 @@ export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate }: N
     }
   }, [isOpen, initialDate])
 
+  const resolvePreferredSectorId = (
+    productId: string,
+    productsList: ProductOption[],
+    sectorsList: SectorOption[],
+  ): string | null => {
+    const product = productsList.find((entry) => entry.id === productId)
+    if (product?.default_sector_id && sectorsList.some((sector) => sector.id === product.default_sector_id)) {
+      return product.default_sector_id
+    }
+
+    return findDefaultParentSector(sectorsList)
+  }
+
   useEffect(() => {
     const fetchBaseData = async () => {
       if (!isOpen || !selectedCompany) {
         return
       }
 
-      const [{ data: productsData, error: productsError }, { data: sectorsData, error: sectorsError }] =
-        await Promise.all([
-          supabase
-            .from('items')
-            .select('id, name, uom, type')
-            .eq('company_id', selectedCompany.id)
-            .in('type', ['finished_good', 'wip'])
-            .eq('is_active', true)
-            .is('deleted_at', null)
-            .order('name'),
-          supabase
-            .from('production_sectors')
-            .select('id, code, name')
-            .eq('company_id', selectedCompany.id)
-            .is('deleted_at', null)
-            .eq('is_active', true)
-            .order('name'),
-        ])
+      const [
+        { data: productsData, error: productsError },
+        { data: sectorsData, error: sectorsError },
+      ] = await Promise.all([
+        supabase
+          .from('items')
+          .select('id, name, uom, type')
+          .eq('company_id', selectedCompany.id)
+          .in('type', ['finished_good', 'wip'])
+          .eq('is_active', true)
+          .is('deleted_at', null)
+          .order('name'),
+        supabase
+          .from('production_sectors')
+          .select('id, code, name')
+          .eq('company_id', selectedCompany.id)
+          .is('deleted_at', null)
+          .eq('is_active', true)
+          .order('name'),
+      ])
+
+      const profilesQuery = await supabase
+        .from('item_production_profiles')
+        .select('item_id, default_sector_id')
+        .eq('company_id', selectedCompany.id)
+
+      if (profilesQuery.error) {
+        toast({
+          title: 'Erro',
+          description: `Falha ao carregar setor padrão dos itens: ${profilesQuery.error.message}`,
+          variant: 'destructive',
+        })
+        return
+      }
 
       if (productsError) {
         toast({
@@ -175,22 +220,44 @@ export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate }: N
         return
       }
 
-      const nextProducts = (productsData ?? []) as ProductOption[]
       const nextSectors = (sectorsData ?? []) as SectorOption[]
+      const profilesByItemId = new Map(
+        ((profilesQuery.data ?? []) as ProductionProfileOption[]).map((profile) => [profile.item_id, profile.default_sector_id])
+      )
+      const nextProducts = ((productsData ?? []) as Omit<ProductOption, 'default_sector_id'>[]).map((product) => ({
+        ...product,
+        default_sector_id: profilesByItemId.get(product.id) ?? null,
+      }))
 
       setProducts(nextProducts)
       setSectors(nextSectors)
 
-      if (!selectedSectorId) {
-        const defaultSectorId = findDefaultParentSector(nextSectors)
-        if (defaultSectorId) {
-          setSelectedSectorId(defaultSectorId)
+      setSelectedSectorId((current) => {
+        const isCurrentValid = Boolean(current) && nextSectors.some((sector) => sector.id === current)
+        if (isCurrentValid) {
+          return current
         }
-      }
+
+        const isInitialValid =
+          Boolean(initialSectorId) && nextSectors.some((sector) => sector.id === initialSectorId)
+        if (isInitialValid) {
+          return initialSectorId as string
+        }
+
+        return findDefaultParentSector(nextSectors) ?? ''
+      })
     }
 
     void fetchBaseData()
-  }, [isOpen, selectedCompany, selectedSectorId, supabase, toast])
+  }, [initialSectorId, isOpen, selectedCompany, supabase, toast])
+
+  const handleProductChange = (productId: string) => {
+    setSelectedProduct(productId)
+    const preferredSectorId = resolvePreferredSectorId(productId, products, sectors)
+    if (!selectedSectorId && preferredSectorId) {
+      setSelectedSectorId(preferredSectorId)
+    }
+  }
 
   useEffect(() => {
     const fetchBoms = async () => {
@@ -227,6 +294,16 @@ export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate }: N
 
     void fetchBoms()
   }, [selectedProduct, selectedCompany, supabase, toast])
+
+  useEffect(() => {
+    if (!selectedProduct) return
+    const isAllowed = filteredProducts.some((product) => product.id === selectedProduct)
+    if (!isAllowed) {
+      setSelectedProduct('')
+      setSelectedBom('')
+      setBoms([])
+    }
+  }, [filteredProducts, selectedProduct])
 
   const resetState = () => {
     setProducts([])
@@ -431,18 +508,23 @@ export function NewWorkOrderModal({ isOpen, onClose, onSuccess, initialDate }: N
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>Produto</Label>
-              <Select value={selectedProduct} onValueChange={setSelectedProduct}>
+              <Select value={selectedProduct} onValueChange={handleProductChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecione o produto..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {products.map((product) => (
+                  {filteredProducts.map((product) => (
                     <SelectItem key={product.id} value={product.id}>
                       {product.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {selectedSectorId && filteredProducts.length === 0 && (
+                <p className="text-xs text-amber-600">
+                  Nenhum item disponível para este setor. Serão exibidos apenas itens com setor padrão igual ao setor selecionado ou sem setor padrão.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

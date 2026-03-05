@@ -5,6 +5,7 @@ import { inventoryRepo } from '@/lib/data/inventory'
 import { normalizeLogisticsStatus, normalizeRouteStatus } from '@/lib/constants/status'
 import { Database } from '@/types/supabase'
 import { todayInBrasilia, toDateInputValue } from '@/lib/utils'
+import { computeEffectiveYield, computeRequiredComponentQty, isPositive } from '@/lib/pcp/work-order-dependency-rules'
 
 type BomLineWithItem = Database['public']['Tables']['bom_lines']['Row'] & {
     items: { name: string; uom: string; uoms?: { abbrev: string } | null } | null
@@ -55,6 +56,7 @@ export interface ItemPlan {
     item_name: string
     item_sku: string
     uom: string
+    default_sector_id: string | null
     current_stock: number
     days: DailyPlan[]
     total_shortage: number
@@ -78,6 +80,180 @@ const SUPPLY_STATUS_SET = new Set<string>(SUPPLY_STATUSES)
 
 export function isSupplyStatus(status: string): status is SupplyStatus {
     return SUPPLY_STATUS_SET.has(status)
+}
+
+function addDaysToDateString(date: string, days: number): string {
+    const normalized = date.includes('T') ? date.split('T')[0] : date
+    const baseDate = new Date(`${normalized}T00:00:00`)
+    if (Number.isNaN(baseDate.getTime())) {
+        return normalized
+    }
+    baseDate.setDate(baseDate.getDate() + days)
+    return toDateInputValue(baseDate)
+}
+
+export function resolveSupplyAvailabilityDate(scheduledDate: string, status: SupplyStatus): string {
+    // PCP rule: planned production of day D is considered available only on D+1.
+    // Keep in_progress with the same rule because remaining planned quantity is not yet in stock.
+    if (status === 'planned' || status === 'in_progress') {
+        return addDaysToDateString(scheduledDate, 1)
+    }
+    return scheduledDate
+}
+
+type WorkOrderRow = Database['public']['Tables']['work_orders']['Row']
+type BomHeaderRow = Database['public']['Tables']['bom_headers']['Row']
+type BomLineRow = Database['public']['Tables']['bom_lines']['Row']
+type ProductionProfileRow = Database['public']['Tables']['item_production_profiles']['Row']
+
+interface ChildSyncResult {
+    updatedCount: number
+    updatedChildren: Array<{ id: string; planned_qty: number }>
+}
+
+async function syncChildWorkOrdersForParentQty(params: {
+    companyId: string
+    parentWorkOrderId: string
+    parentBomId: string
+    parentPlannedQty: number
+}): Promise<ChildSyncResult> {
+    const { companyId, parentWorkOrderId, parentBomId, parentPlannedQty } = params
+
+    const [{ data: parentBom, error: parentBomError }, { data: childRows, error: childRowsError }] = await Promise.all([
+        supabaseServer
+            .from('bom_headers')
+            .select('*')
+            .eq('company_id', companyId)
+            .eq('id', parentBomId)
+            .is('deleted_at', null)
+            .single<BomHeaderRow>(),
+        supabaseServer
+            .from('work_orders')
+            .select('id, item_id, planned_qty, status, bom_id')
+            .eq('company_id', companyId)
+            .eq('parent_work_order_id', parentWorkOrderId)
+            .is('deleted_at', null)
+            .eq('status', 'planned'),
+    ])
+
+    if (parentBomError || !parentBom) {
+        throw new Error(parentBomError?.message ?? 'Receita da OP mãe não encontrada para sincronizar filhas.')
+    }
+
+    if (!isPositive(Number(parentBom.yield_qty))) {
+        throw new Error('Receita da OP mãe sem yield_qty válido para sincronizar OPs filhas.')
+    }
+
+    const children = (childRows ?? []) as Pick<WorkOrderRow, 'id' | 'item_id' | 'planned_qty' | 'status' | 'bom_id'>[]
+    if (childRowsError) {
+        throw childRowsError
+    }
+    if (children.length === 0) {
+        return { updatedCount: 0, updatedChildren: [] }
+    }
+
+    const childItemIds = Array.from(new Set(children.map((row) => row.item_id).filter((itemId): itemId is string => Boolean(itemId))))
+    const childBomIds = Array.from(new Set(children.map((row) => row.bom_id).filter((bomId): bomId is string => Boolean(bomId))))
+
+    const [{ data: linesData, error: linesError }, { data: childBomData, error: childBomError }, { data: profilesData, error: profilesError }] = await Promise.all([
+        supabaseServer
+            .from('bom_lines')
+            .select('*')
+            .eq('company_id', companyId)
+            .eq('bom_id', parentBomId),
+        childBomIds.length > 0
+            ? supabaseServer
+                .from('bom_headers')
+                .select('*')
+                .eq('company_id', companyId)
+                .in('id', childBomIds)
+            : Promise.resolve({ data: [], error: null }),
+        childItemIds.length > 0
+            ? supabaseServer
+                .from('item_production_profiles')
+                .select('*')
+                .eq('company_id', companyId)
+                .in('item_id', childItemIds)
+            : Promise.resolve({ data: [], error: null }),
+    ])
+
+    if (linesError) throw linesError
+    if (childBomError) throw childBomError
+    if (profilesError) throw profilesError
+
+    const componentQtyByItemId = new Map<string, number>()
+    for (const line of (linesData ?? []) as BomLineRow[]) {
+        if (!line.component_item_id) continue
+        componentQtyByItemId.set(line.component_item_id, Number(line.qty))
+    }
+
+    const childYieldByBomId = new Map<string, number>()
+    for (const bom of (childBomData ?? []) as BomHeaderRow[]) {
+        if (isPositive(Number(bom.yield_qty))) {
+            childYieldByBomId.set(bom.id, Number(bom.yield_qty))
+        }
+    }
+
+    const profileByItemId = new Map<string, ProductionProfileRow>()
+    for (const profile of (profilesData ?? []) as ProductionProfileRow[]) {
+        profileByItemId.set(profile.item_id, profile)
+    }
+
+    const parentYield = Number(parentBom.yield_qty)
+    const updates: Array<{ id: string; planned_qty: number }> = []
+
+    for (const child of children) {
+        const componentQty = componentQtyByItemId.get(child.item_id)
+        if (!componentQty || !isPositive(componentQty)) {
+            continue
+        }
+
+        const profile = profileByItemId.get(child.item_id)
+        const childYieldFromBom = child.bom_id ? childYieldByBomId.get(child.bom_id) : undefined
+        const yieldQty = isPositive(Number(childYieldFromBom ?? 0))
+            ? Number(childYieldFromBom)
+            : Number(profile?.batch_size ?? 0)
+
+        if (!isPositive(yieldQty)) {
+            continue
+        }
+
+        const requiredQty = computeRequiredComponentQty(
+            Number(parentPlannedQty),
+            Number(componentQty),
+            Number(parentYield)
+        )
+        const effectiveYield = computeEffectiveYield(yieldQty, profile?.loss_percent ?? null)
+        const batches = Math.ceil(requiredQty / effectiveYield)
+        const nextChildPlannedQty = batches * yieldQty
+
+        if (isPositive(nextChildPlannedQty) && Number(child.planned_qty) !== nextChildPlannedQty) {
+            updates.push({
+                id: child.id,
+                planned_qty: nextChildPlannedQty,
+            })
+        }
+    }
+
+    if (updates.length === 0) {
+        return { updatedCount: 0, updatedChildren: [] }
+    }
+
+    for (const childUpdate of updates) {
+        const { error: childUpdateError } = await supabaseServer
+            .from('work_orders')
+            .update({ planned_qty: childUpdate.planned_qty })
+            .eq('company_id', companyId)
+            .eq('id', childUpdate.id)
+            .eq('status', 'planned')
+            .is('deleted_at', null)
+
+        if (childUpdateError) {
+            throw childUpdateError
+        }
+    }
+
+    return { updatedCount: updates.length, updatedChildren: updates }
 }
 
 export const planningService = {
@@ -113,12 +289,14 @@ export const planningService = {
         const finishedGoods = items.filter(item => (item.type as string) === 'finished_good')
 
         // Get production profiles for these items
-        const { data: profiles } = await supabaseServer
+        const { data: profiles, error: profilesError } = await supabaseServer
             .from('item_production_profiles')
-            .select('item_id, is_produced, default_bom_id, batch_size')
+            .select('item_id, is_produced, default_bom_id, default_sector_id, batch_size')
             .eq('company_id', companyId)
             .in('item_id', finishedGoods.map(i => i.id))
             .eq('is_produced', true)
+
+        if (profilesError) throw profilesError
 
         const profileMap = new Map((profiles || []).map(p => [p.item_id, p]))
 
@@ -337,11 +515,12 @@ export const planningService = {
         const supplyMap = new Map<string, Map<string, { net: number, gross: number }>>()
 
         if (options.includePlannedOps) {
+            const supplyQueryStartDate = addDaysToDateString(startDate, -1)
             const { data: supplies, error: supplyError } = await supabaseServer
                 .from('work_orders')
                 .select('scheduled_date, item_id, planned_qty, produced_qty, status')
                 .eq('company_id', companyId)
-                .gte('scheduled_date', startDate)
+                .gte('scheduled_date', supplyQueryStartDate)
                 .lte('scheduled_date', endDate)
                 .is('deleted_at', null)
                 .in('status', [...SUPPLY_STATUSES])
@@ -349,7 +528,11 @@ export const planningService = {
             if (supplyError) throw supplyError
 
             supplies?.forEach(s => {
-                const date = s.scheduled_date?.split('T')[0]
+                const scheduledDate = s.scheduled_date?.split('T')[0]
+                if (!scheduledDate) return
+                const supplyStatus = s.status as string
+                if (!isSupplyStatus(supplyStatus)) return
+                const date = resolveSupplyAvailabilityDate(scheduledDate, supplyStatus)
                 if (!date) return
                 if (!supplyMap.has(date)) supplyMap.set(date, new Map())
                 const dayMap = supplyMap.get(date)!
@@ -461,6 +644,7 @@ export const planningService = {
                         item_name: item.name,
                         item_sku: item.sku || '',
                         uom: item.uom,
+                        default_sector_id: profileMap.get(item.id)?.default_sector_id ?? null,
                         current_stock: stockMap.get(item.id) || 0,
                         days,
                         total_shortage: totalShortage,
@@ -598,7 +782,12 @@ export const planningService = {
         return results
     },
 
-    async deleteWorkOrder(companyId: string, userId: string, workOrderId: string) {
+    async deleteWorkOrder(
+        companyId: string,
+        userId: string,
+        workOrderId: string,
+        options?: { deletePlannedChildren?: boolean }
+    ) {
         const { data: wo, error } = await supabaseServer
             .from('work_orders')
             .select('*')
@@ -625,6 +814,50 @@ export const planningService = {
             throw new Error("Não é possível excluir: existem consumos vinculados.")
         }
 
+        const { data: childOrders, error: childOrdersError } = await supabaseServer
+            .from('work_orders')
+            .select('id, status, produced_qty')
+            .eq('company_id', companyId)
+            .eq('parent_work_order_id', workOrderId)
+            .is('deleted_at', null)
+
+        if (childOrdersError) throw childOrdersError
+
+        const children = childOrders ?? []
+        const plannedChildren = children.filter((child) => child.status === 'planned')
+
+        const plannedChildIds = plannedChildren.map((child) => child.id)
+        const childIdsWithConsumption = new Set<string>()
+        if (plannedChildIds.length > 0) {
+            const { data: plannedChildConsumptions, error: plannedChildConsumptionsError } = await supabaseServer
+                .from('work_order_consumptions')
+                .select('work_order_id')
+                .in('work_order_id', plannedChildIds)
+
+            if (plannedChildConsumptionsError) throw plannedChildConsumptionsError
+            for (const row of plannedChildConsumptions ?? []) {
+                if (row.work_order_id) {
+                    childIdsWithConsumption.add(row.work_order_id)
+                }
+            }
+        }
+
+        const deletablePlannedChildren = plannedChildren.filter(
+            (child) => Number(child.produced_qty ?? 0) <= 0 && !childIdsWithConsumption.has(child.id)
+        )
+        const deletablePlannedChildIds = deletablePlannedChildren.map((child) => child.id)
+        const shouldDeletePlannedChildren = options?.deletePlannedChildren === true && deletablePlannedChildIds.length > 0
+
+        if (shouldDeletePlannedChildren) {
+            const { error: deleteChildrenErr } = await supabaseServer
+                .from('work_orders')
+                .update({ deleted_at: new Date().toISOString() })
+                .eq('company_id', companyId)
+                .in('id', deletablePlannedChildIds)
+
+            if (deleteChildrenErr) throw deleteChildrenErr
+        }
+
         const { error: deleteErr } = await supabaseServer
             .from('work_orders')
             .update({ deleted_at: new Date().toISOString() })
@@ -633,6 +866,22 @@ export const planningService = {
 
         if (deleteErr) throw deleteErr
 
+        const detachChildrenIds = children
+            .map((child) => child.id)
+            .filter((id) => !deletablePlannedChildIds.includes(id) || !shouldDeletePlannedChildren)
+
+        if (detachChildrenIds.length > 0) {
+            const { error: detachChildrenErr } = await supabaseServer
+                .from('work_orders')
+                .update({ parent_work_order_id: null })
+                .eq('company_id', companyId)
+                .eq('parent_work_order_id', workOrderId)
+                .in('id', detachChildrenIds)
+                .is('deleted_at', null)
+
+            if (detachChildrenErr) throw detachChildrenErr
+        }
+
         // @ts-expect-error: Details json complexity
         await supabaseServer.from('audit_logs').insert({
             company_id: companyId,
@@ -640,10 +889,19 @@ export const planningService = {
             action: 'delete_work_order',
             entity_type: 'work_orders',
             entity_id: workOrderId,
-            details: { planned_qty: wo.planned_qty, item_id: wo.item_id }
+            details: {
+                planned_qty: wo.planned_qty,
+                item_id: wo.item_id,
+                deleted_planned_children: shouldDeletePlannedChildren ? deletablePlannedChildIds : [],
+                detached_children: detachChildrenIds,
+            }
         })
 
-        return { success: true }
+        return {
+            success: true,
+            deletable_children_count: deletablePlannedChildIds.length,
+            deleted_children_count: shouldDeletePlannedChildren ? deletablePlannedChildIds.length : 0,
+        }
     },
 
     async updateWorkOrder(companyId: string, userId: string, workOrderId: string, payload: {
@@ -700,6 +958,21 @@ export const planningService = {
 
         if (updateErr) throw updateErr
 
+        let childSync: ChildSyncResult = { updatedCount: 0, updatedChildren: [] }
+        if (
+            qtyChanged &&
+            payload.planned_qty !== undefined &&
+            wo.parent_work_order_id === null &&
+            wo.bom_id
+        ) {
+            childSync = await syncChildWorkOrdersForParentQty({
+                companyId,
+                parentWorkOrderId: wo.id,
+                parentBomId: wo.bom_id,
+                parentPlannedQty: payload.planned_qty,
+            })
+        }
+
         // @ts-expect-error: Details json complexity
         await supabaseServer.from('audit_logs').insert({
             company_id: companyId,
@@ -710,11 +983,17 @@ export const planningService = {
             details: {
                 changes: updates,
                 reason: reason,
-                reason_type: qtyChanged ? 'PLANNED_QTY_CHANGE_IN_PROGRESS' : undefined
+                reason_type: qtyChanged ? 'PLANNED_QTY_CHANGE_IN_PROGRESS' : undefined,
+                dependency_updates: childSync.updatedChildren,
             }
         })
 
-        return { success: true, data: updated }
+        return {
+            success: true,
+            data: updated,
+            child_updates_count: childSync.updatedCount,
+            child_updates: childSync.updatedChildren,
+        }
     },
 
     async checkNegativeStockBeforeClose(companyId: string, workOrderId: string): Promise<{ hasNegative: boolean, negativeItems: Array<{ item_id: string, item_name: string, balance_after: number, uom: string }> }> {

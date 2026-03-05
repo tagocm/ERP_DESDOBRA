@@ -86,72 +86,74 @@ export default function NotesPage() {
                 }
             />
 
-            <Card>
-                <CardContent className="p-0">
-                    <div className="flex flex-wrap gap-3 p-4 border-b border-gray-100/70">
-                        <div className="w-full md:w-80 relative">
-                            <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
-                            <Input
-                                placeholder="Buscar produto ou OP..."
-                                className="pl-9 h-9"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
+            <div className="px-6">
+                <Card>
+                    <CardContent className="p-0">
+                        <div className="flex flex-wrap gap-3 p-4 border-b border-gray-100/70">
+                            <div className="w-full md:w-80 relative">
+                                <Search className="w-4 h-4 absolute left-3 top-2.5 text-gray-400" />
+                                <Input
+                                    placeholder="Buscar produto ou OP..."
+                                    className="pl-9 h-9"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                />
+                            </div>
                         </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
-                                <tr>
-                                    <th className="px-6 py-3 text-left">Data</th>
-                                    <th className="px-6 py-3 text-left">Ordem (OP)</th>
-                                    <th className="px-6 py-3 text-left">Produto</th>
-                                    <th className="px-6 py-3 text-right">Qtd. Produzida</th>
-                                    <th className="px-6 py-3 text-left">Observações</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {isLoading ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                                            Carregando...
-                                        </td>
+                                        <th className="px-6 py-3 text-left">Data</th>
+                                        <th className="px-6 py-3 text-left">Ordem (OP)</th>
+                                        <th className="px-6 py-3 text-left">Produto</th>
+                                        <th className="px-6 py-3 text-right">Qtd. Produzida</th>
+                                        <th className="px-6 py-3 text-left">Observações</th>
                                     </tr>
-                                ) : filteredRecords.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                                            Nenhum apontamento encontrado.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    filteredRecords.map((record) => (
-                                        <tr key={record.id} className="hover:bg-gray-50/50 transition-colors">
-                                            <td className="px-6 py-3 text-gray-500 whitespace-nowrap">
-                                                <div className="flex items-center gap-2">
-                                                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                                                    {format(new Date(record.occurred_at), "dd/MM/yyyy HH:mm")}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-3 font-mono text-xs text-blue-600">
-                                                #{record.reference_id?.slice(0, 8)}
-                                            </td>
-                                            <td className="px-6 py-3 font-medium text-gray-900">
-                                                {record.item?.name}
-                                            </td>
-                                            <td className="px-6 py-3 text-right font-medium text-green-700">
-                                                +{record.qty_in} <span className="text-xs font-normal text-green-500">{record.item?.uom}</span>
-                                            </td>
-                                            <td className="px-6 py-3 text-gray-500 text-xs italic max-w-xs truncate">
-                                                {record.notes || '-'}
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {isLoading ? (
+                                        <tr>
+                                            <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                                                Carregando...
                                             </td>
                                         </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </CardContent>
-            </Card>
+                                    ) : filteredRecords.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                                                Nenhum apontamento encontrado.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredRecords.map((record) => (
+                                            <tr key={record.id} className="hover:bg-gray-50/50 transition-colors">
+                                                <td className="px-6 py-3 text-gray-500 whitespace-nowrap">
+                                                    <div className="flex items-center gap-2">
+                                                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                                                        {format(new Date(record.occurred_at), "dd/MM/yyyy HH:mm")}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-3 font-mono text-xs text-blue-600">
+                                                    #{record.reference_id?.slice(0, 8)}
+                                                </td>
+                                                <td className="px-6 py-3 font-medium text-gray-900">
+                                                    {record.item?.name}
+                                                </td>
+                                                <td className="px-6 py-3 text-right font-medium text-green-700">
+                                                    +{record.qty_in} <span className="text-xs font-normal text-green-500">{record.item?.uom}</span>
+                                                </td>
+                                                <td className="px-6 py-3 text-gray-500 text-xs italic max-w-xs truncate">
+                                                    {record.notes || '-'}
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     );
 }

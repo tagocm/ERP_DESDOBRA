@@ -13,6 +13,9 @@ type BomLineRow = Database['public']['Tables']['bom_lines']['Row']
 type ItemRow = Database['public']['Tables']['items']['Row']
 type ItemProductionProfileRow = Database['public']['Tables']['item_production_profiles']['Row']
 type ProductionSectorRow = Database['public']['Tables']['production_sectors']['Row']
+type ProductionProfileLegacyRow = Omit<ItemProductionProfileRow, 'default_sector_id'> & {
+  default_sector_id?: string | null
+}
 
 type BomLineWithComponent = Pick<BomLineRow, 'component_item_id' | 'qty' | 'uom'> & {
   component: (Pick<ItemRow, 'id' | 'name' | 'type' | 'uom'> & {
@@ -238,6 +241,51 @@ async function getActiveSectors(supabase: SupabaseDB, companyId: string): Promis
   return data ?? []
 }
 
+async function getProducedProfilesByItemIds(
+  supabase: SupabaseDB,
+  companyId: string,
+  itemIds: string[]
+): Promise<ProductionProfileLegacyRow[]> {
+  if (itemIds.length === 0) {
+    return []
+  }
+
+  const withDefaultSector = await supabase
+    .from('item_production_profiles')
+    .select('item_id, is_produced, batch_size, loss_percent, default_bom_id, default_sector_id')
+    .eq('company_id', companyId)
+    .in('item_id', itemIds)
+    .eq('is_produced', true)
+
+  if (!withDefaultSector.error) {
+    return (withDefaultSector.data ?? []) as ProductionProfileLegacyRow[]
+  }
+
+  const missingDefaultSectorColumn =
+    withDefaultSector.error.message.includes('default_sector_id') &&
+    withDefaultSector.error.message.toLowerCase().includes('does not exist')
+
+  if (!missingDefaultSectorColumn) {
+    throw new Error(`Falha ao buscar perfis de produção de dependências: ${withDefaultSector.error.message}`)
+  }
+
+  const legacyQuery = await supabase
+    .from('item_production_profiles')
+    .select('item_id, is_produced, batch_size, loss_percent, default_bom_id')
+    .eq('company_id', companyId)
+    .in('item_id', itemIds)
+    .eq('is_produced', true)
+
+  if (legacyQuery.error) {
+    throw new Error(`Falha ao buscar perfis de produção de dependências: ${legacyQuery.error.message}`)
+  }
+
+  return ((legacyQuery.data ?? []) as Omit<ProductionProfileLegacyRow, 'default_sector_id'>[]).map((profile) => ({
+    ...profile,
+    default_sector_id: null,
+  }))
+}
+
 export function validateActiveSectorIds(input: ActiveSectorValidationInput): ActiveSectorValidationResult {
   const parentSectorId = input.parentSectorId?.trim() ?? ''
   if (!parentSectorId) {
@@ -410,21 +458,12 @@ export const workOrderDependenciesService = {
       }
     }
 
-    const [{ data: profilesData, error: profilesError }, sectors] = await Promise.all([
-      supabase
-        .from('item_production_profiles')
-        .select('item_id, is_produced, batch_size, loss_percent, default_bom_id')
-        .eq('company_id', companyId)
-        .in('item_id', componentItemIds)
-        .eq('is_produced', true),
+    const [profilesData, sectors] = await Promise.all([
+      getProducedProfilesByItemIds(supabase, companyId, componentItemIds),
       getActiveSectors(supabase, companyId),
     ])
 
-    if (profilesError) {
-      throw new Error(`Falha ao buscar perfis de produção de dependências: ${profilesError.message}`)
-    }
-
-    const producedProfiles = (profilesData ?? []) as ItemProductionProfileRow[]
+    const producedProfiles = profilesData as ProductionProfileLegacyRow[]
     const profileByItemId = new Map(producedProfiles.map((profile) => [profile.item_id, profile]))
 
     const producedItemIds = Array.from(profileByItemId.keys())
@@ -493,6 +532,7 @@ export const workOrderDependenciesService = {
       }
     }
 
+    const activeSectorById = new Map(sectors.map((sector) => [sector.id, sector]))
     const childSector = resolveChildSector(sectors)
     const parentSector = resolveParentSector(sectors)
 
@@ -530,6 +570,11 @@ export const workOrderDependenciesService = {
         throw new Error(`Item produzido ${component.name} não possui BOM ativo para gerar OP filha.`)
       }
 
+      const profileDefaultSector = profile.default_sector_id
+        ? activeSectorById.get(profile.default_sector_id) ?? null
+        : null
+      const suggestedSector = profileDefaultSector ?? childSector
+
       const dependencyPreviewRow = computeDependencyPreviewRow({
         componentItemId: line.component_item_id,
         componentName: component.name,
@@ -542,8 +587,8 @@ export const workOrderDependenciesService = {
         childYieldQty: yieldQtyCandidate,
         childYieldUom: childBom.yield_uom || resolveUom(component),
         lossPercent: profile.loss_percent,
-        suggestedSectorId: childSector?.id ?? null,
-        suggestedSectorName: childSector?.name ?? null,
+        suggestedSectorId: suggestedSector?.id ?? null,
+        suggestedSectorName: suggestedSector?.name ?? null,
       })
 
       if (dependencyPreviewRow) {
