@@ -10,11 +10,11 @@ import { productionPostingService } from '@/lib/production/production-posting-se
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const finishSchema = z.object({
+const createEntrySchema = z.object({
   companyId: z.string().uuid().optional(),
   produced_qty: z.number().positive(),
   executed_batches: z.number().int().positive().optional(),
-  divergence_type: z.enum(['PARTIAL_EXECUTION', 'LOW_YIELD']).optional(),
+  divergence_type: z.enum(['PARTIAL_EXECUTION', 'LOW_YIELD']).default('PARTIAL_EXECUTION'),
   occurred_at: z.string().datetime().optional(),
   notes: z.string().trim().max(2000).optional(),
   idempotency_key: z.string().trim().min(1).max(255).optional(),
@@ -28,8 +28,7 @@ export async function POST(
 
   try {
     const body = await request.json()
-    const parsed = finishSchema.parse(body)
-    const { produced_qty } = parsed
+    const parsed = createEntrySchema.parse(body)
 
     let activeCompanyId: string
     try {
@@ -39,8 +38,8 @@ export async function POST(
     }
 
     if (parsed.companyId && parsed.companyId !== activeCompanyId) return errorResponse('Forbidden', 403)
-
     const companyId = activeCompanyId
+
     const supabase = await createClient()
     const {
       data: { user },
@@ -58,13 +57,13 @@ export async function POST(
       companyId,
       workOrderId: id,
       occurredAt: parsed.occurred_at ?? new Date().toISOString(),
-      producedQty: produced_qty,
+      producedQty: parsed.produced_qty,
       executedBatches: parsed.executed_batches,
-      divergenceType: parsed.divergence_type ?? 'PARTIAL_EXECUTION',
+      divergenceType: parsed.divergence_type,
       notes: parsed.notes,
       createdBy: user.id,
-      idempotencyKey: parsed.idempotency_key?.trim() || `finish:${id}`,
-      markDone: true,
+      idempotencyKey: parsed.idempotency_key,
+      markDone: false,
     })
 
     const updatedWorkOrder = await workOrdersRepo.getById(companyId, id)
@@ -78,18 +77,14 @@ export async function POST(
         loss_qty: postingResult.lossQty,
         created_movement_count: postingResult.createdMovementCount,
       },
-      production_cost: {
-        total: 0,
-        unit: 0,
-        qty: produced_qty,
-      },
     })
   } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues }, { status: 400 })
     }
     const message = error instanceof Error ? error.message : 'Unknown error'
-    logger.error('[work-orders/finish] Error', { id, message })
+    logger.error('[work-orders/entries] Error', { id, message })
     return errorResponse('Internal Server Error', 500, undefined, error instanceof Error ? error.message : error)
   }
 }
+

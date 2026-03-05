@@ -13,12 +13,54 @@ import { Textarea } from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { Play, Calendar as CalendarIcon, Package, Hash } from "lucide-react";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
 
 interface NewProductionEntryModalProps {
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
+}
+
+type DivergenceType = "PARTIAL_EXECUTION" | "LOW_YIELD";
+
+interface WorkOrderItemSummary {
+    id: string;
+    name: string;
+    uom: string;
+}
+
+interface WorkOrderSummary {
+    id: string;
+    document_number: number | null;
+    planned_qty: number;
+    produced_qty: number;
+    status: "planned" | "in_progress" | "done" | "cancelled";
+    created_at: string;
+    item: WorkOrderItemSummary | null;
+}
+
+interface WorkOrderResponseRow {
+    id: string;
+    document_number: number | null;
+    planned_qty: number;
+    produced_qty: number;
+    status: "planned" | "in_progress" | "done" | "cancelled";
+    created_at: string;
+    item: WorkOrderItemSummary | WorkOrderItemSummary[] | null;
+}
+
+interface EntryApiSuccessResponse {
+    posting?: {
+        expected_output_qty?: number;
+        loss_qty?: number;
+    };
+}
+
+interface EntryApiErrorResponse {
+    error?: string;
+}
+
+function isDivergenceType(value: string): value is DivergenceType {
+    return value === "PARTIAL_EXECUTION" || value === "LOW_YIELD";
 }
 
 export function NewProductionEntryModal({ isOpen, onClose, onSuccess }: NewProductionEntryModalProps) {
@@ -27,11 +69,13 @@ export function NewProductionEntryModal({ isOpen, onClose, onSuccess }: NewProdu
     const { toast } = useToast();
 
     const [isLoading, setIsLoading] = useState(false);
-    const [orders, setOrders] = useState<any[]>([]);
+    const [orders, setOrders] = useState<WorkOrderSummary[]>([]);
 
     // Form Data
     const [selectedOrderId, setSelectedOrderId] = useState("");
     const [qtyProduced, setQtyProduced] = useState<string>("");
+    const [executedBatches, setExecutedBatches] = useState<string>("");
+    const [divergenceType, setDivergenceType] = useState<DivergenceType>("PARTIAL_EXECUTION");
     const [occurredAt, setOccurredAt] = useState<string>(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
     const [notes, setNotes] = useState("");
 
@@ -40,6 +84,8 @@ export function NewProductionEntryModal({ isOpen, onClose, onSuccess }: NewProdu
             fetchActiveOrders();
             // Reset form
             setQtyProduced("");
+            setExecutedBatches("");
+            setDivergenceType("PARTIAL_EXECUTION");
             setOccurredAt(format(new Date(), "yyyy-MM-dd'T'HH:mm"));
             setNotes("");
             setSelectedOrderId("");
@@ -51,6 +97,7 @@ export function NewProductionEntryModal({ isOpen, onClose, onSuccess }: NewProdu
             .from('work_orders')
             .select(`
                 id,
+                document_number,
                 planned_qty,
                 produced_qty,
                 status,
@@ -62,55 +109,75 @@ export function NewProductionEntryModal({ isOpen, onClose, onSuccess }: NewProdu
             .in('status', ['planned', 'in_progress'])
             .order('created_at', { ascending: false });
 
+        if (error) {
+            toast({
+                title: "Erro",
+                description: `Falha ao carregar OPs: ${error.message}`,
+                variant: "destructive",
+            });
+            return;
+        }
+
         if (data) {
-            const mappedData = data.map((o: any) => ({
-                ...o,
-                item: Array.isArray(o.item) ? o.item[0] : o.item
+            const mappedData = (data as WorkOrderResponseRow[]).map((order) => ({
+                id: order.id,
+                document_number: order.document_number ?? null,
+                planned_qty: Number(order.planned_qty ?? 0),
+                produced_qty: Number(order.produced_qty ?? 0),
+                status: order.status,
+                created_at: order.created_at,
+                item: Array.isArray(order.item) ? order.item[0] ?? null : order.item,
             }));
             setOrders(mappedData);
         }
     };
 
     const handleSubmit = async () => {
-        if (!selectedOrderId || !qtyProduced || Number(qtyProduced) <= 0) {
-            toast({ title: "Inválido", description: "Selecione uma OP e informe a quantidade.", variant: "destructive" });
+        if (!selectedOrderId || !qtyProduced || Number(qtyProduced) <= 0 || !executedBatches || Number(executedBatches) <= 0) {
+            toast({ title: "Inválido", description: "Selecione uma OP e informe quantidade produzida e receitas executadas.", variant: "destructive" });
             return;
         }
 
         setIsLoading(true);
         try {
-            const { error } = await supabase.rpc('register_production_entry', {
-                p_work_order_id: selectedOrderId,
-                p_qty_produced: Number(qtyProduced),
-                p_occurred_at: new Date(occurredAt || new Date()).toISOString(),
-                p_notes: notes || null
+            const response = await fetch(`/api/work-orders/${selectedOrderId}/entries`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    produced_qty: Number(qtyProduced),
+                    executed_batches: Number(executedBatches),
+                    divergence_type: divergenceType,
+                    occurred_at: new Date(occurredAt || new Date()).toISOString(),
+                    notes: notes || undefined,
+                })
             });
 
-            if (error) throw error;
-
-            // Validação pós-RPC: garantir que movimentos foram criados
-            const { count: movementCount, error: countError } = await supabase
-                .from('inventory_movements')
-                .select('*', { count: 'exact', head: true })
-                .eq('reference_type', 'WORK_ORDER')
-                .eq('reference_id', selectedOrderId)
-                .gte('created_at', new Date(Date.now() - 10000).toISOString()); // últimos 10s
-
-            if (countError) {
-                console.error('Movement validation error:', countError);
-            } else if (movementCount === 0) {
-                throw new Error("Movimento de estoque não foi registrado. A transação pode ter sido interrompida. Contate o suporte.");
+            if (!response.ok) {
+                const payload = (await response.json().catch(() => ({}))) as EntryApiErrorResponse;
+                throw new Error(payload.error || "Falha ao registrar apontamento.");
             }
 
+            const payload = (await response.json()) as EntryApiSuccessResponse;
+            const expectedOutputQty = payload.posting?.expected_output_qty;
+            const lossQty = payload.posting?.loss_qty;
+
             toast({ title: "Sucesso", description: "Apontamento registrado com sucesso.", variant: "default" }); // Standard success variant is 'default' or a custom one if configured, using default for safety or success if available.
+            if (typeof expectedOutputQty === "number" && typeof lossQty === "number" && lossQty > 0) {
+                toast({
+                    title: "Rendimento abaixo do esperado",
+                    description: `Esperado: ${expectedOutputQty.toLocaleString("pt-BR")} • Perda: ${lossQty.toLocaleString("pt-BR")}`,
+                    variant: "default",
+                });
+            }
             onSuccess();
             onClose();
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error("Error registering production:", error);
+            const message = error instanceof Error ? error.message : "Falha ao registrar produção.";
             toast({
                 title: "Erro no Apontamento",
-                description: error.message || "Falha ao registrar produção.",
+                description: message,
                 variant: "destructive"
             });
         } finally {
@@ -143,7 +210,7 @@ export function NewProductionEntryModal({ isOpen, onClose, onSuccess }: NewProdu
                                     <SelectItem key={order.id} value={order.id}>
                                         <div className="flex flex-col text-left">
                                             <span className="font-medium text-gray-900 line-clamp-1">
-                                                ID #{order.id.slice(0, 8)} • {order.item?.name}
+                                                OP #{order.document_number ?? order.id.slice(0, 8)} • {order.item?.name}
                                             </span>
                                             <span className="text-xs text-gray-500">
                                                 Status: {order.status === 'planned' ? 'Planejada' : 'Em Produção'} •
@@ -166,7 +233,7 @@ export function NewProductionEntryModal({ isOpen, onClose, onSuccess }: NewProdu
                                 <div className="flex gap-4 mt-1 text-xs text-blue-700">
                                     <span className="flex items-center gap-1">
                                         <Hash className="w-3 h-3" />
-                                        OP: {selectedOrder.id.slice(0, 8)}
+                                        OP: {selectedOrder.document_number ?? selectedOrder.id.slice(0, 8)}
                                     </span>
                                     <span>
                                         Meta: <strong>{selectedOrder.planned_qty} {selectedOrder.item?.uom}</strong>
@@ -200,6 +267,37 @@ export function NewProductionEntryModal({ isOpen, onClose, onSuccess }: NewProdu
                             </div>
                         </div>
                         <div className="space-y-2">
+                            <Label>Receitas Executadas</Label>
+                            <Input
+                                type="number"
+                                min={1}
+                                step="1"
+                                placeholder="1"
+                                value={executedBatches}
+                                onChange={e => setExecutedBatches(e.target.value)}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label>Tipo de Divergência</Label>
+                            <Select
+                                value={divergenceType}
+                                onValueChange={(value) => {
+                                    if (isDivergenceType(value)) setDivergenceType(value);
+                                }}
+                            >
+                                <SelectTrigger className="h-12">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="PARTIAL_EXECUTION">Execução Parcial</SelectItem>
+                                    <SelectItem value="LOW_YIELD">Rendimento Menor</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
                             <Label>Data / Hora</Label>
                             <div className="relative">
                                 <Input
@@ -228,7 +326,7 @@ export function NewProductionEntryModal({ isOpen, onClose, onSuccess }: NewProdu
                     <Button variant="outline" onClick={onClose}>Cancelar</Button>
                     <Button
                         onClick={handleSubmit}
-                        disabled={isLoading || !selectedOrderId || !qtyProduced}
+                        disabled={isLoading || !selectedOrderId || !qtyProduced || !executedBatches}
                         className="bg-brand-600 hover:bg-brand-700 text-white"
                     >
                         {isLoading && <Play className="w-4 h-4 mr-2 animate-spin" />}

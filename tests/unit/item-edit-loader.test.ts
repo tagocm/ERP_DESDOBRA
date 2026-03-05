@@ -43,6 +43,7 @@ function createBaseItem(overrides?: Partial<Database["public"]["Tables"]["items"
         uom_id: null,
         is_active: true,
         avg_cost: 0,
+        base_weight_kg: null,
         gtin_ean_base: null,
         net_weight_kg_base: null,
         gross_weight_kg_base: null,

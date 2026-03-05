@@ -737,7 +737,6 @@ export const planningService = {
                 if (error) throw error
                 results.push({ op: updated, action: 'updated' })
 
-                // @ts-expect-error: Details json complexity
                 const { error: auditErr } = await supabaseServer.from('audit_logs').insert({
                     company_id: companyId,
                     user_id: userId,
@@ -767,7 +766,6 @@ export const planningService = {
                 if (error) throw error
                 results.push({ op: created, action: 'created' })
 
-                // @ts-expect-error: Details json complexity
                 const { error: auditErr } = await supabaseServer.from('audit_logs').insert({
                     company_id: companyId,
                     user_id: userId,
@@ -882,7 +880,6 @@ export const planningService = {
             if (detachChildrenErr) throw detachChildrenErr
         }
 
-        // @ts-expect-error: Details json complexity
         await supabaseServer.from('audit_logs').insert({
             company_id: companyId,
             user_id: userId,
@@ -973,7 +970,6 @@ export const planningService = {
             })
         }
 
-        // @ts-expect-error: Details json complexity
         await supabaseServer.from('audit_logs').insert({
             company_id: companyId,
             user_id: userId,
@@ -1104,6 +1100,22 @@ export const planningService = {
             if (currentStatus !== 'in_progress' && currentStatus !== 'em_producao') throw new Error("Apenas ordens em progresso podem ser finalizadas.")
             if (!wo.finished_at) updates.finished_at = new Date().toISOString()
 
+            const { count: outputCount, error: outputError } = await supabaseServer
+                .from('inventory_movements')
+                .select('id', { count: 'exact', head: true })
+                .eq('company_id', companyId)
+                .eq('reference_id', workOrderId)
+                .in('reference_type', ['work_order', 'WORK_ORDER'])
+                .or('movement_type.eq.PRODUCTION_OUTPUT,and(movement_type.eq.ENTRADA,reason.eq.production_in)')
+
+            if (outputError) {
+                throw new Error(`Falha ao validar apontamentos da OP: ${outputError.message}`)
+            }
+
+            if (!outputCount || outputCount <= 0) {
+                throw new Error("Não é possível encerrar a OP sem apontamento de produção. Use o fluxo de apontamento/encerramento.")
+            }
+
             // Check for negative stock BEFORE closing
             const negativeCheck = await this.checkNegativeStockBeforeClose(companyId, workOrderId)
 
@@ -1156,7 +1168,6 @@ export const planningService = {
 
         if (updateErr) throw updateErr
 
-        // @ts-expect-error: Details json complexity
         await supabaseServer.from('audit_logs').insert({
             company_id: companyId,
             user_id: userId,

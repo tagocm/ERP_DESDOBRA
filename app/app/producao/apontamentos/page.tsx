@@ -11,12 +11,38 @@ import { NewProductionEntryModal } from "@/components/production/NewProductionEn
 import { format } from "date-fns";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { PcpModuleTabs } from "@/components/pcp/PcpModuleTabs";
+import { normalizeReferenceType } from "@/lib/constants/inventory-ledger";
+
+interface MovementItemRow {
+    name: string;
+    uom: string;
+}
+
+interface InventoryMovementRow {
+    id: string;
+    occurred_at: string;
+    qty_in: number | null;
+    notes: string | null;
+    reference_id: string | null;
+    reference_type: string | null;
+    item: MovementItemRow | MovementItemRow[] | null;
+}
+
+interface ProductionRecord {
+    id: string;
+    occurred_at: string;
+    qty_in: number;
+    notes: string | null;
+    reference_id: string;
+    reference_type: string | null;
+    item: MovementItemRow | null;
+}
 
 export default function NotesPage() {
     const { selectedCompany } = useCompany();
     const supabase = createClient();
 
-    const [records, setRecords] = useState<any[]>([]);
+    const [records, setRecords] = useState<ProductionRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -28,7 +54,7 @@ export default function NotesPage() {
     const fetchRecords = async () => {
         setIsLoading(true);
         try {
-            const { data, error } = await supabase
+            const canonicalPromise = supabase
                 .from('inventory_movements')
                 .select(`
                     id,
@@ -41,18 +67,53 @@ export default function NotesPage() {
                 `)
                 .eq('company_id', selectedCompany!.id)
                 .eq('movement_type', 'PRODUCTION_OUTPUT')
-                .eq('reference_type', 'WORK_ORDER')
+                .in('reference_type', ['work_order', 'WORK_ORDER'])
                 .order('occurred_at', { ascending: false })
                 .limit(50);
 
-            if (error) throw error;
+            const legacyPromise = supabase
+                .from('inventory_movements')
+                .select(`
+                    id,
+                    occurred_at,
+                    qty_in,
+                    notes,
+                    reference_id,
+                    reference_type,
+                    item:items (name, uom)
+                `)
+                .eq('company_id', selectedCompany!.id)
+                .eq('movement_type', 'ENTRADA')
+                .eq('reason', 'production_in')
+                .in('reference_type', ['work_order', 'WORK_ORDER'])
+                .order('occurred_at', { ascending: false })
+                .limit(50);
 
-            const mappedData = (data || []).map((r: any) => ({
-                ...r,
-                item: Array.isArray(r.item) ? r.item[0] : r.item
-            }));
+            const [canonicalQuery, legacyQuery] = await Promise.all([canonicalPromise, legacyPromise]);
+            if (canonicalQuery.error) throw canonicalQuery.error;
+            if (legacyQuery.error) throw legacyQuery.error;
 
-            setRecords(mappedData);
+            const allRows = [...(canonicalQuery.data ?? []), ...(legacyQuery.data ?? [])] as InventoryMovementRow[];
+            const dedupedById = new Map<string, ProductionRecord>();
+            for (const row of allRows) {
+                if (!row.id || !row.reference_id) continue;
+                if (normalizeReferenceType(row.reference_type) !== "work_order") continue;
+                const item = Array.isArray(row.item) ? row.item[0] ?? null : row.item;
+                dedupedById.set(row.id, {
+                    id: row.id,
+                    occurred_at: row.occurred_at,
+                    qty_in: Number(row.qty_in ?? 0),
+                    notes: row.notes,
+                    reference_id: row.reference_id,
+                    reference_type: row.reference_type,
+                    item,
+                });
+            }
+
+            const sorted = Array.from(dedupedById.values()).sort((a, b) =>
+                new Date(b.occurred_at).getTime() - new Date(a.occurred_at).getTime()
+            );
+            setRecords(sorted.slice(0, 50));
         } catch (error) {
             console.error("Error fetching production records:", error);
         } finally {
