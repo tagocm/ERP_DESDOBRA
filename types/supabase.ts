@@ -1232,6 +1232,87 @@ export type Database = {
           },
         ]
       }
+      commission_entitlements: {
+        Row: {
+          base_delivered_amount: number
+          commission_rate: number
+          commission_total: number
+          company_id: string
+          created_at: string
+          delivery_id: string
+          id: string
+          order_id: string
+          origin_key: string
+          rep_id: string
+          settlement_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          base_delivered_amount: number
+          commission_rate: number
+          commission_total: number
+          company_id: string
+          created_at?: string
+          delivery_id: string
+          id?: string
+          order_id: string
+          origin_key: string
+          rep_id: string
+          settlement_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          base_delivered_amount?: number
+          commission_rate?: number
+          commission_total?: number
+          company_id?: string
+          created_at?: string
+          delivery_id?: string
+          id?: string
+          order_id?: string
+          origin_key?: string
+          rep_id?: string
+          settlement_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_entitlements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_entitlements_delivery_id_fkey"
+            columns: ["delivery_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_entitlements_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_entitlements_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_entitlements_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "commission_settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commission_lines: {
         Row: {
           allocated_amount: number
@@ -1338,6 +1419,190 @@ export type Database = {
             columns: ["ar_payment_allocation_id"]
             isOneToOne: false
             referencedRelation: "ar_payment_allocations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commission_releases: {
+        Row: {
+          base_paid_amount: number
+          commission_released_amount: number
+          company_id: string
+          created_at: string
+          entitlement_id: string
+          id: string
+          order_id: string
+          origin_key: string
+          payment_id: string
+          rep_id: string
+          settlement_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          base_paid_amount: number
+          commission_released_amount: number
+          company_id: string
+          created_at?: string
+          entitlement_id: string
+          id?: string
+          order_id: string
+          origin_key: string
+          payment_id: string
+          rep_id: string
+          settlement_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          base_paid_amount?: number
+          commission_released_amount?: number
+          company_id?: string
+          created_at?: string
+          entitlement_id?: string
+          id?: string
+          order_id?: string
+          origin_key?: string
+          payment_id?: string
+          rep_id?: string
+          settlement_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_releases_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_releases_entitlement_id_fkey"
+            columns: ["entitlement_id"]
+            isOneToOne: false
+            referencedRelation: "commission_entitlements"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_releases_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_releases_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "ar_payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_releases_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_releases_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "commission_settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commission_settlement_items: {
+        Row: {
+          amount: number
+          created_at: string
+          item_id: string
+          item_type: string
+          settlement_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          item_id: string
+          item_type: string
+          settlement_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          item_id?: string
+          item_type?: string
+          settlement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_settlement_items_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "commission_settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commission_settlements: {
+        Row: {
+          allow_advance: boolean
+          company_id: string
+          created_at: string
+          created_by: string
+          cutoff_date: string
+          id: string
+          rep_id: string
+          request_key: string | null
+          status: string
+          total_paid: number
+          updated_at: string
+        }
+        Insert: {
+          allow_advance?: boolean
+          company_id: string
+          created_at?: string
+          created_by: string
+          cutoff_date: string
+          id?: string
+          rep_id: string
+          request_key?: string | null
+          status?: string
+          total_paid?: number
+          updated_at?: string
+        }
+        Update: {
+          allow_advance?: boolean
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          cutoff_date?: string
+          id?: string
+          rep_id?: string
+          request_key?: string | null
+          status?: string
+          total_paid?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_settlements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_settlements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_settlements_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -3227,6 +3492,177 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "financial_settlements_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_dfe_sync_state: {
+        Row: {
+          company_id: string
+          created_at: string
+          environment: string
+          id: string
+          last_error: string | null
+          last_nsu: string
+          last_sync_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          environment: string
+          id?: string
+          last_error?: string | null
+          last_nsu?: string
+          last_sync_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          environment?: string
+          id?: string
+          last_error?: string | null
+          last_nsu?: string
+          last_sync_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_dfe_sync_state_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_inbound_dfe: {
+        Row: {
+          chnfe: string | null
+          company_id: string
+          created_at: string
+          dest_cnpj: string | null
+          dh_emi: string | null
+          emit_cnpj: string | null
+          emit_nome: string | null
+          environment: string
+          has_full_xml: boolean
+          id: string
+          manifest_status: string
+          manifest_updated_at: string | null
+          nsu: string
+          schema: string
+          summary_json: Json
+          total: number | null
+          updated_at: string
+          xml_base64: string | null
+          xml_is_gz: boolean
+        }
+        Insert: {
+          chnfe?: string | null
+          company_id: string
+          created_at?: string
+          dest_cnpj?: string | null
+          dh_emi?: string | null
+          emit_cnpj?: string | null
+          emit_nome?: string | null
+          environment: string
+          has_full_xml?: boolean
+          id?: string
+          manifest_status?: string
+          manifest_updated_at?: string | null
+          nsu: string
+          schema: string
+          summary_json?: Json
+          total?: number | null
+          updated_at?: string
+          xml_base64?: string | null
+          xml_is_gz?: boolean
+        }
+        Update: {
+          chnfe?: string | null
+          company_id?: string
+          created_at?: string
+          dest_cnpj?: string | null
+          dh_emi?: string | null
+          emit_cnpj?: string | null
+          emit_nome?: string | null
+          environment?: string
+          has_full_xml?: boolean
+          id?: string
+          manifest_status?: string
+          manifest_updated_at?: string | null
+          nsu?: string
+          schema?: string
+          summary_json?: Json
+          total?: number | null
+          updated_at?: string
+          xml_base64?: string | null
+          xml_is_gz?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_inbound_dfe_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fiscal_inbound_manifest_events: {
+        Row: {
+          chnfe: string
+          company_id: string
+          created_at: string
+          environment: string
+          event_type: string
+          id: string
+          justification: string | null
+          last_error: string | null
+          sefaz_protocol: string | null
+          sefaz_receipt: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          chnfe: string
+          company_id: string
+          created_at?: string
+          environment: string
+          event_type: string
+          id?: string
+          justification?: string | null
+          last_error?: string | null
+          sefaz_protocol?: string | null
+          sefaz_receipt?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          chnfe?: string
+          company_id?: string
+          created_at?: string
+          environment?: string
+          event_type?: string
+          id?: string
+          justification?: string | null
+          last_error?: string | null
+          sefaz_protocol?: string | null
+          sefaz_receipt?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fiscal_inbound_manifest_events_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
@@ -5155,6 +5591,64 @@ export type Database = {
           },
         ]
       }
+      order_commission_rate_history: {
+        Row: {
+          changed_at: string
+          changed_by: string
+          company_id: string
+          id: string
+          new_rate: number
+          old_rate: number
+          order_id: string
+          reason: string
+          source_context: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by: string
+          company_id: string
+          id?: string
+          new_rate: number
+          old_rate: number
+          order_id: string
+          reason: string
+          source_context: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string
+          company_id?: string
+          id?: string
+          new_rate?: number
+          old_rate?: number
+          order_id?: string
+          reason?: string
+          source_context?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_commission_rate_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_commission_rate_history_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_commission_rate_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "sales_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_delivery_events: {
         Row: {
           company_id: string
@@ -6637,6 +7131,84 @@ export type Database = {
           },
         ]
       }
+      rep_commission_ledger: {
+        Row: {
+          amount: number
+          company_id: string
+          created_at: string
+          created_by: string | null
+          entry_type: string
+          id: string
+          notes: string | null
+          release_id: string | null
+          rep_id: string
+          settlement_id: string | null
+          source_key: string | null
+        }
+        Insert: {
+          amount: number
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          entry_type: string
+          id?: string
+          notes?: string | null
+          release_id?: string | null
+          rep_id: string
+          settlement_id?: string | null
+          source_key?: string | null
+        }
+        Update: {
+          amount?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          entry_type?: string
+          id?: string
+          notes?: string | null
+          release_id?: string | null
+          rep_id?: string
+          settlement_id?: string | null
+          source_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rep_commission_ledger_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_commission_ledger_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_commission_ledger_release_id_fkey"
+            columns: ["release_id"]
+            isOneToOne: false
+            referencedRelation: "commission_releases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_commission_ledger_rep_id_fkey"
+            columns: ["rep_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rep_commission_ledger_settlement_id_fkey"
+            columns: ["settlement_id"]
+            isOneToOne: false
+            referencedRelation: "commission_settlements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       revenue_category_sequences: {
         Row: {
           company_id: string
@@ -7345,6 +7917,10 @@ export type Database = {
           carrier_id: string | null
           client_id: string
           client_notes: string | null
+          commission_rate: number | null
+          commission_rate_source: string | null
+          commission_rate_updated_at: string | null
+          commission_rate_updated_by: string | null
           company_id: string
           created_at: string | null
           date_issued: string
@@ -7401,6 +7977,10 @@ export type Database = {
           carrier_id?: string | null
           client_id: string
           client_notes?: string | null
+          commission_rate?: number | null
+          commission_rate_source?: string | null
+          commission_rate_updated_at?: string | null
+          commission_rate_updated_by?: string | null
           company_id: string
           created_at?: string | null
           date_issued?: string
@@ -7457,6 +8037,10 @@ export type Database = {
           carrier_id?: string | null
           client_id?: string
           client_notes?: string | null
+          commission_rate?: number | null
+          commission_rate_source?: string | null
+          commission_rate_updated_at?: string | null
+          commission_rate_updated_by?: string | null
           company_id?: string
           created_at?: string | null
           date_issued?: string
@@ -7536,6 +8120,13 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_documents_commission_rate_updated_by_fkey"
+            columns: ["commission_rate_updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
           {
@@ -9582,6 +10173,70 @@ export type Database = {
         Args: { p_company_id: string; p_exclude_id?: string; p_user_id: string }
         Returns: undefined
       }
+      commission_apply_order_rate_override: {
+        Args: {
+          p_changed_by: string
+          p_company_id: string
+          p_new_rate: number
+          p_order_id: string
+          p_reason: string
+          p_source_context: string
+        }
+        Returns: {
+          adjustment_delta: number
+          new_rate: number
+          old_rate: number
+          open_entitlements_count: number
+          open_releases_count: number
+          order_id: string
+        }[]
+      }
+      commission_confirm_settlement: {
+        Args: {
+          p_allow_advance: boolean
+          p_company_id: string
+          p_created_by: string
+          p_cutoff_date: string
+          p_rep_id: string
+          p_request_key?: string
+          p_selected_items: Json
+          p_total_to_pay: number
+        }
+        Returns: {
+          settlement_id: string
+          status: string
+          total_advance_selected: number
+          total_paid: number
+          total_released_selected: number
+        }[]
+      }
+      commission_get_rep_open_items: {
+        Args: { p_company_id: string; p_cutoff_date: string; p_rep_id: string }
+        Returns: {
+          base_delivered_amount: number
+          commission_rate: number
+          commission_total: number
+          customer_id: string
+          customer_name: string
+          default_selected: boolean
+          delivered_date: string
+          delivery_item_id: string
+          entitlement_id: string
+          max_payable_amount: number
+          order_id: string
+          order_number: number
+          release_item_ids: Json
+          released_open_amount: number
+          status_financeiro: string
+          status_logistico: string
+          total_open_amount: number
+          unreleased_open_amount: number
+        }[]
+      }
+      commission_refresh_rep_open_state: {
+        Args: { p_company_id: string; p_cutoff_date: string; p_rep_id: string }
+        Returns: undefined
+      }
       create_financial_category_for_operational_expense: {
         Args: {
           p_company_id: string
@@ -9643,6 +10298,35 @@ export type Database = {
           deleted_category_id: string
           mode: string
         }[]
+      }
+      enqueue_manifest_event: {
+        Args: {
+          p_chnfe: string
+          p_company_id: string
+          p_environment: string
+          p_event_type: string
+          p_justification?: string
+        }
+        Returns: {
+          chnfe: string
+          company_id: string
+          created_at: string
+          environment: string
+          event_type: string
+          id: string
+          justification: string | null
+          last_error: string | null
+          sefaz_protocol: string | null
+          sefaz_receipt: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "fiscal_inbound_manifest_events"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       fetch_next_job: {
         Args: { p_job_type: string }
@@ -9817,6 +10501,52 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_dfe_sync_result: {
+        Args: {
+          p_company_id: string
+          p_environment: string
+          p_last_error?: string
+          p_last_nsu: string
+          p_status: string
+        }
+        Returns: {
+          company_id: string
+          created_at: string
+          environment: string
+          id: string
+          last_error: string | null
+          last_nsu: string
+          last_sync_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "fiscal_dfe_sync_state"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_dfe_sync_running: {
+        Args: { p_company_id: string; p_environment: string }
+        Returns: {
+          company_id: string
+          created_at: string
+          environment: string
+          id: string
+          last_error: string | null
+          last_nsu: string
+          last_sync_at: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "fiscal_dfe_sync_state"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_revenue_category_active: {
         Args: {
           p_category_id: string
@@ -9837,6 +10567,13 @@ export type Database = {
       update_sales_doc_logistic_status: {
         Args: { p_id: string; p_status: string }
         Returns: undefined
+      }
+      upsert_inbound_dfe_batch: {
+        Args: { p_company_id: string; p_environment: string; p_rows: Json }
+        Returns: {
+          inserted_count: number
+          updated_count: number
+        }[]
       }
     }
     Enums: {
