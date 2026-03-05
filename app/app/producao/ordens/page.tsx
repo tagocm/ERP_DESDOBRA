@@ -4,7 +4,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { createClient } from "@/lib/supabaseBrowser";
 import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/Card";
-import { Search, Eye, Play, CheckCircle2, Trash2, XCircle, AlertOctagon, Pencil } from "lucide-react";
+import { Search, Eye, Play, CheckCircle2, Trash2, XCircle, AlertOctagon, Pencil, Download, Printer, X, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { calculateRecipeCount, formatRecipeCountLabel } from "@/lib/pcp/work-order-metrics";
+import { Checkbox } from "@/components/ui/Checkbox";
 
 import { NewWorkOrderModal } from "@/components/pcp/NewWorkOrderModal";
 import { ListPagination } from "@/components/ui/ListPagination";
@@ -61,6 +62,21 @@ interface SectorOption {
     name: string;
 }
 
+const STATUS_LABELS: Record<WorkOrder["status"], string> = {
+    planned: "Planejada",
+    in_progress: "Em Produção",
+    done: "Concluída",
+    cancelled: "Cancelada",
+};
+
+const escapeHtml = (input: string): string =>
+    input
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+
 export default function WorkOrdersPage() {
     const { selectedCompany } = useCompany();
     const supabase = createClient();
@@ -72,7 +88,12 @@ export default function WorkOrdersPage() {
     const [statusFilter, setStatusFilter] = useState("all");
     const [sectorFilter, setSectorFilter] = useState("all");
     const [sectors, setSectors] = useState<SectorOption[]>([]);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [currentPage, setCurrentPage] = useState(1);
+    const [isBatchPrinting, setIsBatchPrinting] = useState(false);
+    const [isBatchDownloading, setIsBatchDownloading] = useState(false);
+    const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+    const [batchDeleteDialogOpen, setBatchDeleteDialogOpen] = useState(false);
     const PAGE_SIZE = 100;
 
     // ... (previous code)
@@ -348,6 +369,231 @@ export default function WorkOrdersPage() {
     const totalFilteredOrders = filteredOrders.length;
     const startIndex = (currentPage - 1) * PAGE_SIZE;
     const pagedFilteredOrders = filteredOrders.slice(startIndex, startIndex + PAGE_SIZE);
+    const selectedOrders = useMemo(
+        () => orders.filter((order) => selectedIds.has(order.id)),
+        [orders, selectedIds]
+    );
+    const selectedVisibleCount = pagedFilteredOrders.filter((order) => selectedIds.has(order.id)).length;
+    const isAllVisibleSelected = pagedFilteredOrders.length > 0 && selectedVisibleCount === pagedFilteredOrders.length;
+    const isVisibleIndeterminate = selectedVisibleCount > 0 && !isAllVisibleSelected;
+
+    useEffect(() => {
+        setSelectedIds((current) => {
+            if (current.size === 0) return current;
+            const available = new Set(orders.map((order) => order.id));
+            const next = new Set<string>();
+            for (const id of current) {
+                if (available.has(id)) next.add(id);
+            }
+            return next.size === current.size ? current : next;
+        });
+    }, [orders]);
+
+    const handleSelectRow = (orderId: string, checked: boolean) => {
+        setSelectedIds((current) => {
+            const next = new Set(current);
+            if (checked) {
+                next.add(orderId);
+            } else {
+                next.delete(orderId);
+            }
+            return next;
+        });
+    };
+
+    const handleSelectAllVisible = (checked: boolean) => {
+        setSelectedIds((current) => {
+            const next = new Set(current);
+            for (const order of pagedFilteredOrders) {
+                if (checked) {
+                    next.add(order.id);
+                } else {
+                    next.delete(order.id);
+                }
+            }
+            return next;
+        });
+    };
+
+    const clearSelection = () => setSelectedIds(new Set());
+
+    const buildSelectedOrdersCsv = (rows: WorkOrder[]): string => {
+        const headers = ["OP", "ID técnico", "Produto", "Status", "Setor", "Planejado", "UOM", "Receitas", "Produzido", "Data Programada", "Criado em"];
+        const contentRows = rows.map((order) => {
+            const recipes = formatRecipeCountLabel(calculateRecipeCount(order.planned_qty, order.bom?.yield_qty));
+            return [
+                order.document_number ? `#${order.document_number}` : "#---",
+                order.id,
+                order.item?.name ?? "-",
+                STATUS_LABELS[order.status],
+                order.sector ? `${order.sector.code} - ${order.sector.name}` : "-",
+                String(order.planned_qty),
+                order.item?.uom ?? "-",
+                recipes,
+                String(order.produced_qty),
+                order.scheduled_date ? new Date(order.scheduled_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : "-",
+                new Date(order.created_at).toLocaleDateString(),
+            ];
+        });
+        return [headers, ...contentRows]
+            .map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(";"))
+            .join("\n");
+    };
+
+    const handleBatchDownload = async () => {
+        if (selectedOrders.length === 0) return;
+        setIsBatchDownloading(true);
+        try {
+            const csv = buildSelectedOrdersCsv(selectedOrders);
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `ops_selecionadas_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            toast({ title: "Download iniciado", description: "Arquivo CSV das OPs selecionadas gerado com sucesso." });
+        } catch (error) {
+            console.error(error);
+            toast({ title: "Erro", description: "Falha ao gerar arquivo para download.", variant: "destructive" });
+        } finally {
+            setIsBatchDownloading(false);
+        }
+    };
+
+    const handleBatchPrint = async () => {
+        if (selectedOrders.length === 0) return;
+        setIsBatchPrinting(true);
+        try {
+            const rows = selectedOrders
+                .map((order) => {
+                    const recipes = formatRecipeCountLabel(calculateRecipeCount(order.planned_qty, order.bom?.yield_qty));
+                    return `
+                        <tr>
+                            <td>${escapeHtml(order.document_number ? `#${order.document_number}` : '#---')}</td>
+                            <td>${escapeHtml(order.item?.name ?? '-')}</td>
+                            <td>${escapeHtml(STATUS_LABELS[order.status])}</td>
+                            <td>${escapeHtml(order.sector ? `${order.sector.code} - ${order.sector.name}` : '-')}</td>
+                            <td style="text-align:right;">${escapeHtml(String(order.planned_qty))} ${escapeHtml(order.item?.uom ?? '-')}</td>
+                            <td style="text-align:right;">${escapeHtml(recipes)}</td>
+                            <td style="text-align:right;">${escapeHtml(String(order.produced_qty))} ${escapeHtml(order.item?.uom ?? '-')}</td>
+                        </tr>
+                    `;
+                })
+                .join("");
+
+            const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1200,height=800");
+            if (!printWindow) {
+                throw new Error("Não foi possível abrir a janela de impressão.");
+            }
+
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html lang="pt-BR">
+                <head>
+                    <meta charset="utf-8" />
+                    <title>OPs Selecionadas</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
+                        h1 { margin: 0 0 8px 0; font-size: 20px; }
+                        p { margin: 0 0 16px 0; color: #475569; }
+                        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                        th, td { border: 1px solid #cbd5e1; padding: 8px; vertical-align: top; }
+                        th { background: #f1f5f9; text-align: left; font-weight: 700; }
+                        @media print { body { margin: 8mm; } }
+                    </style>
+                </head>
+                <body>
+                    <h1>Ordens de Produção Selecionadas</h1>
+                    <p>Total: ${selectedOrders.length} OP(s)</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>OP</th>
+                                <th>Produto</th>
+                                <th>Status</th>
+                                <th>Setor</th>
+                                <th>Planejado</th>
+                                <th>Receitas</th>
+                                <th>Produzido</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+        } catch (error) {
+            console.error(error);
+            const message = error instanceof Error ? error.message : "Falha ao imprimir OPs selecionadas.";
+            toast({ title: "Erro", description: message, variant: "destructive" });
+        } finally {
+            setIsBatchPrinting(false);
+        }
+    };
+
+    const getBatchDeleteStats = () => {
+        const selected = selectedOrders;
+        const deletable = selected.filter((order) => order.status === "planned" && Number(order.produced_qty || 0) <= 0);
+        return {
+            total: selected.length,
+            deletableCount: deletable.length,
+            blockedCount: selected.length - deletable.length,
+            deletableIds: deletable.map((order) => order.id),
+        };
+    };
+
+    const handleBatchDelete = async () => {
+        const stats = getBatchDeleteStats();
+        if (stats.deletableIds.length === 0) {
+            toast({
+                title: "Nenhuma OP apta",
+                description: "Selecione OPs planejadas e sem produção para excluir.",
+                variant: "destructive"
+            });
+            setBatchDeleteDialogOpen(false);
+            return;
+        }
+
+        setIsBatchDeleting(true);
+        try {
+            let deletedCount = 0;
+            let failedCount = 0;
+            const failedMessages: string[] = [];
+
+            for (const orderId of stats.deletableIds) {
+                try {
+                    await deleteWorkOrderAction(orderId, { deletePlannedChildren: true });
+                    deletedCount += 1;
+                } catch (error) {
+                    failedCount += 1;
+                    const message = error instanceof Error ? error.message : "Erro ao excluir OP.";
+                    if (failedMessages.length < 3) {
+                        failedMessages.push(message);
+                    }
+                }
+            }
+
+            setBatchDeleteDialogOpen(false);
+            clearSelection();
+            await fetchOrders();
+
+            toast({
+                title: "Exclusão em lote concluída",
+                description: failedCount > 0
+                    ? `Excluídas: ${deletedCount}. Falhas: ${failedCount}. ${failedMessages.join(" ")}`
+                    : `Excluídas: ${deletedCount}.`,
+                variant: failedCount > 0 ? "destructive" : "default",
+            });
+        } finally {
+            setIsBatchDeleting(false);
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -370,6 +616,65 @@ export default function WorkOrdersPage() {
             />
 
             <div className="px-6">
+                {selectedIds.size > 0 && (
+                    <div className="mb-4 p-4 bg-brand-50 border border-brand-100 rounded-2xl flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                        <div className="flex items-center gap-3">
+                            <div className="bg-brand-100 text-brand-700 px-3 py-1 rounded-2xl text-sm font-semibold">
+                                {selectedIds.size} {selectedIds.size === 1 ? 'OP selecionada' : 'OPs selecionadas'}
+                            </div>
+
+                            <div className="h-4 w-px bg-brand-200 mx-1" />
+
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleBatchDownload}
+                                disabled={isBatchDownloading || isBatchPrinting || isBatchDeleting}
+                                className="bg-white border-brand-200 text-brand-700 hover:bg-brand-50 hover:text-brand-800 h-8 font-medium gap-2"
+                                title="Baixar OPs selecionadas"
+                            >
+                                {isBatchDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                                {isBatchDownloading ? 'Baixando...' : 'Baixar'}
+                            </Button>
+
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleBatchPrint}
+                                disabled={isBatchDownloading || isBatchPrinting || isBatchDeleting}
+                                className="bg-white border-brand-200 text-brand-700 hover:bg-brand-50 hover:text-brand-800 h-8 font-medium gap-2"
+                                title="Imprimir OPs selecionadas"
+                            >
+                                {isBatchPrinting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
+                                {isBatchPrinting ? 'Imprimindo...' : 'Imprimir'}
+                            </Button>
+
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setBatchDeleteDialogOpen(true)}
+                                disabled={isBatchDownloading || isBatchPrinting || isBatchDeleting}
+                                className="bg-white border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 h-8 font-medium gap-2"
+                                title="Excluir OPs selecionadas"
+                            >
+                                {isBatchDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                {isBatchDeleting ? 'Excluindo...' : 'Excluir'}
+                            </Button>
+                        </div>
+
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={clearSelection}
+                            disabled={isBatchDownloading || isBatchPrinting || isBatchDeleting}
+                            className="text-brand-700 hover:text-brand-800 hover:bg-brand-100"
+                        >
+                            <X className="w-4 h-4 mr-2" />
+                            Limpar seleção
+                        </Button>
+                    </div>
+                )}
+
                 <Card>
                     <CardContent className="p-0">
                         <div className="flex flex-wrap gap-3 p-4 border-b border-gray-100/70">
@@ -417,6 +722,13 @@ export default function WorkOrdersPage() {
                                 {/* ... (thead) */}
                                 <thead className="bg-white text-gray-500 font-semibold border-b border-gray-200">
                                     <tr>
+                                        <th className="px-6 py-3 w-10">
+                                            <Checkbox
+                                                checked={isAllVisibleSelected ? true : isVisibleIndeterminate ? "indeterminate" : false}
+                                                onCheckedChange={(checked) => handleSelectAllVisible(checked === true)}
+                                                aria-label="Selecionar todas as OPs visíveis"
+                                            />
+                                        </th>
                                         <th className="px-6 py-3 text-left">OP</th>
                                         <th className="px-6 py-3 text-left">Produto</th>
                                         <th className="px-6 py-3 text-center">Status</th>
@@ -433,19 +745,29 @@ export default function WorkOrdersPage() {
                                 <tbody className="divide-y divide-gray-100">
                                     {isLoading ? (
                                         <tr>
-                                            <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
+                                            <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
                                                 Carregando...
                                             </td>
                                         </tr>
                                     ) : filteredOrders.length === 0 ? (
                                         <tr>
-                                            <td colSpan={11} className="px-6 py-8 text-center text-gray-500">
+                                            <td colSpan={12} className="px-6 py-8 text-center text-gray-500">
                                                 Nenhuma ordem de produção encontrada.
                                             </td>
                                         </tr>
                                     ) : (
                                         pagedFilteredOrders.map((order) => (
-                                            <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                                            <tr
+                                                key={order.id}
+                                                className={`transition-colors ${selectedIds.has(order.id) ? 'bg-brand-50/50 hover:bg-brand-50' : 'hover:bg-gray-50'}`}
+                                            >
+                                                <td className="px-6 py-3">
+                                                    <Checkbox
+                                                        checked={selectedIds.has(order.id)}
+                                                        onCheckedChange={(checked) => handleSelectRow(order.id, checked === true)}
+                                                        aria-label={`Selecionar OP ${order.document_number ?? order.id.slice(0, 8)}`}
+                                                    />
+                                                </td>
                                                 <td className="px-6 py-3">
                                                     <div className="flex flex-col leading-tight">
                                                         <span className="font-semibold text-gray-800">
@@ -577,6 +899,56 @@ export default function WorkOrdersPage() {
                 requireReason={statusModal.reasonRequired}
                 newStatus={statusModal.newStatus}
             />
+
+            <Dialog open={batchDeleteDialogOpen} onOpenChange={setBatchDeleteDialogOpen}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Excluir OPs selecionadas</DialogTitle>
+                        <DialogDescription>
+                            {(() => {
+                                const stats = getBatchDeleteStats();
+                                if (stats.total === 0) {
+                                    return "Nenhuma OP selecionada.";
+                                }
+                                return (
+                                    <>
+                                        Você selecionou <strong>{stats.total}</strong> OP(s).
+                                        <br />
+                                        Aptas para exclusão: <strong>{stats.deletableCount}</strong>.
+                                        {stats.blockedCount > 0 && (
+                                            <>
+                                                <br />
+                                                Bloqueadas pelas regras básicas: <strong>{stats.blockedCount}</strong>.
+                                            </>
+                                        )}
+                                        <br />
+                                        As regras finais (consumos, produção iniciada e dependências) serão validadas ao confirmar.
+                                    </>
+                                );
+                            })()}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setBatchDeleteDialogOpen(false)} disabled={isBatchDeleting}>
+                            Cancelar
+                        </Button>
+                        <Button
+                            variant="danger"
+                            onClick={handleBatchDelete}
+                            disabled={isBatchDeleting || getBatchDeleteStats().deletableCount === 0}
+                        >
+                            {isBatchDeleting ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    Excluindo...
+                                </>
+                            ) : (
+                                "Confirmar exclusão"
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={deleteModal.isOpen} onOpenChange={(open) => !open && setDeleteModal({ isOpen: false, order: null })}>
                 <DialogContent>

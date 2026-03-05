@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, type DragEvent as ReactDragEvent } from "react"
 import { createClient } from "@/lib/supabaseBrowser"
 import { useCompany } from "@/contexts/CompanyContext"
 import { Button } from "@/components/ui/Button"
@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/Textarea"
 import { Checkbox } from "@/components/ui/Checkbox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/Tooltip"
-import { Calendar as CalendarIcon, Plus, GripVertical, Play, CheckCircle2, XCircle, AlertTriangle, Pencil, Copy, ArrowUp, ChevronDown } from "lucide-react"
+import { Calendar as CalendarIcon, Plus, Printer, GripVertical, Play, CheckCircle2, XCircle, AlertTriangle, Pencil, Copy, ArrowUp, ChevronDown } from "lucide-react"
 import { cn, todayInBrasilia, toDateInputValue } from "@/lib/utils"
 import {
     DndContext,
@@ -158,6 +158,39 @@ interface WeekdayOption {
     label: string
 }
 
+const SECTOR_BASE_COLORS = ['#1D4ED8', '#0D9488', '#CA8A04', '#7C3AED', '#DC2626'] as const
+
+function darkenHexColor(hex: string, ratio: number): string {
+    const normalized = hex.replace('#', '')
+    if (normalized.length !== 6) {
+        return hex
+    }
+
+    const r = parseInt(normalized.slice(0, 2), 16)
+    const g = parseInt(normalized.slice(2, 4), 16)
+    const b = parseInt(normalized.slice(4, 6), 16)
+
+    if ([r, g, b].some((channel) => Number.isNaN(channel))) {
+        return hex
+    }
+
+    const nextChannel = (channel: number) => Math.max(0, Math.min(255, Math.round(channel * (1 - ratio))))
+    const rr = nextChannel(r).toString(16).padStart(2, '0')
+    const gg = nextChannel(g).toString(16).padStart(2, '0')
+    const bb = nextChannel(b).toString(16).padStart(2, '0')
+
+    return `#${rr}${gg}${bb}`
+}
+
+function resolveSectorColorBySlot(slot: number): string {
+    const safeSlot = Number.isFinite(slot) && slot >= 0 ? Math.floor(slot) : 0
+    const baseColor = SECTOR_BASE_COLORS[safeSlot % SECTOR_BASE_COLORS.length]
+    const cycle = Math.floor(safeSlot / SECTOR_BASE_COLORS.length)
+    const darkenRatio = Math.min(0.48, cycle * 0.12)
+
+    return darkenHexColor(baseColor, darkenRatio)
+}
+
 const WEEKDAY_OPTIONS: WeekdayOption[] = [
     { value: 1, label: 'Segunda-feira' },
     { value: 2, label: 'Terça-feira' },
@@ -184,6 +217,10 @@ export function ProductionSchedule({
     const [inconsistentOrders, setInconsistentOrders] = useState<Set<string>>(new Set())
     const [sectors, setSectors] = useState<SectorFilterOption[]>([])
     const [selectedSectorIds, setSelectedSectorIds] = useState<string[]>([])
+    const [sectorOrderIds, setSectorOrderIds] = useState<string[]>([])
+    const [sectorColorSlotById, setSectorColorSlotById] = useState<Record<string, number>>({})
+    const [draggedSectorId, setDraggedSectorId] = useState<string | null>(null)
+    const [dragOverSectorId, setDragOverSectorId] = useState<string | null>(null)
     const [profileBatchByItemId, setProfileBatchByItemId] = useState<Record<string, number | null>>({})
     const [unscheduledOrderIds, setUnscheduledOrderIds] = useState<string[]>([])
 
@@ -229,6 +266,8 @@ export function ProductionSchedule({
         [selectedWeekdays]
     )
     const unscheduledQueueStorageKey = selectedCompany ? `pcp-unscheduled-queue:${selectedCompany.id}` : null
+    const sectorOrderStorageKey = selectedCompany ? `pcp-sector-order:${selectedCompany.id}` : null
+    const sectorColorStorageKey = selectedCompany ? `pcp-sector-color-slots:${selectedCompany.id}` : null
 
     const fetchOrders = async () => {
         if (!selectedCompany) return
@@ -368,17 +407,147 @@ export function ProductionSchedule({
         window.localStorage.setItem(unscheduledQueueStorageKey, JSON.stringify(unscheduledOrderIds))
     }, [unscheduledOrderIds, unscheduledQueueStorageKey])
 
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return
+        }
+
+        if (!sectorOrderStorageKey) {
+            setSectorOrderIds([])
+            return
+        }
+
+        try {
+            const raw = window.localStorage.getItem(sectorOrderStorageKey)
+            if (!raw) {
+                setSectorOrderIds([])
+                return
+            }
+            const parsed = JSON.parse(raw) as unknown
+            if (!Array.isArray(parsed)) {
+                setSectorOrderIds([])
+                return
+            }
+            setSectorOrderIds(parsed.filter((value): value is string => typeof value === 'string'))
+        } catch (error) {
+            console.error('Falha ao carregar ordem de setores:', error)
+            setSectorOrderIds([])
+        }
+    }, [sectorOrderStorageKey])
+
+    useEffect(() => {
+        if (typeof window === 'undefined') {
+            return
+        }
+
+        if (!sectorColorStorageKey) {
+            setSectorColorSlotById({})
+            return
+        }
+
+        try {
+            const raw = window.localStorage.getItem(sectorColorStorageKey)
+            if (!raw) {
+                setSectorColorSlotById({})
+                return
+            }
+            const parsed = JSON.parse(raw) as unknown
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+                setSectorColorSlotById({})
+                return
+            }
+
+            const normalized: Record<string, number> = {}
+            for (const [key, value] of Object.entries(parsed)) {
+                if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+                    normalized[key] = Math.floor(value)
+                }
+            }
+            setSectorColorSlotById(normalized)
+        } catch (error) {
+            console.error('Falha ao carregar paleta de setores:', error)
+            setSectorColorSlotById({})
+        }
+    }, [sectorColorStorageKey])
+
+    useEffect(() => {
+        const activeSectorIds = sectors.map((sector) => sector.id)
+        if (activeSectorIds.length === 0) {
+            setSectorOrderIds([])
+            setSectorColorSlotById({})
+            return
+        }
+
+        setSectorOrderIds((current) => {
+            const currentSet = new Set(current)
+            const availableSet = new Set(activeSectorIds)
+            const next = current.filter((id) => availableSet.has(id))
+            for (const id of activeSectorIds) {
+                if (!currentSet.has(id)) {
+                    next.push(id)
+                }
+            }
+            return next
+        })
+
+        setSectorColorSlotById((current) => {
+            const next: Record<string, number> = {}
+            let maxSlot = -1
+            for (const value of Object.values(current)) {
+                if (Number.isFinite(value)) {
+                    maxSlot = Math.max(maxSlot, Math.floor(value))
+                }
+            }
+            let nextSlot = maxSlot + 1
+
+            for (const sectorId of activeSectorIds) {
+                const existing = current[sectorId]
+                if (typeof existing === 'number' && Number.isFinite(existing) && existing >= 0) {
+                    next[sectorId] = Math.floor(existing)
+                    continue
+                }
+                next[sectorId] = nextSlot
+                nextSlot += 1
+            }
+
+            return next
+        })
+    }, [sectors])
+
+    useEffect(() => {
+        if (!sectorOrderStorageKey || typeof window === 'undefined') {
+            return
+        }
+        window.localStorage.setItem(sectorOrderStorageKey, JSON.stringify(sectorOrderIds))
+    }, [sectorOrderIds, sectorOrderStorageKey])
+
+    useEffect(() => {
+        if (!sectorColorStorageKey || typeof window === 'undefined') {
+            return
+        }
+        window.localStorage.setItem(sectorColorStorageKey, JSON.stringify(sectorColorSlotById))
+    }, [sectorColorSlotById, sectorColorStorageKey])
+
     const lanes = useMemo<ProductionLane[]>(() => {
-        const activeLanes: ProductionLane[] = sectors.map((sector) => ({
-            key: sector.id,
-            sectorId: sector.id,
-            name: sector.name,
-            code: sector.code,
-            capacityRecipes: sector.capacity_recipes,
-            isUnassigned: false,
-            isInactive: false,
-            dropDisabled: false,
-        }))
+        const sectorById = new Map(sectors.map((sector) => [sector.id, sector] as const))
+        const orderedSectorIds = [
+            ...sectorOrderIds.filter((sectorId) => sectorById.has(sectorId)),
+            ...sectors.map((sector) => sector.id).filter((sectorId) => !sectorOrderIds.includes(sectorId)),
+        ]
+
+        const activeLanes: ProductionLane[] = orderedSectorIds
+            .map((sectorId) => sectorById.get(sectorId))
+            .filter((sector): sector is SectorFilterOption => Boolean(sector))
+            .map((sector) => ({
+                key: sector.id,
+                sectorId: sector.id,
+                name: sector.name,
+                code: sector.code,
+                capacityRecipes: sector.capacity_recipes,
+                isUnassigned: false,
+                isInactive: false,
+                dropDisabled: false,
+            }))
 
         const activeSectorIds = new Set(activeLanes.map((lane) => lane.sectorId))
         const inactiveLanesMap = new Map<string, ProductionLane>()
@@ -417,7 +586,7 @@ export function ProductionSchedule({
             : []
 
         return [...activeLanes, ...inactiveLanesMap.values(), ...unassignedLane]
-    }, [dayRange, orders, sectors])
+    }, [dayRange, orders, sectorOrderIds, sectors])
 
     useEffect(() => {
         const availableSectorIds = lanes
@@ -809,6 +978,85 @@ export function ProductionSchedule({
         setIsCreateOpen(true)
     }
 
+    const handlePrintLaneDay = async (lane: ProductionLane, dateStr: string, cards: DisplayOrderCard[]) => {
+        const orderIds = Array.from(
+            new Set(
+                cards
+                    .map((card) => card.sourceOrderId || card.order.id)
+                    .filter((value): value is string => Boolean(value))
+            )
+        )
+
+        if (orderIds.length === 0) {
+            toast({
+                title: "Nada para imprimir",
+                description: "Não há ordens neste setor e dia.",
+                variant: "destructive",
+            })
+            return
+        }
+
+        const printWindow = window.open("", "_blank", "noopener,noreferrer,width=1200,height=800")
+        if (!printWindow) {
+            toast({
+                title: "Bloqueio de pop-up",
+                description: "Permita pop-ups para visualizar/imprimir o PDF das OPs.",
+                variant: "destructive",
+            })
+            return
+        }
+
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html lang="pt-BR">
+                <head>
+                    <meta charset="utf-8" />
+                    <title>Gerando PDF...</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 24px; color: #0f172a; }
+                        p { color: #475569; }
+                    </style>
+                </head>
+                <body>
+                    <h2>Gerando PDF das ordens...</h2>
+                    <p>Setor: ${lane.name} | Data: ${new Date(`${dateStr}T00:00:00`).toLocaleDateString('pt-BR')}</p>
+                </body>
+            </html>
+        `)
+        printWindow.document.close()
+
+        try {
+            const response = await fetch('/api/work-orders/print-batch', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    ids: orderIds,
+                    companyId: selectedCompany?.id ?? null,
+                    scheduledDate: dateStr,
+                    sectorId: lane.sectorId,
+                }),
+            })
+
+            if (!response.ok) {
+                const result = await response.json().catch(() => ({}))
+                throw new Error(result.error || 'Não foi possível gerar o PDF das ordens.')
+            }
+
+            const blob = await response.blob()
+            const blobUrl = URL.createObjectURL(blob)
+
+            printWindow.location.href = blobUrl
+            window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+        } catch (error) {
+            console.error(error)
+            const message = error instanceof Error ? error.message : "Falha ao imprimir ordens do setor."
+            printWindow.close()
+            toast({ title: "Erro", description: message, variant: "destructive" })
+        }
+    }
+
     const handleOrderClick = (order: WorkOrder) => {
         setSelectedOrder(order)
         setEditPlannedQty(order.planned_qty)
@@ -1006,8 +1254,63 @@ export function ProductionSchedule({
     const activeOrder = activeId ? orders.find((order) => order.id === activeId) ?? null : null
     const selectedDaysLabel = selectedDayLabels.length > 0 ? `${selectedDayLabels.length} dia(s)` : 'Nenhum dia'
     const selectableLanes = lanes.filter((lane) => lane.sectorId !== null)
+    const orderedSelectableLanes = useMemo(() => {
+        const laneById = new Map(selectableLanes.map((lane) => [lane.sectorId as string, lane] as const))
+        const orderedIds = [
+            ...sectorOrderIds.filter((sectorId) => laneById.has(sectorId)),
+            ...selectableLanes
+                .map((lane) => lane.sectorId as string)
+                .filter((sectorId) => !sectorOrderIds.includes(sectorId)),
+        ]
+        return orderedIds
+            .map((sectorId) => laneById.get(sectorId))
+            .filter((lane): lane is ProductionLane => Boolean(lane))
+    }, [sectorOrderIds, selectableLanes])
     const selectedSectorsLabel = `${selectedSectorIds.length} setor(es)`
     const visibleLanes = lanes.filter((lane) => lane.sectorId === null || selectedSectorIds.includes(lane.sectorId))
+
+    const moveSectorBefore = (movingSectorId: string, targetSectorId: string) => {
+        setSectorOrderIds((current) => {
+            const normalized = current.length > 0
+                ? current
+                : selectableLanes.map((lane) => lane.sectorId as string)
+            const base = normalized.filter((sectorId) => sectorId !== movingSectorId)
+            const targetIndex = base.indexOf(targetSectorId)
+            if (targetIndex < 0) {
+                return [...base, movingSectorId]
+            }
+            base.splice(targetIndex, 0, movingSectorId)
+            return base
+        })
+    }
+
+    const handleSectorDragStart = (sectorId: string) => {
+        setDraggedSectorId(sectorId)
+        setDragOverSectorId(sectorId)
+    }
+
+    const handleSectorDragOver = (event: ReactDragEvent<HTMLButtonElement>, sectorId: string) => {
+        event.preventDefault()
+        if (draggedSectorId && draggedSectorId !== sectorId) {
+            setDragOverSectorId(sectorId)
+        }
+    }
+
+    const handleSectorDrop = (sectorId: string) => {
+        if (!draggedSectorId) {
+            return
+        }
+        if (draggedSectorId !== sectorId) {
+            moveSectorBefore(draggedSectorId, sectorId)
+        }
+        setDraggedSectorId(null)
+        setDragOverSectorId(null)
+    }
+
+    const handleSectorDragEnd = () => {
+        setDraggedSectorId(null)
+        setDragOverSectorId(null)
+    }
 
     const handleToggleWeekday = (weekday: number) => {
         const current = selectedWeekdays
@@ -1043,9 +1346,56 @@ export function ProductionSchedule({
         <>
             <div className="bg-white border-b border-gray-200 mt-6">
                 <div className="flex items-center justify-between px-2 py-2 border-t bg-gray-50/50">
-                    <h3 className="text-sm font-semibold flex items-center gap-2 text-slate-700">
-                        <CalendarIcon className="w-4 h-4 text-slate-500" /> Agenda de Produção
-                    </h3>
+                    <div className="flex min-w-0 items-center gap-3">
+                        <h3 className="text-sm font-semibold flex items-center gap-2 text-slate-700 whitespace-nowrap">
+                            <CalendarIcon className="w-4 h-4 text-slate-500" /> Agenda de Produção
+                        </h3>
+                        {orderedSelectableLanes.length > 0 && (
+                            <div className="flex min-w-0 items-center gap-2 rounded-full border border-slate-200 bg-white px-2 py-1 overflow-x-auto">
+                                <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">Ordem dos setores</span>
+                                <div className="flex items-center gap-1.5">
+                                    {orderedSelectableLanes.map((lane, index) => {
+                                        const sectorId = lane.sectorId as string
+                                        const parsedCode = Number.parseInt(lane.code, 10)
+                                        const displayNumber = Number.isFinite(parsedCode) && parsedCode > 0 ? parsedCode : index + 1
+                                        const colorSlot = sectorColorSlotById[sectorId] ?? index
+                                        const dotColor = resolveSectorColorBySlot(colorSlot)
+                                        const isDragTarget = draggedSectorId !== null && dragOverSectorId === sectorId && draggedSectorId !== sectorId
+
+                                        return (
+                                            <TooltipProvider key={sectorId}>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <button
+                                                            type="button"
+                                                            draggable
+                                                            onDragStart={() => handleSectorDragStart(sectorId)}
+                                                            onDragOver={(event) => handleSectorDragOver(event, sectorId)}
+                                                            onDrop={() => handleSectorDrop(sectorId)}
+                                                            onDragEnd={handleSectorDragEnd}
+                                                            className={cn(
+                                                                "h-7 w-7 shrink-0 rounded-full border text-[11px] font-semibold text-white transition-all",
+                                                                isDragTarget
+                                                                    ? "ring-2 ring-offset-1 ring-slate-400 scale-105"
+                                                                    : "ring-0"
+                                                            )}
+                                                            style={{ backgroundColor: dotColor, borderColor: dotColor }}
+                                                            aria-label={`Reordenar setor ${lane.name}`}
+                                                        >
+                                                            {displayNumber}
+                                                        </button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p className="text-xs">{lane.code} - {lane.name}</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     <div className="flex items-center gap-4">
                         <Popover>
                             <PopoverTrigger asChild>
@@ -1207,6 +1557,7 @@ export function ProductionSchedule({
                                                 stats={stats}
                                                 lane={lane}
                                                 onCreate={() => handleCreateClick(scheduledDate, lane.sectorId)}
+                                                onPrint={() => handlePrintLaneDay(lane, scheduledDate, dayCards)}
                                                 onOrderClick={handleOrderClick}
                                                 onDeleteClick={handleDeleteClick}
                                                 inconsistentOrders={inconsistentOrders}
@@ -1460,6 +1811,7 @@ function DroppableDay({
     cards,
     stats,
     onCreate,
+    onPrint,
     onOrderClick,
     onDeleteClick,
     inconsistentOrders,
@@ -1471,6 +1823,7 @@ function DroppableDay({
     cards: DisplayOrderCard[]
     stats: LaneDayStats
     onCreate: () => void
+    onPrint: () => void
     onOrderClick: (o: WorkOrder) => void
     onDeleteClick: (id: string) => void
     inconsistentOrders: Set<string>
@@ -1505,6 +1858,15 @@ function DroppableDay({
                     >
                         Planejado {plannedLabel}
                     </span>
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={onPrint}
+                        className="h-6 w-6 p-0"
+                        title="Imprimir OPs do setor"
+                    >
+                        <Printer className="h-3 w-3 text-gray-400" />
+                    </Button>
                     <Button size="sm" variant="ghost" onClick={onCreate} className="h-6 w-6 p-0">
                         <Plus className="h-3 w-3 text-gray-400" />
                     </Button>
