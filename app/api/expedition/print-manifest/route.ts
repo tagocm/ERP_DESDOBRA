@@ -446,6 +446,9 @@ export async function POST(request: Request) {
         const styleMatch = orderHtmls[0].match(/<style>([\s\S]*)<\/style>/i);
         const style = styleMatch ? styleMatch[1] : '';
         const bodies = orderHtmls.map(extractBody);
+        const orderPages = bodies
+            .map((bodyHtml) => `<section class="order-page">${bodyHtml}</section>`)
+            .join('');
 
         const combinedHtml = `
             <!DOCTYPE html>
@@ -454,11 +457,28 @@ export async function POST(request: Request) {
                 <meta charset="UTF-8">
                 <style>
                     ${style}
-                    .page-break { break-before: page; page-break-before: always; display: block; height: 1px; width: 100%; }
+                    body {
+                        display: block !important;
+                        min-height: auto !important;
+                        margin: 0;
+                        padding: 0;
+                    }
+                    .order-page {
+                        min-height: calc(297mm - 20mm);
+                        display: flex;
+                        flex-direction: column;
+                        box-sizing: border-box;
+                        break-after: page;
+                        page-break-after: always;
+                    }
+                    .order-page:last-child {
+                        break-after: auto;
+                        page-break-after: auto;
+                    }
                 </style>
             </head>
             <body>
-                ${bodies.join('<div class="page-break"></div>')}
+                ${orderPages}
             </body>
             </html>
         `;
