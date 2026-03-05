@@ -105,6 +105,10 @@ export async function listInboundDfe(
     .order("created_at", { ascending: false })
     .range(from, to);
 
+  // Event-only schemas (e.g. procEventoNFe/resEvento) do not carry full invoice columns
+  // and should not pollute the main NF-e inbound list.
+  query = query.not("schema", "in", "(procEventoNFe,resEvento)");
+
   if (filters.environment) {
     query = query.eq("environment", filters.environment);
   }
@@ -150,7 +154,7 @@ export async function listInboundDfe(
   } else if (filters.tab === "processing") {
     query = query.eq("has_full_xml", false);
   } else if (filters.tab === "cancelled") {
-    query = query.or("summary_json.csit.eq.101,summary_json.cstat.eq.101,schema.eq.procEventoNFe");
+    query = query.or("summary_json.csit.eq.101,summary_json.cstat.eq.101");
   }
 
   const { data, error, count } = await query;

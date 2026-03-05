@@ -28,10 +28,32 @@ export interface WorkerOptions {
   jobType: string;
 }
 
+type FailureRetryDirective = {
+  nextStatusOverride?: JobStatus;
+  delayMs?: number;
+  preserveAttemptCounter?: boolean;
+};
+
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   return "Unknown Error";
+}
+
+function resolveFailureDirective(jobType: string, message: string): FailureRetryDirective {
+  // cStat 656 (Consumo Indevido) exige aguardar antes de novas consultas por NSU.
+  if (
+    jobType === "NFE_DFE_DIST_SYNC" &&
+    (/\b656\b/.test(message) || /Consumo Indevido/i.test(message))
+  ) {
+    return {
+      nextStatusOverride: "pending",
+      delayMs: 60 * 60 * 1000,
+      preserveAttemptCounter: true,
+    };
+  }
+
+  return {};
 }
 
 export class JobWorker {
@@ -138,22 +160,41 @@ export class JobWorker {
       const message = errorMessage(error);
       logger.error(`[Worker:${this.jobType}] Job failed`, { jobId: job.id, message });
 
-      const nextStatus: JobStatus = job.attempts >= job.max_attempts ? "failed" : "pending";
+      const failureDirective = resolveFailureDirective(this.jobType, message);
+      const nextStatus: JobStatus =
+        failureDirective.nextStatusOverride ||
+        (job.attempts >= job.max_attempts ? "failed" : "pending");
       const nextSchedule = new Date();
 
       if (nextStatus === "pending") {
-        const backoffMinutes = Math.pow(2, job.attempts);
-        nextSchedule.setMinutes(nextSchedule.getMinutes() + backoffMinutes);
+        if (typeof failureDirective.delayMs === "number" && failureDirective.delayMs > 0) {
+          nextSchedule.setTime(nextSchedule.getTime() + failureDirective.delayMs);
+        } else {
+          const backoffMinutes = Math.pow(2, job.attempts);
+          nextSchedule.setMinutes(nextSchedule.getMinutes() + backoffMinutes);
+        }
+      }
+
+      const updatePayload: {
+        status: JobStatus;
+        last_error: string;
+        scheduled_for: string;
+        updated_at: string;
+        attempts?: number;
+      } = {
+        status: nextStatus,
+        last_error: message,
+        scheduled_for: nextStatus === "pending" ? nextSchedule.toISOString() : job.scheduled_for,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (failureDirective.preserveAttemptCounter) {
+        updatePayload.attempts = Math.max(job.attempts - 1, 0);
       }
 
       await supabase
         .from("jobs_queue")
-        .update({
-          status: nextStatus,
-          last_error: message,
-          scheduled_for: nextStatus === "pending" ? nextSchedule.toISOString() : job.scheduled_for,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq("id", job.id);
 
       throw error;
