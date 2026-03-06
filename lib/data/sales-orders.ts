@@ -237,6 +237,31 @@ export async function upsertSalesDocument(supabase: SupabaseClient, doc: Partial
         if (cleanDoc[k] === '') cleanDoc[k] = null;
     });
 
+    const clientId = typeof cleanDoc.client_id === 'string' && cleanDoc.client_id.length > 0
+        ? cleanDoc.client_id
+        : null;
+    const hasSalesRep = typeof cleanDoc.sales_rep_id === 'string' && cleanDoc.sales_rep_id.length > 0;
+
+    // Auto-assign representative from customer commercial settings when order payload has no rep.
+    if (!hasSalesRep && clientId) {
+        let clientQuery = supabase
+            .from('organizations')
+            .select('sales_rep_user_id')
+            .eq('id', clientId)
+            .is('deleted_at', null);
+
+        if (typeof cleanDoc.company_id === 'string' && cleanDoc.company_id.length > 0) {
+            clientQuery = clientQuery.eq('company_id', cleanDoc.company_id);
+        }
+
+        const { data: clientData, error: clientError } = await clientQuery.maybeSingle();
+        if (clientError) throw clientError;
+
+        cleanDoc.sales_rep_id = typeof clientData?.sales_rep_user_id === 'string'
+            ? clientData.sales_rep_user_id
+            : null;
+    }
+
     // Ensure Defaults (Backend Safety)
     if (!cleanDoc.financial_status) cleanDoc.financial_status = 'pending';
     cleanDoc.date_issued = normalizeDateOnlyInput(cleanDoc.date_issued);

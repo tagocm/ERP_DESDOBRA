@@ -25,9 +25,12 @@ export interface CommissionOpenItemRow {
 
 export interface CommissionSettlementListItem {
   id: string
+  document_number: number | null
   company_id: string
   rep_id: string
   cutoff_date: string
+  payment_date: string | null
+  payment_status: string | null
   allow_advance: boolean
   status: CommissionSettlementStatus
   total_paid: number
@@ -41,7 +44,8 @@ export interface CommissionSettlementListItem {
 export interface CommissionRepresentativeOption {
   id: string
   full_name: string
-  email: string
+  email: string | null
+  resolved_rep_id?: string
 }
 
 export interface CommissionSelectionPayloadItem {
@@ -62,6 +66,15 @@ export interface CommissionRateOverrideResult {
   old_rate: number
   new_rate: number
   open_entitlements_count: number
+  open_releases_count: number
+  adjustment_delta: number
+}
+
+export interface CommissionEntitlementRateOverrideResult {
+  entitlement_id: string
+  order_id: string
+  old_rate: number
+  new_rate: number
   open_releases_count: number
   adjustment_delta: number
 }

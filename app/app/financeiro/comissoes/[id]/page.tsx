@@ -1,24 +1,18 @@
 import Link from 'next/link'
 import { Metadata } from 'next'
-import { notFound, redirect } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
+import { redirect } from 'next/navigation'
+import { ArrowLeft, Printer } from 'lucide-react'
 import { createClient } from '@/utils/supabase/server'
 import { getCommissionSettlementDetailAction } from '@/app/actions/commissions'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { CardHeaderStandard } from '@/components/ui/CardHeaderStandard'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { CommissionSettlementItemsTable } from '@/components/finance/commissions/CommissionSettlementItemsTable'
 import { formatCurrency, formatDate } from '@/lib/utils'
 
 interface CommissionSettlementDetailPageProps {
   params: Promise<{ id: string }>
-}
-
-const itemTypeLabel: Record<string, string> = {
-  RELEASE: 'Liberado',
-  ENTITLEMENT: 'Adiantamento',
-  ADJUSTMENT: 'Ajuste',
 }
 
 export async function generateMetadata({ params }: CommissionSettlementDetailPageProps): Promise<Metadata> {
@@ -43,7 +37,30 @@ export default async function CommissionSettlementDetailPage({ params }: Commiss
   const result = await getCommissionSettlementDetailAction({ settlementId: resolved.id })
 
   if (!result.success) {
-    notFound()
+    return (
+      <div className="space-y-6 pb-10 animate-in fade-in duration-500">
+        <PageHeader
+          title="Acerto não disponível"
+          subtitle={result.error}
+          actions={
+            <div className="flex items-center gap-2">
+              <Link href={`/api/finance/commissions/${resolved.id}/print`} target="_blank">
+                <Button variant="pillOutline">
+                  <Printer className="w-4 h-4 mr-2" />
+                  Imprimir
+                </Button>
+              </Link>
+              <Link href="/app/financeiro/comissoes">
+                <Button variant="pillOutline">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Voltar para acertos
+                </Button>
+              </Link>
+            </div>
+          }
+        />
+      </div>
+    )
   }
 
   const detail = result.data
@@ -51,15 +68,27 @@ export default async function CommissionSettlementDetailPage({ params }: Commiss
   return (
     <div className="space-y-6 pb-10 animate-in fade-in duration-500">
       <PageHeader
-        title={`Acerto #${detail.header.id.slice(0, 8)}`}
+        title={
+          detail.header.document_number === null
+            ? `Acerto #${detail.header.id.slice(0, 8)}`
+            : `Acerto #${String(detail.header.document_number).padStart(4, '0')}`
+        }
         subtitle={`Representante: ${detail.header.rep_name ?? 'Sem representante'} • Corte: ${formatDate(detail.header.cutoff_date)}`}
         actions={
-          <Link href="/app/financeiro/comissoes">
-            <Button variant="pillOutline">
-              <ArrowLeft className="w-4 h-4 mr-2" />
-              Voltar para acertos
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href={`/api/finance/commissions/${resolved.id}/print`} target="_blank">
+              <Button variant="pillOutline">
+                <Printer className="w-4 h-4 mr-2" />
+                Imprimir
+              </Button>
+            </Link>
+            <Link href="/app/financeiro/comissoes">
+              <Button variant="pillOutline">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Voltar para acertos
+              </Button>
+            </Link>
+          </div>
         }
       />
 
@@ -95,34 +124,7 @@ export default async function CommissionSettlementDetailPage({ params }: Commiss
             description="Detalhamento por release/entitlement vinculado ao acerto."
           />
           <CardContent className="p-0">
-            <Table>
-              <TableHeader className="bg-gray-50">
-                <TableRow>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Pedido</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead className="text-right">Valor</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {detail.lines.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="text-center py-10 text-gray-500">
-                      Nenhum item vinculado a este acerto.
-                    </TableCell>
-                  </TableRow>
-                )}
-
-                {detail.lines.map((line, index) => (
-                  <TableRow key={`${line.itemType}-${line.orderId ?? 'na'}-${index}`}>
-                    <TableCell className="font-semibold">{itemTypeLabel[line.itemType] ?? line.itemType}</TableCell>
-                    <TableCell>#{line.orderNumber ?? '—'}</TableCell>
-                    <TableCell>{line.customerName ?? '—'}</TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(line.amount)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <CommissionSettlementItemsTable lines={detail.lines} />
           </CardContent>
         </Card>
       </main>

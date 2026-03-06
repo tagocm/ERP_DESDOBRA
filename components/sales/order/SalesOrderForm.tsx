@@ -161,6 +161,7 @@ type ClientDetails = {
     price_table_id?: string | null;
     payment_terms_id?: string | null;
     payment_mode_id?: string | null;
+    sales_rep_user_id?: string | null;
     freight_terms?: string | null;
     preferred_carrier_id?: string | null;
     region_route?: string | null;
@@ -202,6 +203,7 @@ function asClientDetails(value: unknown): ClientDetails | null {
         price_table_id: typeof details.price_table_id === "string" ? details.price_table_id : null,
         payment_terms_id: typeof details.payment_terms_id === "string" ? details.payment_terms_id : null,
         payment_mode_id: typeof details.payment_mode_id === "string" ? details.payment_mode_id : null,
+        sales_rep_user_id: typeof details.sales_rep_user_id === "string" ? details.sales_rep_user_id : null,
         freight_terms: typeof details.freight_terms === "string" ? details.freight_terms : null,
         preferred_carrier_id: typeof details.preferred_carrier_id === "string" ? details.preferred_carrier_id : null,
         region_route: typeof details.region_route === "string" ? details.region_route : null,
@@ -564,7 +566,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
     // --- 2. Auto-fill Customer Data ---
     const handleCustomerSelect = async (org: any) => {
         if (!org) {
-            setFormData(prev => ({ ...prev, client_id: undefined }));
+            setFormData(prev => ({ ...prev, client_id: undefined, sales_rep_id: null }));
             setCustomerInfo({});
             setClientAddresses([]);
             manualPaymentModeOverride.current = false; // Reset override
@@ -645,6 +647,7 @@ export function SalesOrderDTOForm({ initialData, mode }: SalesOrderDTOFormProps)
                     price_table_id: priceTableId,
                     payment_terms_id: paymentTermsId,
                     payment_mode_id: paymentModeId, // Auto-fill
+                    sales_rep_id: fullOrg.sales_rep_user_id ?? null, // Representante padrão do cliente
                     delivery_address_json: address, // Snapshot
                 }));
 

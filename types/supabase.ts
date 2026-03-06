@@ -1543,6 +1543,32 @@ export type Database = {
           },
         ]
       }
+      commission_settlement_sequences: {
+        Row: {
+          company_id: string
+          next_number: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          next_number: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          next_number?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_settlement_sequences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commission_settlements: {
         Row: {
           allow_advance: boolean
@@ -1550,6 +1576,7 @@ export type Database = {
           created_at: string
           created_by: string
           cutoff_date: string
+          document_number: number | null
           id: string
           rep_id: string
           request_key: string | null
@@ -1563,6 +1590,7 @@ export type Database = {
           created_at?: string
           created_by: string
           cutoff_date: string
+          document_number?: number | null
           id?: string
           rep_id: string
           request_key?: string | null
@@ -1576,6 +1604,7 @@ export type Database = {
           created_at?: string
           created_by?: string
           cutoff_date?: string
+          document_number?: number | null
           id?: string
           rep_id?: string
           request_key?: string | null
@@ -10168,10 +10197,32 @@ export type Database = {
     }
     Functions: {
       _resolve_uom_from_id: { Args: { p_uom_id: string }; Returns: string }
+      backfill_commission_settlement_document_numbers: {
+        Args: never
+        Returns: undefined
+      }
       backfill_work_order_document_numbers: { Args: never; Returns: undefined }
       cleanup_user_drafts: {
         Args: { p_company_id: string; p_exclude_id?: string; p_user_id: string }
         Returns: undefined
+      }
+      commission_apply_entitlement_rate_override: {
+        Args: {
+          p_changed_by: string
+          p_company_id: string
+          p_entitlement_id: string
+          p_new_rate: number
+          p_reason: string
+          p_source_context: string
+        }
+        Returns: {
+          adjustment_delta: number
+          entitlement_id: string
+          new_rate: number
+          old_rate: number
+          open_releases_count: number
+          order_id: string
+        }[]
       }
       commission_apply_order_rate_override: {
         Args: {
@@ -10391,6 +10442,10 @@ export type Database = {
         }[]
       }
       mobile_validate_token: { Args: { _token_hash: string }; Returns: string }
+      next_commission_settlement_number: {
+        Args: { p_company_id: string }
+        Returns: number
+      }
       next_inventory_count_number: {
         Args: { p_company_id: string }
         Returns: number
