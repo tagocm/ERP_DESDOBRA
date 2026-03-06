@@ -8,6 +8,17 @@ import crypto from "node:crypto";
 // Load env vars
 dotenv.config({ path: ".env.local" });
 
+function enforceDfeSingleShotDiagnosticFlag(): void {
+  const raw = process.env.NFE_DFE_DIST_SINGLE_SHOT;
+  if (raw === undefined || raw.trim() === "") {
+    process.env.NFE_DFE_DIST_SINGLE_SHOT = "true";
+    console.log("[NFE_DFE_DIST_SYNC] NFE_DFE_DIST_SINGLE_SHOT não definido; ativando diagnóstico single-shot por padrão.");
+    return;
+  }
+
+  console.log(`[NFE_DFE_DIST_SYNC] NFE_DFE_DIST_SINGLE_SHOT=${raw}`);
+}
+
 function validateSefazCaBundleOnStartup(): void {
   const rawPath = process.env.SEFAZ_CA_BUNDLE_PATH;
   if (!rawPath) {
@@ -40,6 +51,7 @@ function validateSefazCaBundleOnStartup(): void {
 async function main() {
   console.log("--- NFe Worker Starting ---");
   console.log("Environment:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "Loaded" : "Missing");
+  enforceDfeSingleShotDiagnosticFlag();
   validateSefazCaBundleOnStartup();
 
   const workers = [
