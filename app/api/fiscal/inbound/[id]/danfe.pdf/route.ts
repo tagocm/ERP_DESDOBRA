@@ -4,8 +4,7 @@ import { resolveCompanyContext } from "@/lib/auth/resolve-company";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getInboundDfeById } from "@/lib/fiscal/inbound/service";
 import { decodeInboundXml } from "@/lib/fiscal/inbound/xml-utils";
-import { generateDanfePdf, type DanfeEmitterOverride } from "@/lib/danfe/pdfService";
-import { resolveCompanyLogoDataUri, resolveCompanyLogoUrl } from "@/lib/fiscal/nfe/logo-resolver";
+import { generateDanfePdf } from "@/lib/danfe/pdfService";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -13,36 +12,6 @@ export const maxDuration = 60;
 const ParamsSchema = z.object({
   id: z.string().uuid(),
 });
-
-const CompanySettingsSchema = z.object({
-  legal_name: z.string().nullable().optional(),
-  trade_name: z.string().nullable().optional(),
-  cnpj: z.string().nullable().optional(),
-  ie: z.string().nullable().optional(),
-  address_street: z.string().nullable().optional(),
-  address_number: z.string().nullable().optional(),
-  address_neighborhood: z.string().nullable().optional(),
-  address_city: z.string().nullable().optional(),
-  address_state: z.string().nullable().optional(),
-  address_zip: z.string().nullable().optional(),
-});
-
-function buildEmitterOverride(settings: z.infer<typeof CompanySettingsSchema> | null): DanfeEmitterOverride | undefined {
-  if (!settings) return undefined;
-  return {
-    xNome: settings.legal_name || settings.trade_name || null,
-    cnpj: settings.cnpj || null,
-    ie: settings.ie || null,
-    enderEmit: {
-      xLgr: settings.address_street || null,
-      nro: settings.address_number || null,
-      xBairro: settings.address_neighborhood || null,
-      xMun: settings.address_city || null,
-      uf: settings.address_state || null,
-      cep: settings.address_zip || null,
-    },
-  };
-}
 
 export async function GET(
   _req: NextRequest,
@@ -74,29 +43,10 @@ export async function GET(
       xmlIsGz: inbound.xml_is_gz,
     });
 
-    const { data: rawSettings, error: settingsError } = await admin
-      .from("company_settings")
-      .select(
-        "legal_name,trade_name,cnpj,ie,address_street,address_number,address_neighborhood,address_city,address_state,address_zip",
-      )
-      .eq("company_id", companyCtx.companyId)
-      .maybeSingle();
-
-    if (settingsError) {
-      throw new Error(`Falha ao carregar dados da empresa para DANFE: ${settingsError.message}`);
-    }
-
-    const settings = CompanySettingsSchema.parse(rawSettings ?? null);
-    const logoUrl =
-      (await resolveCompanyLogoDataUri(admin, companyCtx.companyId)) ||
-      (await resolveCompanyLogoUrl(admin, companyCtx.companyId));
-
-    const pdf = await generateDanfePdf(
-      xml,
-      companyCtx.companyId,
-      logoUrl || undefined,
-      buildEmitterOverride(settings),
-    );
+    // DANFE de entrada deve refletir fielmente o XML recebido:
+    // emitente = fornecedor emissor da NF-e / destinatário = empresa (nosso CNPJ).
+    // Não aplicamos override de emitente nem logo neste modo.
+    const pdf = await generateDanfePdf(xml, companyCtx.companyId);
 
     return new NextResponse(pdf as unknown as BodyInit, {
       headers: {

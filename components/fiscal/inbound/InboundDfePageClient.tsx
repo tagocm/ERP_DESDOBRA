@@ -26,18 +26,17 @@ import { Textarea } from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/use-toast";
 import {
   CheckCircle2,
-  Clock3,
   Copy,
   Download,
+  FileDown,
   FileText,
-  ListTree,
-  RefreshCw,
+  Loader2,
+  Printer,
   Search,
-  XCircle,
+  X,
 } from "lucide-react";
 import type { DfeEnvironment } from "@/lib/fiscal/inbound/schemas";
 
-type InboundTab = "pending" | "received" | "cancelled" | "processing" | "events";
 type ManifestEventType = "CIENCIA" | "CONFIRMACAO" | "DESCONHECIMENTO" | "NAO_REALIZADA";
 
 type InboundFiltersState = {
@@ -75,17 +74,6 @@ const InboundRowSchema = z.object({
   summary_json: z.record(z.string(), z.unknown()),
 });
 
-const EventRowSchema = z.object({
-  id: z.string().uuid(),
-  environment: z.enum(["production", "homologation"]),
-  chnfe: z.string(),
-  event_type: z.enum(["CIENCIA", "CONFIRMACAO", "DESCONHECIMENTO", "NAO_REALIZADA"]),
-  status: z.enum(["PENDING", "SENT", "ERROR"]),
-  sefaz_protocol: z.string().nullable(),
-  last_error: z.string().nullable(),
-  created_at: z.string(),
-});
-
 const ListResponseSchema = z.object({
   data: z.array(InboundRowSchema),
   pagination: z.object({
@@ -95,17 +83,7 @@ const ListResponseSchema = z.object({
   }),
 });
 
-const EventsResponseSchema = z.object({
-  data: z.array(EventRowSchema),
-  pagination: z.object({
-    page: z.number().int(),
-    pageSize: z.number().int(),
-    total: z.number().int(),
-  }),
-});
-
 type InboundRow = z.infer<typeof InboundRowSchema>;
-type EventRow = z.infer<typeof EventRowSchema>;
 
 function formatCnpj(value: string | null): string {
   if (!value) return "-";
@@ -121,12 +99,6 @@ function formatDate(value: string | null): string {
   return date.toLocaleDateString("pt-BR");
 }
 
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString("pt-BR");
-}
-
 function formatCurrency(value: number | null): string {
   if (value === null || value === undefined) return "-";
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -136,6 +108,29 @@ function shortKey(value: string | null): string {
   if (!value) return "-";
   if (value.length <= 14) return value;
   return `${value.slice(0, 8)}...${value.slice(-6)}`;
+}
+
+function resolveDownloadFilenameFromDisposition(
+  contentDisposition: string | null,
+  fallback: string,
+): string {
+  if (!contentDisposition) return fallback;
+
+  const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1]);
+    } catch {
+      return utf8Match[1];
+    }
+  }
+
+  const filenameMatch = contentDisposition.match(/filename=\"?([^\";]+)\"?/i);
+  if (filenameMatch?.[1]) {
+    return filenameMatch[1];
+  }
+
+  return fallback;
 }
 
 function manifestLabel(status: InboundRow["manifest_status"]): string {
@@ -175,46 +170,17 @@ function manifestClass(status: InboundRow["manifest_status"]): string {
   return "bg-rose-100 text-rose-800";
 }
 
-function eventTypeLabel(eventType: EventRow["event_type"]): string {
-  switch (eventType) {
-    case "CIENCIA":
-      return "Ciência";
-    case "CONFIRMACAO":
-      return "Confirmação";
-    case "DESCONHECIMENTO":
-      return "Desconhecimento";
-    case "NAO_REALIZADA":
-      return "Operação não realizada";
-  }
-}
-
-function eventStatusLabel(status: EventRow["status"]): string {
-  if (status === "PENDING") return "Pendente";
-  if (status === "SENT") return "Enviado";
-  return "Erro";
-}
-
-function eventStatusClass(status: EventRow["status"]): string {
-  if (status === "SENT") return "bg-green-100 text-green-800";
-  if (status === "PENDING") return "bg-amber-100 text-amber-800";
-  return "bg-red-100 text-red-800";
-}
-
 function buildListQuery(args: {
   environment: DfeEnvironment;
-  tab: InboundTab;
   filters: InboundFiltersState;
   page: number;
   pageSize: number;
 }): string {
   const params = new URLSearchParams();
   params.set("environment", args.environment);
+  params.set("tab", "pending");
   params.set("page", String(args.page));
   params.set("pageSize", String(args.pageSize));
-
-  if (args.tab !== "events") {
-    params.set("tab", args.tab);
-  }
 
   if (args.filters.dateFrom) params.set("dateFrom", args.filters.dateFrom);
   if (args.filters.dateTo) params.set("dateTo", args.filters.dateTo);
@@ -353,75 +319,52 @@ export function InboundDfePageClient({
 }) {
   const { toast } = useToast();
   const [environment, setEnvironment] = useState<DfeEnvironment>(initialEnvironment);
-  const [tab, setTab] = useState<InboundTab>("pending");
   const [filters, setFilters] = useState<InboundFiltersState>({});
   const [rows, setRows] = useState<InboundRow[]>([]);
-  const [events, setEvents] = useState<EventRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [selectedRow, setSelectedRow] = useState<InboundRow | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isBatchDownloadingXml, setIsBatchDownloadingXml] = useState(false);
+  const [isBatchDownloadingDanfe, setIsBatchDownloadingDanfe] = useState(false);
+  const [isBatchPrintingDanfe, setIsBatchPrintingDanfe] = useState(false);
 
-  const pageSize = tab === "events" ? 30 : 50;
+  const pageSize = 50;
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      if (tab === "events") {
-        const params = new URLSearchParams();
-        params.set("environment", environment);
-        params.set("page", String(page));
-        params.set("pageSize", String(pageSize));
+      const query = buildListQuery({
+        environment,
+        filters,
+        page,
+        pageSize,
+      });
+      const response = await fetch(`/api/fiscal/inbound/list?${query}`);
+      const payloadUnknown: unknown = await response.json();
 
-        const response = await fetch(`/api/fiscal/inbound/events?${params.toString()}`);
-        const payloadUnknown: unknown = await response.json();
-
-        if (!response.ok) {
-          const message =
-            typeof payloadUnknown === "object" && payloadUnknown !== null && "error" in payloadUnknown
-              ? String((payloadUnknown as { error: unknown }).error)
-              : "Falha ao carregar eventos";
-          throw new Error(message);
-        }
-
-        const payload = EventsResponseSchema.parse(payloadUnknown);
-        setEvents(payload.data);
-        setTotal(payload.pagination.total);
-        setRows([]);
-      } else {
-        const query = buildListQuery({
-          environment,
-          tab,
-          filters,
-          page,
-          pageSize,
-        });
-        const response = await fetch(`/api/fiscal/inbound/list?${query}`);
-        const payloadUnknown: unknown = await response.json();
-
-        if (!response.ok) {
-          const message =
-            typeof payloadUnknown === "object" && payloadUnknown !== null && "error" in payloadUnknown
-              ? String((payloadUnknown as { error: unknown }).error)
-              : "Falha ao carregar NF-e de entrada";
-          throw new Error(message);
-        }
-
-        const payload = ListResponseSchema.parse(payloadUnknown);
-        setRows(payload.data);
-        setTotal(payload.pagination.total);
-        setEvents([]);
+      if (!response.ok) {
+        const message =
+          typeof payloadUnknown === "object" && payloadUnknown !== null && "error" in payloadUnknown
+            ? String((payloadUnknown as { error: unknown }).error)
+            : "Falha ao carregar NF-e de entrada";
+        throw new Error(message);
       }
+
+      const payload = ListResponseSchema.parse(payloadUnknown);
+      setRows(payload.data);
+      setTotal(payload.pagination.total);
     } catch (errorLoad) {
       const message = errorLoad instanceof Error ? errorLoad.message : "Erro ao carregar dados";
       setError(message);
     } finally {
       setLoading(false);
     }
-  }, [environment, tab, filters, page, pageSize]);
+  }, [environment, filters, page, pageSize]);
 
   useEffect(() => {
     void load();
@@ -429,19 +372,13 @@ export function InboundDfePageClient({
 
   useEffect(() => {
     setPage(1);
-  }, [environment, tab, filters]);
+  }, [environment, filters]);
 
-  const tabClassName = (active: boolean, activeClass: string) =>
-    `px-4 py-2 -mb-px border-b-2 font-medium text-sm transition-colors ${
-      active
-        ? activeClass
-        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-    }`;
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [environment, filters, page]);
 
-  const isEmpty = useMemo(() => {
-    if (tab === "events") return events.length === 0;
-    return rows.length === 0;
-  }, [tab, events, rows]);
+  const isEmpty = useMemo(() => rows.length === 0, [rows]);
 
   const copyKey = async (key: string | null) => {
     if (!key) return;
@@ -453,15 +390,42 @@ export function InboundDfePageClient({
     }
   };
 
-  const downloadXml = (id: string) => {
-    window.location.href = `/api/fiscal/inbound/${id}/xml`;
+  const downloadXml = async (id: string, key: string | null, showToastOnError = true) => {
+    try {
+      const response = await fetch(`/api/fiscal/inbound/${id}/xml`);
+      if (!response.ok) {
+        const payload: unknown = await response.json().catch(() => ({}));
+        const message =
+          typeof payload === "object" && payload !== null && "error" in payload
+            ? String((payload as { error: unknown }).error)
+            : "Falha ao baixar XML";
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `nfe-entrada-${key ?? id}.xml`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      return true;
+    } catch (errorDownload) {
+      const message = errorDownload instanceof Error ? errorDownload.message : "Erro ao baixar XML";
+      if (showToastOnError) {
+        toast({ title: "Erro", description: message, variant: "destructive" });
+      }
+      return false;
+    }
   };
 
   const openDanfe = (id: string) => {
     window.open(`/api/fiscal/inbound/${id}/danfe.pdf`, "_blank", "noopener,noreferrer");
   };
 
-  const downloadDanfe = async (id: string, key: string | null) => {
+  const downloadDanfe = async (id: string, key: string | null, showToastOnError = true) => {
     try {
       const response = await fetch(`/api/fiscal/inbound/${id}/danfe.pdf`);
       if (!response.ok) {
@@ -482,55 +446,179 @@ export function InboundDfePageClient({
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
+      return true;
     } catch (errorDownload) {
       const message = errorDownload instanceof Error ? errorDownload.message : "Erro ao baixar PDF";
+      if (showToastOnError) {
+        toast({ title: "Erro", description: message, variant: "destructive" });
+      }
+      return false;
+    }
+  };
+
+  const toggleSelect = (rowId: string, checked: boolean) => {
+    setSelectedIds((previous) => {
+      const next = new Set(previous);
+      if (checked) next.add(rowId);
+      else next.delete(rowId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (checked: boolean) => {
+    if (!checked) {
+      setSelectedIds(new Set());
+      return;
+    }
+    setSelectedIds(new Set(rows.map((row) => row.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const selectedRows = useMemo(
+    () => rows.filter((row) => selectedIds.has(row.id)),
+    [rows, selectedIds],
+  );
+  const allSelected = rows.length > 0 && rows.every((row) => selectedIds.has(row.id));
+  const someSelected = selectedIds.size > 0;
+  const hasBatchActionLoading = isBatchDownloadingXml || isBatchDownloadingDanfe || isBatchPrintingDanfe;
+
+  const handleBatchDownloadXml = async () => {
+    if (selectedRows.length === 0) return;
+    setIsBatchDownloadingXml(true);
+    try {
+      if (selectedRows.length === 1) {
+        const row = selectedRows[0];
+        const ok = await downloadXml(row.id, row.chnfe, false);
+        if (!ok) {
+          throw new Error("XML não disponível para a NF-e selecionada.");
+        }
+        toast({
+          title: "Download concluído",
+          description: "1 XML baixado.",
+        });
+        return;
+      }
+
+      const response = await fetch("/api/fiscal/inbound/batch-zip", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: selectedRows.map((row) => row.id) }),
+      });
+
+      if (!response.ok) {
+        const payload: unknown = await response.json().catch(() => ({}));
+        const message = (() => {
+          if (typeof payload === "object" && payload !== null && "error" in payload) {
+            const value = (payload as { error: unknown }).error;
+            if (typeof value === "string") return value;
+            if (typeof value === "object" && value !== null && "message" in value) {
+              return String((value as { message: unknown }).message);
+            }
+          }
+          return "Falha ao gerar ZIP de XML.";
+        })();
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = resolveDownloadFilenameFromDisposition(
+        response.headers.get("Content-Disposition"),
+        `xml_entrada_lote_${new Date().toISOString().slice(0, 10)}.zip`,
+      );
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+      }, 100);
+
+      toast({
+        title: "Download concluído",
+        description: `${selectedRows.length} XML(s) exportado(s) em ZIP.`,
+      });
+    } catch (batchError) {
+      const message = batchError instanceof Error ? batchError.message : "Falha ao baixar XML em lote.";
       toast({ title: "Erro", description: message, variant: "destructive" });
+    } finally {
+      setIsBatchDownloadingXml(false);
+    }
+  };
+
+  const handleBatchDownloadDanfe = async () => {
+    if (selectedRows.length === 0) return;
+    setIsBatchDownloadingDanfe(true);
+    try {
+      let successCount = 0;
+      for (const row of selectedRows) {
+        const ok = await downloadDanfe(row.id, row.chnfe, false);
+        if (ok) successCount += 1;
+      }
+      if (successCount === 0) {
+        throw new Error("Nenhum DANFE disponível para download nos documentos selecionados.");
+      }
+      toast({
+        title: "Download concluído",
+        description: `${successCount} DANFE(s) baixado(s).`,
+      });
+    } catch (batchError) {
+      const message = batchError instanceof Error ? batchError.message : "Falha ao baixar DANFE em lote.";
+      toast({ title: "Erro", description: message, variant: "destructive" });
+    } finally {
+      setIsBatchDownloadingDanfe(false);
+    }
+  };
+
+  const handleBatchPrintDanfe = async () => {
+    if (selectedRows.length === 0) return;
+    setIsBatchPrintingDanfe(true);
+    try {
+      let successCount = 0;
+      for (const row of selectedRows) {
+        const response = await fetch(`/api/fiscal/inbound/${row.id}/danfe.pdf`);
+        if (!response.ok) {
+          continue;
+        }
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const printWindow = window.open(blobUrl, "_blank", "noopener,noreferrer");
+        if (!printWindow) {
+          window.URL.revokeObjectURL(blobUrl);
+          continue;
+        }
+        successCount += 1;
+        setTimeout(() => {
+          try {
+            printWindow.focus();
+            printWindow.print();
+          } catch {
+            // noop
+          }
+        }, 300);
+      }
+      if (successCount === 0) {
+        throw new Error("Nenhum DANFE disponível para impressão nos documentos selecionados.");
+      }
+      toast({
+        title: "Impressão iniciada",
+        description: `${successCount} DANFE(s) aberto(s) para impressão.`,
+      });
+    } catch (batchError) {
+      const message = batchError instanceof Error ? batchError.message : "Falha ao imprimir DANFE em lote.";
+      toast({ title: "Erro", description: message, variant: "destructive" });
+    } finally {
+      setIsBatchPrintingDanfe(false);
     }
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-2 border-b border-gray-200 sm:flex-row sm:items-end sm:justify-between">
-        <div className="flex flex-wrap gap-2">
-          <button
-            className={tabClassName(tab === "pending", "border-blue-600 text-blue-600")}
-            onClick={() => setTab("pending")}
-          >
-            <Clock3 className="w-4 h-4 inline-block mr-2" />
-            Compras Pendentes
-          </button>
-          <button
-            className={tabClassName(tab === "received", "border-green-600 text-green-600")}
-            onClick={() => setTab("received")}
-          >
-            <CheckCircle2 className="w-4 h-4 inline-block mr-2" />
-            NF-e Recebidas
-          </button>
-          <button
-            className={tabClassName(tab === "cancelled", "border-red-600 text-red-600")}
-            onClick={() => setTab("cancelled")}
-          >
-            <XCircle className="w-4 h-4 inline-block mr-2" />
-            Canceladas
-          </button>
-          <button
-            className={tabClassName(tab === "processing", "border-amber-600 text-amber-600")}
-            onClick={() => setTab("processing")}
-          >
-            <RefreshCw className="w-4 h-4 inline-block mr-2" />
-            Em processamento
-          </button>
-        </div>
-
-        <button
-          className={tabClassName(tab === "events", "border-indigo-600 text-indigo-600")}
-          onClick={() => setTab("events")}
-        >
-          <ListTree className="w-4 h-4 inline-block mr-2" />
-          Eventos
-        </button>
-      </div>
-
       <Card>
         <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
@@ -656,129 +744,165 @@ export function InboundDfePageClient({
           <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum registro encontrado</h3>
           <p className="text-gray-500">Ajuste os filtros ou sincronize novamente para buscar documentos.</p>
         </div>
-      ) : tab === "events" ? (
-        <div className="overflow-x-auto rounded-2xl border border-gray-200">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-white">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data/Hora</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chave</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Evento</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Protocolo</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Detalhes</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {events.map((event) => (
-                <tr key={event.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-gray-700">{formatDateTime(event.created_at)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{shortKey(event.chnfe)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{eventTypeLabel(event.event_type)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${eventStatusClass(event.status)}`}>
-                      {eventStatusLabel(event.status)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{event.sefaz_protocol || "-"}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{event.last_error || "-"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-gray-200">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-white">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Data emissão</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Emitente</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">CNPJ emitente</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Chave</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Manifestação</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Ações</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {rows.map((row) => (
-                <tr key={row.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-sm text-gray-700">{formatDate(row.dh_emi)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-900">{row.emit_nome || "-"}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">{formatCnpj(row.emit_cnpj)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
-                    <div className="flex items-center gap-2">
-                      <span>{shortKey(row.chnfe)}</span>
-                      {row.chnfe && (
-                        <button
-                          type="button"
-                          className="text-gray-400 hover:text-gray-600"
-                          onClick={() => void copyKey(row.chnfe)}
-                          title="Copiar chave"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-900 text-right">{formatCurrency(row.total)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${statusClass(row)}`}>
-                      {statusLabel(row)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${manifestClass(row.manifest_status)}`}>
-                      {manifestLabel(row.manifest_status)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-full border-gray-200"
-                        disabled={!row.has_full_xml}
-                        onClick={() => downloadXml(row.id)}
-                        title={row.has_full_xml ? "Baixar XML" : "XML indisponível"}
-                      >
-                        <Download className="w-4 h-4 mr-1" /> XML
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-full border-gray-200"
-                        disabled={!row.has_full_xml}
-                        onClick={() => openDanfe(row.id)}
-                      >
-                        Ver/Imprimir DANFE
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="rounded-full border-gray-200"
-                        disabled={!row.has_full_xml}
-                        onClick={() => void downloadDanfe(row.id, row.chnfe)}
-                      >
-                        Baixar PDF
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="rounded-full"
-                        disabled={!row.chnfe}
-                        onClick={() => setSelectedRow(row)}
-                      >
-                        Manifestar
-                      </Button>
-                    </div>
-                  </td>
+        <>
+          {someSelected && (
+            <div className="mb-4 p-4 bg-brand-50 border border-brand-100 rounded-2xl flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+              <div className="flex items-center gap-3">
+                <div className="bg-brand-100 text-brand-700 px-3 py-1 rounded-2xl text-sm font-semibold">
+                  {selectedIds.size} {selectedIds.size === 1 ? "NF-e selecionada" : "NF-es selecionadas"}
+                </div>
+
+                <div className="h-4 w-px bg-brand-200 mx-1" />
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleBatchDownloadXml()}
+                  disabled={hasBatchActionLoading}
+                  className="bg-white border-brand-200 text-brand-700 hover:bg-brand-50 hover:text-brand-800 h-8 font-medium gap-2"
+                >
+                  {isBatchDownloadingXml ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                  {isBatchDownloadingXml ? "Baixando XML..." : "Baixar XML"}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleBatchDownloadDanfe()}
+                  disabled={hasBatchActionLoading}
+                  className="bg-white border-brand-200 text-brand-700 hover:bg-brand-50 hover:text-brand-800 h-8 font-medium gap-2"
+                >
+                  {isBatchDownloadingDanfe ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileDown className="w-3.5 h-3.5" />}
+                  {isBatchDownloadingDanfe ? "Baixando DANFE..." : "Baixar DANFE"}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void handleBatchPrintDanfe()}
+                  disabled={hasBatchActionLoading}
+                  className="bg-white border-brand-200 text-brand-700 hover:bg-brand-50 hover:text-brand-800 h-8 font-medium gap-2"
+                >
+                  {isBatchPrintingDanfe ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Printer className="w-3.5 h-3.5" />}
+                  {isBatchPrintingDanfe ? "Abrindo DANFEs..." : "Imprimir DANFE"}
+                </Button>
+              </div>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearSelection}
+                disabled={hasBatchActionLoading}
+                className="text-brand-700 hover:text-brand-800 hover:bg-brand-100"
+              >
+                <X className="w-4 h-4 mr-2" />
+                Limpar seleção
+              </Button>
+            </div>
+          )}
+
+          <div className="overflow-x-auto rounded-2xl border border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-white">
+                <tr>
+                  <th className="px-4 py-3 text-center">
+                    <Checkbox
+                      checked={allSelected ? true : someSelected ? "indeterminate" : false}
+                      onCheckedChange={(checked) => toggleSelectAll(checked === true)}
+                      aria-label="Selecionar todas as NF-es"
+                    />
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data emissão</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Emitente</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CNPJ emitente</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[360px]">Chave</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Manifestação</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {rows.map((row) => (
+                  <tr key={row.id} className={`transition-colors ${selectedIds.has(row.id) ? "bg-brand-50/50 hover:bg-brand-50" : "hover:bg-gray-50"}`}>
+                    <td className="px-4 py-4 text-center">
+                      <Checkbox
+                        checked={selectedIds.has(row.id)}
+                        onCheckedChange={(checked) => toggleSelect(row.id, checked === true)}
+                        aria-label={`Selecionar NF-e ${row.chnfe ?? row.nsu}`}
+                      />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-900">{formatDate(row.dh_emi)}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-900">{row.emit_nome || "-"}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-700">{formatCnpj(row.emit_cnpj)}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap min-w-[360px]">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-700">{row.chnfe || "-"}</span>
+                        {row.chnfe && (
+                          <button
+                            type="button"
+                            className="text-gray-400 hover:text-gray-600"
+                            onClick={() => void copyKey(row.chnfe)}
+                            title="Copiar chave"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <span className="text-sm font-medium text-gray-900">{formatCurrency(row.total)}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 rounded-full text-xs font-semibold ${manifestClass(row.manifest_status)}`}>
+                        {manifestLabel(row.manifest_status)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0 rounded-full border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-card"
+                          onClick={() => void downloadXml(row.id, row.chnfe)}
+                          title="Baixar XML"
+                        >
+                          <Download className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0 rounded-full border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 transition-all shadow-card"
+                          disabled={!row.has_full_xml}
+                          onClick={() => openDanfe(row.id)}
+                          title="Imprimir DANFE"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0 rounded-full border-blue-200 text-blue-600 hover:bg-blue-50 hover:border-blue-300 transition-all shadow-card"
+                          disabled={!row.chnfe}
+                          onClick={() => setSelectedRow(row)}
+                          title="Manifestar"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       <ListPagination
@@ -786,7 +910,7 @@ export function InboundDfePageClient({
         pageSize={pageSize}
         total={total}
         onPageChange={setPage}
-        label={tab === "events" ? "eventos" : "notas"}
+        label="notas"
         disabled={loading}
       />
 

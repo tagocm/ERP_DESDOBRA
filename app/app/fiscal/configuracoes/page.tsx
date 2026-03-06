@@ -1,9 +1,6 @@
 import { createClient } from "@/utils/supabase/server";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ModuleTabs } from "@/components/app/ModuleTabs";
-import { Button } from "@/components/ui/Button";
-import { FileText, UploadCloud } from "lucide-react";
-import Link from "next/link";
 import { InboundDfePageClient } from "@/components/fiscal/inbound/InboundDfePageClient";
 import { InboundSyncNowButton } from "@/components/fiscal/inbound/InboundSyncNowButton";
 import { createAdminClient } from "@/lib/supabaseServer";
@@ -57,14 +54,6 @@ export default async function NFeEntradaPage() {
         actions={
           <div className="flex gap-2">
             <InboundSyncNowButton environment={environment} />
-            <Link href="/app/fiscal/nfe/importar-legado">
-              <Button variant="secondary" className="font-medium">
-                <UploadCloud className="w-4 h-4 mr-2" /> Importar XML manual
-              </Button>
-            </Link>
-            <Button variant="secondary" className="font-medium">
-              <FileText className="w-4 h-4 mr-2" /> Relatório
-            </Button>
           </div>
         }
       >
