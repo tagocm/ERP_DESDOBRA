@@ -14,6 +14,13 @@ type EndpointInfo = {
 };
 
 type RequestAttempt = "primary" | "system-fallback";
+type EffectiveCaSource = "custom-bundle" | "system-trust-store" | "node-extra-ca-certs";
+
+type EffectiveCaConfig = {
+  ca?: string | Buffer;
+  source: EffectiveCaSource;
+  ignoredCustomCaForDistribution: boolean;
+};
 
 export type ResolvedCaBundle = {
   ca?: string | Buffer;
@@ -83,7 +90,7 @@ function getServiceFromSoapAction(soapAction: string): string | null {
   return null;
 }
 
-function parseEndpointInfo(url: string, soapAction: string): EndpointInfo {
+export function parseEndpointInfo(url: string, soapAction: string): EndpointInfo {
   const parsed = new URL(url);
   const serviceFromAction = getServiceFromSoapAction(soapAction);
   const pathParts = parsed.pathname.split("/").filter(Boolean);
@@ -98,6 +105,52 @@ function parseEndpointInfo(url: string, soapAction: string): EndpointInfo {
 
 function countPemCertificates(content: string): number {
   return (content.match(/-----BEGIN CERTIFICATE-----/g) ?? []).length;
+}
+
+function resolveSystemCaSource(): EffectiveCaSource {
+  return process.env.NODE_EXTRA_CA_CERTS ? "node-extra-ca-certs" : "system-trust-store";
+}
+
+function shouldIgnoreEnvBundleForDistribution(endpoint: EndpointInfo, caBundle: ResolvedCaBundle): boolean {
+  if (caBundle.source !== "env") return false;
+  if (endpoint.service !== "NFeDistribuicaoDFe") return false;
+  return /(^|\.)nfe\.fazenda\.gov\.br$/i.test(endpoint.hostname);
+}
+
+export function resolveEffectiveCaConfig(args: {
+  endpoint: EndpointInfo;
+  caBundle: ResolvedCaBundle;
+  useSystemCa: boolean;
+}): EffectiveCaConfig {
+  if (args.useSystemCa) {
+    return {
+      ca: undefined,
+      source: resolveSystemCaSource(),
+      ignoredCustomCaForDistribution: false,
+    };
+  }
+
+  if (shouldIgnoreEnvBundleForDistribution(args.endpoint, args.caBundle)) {
+    return {
+      ca: undefined,
+      source: resolveSystemCaSource(),
+      ignoredCustomCaForDistribution: true,
+    };
+  }
+
+  if (args.caBundle.ca) {
+    return {
+      ca: args.caBundle.ca,
+      source: "custom-bundle",
+      ignoredCustomCaForDistribution: false,
+    };
+  }
+
+  return {
+    ca: undefined,
+    source: resolveSystemCaSource(),
+    ignoredCustomCaForDistribution: false,
+  };
 }
 
 function isTlsCertificateError(error: NodeJS.ErrnoException): boolean {
@@ -332,7 +385,20 @@ export async function soapRequest(
         return;
       }
 
-      const activeCa = useSystemCa ? undefined : caBundle.ca;
+      const effectiveCa = resolveEffectiveCaConfig({
+        endpoint,
+        caBundle,
+        useSystemCa,
+      });
+      const activeCa = effectiveCa.ca;
+      const usingCustomCa = Boolean(activeCa);
+
+      if (isDebug && effectiveCa.ignoredCustomCaForDistribution) {
+        logger.warn(
+          `[SEFAZ-DIAGNOSTIC] Ignorando SEFAZ_CA_BUNDLE_PATH para ${endpoint.service} (${endpoint.hostname}); usando trust store do sistema.`,
+        );
+      }
+
       const agent = createSoapHttpsAgent({
         certificatePem: pfxData.certificatePem,
         privateKeyPem: pfxData.privateKeyPem,
@@ -351,8 +417,14 @@ export async function soapRequest(
       };
 
       if (isDebug) {
+        const sourceSuffix =
+          effectiveCa.source === "custom-bundle"
+            ? ` bundlePath=${caBundle.resolvedPath ?? "-"} bundleSha256=${caBundle.sha256 ?? "-"} bundleCerts=${String(caBundle.certificateCount ?? 0)}`
+            : effectiveCa.source === "node-extra-ca-certs"
+              ? ` nodeExtraCaCerts=${process.env.NODE_EXTRA_CA_CERTS ?? "-"}`
+              : "";
         logger.info(
-          `[SEFAZ-DIAGNOSTIC] Attempt=${attempt} host=${endpoint.hostname} path=${endpoint.path} service=${endpoint.service} rejectUnauthorized=${String(agent.options.rejectUnauthorized)}`,
+          `[SEFAZ-DIAGNOSTIC] Attempt=${attempt} host=${endpoint.hostname} path=${endpoint.path} service=${endpoint.service} caSource=${effectiveCa.source}${sourceSuffix} rejectUnauthorized=${String(agent.options.rejectUnauthorized)}`,
         );
         logger.info(`Headers: ${JSON.stringify(reqOptions.headers, null, 2)}`);
         writeDebugFile(`${requestId}.${attempt}.request.soap.xml`, sanitize(xmlBody));
@@ -415,7 +487,7 @@ export async function soapRequest(
           );
         }
 
-        if (tlsError && attempt === "primary" && caBundle.source === "env" && allowSystemCaFallback) {
+        if (tlsError && attempt === "primary" && caBundle.source === "env" && usingCustomCa && allowSystemCaFallback) {
           logger.warn(
             `[SEFAZ] TLS falhou com CA customizado; tentando fallback para trust store do sistema (host=${endpoint.hostname}, path=${endpoint.path}, service=${endpoint.service}, bundle=${caBundle.resolvedPath}, sha256=${caBundle.sha256})`,
           );
