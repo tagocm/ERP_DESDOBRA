@@ -121,7 +121,20 @@ Last webhook test update: 2026-02-10.
 - Erro TLS `unable to get local issuer certificate`:
   - Confirme `SEFAZ_CA_BUNDLE_PATH` e a cadeia do arquivo.
   - Verifique no log os campos `host`, `path`, `service` e SHA256 do bundle.
+  - Para `NFeDistribuicaoDFe` (`www1.nfe.fazenda.gov.br` / `hom.nfe.fazenda.gov.br`), o worker usa trust store do sistema (`ca` nativo do Node) e ignora `SEFAZ_CA_BUNDLE_PATH` para evitar cadeia incorreta.
+  - Se `NODE_EXTRA_CA_CERTS` estiver definido, o log indica `caSource=node-extra-ca-certs`.
   - O scheduler aplica cooldown de 1 hora para erro TLS e evita re-enfileiramento agressivo.
+
+Diagnóstico rápido do endpoint de distribuição (Node 20):
+
+```bash
+node --import tsx scripts/diagnose-sefaz-dist-tls.ts
+```
+
+Saída esperada (resumo):
+- `caSource=system-trust-store` ou `caSource=node-extra-ca-certs` para distribuição.
+- sucesso HTTP ou erro TLS explícito com `code/message`.
+- versão do Node/OpenSSL usada no teste.
 
 Exemplo de log esperado com `SEFAZ_DEBUG=true`:
 

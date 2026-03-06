@@ -21,6 +21,16 @@ Para resolver, você pode:
 1. Definir a variável de ambiente `SEFAZ_CA_BUNDLE_PATH` apontando para o arquivo `.pem` da cadeia completa.
 2. Ou passar o conteúdo PEM diretamente na opção `caPem`.
 
+### Política de CA por serviço
+
+- `NFeDistribuicaoDFe` (`www1.nfe.fazenda.gov.br` / `hom.nfe.fazenda.gov.br`) usa **trust store do sistema** por padrão.
+- Para esse serviço, `SEFAZ_CA_BUNDLE_PATH` de ambiente é ignorado automaticamente para evitar mismatch de cadeia (ex.: bundle ICP-Brasil em endpoint com cadeia pública Sectigo/USERTrust).
+- O log de debug mostra `caSource` por tentativa:
+  - `custom-bundle`
+  - `system-trust-store`
+  - `node-extra-ca-certs`
+- Se `caSource=custom-bundle`, o log inclui `bundlePath`, `bundleCerts` e `bundleSha256`.
+
 ## Uso
 
 ### Emissão em Homologação
