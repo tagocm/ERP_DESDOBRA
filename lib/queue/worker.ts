@@ -32,6 +32,8 @@ type FailureRetryDirective = {
   nextStatusOverride?: JobStatus;
   delayMs?: number;
   preserveAttemptCounter?: boolean;
+  forceAttemptsExhausted?: boolean;
+  suppressLoopThrow?: boolean;
 };
 
 function errorMessage(error: unknown): string {
@@ -41,29 +43,12 @@ function errorMessage(error: unknown): string {
 }
 
 function resolveFailureDirective(jobType: string, message: string): FailureRetryDirective {
-  // cStat 656 (Consumo Indevido) exige aguardar antes de novas consultas por NSU.
-  if (
-    jobType === "NFE_DFE_DIST_SYNC" &&
-    (/\b656\b/.test(message) || /Consumo Indevido/i.test(message))
-  ) {
+  // Regra fiscal: distribuição DF-e executa somente 1 tentativa por job.
+  if (jobType === "NFE_DFE_DIST_SYNC") {
     return {
-      nextStatusOverride: "pending",
-      delayMs: 60 * 60 * 1000,
-      preserveAttemptCounter: true,
-    };
-  }
-
-  if (
-    jobType === "NFE_DFE_DIST_SYNC" &&
-    (
-      /unable to get local issuer certificate/i.test(message) ||
-      /SEFAZ_TLS_ERROR/i.test(message)
-    )
-  ) {
-    return {
-      nextStatusOverride: "pending",
-      delayMs: 60 * 60 * 1000,
-      preserveAttemptCounter: true,
+      nextStatusOverride: "failed",
+      forceAttemptsExhausted: true,
+      suppressLoopThrow: true,
     };
   }
 
@@ -173,6 +158,9 @@ export class JobWorker {
     } catch (error) {
       const message = errorMessage(error);
       logger.error(`[Worker:${this.jobType}] Job failed`, { jobId: job.id, message });
+      if (this.jobType === "NFE_DFE_DIST_SYNC") {
+        logger.error(`[NFE_DFE_DIST_SYNC] attempt=1/1 jobId=${job.id} FAIL: ${message}`);
+      }
 
       const failureDirective = resolveFailureDirective(this.jobType, message);
       const nextStatus: JobStatus =
@@ -205,11 +193,18 @@ export class JobWorker {
       if (failureDirective.preserveAttemptCounter) {
         updatePayload.attempts = Math.max(job.attempts - 1, 0);
       }
+      if (failureDirective.forceAttemptsExhausted) {
+        updatePayload.attempts = job.max_attempts;
+      }
 
       await supabase
         .from("jobs_queue")
         .update(updatePayload)
         .eq("id", job.id);
+
+      if (failureDirective.suppressLoopThrow) {
+        return;
+      }
 
       throw error;
     }

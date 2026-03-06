@@ -71,6 +71,7 @@ export async function enqueueDfeDistSyncJob(
       job_type: "NFE_DFE_DIST_SYNC",
       payload: normalized,
       status: "pending",
+      max_attempts: 1,
     })
     .select("id")
     .single();
