@@ -80,10 +80,20 @@ Last webhook test update: 2026-02-10.
 ### Configuração de provider/certificado
 
 1. Configure certificado A1 na empresa (`company_settings`) como já feito para emissão NF-e.
-2. Defina provider DF-e (por enquanto stub):
-   - `NFE_DFE_PROVIDER=stub` (default)
-3. Opcional para simulação local:
+2. Defina provider DF-e:
+   - `NFE_DFE_PROVIDER=auto` (default, usa provider real)
+   - `NFE_DFE_PROVIDER=stub` (simulação local)
+3. Configure variáveis de TLS/diagnóstico:
+   - `SEFAZ_CA_BUNDLE_PATH=/opt/erp-desdobra/certs/sefaz-ca-bundle.pem`
+   - `SEFAZ_DEBUG=true` (para exibir host/path/serviço e metadados do bundle)
+4. Opcional para simulação local:
    - `NFE_DFE_STUB_DOCS_JSON=[{\"nsu\":\"1\",\"schema\":\"resNFe\",\"xmlBase64\":\"...\"}]`
+
+#### Bundle de CA (cadeia completa)
+
+- O arquivo em `SEFAZ_CA_BUNDLE_PATH` deve conter cadeia PEM completa (`-----BEGIN CERTIFICATE-----`), incluindo intermediárias quando necessário.
+- O worker valida no startup: caminho, leitura, quantidade de certificados e SHA256 (não imprime conteúdo do certificado).
+- Se o bundle custom falhar no handshake TLS, o client tenta **uma única vez** fallback para trust store do sistema mantendo verificação TLS ativa.
 
 ### Execução
 
@@ -108,6 +118,19 @@ Last webhook test update: 2026-02-10.
   - Rode sincronização novamente e valide `xml_base64` na `fiscal_inbound_dfe`.
 - Manifestação não sai de pendente:
   - Verifique fila `NFE_DFE_MANIFEST_SEND` e coluna `last_error` em `fiscal_inbound_manifest_events`.
+- Erro TLS `unable to get local issuer certificate`:
+  - Confirme `SEFAZ_CA_BUNDLE_PATH` e a cadeia do arquivo.
+  - Verifique no log os campos `host`, `path`, `service` e SHA256 do bundle.
+  - O scheduler aplica cooldown de 1 hora para erro TLS e evita re-enfileiramento agressivo.
+
+Exemplo de log esperado com `SEFAZ_DEBUG=true`:
+
+```text
+[SEFAZ] CA bundle validado no startup. { resolvedPath: '/opt/erp-desdobra/certs/sefaz-ca-bundle.pem', sizeBytes: 182345, certificateCount: 4, sha256: '9f...ab' }
+[SEFAZ-DIAGNOSTIC] Endpoint host=www1.nfe.fazenda.gov.br path=/NFeDistribuicaoDFe/NFeDistribuicaoDFe.asmx service=NFeDistribuicaoDFe
+[SEFAZ-DIAGNOSTIC] Agent CA source=env path=/opt/erp-desdobra/certs/sefaz-ca-bundle.pem bytes=182345 certs=4 sha256=9f...ab
+[NFE_DFE_DIST_SYNC] Lote processado { page: 1, fetched: 50, inserted: 50, updated: 0, nextNsu: '000000000123456' }
+```
 
 ## 🧪 Testing
 
