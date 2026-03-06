@@ -1,13 +1,46 @@
 import { JobWorker } from "../lib/queue/worker";
 import { DfeSyncScheduler } from "@/lib/fiscal/inbound/scheduler";
 import dotenv from "dotenv";
+import fs from "node:fs";
+import path from "node:path";
+import crypto from "node:crypto";
 
 // Load env vars
 dotenv.config({ path: ".env.local" });
 
+function validateSefazCaBundleOnStartup(): void {
+  const rawPath = process.env.SEFAZ_CA_BUNDLE_PATH;
+  if (!rawPath) {
+    console.log("[SEFAZ] SEFAZ_CA_BUNDLE_PATH não configurado (usando store padrão do sistema).");
+    return;
+  }
+
+  const resolvedPath = path.isAbsolute(rawPath) ? rawPath : path.resolve(process.cwd(), rawPath);
+
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`[SEFAZ] SEFAZ_CA_BUNDLE_PATH não encontrado: ${resolvedPath}`);
+  }
+
+  fs.accessSync(resolvedPath, fs.constants.R_OK);
+  const content = fs.readFileSync(resolvedPath);
+  const certificateCount = (content.toString("utf8").match(/-----BEGIN CERTIFICATE-----/g) ?? []).length;
+  if (certificateCount < 1) {
+    throw new Error(`[SEFAZ] Bundle inválido em ${resolvedPath}: nenhum bloco BEGIN CERTIFICATE encontrado.`);
+  }
+
+  const sha256 = crypto.createHash("sha256").update(content).digest("hex");
+  console.log("[SEFAZ] CA bundle validado no startup.", {
+    resolvedPath,
+    sizeBytes: content.length,
+    certificateCount,
+    sha256,
+  });
+}
+
 async function main() {
   console.log("--- NFe Worker Starting ---");
   console.log("Environment:", process.env.NEXT_PUBLIC_SUPABASE_URL ? "Loaded" : "Missing");
+  validateSefazCaBundleOnStartup();
 
   const workers = [
     new JobWorker({

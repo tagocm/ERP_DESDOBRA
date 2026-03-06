@@ -28,4 +28,5 @@ export interface SefazRequestOptions {
     debugMaxBodyChars?: number; // default: 5000
     timeoutMs?: number; // default: 30000
     caPem?: string | Buffer; // Custom CA Bundle
+    allowSystemCaFallback?: boolean; // default: true when custom CA from env fails TLS
 }
