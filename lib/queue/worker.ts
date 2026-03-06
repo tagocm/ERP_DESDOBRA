@@ -53,6 +53,20 @@ function resolveFailureDirective(jobType: string, message: string): FailureRetry
     };
   }
 
+  if (
+    jobType === "NFE_DFE_DIST_SYNC" &&
+    (
+      /unable to get local issuer certificate/i.test(message) ||
+      /SEFAZ_TLS_ERROR/i.test(message)
+    )
+  ) {
+    return {
+      nextStatusOverride: "pending",
+      delayMs: 60 * 60 * 1000,
+      preserveAttemptCounter: true,
+    };
+  }
+
   return {};
 }
 
