@@ -136,6 +136,14 @@ Saída esperada (resumo):
 - sucesso HTTP ou erro TLS explícito com `code/message`.
 - versão do Node/OpenSSL usada no teste.
 
+Modo diagnóstico single-shot (1 job = 1 consulta DF-e):
+
+```bash
+NFE_DFE_DIST_SINGLE_SHOT=true npm run worker:start
+```
+
+Com a flag ativa, o sync de distribuição processa apenas a primeira resposta da SEFAZ por job (sem paginação adicional no mesmo job).
+
 Exemplo de log esperado com `SEFAZ_DEBUG=true`:
 
 ```text
