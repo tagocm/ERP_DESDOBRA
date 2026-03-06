@@ -93,6 +93,7 @@ export async function processDfeManifestSendJob(payload: unknown, jobId: string)
           chNFe: event.chnfe,
           eventType: event.event_type,
           justification: event.justification,
+          jobId,
         }),
       );
 

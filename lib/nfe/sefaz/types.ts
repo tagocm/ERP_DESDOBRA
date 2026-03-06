@@ -29,4 +29,9 @@ export interface SefazRequestOptions {
     timeoutMs?: number; // default: 30000
     caPem?: string | Buffer; // Custom CA Bundle
     allowSystemCaFallback?: boolean; // default: true when custom CA from env fails TLS
+    context?: {
+        jobId?: string;
+        companyId?: string;
+        environment?: string;
+    };
 }

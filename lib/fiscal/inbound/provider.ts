@@ -24,6 +24,7 @@ export interface DfeProvider {
     companyId: string;
     environment: DfeEnvironment;
     lastNsu: string;
+    jobId?: string;
   }): Promise<DistProviderFetchResult>;
   sendManifest(args: {
     companyId: string;
@@ -31,6 +32,7 @@ export interface DfeProvider {
     chNFe: string;
     eventType: ManifestEventType;
     justification?: string | null;
+    jobId?: string;
   }): Promise<ManifestProviderResult>;
 }
 
@@ -390,6 +392,7 @@ class StubDfeProvider implements DfeProvider {
     companyId: string;
     environment: DfeEnvironment;
     lastNsu: string;
+    jobId?: string;
   }): Promise<DistProviderFetchResult> {
     const pending = this.docs.filter((doc) => compareNsu(doc.nsu, args.lastNsu) > 0);
     const batch = pending.slice(0, 50);
@@ -416,6 +419,7 @@ class StubDfeProvider implements DfeProvider {
     chNFe: string;
     eventType: ManifestEventType;
     justification?: string | null;
+    jobId?: string;
   }): Promise<ManifestProviderResult> {
     logger.info("[NFE_DFE_MANIFEST_SEND] Stub provider sendManifest", {
       companyId: args.companyId,
@@ -436,6 +440,7 @@ class RealDfeProvider implements DfeProvider {
     companyId: string;
     environment: DfeEnvironment;
     lastNsu: string;
+    jobId?: string;
   }): Promise<DistProviderFetchResult> {
     const cert = await loadCompanyCertificate(args.companyId);
     const identity = await resolveCompanyIdentity(args.companyId);
@@ -460,6 +465,11 @@ class RealDfeProvider implements DfeProvider {
     const { body, status } = await soapRequest(endpoint, DIST_SOAP_ACTION, envelope, cert, {
       debug: process.env.SEFAZ_DEBUG === "true" || process.env.NFE_WS_DEBUG === "1",
       debugDir: process.env.SEFAZ_DEBUG_DIR,
+      context: {
+        jobId: args.jobId,
+        companyId: args.companyId,
+        environment: args.environment,
+      },
     });
 
     if (status !== 200) {
@@ -512,6 +522,7 @@ class RealDfeProvider implements DfeProvider {
     chNFe: string;
     eventType: ManifestEventType;
     justification?: string | null;
+    jobId?: string;
   }): Promise<ManifestProviderResult> {
     const cert = await loadCompanyCertificate(args.companyId);
     const identity = await resolveCompanyIdentity(args.companyId);
@@ -569,6 +580,11 @@ class RealDfeProvider implements DfeProvider {
     const { body, status } = await soapRequest(endpoint, EVENT_SOAP_ACTION, envelope, cert, {
       debug: process.env.SEFAZ_DEBUG === "true" || process.env.NFE_WS_DEBUG === "1",
       debugDir: process.env.SEFAZ_DEBUG_DIR,
+      context: {
+        jobId: args.jobId,
+        companyId: args.companyId,
+        environment: args.environment,
+      },
     });
 
     if (status !== 200) {

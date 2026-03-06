@@ -75,6 +75,7 @@ export async function processDfeDistSyncJob(payload: unknown, jobId: string): Pr
         companyId: parsedPayload.companyId,
         environment: parsedPayload.environment,
         lastNsu,
+        jobId,
       });
 
       const rows = fetchResult.docs.map(mapNormalizedDocToRpcRow);

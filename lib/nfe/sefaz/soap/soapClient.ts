@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { NfeSefazError } from "../errors";
-import { parsePfx } from "../../sign/cert";
+import { parsePfx } from "@/lib/nfe/sign/cert";
 import { SefazCertConfig, SefazRequestOptions } from "../types";
 import { logger } from "@/lib/logger";
 
@@ -28,6 +28,27 @@ type ParsedPfx = {
   certificatePem: string;
   privateKeyPem: string;
 };
+
+export class SEFAZNetworkDisabledError extends NfeSefazError {
+  constructor(args: {
+    host: string;
+    path: string;
+    service: string;
+    jobId?: string;
+    companyId?: string;
+    environment?: string;
+  }) {
+    super(
+      `Bloqueado por configuração: SEFAZ_NETWORK_DISABLED=true (${args.host}${args.path})`,
+      "SOAP",
+      {
+        code: "SEFAZ_NETWORK_DISABLED",
+        ...args,
+      },
+    );
+    this.name = "SEFAZNetworkDisabledError";
+  }
+}
 
 const TLS_ERROR_CODES = new Set([
   "UNABLE_TO_GET_ISSUER_CERT_LOCALLY",
@@ -259,6 +280,7 @@ export async function soapRequest(
     const shouldWriteDebugFiles = Boolean(debugDir) && (process.env.NODE_ENV !== "production" || allowDebugFilesInProd);
     const requestId = isDebug ? `${Date.now()}-${crypto.randomBytes(4).toString("hex")}` : "";
     const allowSystemCaFallback = options.allowSystemCaFallback !== false;
+    const networkDisabled = String(process.env.SEFAZ_NETWORK_DISABLED ?? "").toLowerCase() === "true";
 
     if (isDebug) {
       if (shouldWriteDebugFiles && debugDir && !fs.existsSync(debugDir)) {
@@ -292,6 +314,24 @@ export async function soapRequest(
     };
 
     const dispatchRequest = (attempt: RequestAttempt, useSystemCa: boolean): void => {
+      if (networkDisabled) {
+        const context = options.context;
+        logger.error(
+          `[SEFAZ-BLOCK] jobId=${context?.jobId ?? "-"} companyId=${context?.companyId ?? "-"} host=${endpoint.hostname} path=${endpoint.path} service=${endpoint.service} reason=SEFAZ_NETWORK_DISABLED`,
+        );
+        reject(
+          new SEFAZNetworkDisabledError({
+            host: endpoint.hostname,
+            path: endpoint.path,
+            service: endpoint.service,
+            jobId: context?.jobId,
+            companyId: context?.companyId,
+            environment: context?.environment,
+          }),
+        );
+        return;
+      }
+
       const activeCa = useSystemCa ? undefined : caBundle.ca;
       const agent = createSoapHttpsAgent({
         certificatePem: pfxData.certificatePem,
