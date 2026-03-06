@@ -42,12 +42,15 @@ export async function processDfeDistSyncJob(payload: unknown, jobId: string): Pr
   const parsedPayload = DfeSyncJobPayloadSchema.parse(payload);
   const admin = createAdminClient();
   const provider = createDfeProvider();
+  const singleShotMode = String(process.env.NFE_DFE_DIST_SINGLE_SHOT ?? "").toLowerCase() === "true";
 
   logger.info("[NFE_DFE_DIST_SYNC] Iniciando sincronização", {
     jobId,
     companyId: parsedPayload.companyId,
     environment: parsedPayload.environment,
     source: parsedPayload.source,
+    single_shot_mode: singleShotMode,
+    caller: "lib/fiscal/inbound/sync-worker.ts:processDfeDistSyncJob",
   });
 
   let lastNsu = "0";
@@ -67,7 +70,7 @@ export async function processDfeDistSyncJob(payload: unknown, jobId: string): Pr
 
     let hasMore = true;
     let pages = 0;
-    const maxPages = 50;
+    const maxPages = singleShotMode ? 1 : 50;
 
     while (hasMore && pages < maxPages) {
       pages += 1;
@@ -106,9 +109,23 @@ export async function processDfeDistSyncJob(payload: unknown, jobId: string): Pr
       if (rows.length === 0 && fetchResult.maxNsu === lastNsu) {
         hasMore = false;
       }
+
+      if (singleShotMode) {
+        logger.warn("[NFE_DFE_DIST_SYNC] Single-shot ativo: paginação adicional suprimida", {
+          jobId,
+          companyId: parsedPayload.companyId,
+          environment: parsedPayload.environment,
+          page: pages,
+          has_more_from_first_response: fetchResult.hasMore,
+          last_nsu_after_first_response: lastNsu,
+          single_shot_mode: true,
+          caller: "lib/fiscal/inbound/sync-worker.ts:processDfeDistSyncJob",
+        });
+        break;
+      }
     }
 
-    if (pages >= maxPages) {
+    if (!singleShotMode && pages >= maxPages) {
       logger.warn("[NFE_DFE_DIST_SYNC] Encerrado por limite de páginas", {
         jobId,
         companyId: parsedPayload.companyId,

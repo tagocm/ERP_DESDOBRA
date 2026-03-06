@@ -447,6 +447,9 @@ class RealDfeProvider implements DfeProvider {
     const tpAmb = toTpAmb(args.environment);
     const cUFAutor = UF_TO_CODE[identity.uf];
     const requestedNsu = padNsu15(args.lastNsu);
+    const singleShotMode = String(process.env.NFE_DFE_DIST_SINGLE_SHOT ?? "").toLowerCase() === "true";
+    const caller = "lib/fiscal/inbound/provider.ts:RealDfeProvider.fetchByNsu";
+    const callTimestamp = new Date().toISOString();
 
     const xmlBody =
       `<distDFeInt xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.01">` +
@@ -462,8 +465,31 @@ class RealDfeProvider implements DfeProvider {
     });
     const endpoint = DIST_ENDPOINTS[args.environment];
 
+    logger.info("[NFE_DFE_DIST_SYNC] Dist request prepared", {
+      jobId: args.jobId ?? null,
+      company_id: args.companyId,
+      environment: args.environment,
+      cnpj: identity.cnpj,
+      ult_nsu_enviado: requestedNsu,
+      endpoint,
+      timestamp: callTimestamp,
+      caller,
+      single_shot_mode: singleShotMode,
+    });
+
+    if (singleShotMode) {
+      logger.info("[NFE_DFE_DIST_SYNC] Dist SOAP XML request", {
+        jobId: args.jobId ?? null,
+        company_id: args.companyId,
+        environment: args.environment,
+        caller,
+        single_shot_mode: true,
+        soap_request_xml: envelope,
+      });
+    }
+
     const { body, status } = await soapRequest(endpoint, DIST_SOAP_ACTION, envelope, cert, {
-      debug: process.env.SEFAZ_DEBUG === "true" || process.env.NFE_WS_DEBUG === "1",
+      debug: singleShotMode || process.env.SEFAZ_DEBUG === "true" || process.env.NFE_WS_DEBUG === "1",
       debugDir: process.env.SEFAZ_DEBUG_DIR,
       context: {
         jobId: args.jobId,
@@ -472,11 +498,40 @@ class RealDfeProvider implements DfeProvider {
       },
     });
 
+    if (singleShotMode) {
+      logger.info("[NFE_DFE_DIST_SYNC] Dist SOAP XML response", {
+        jobId: args.jobId ?? null,
+        company_id: args.companyId,
+        environment: args.environment,
+        caller,
+        single_shot_mode: true,
+        http_status: status,
+        soap_response_xml: body,
+      });
+    }
+
     if (status !== 200) {
       throw new Error(`Distribuição DF-e retornou HTTP ${status}.`);
     }
 
     const parsed = parseDistResponse(body);
+    logger.info("[NFE_DFE_DIST_SYNC] Dist response parsed", {
+      jobId: args.jobId ?? null,
+      company_id: args.companyId,
+      environment: args.environment,
+      cnpj: identity.cnpj,
+      ult_nsu_enviado: requestedNsu,
+      http_status: status,
+      c_stat: parsed.cStat,
+      x_motivo: parsed.xMotivo,
+      ult_nsu_retornado: parsed.ultNsu,
+      max_nsu_retornado: parsed.maxNsu,
+      docs_retornados: parsed.docs.length,
+      timestamp: new Date().toISOString(),
+      caller,
+      single_shot_mode: singleShotMode,
+    });
+
     if (parsed.cStat !== "137" && parsed.cStat !== "138") {
       throw new Error(`SEFAZ distribuição rejeitou: [${parsed.cStat}] ${parsed.xMotivo}`);
     }
@@ -499,14 +554,20 @@ class RealDfeProvider implements DfeProvider {
     const hasMore = compareNsu(parsed.ultNsu, parsed.maxNsu) < 0;
 
     logger.info("[NFE_DFE_DIST_SYNC] Real provider fetchByNsu", {
+      jobId: args.jobId ?? null,
       companyId: args.companyId,
       environment: args.environment,
+      cnpj: identity.cnpj,
       requestedAfter: requestedNsu,
       returned: docs.length,
       ultNsu: parsed.ultNsu,
       maxNsu: parsed.maxNsu,
       cStat: parsed.cStat,
+      xMotivo: parsed.xMotivo,
+      httpStatus: status,
       hasMore,
+      caller,
+      single_shot_mode: singleShotMode,
     });
 
     return DistProviderFetchResultSchema.parse({
